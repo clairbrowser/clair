@@ -37,7 +37,7 @@ Clair SHALL ship ungoogled-chromium's default settings and Google-service remova
 - **THEN** Clair contacts Google's extension servers only to download that extension and to check it for updates, and no other Google service
 
 ### Requirement: Browser behavior as in ungoogled-chromium outside Clair's interface
-Apart from its identity (`app-identity`), native layer (`native-layer`), updater (`software-updates`), native window (`browser-window`, `sidebar` and `command-bar`), Spaces (`spaces`), extensions (`extensions`) and the password and autofill features it turns off, Clair SHALL behave the same as its ungoogled-chromium release. That includes page rendering, settings, `chrome://` pages, profiles, history, extensions' APIs, and the menus and keyboard shortcuts the native window doesn't change.
+Apart from its identity (`app-identity`), native layer (`native-layer`), updater (`software-updates`), native window (`browser-window`, `sidebar`, `command-bar`), Spaces and profiles (`spaces`, `profiles`), extensions (`extensions`) and the password and autofill features it turns off, Clair SHALL behave as its ungoogled-chromium release: page rendering, settings, `chrome://` pages, each profile's data, history, extensions' APIs, and the menus and shortcuts the native window keeps.
 
 #### Scenario: Stock browser UI
 - **WHEN** a user opens a window in a bare engine build
