@@ -1,0 +1,3 @@
+kind: Fixed
+body: Closing a window that shows Spaces of more than one profile closes all of it, instead of leaving it open on a new tab page
+time: 2026-11-14T17:00:00.000000-05:00

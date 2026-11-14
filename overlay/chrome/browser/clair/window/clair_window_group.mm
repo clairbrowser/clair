@@ -621,13 +621,17 @@ void ClairWindowGroup::CloseByUser(tabs::TabInterface* closing) {
   if (IsClosing() || handing_over_) {
     return;
   }
-  closing_ = true;
   base::WeakPtr<ClairWindowGroup> weak = weak_factory_.GetWeakPtr();
+  // Before the group counts as closing: MostRecentlyActive() asks every
+  // group's IsClosing(), which forgets a close none of its members has
+  // started yet, as this one's.
   ClairWindowGroup* target = is_regular() && !browser_shutdown::IsTryingToQuit()
                                  ? MostRecentlyActive(this)
                                  : nullptr;
   if (!target) {
-    // Chromium's close flow, member by member, hidden ones first.
+    // Chromium's close flow, member by member, hidden ones first: each that
+    // leaves closes the next.
+    closing_ = true;
     CloseNext();
     return;
   }
