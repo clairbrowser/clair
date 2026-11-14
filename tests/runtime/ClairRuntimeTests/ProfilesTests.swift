@@ -688,6 +688,41 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertTrue(shown, "The settings page isn't in a Space of Work: \(browser.spaceName)")
   }
 
+  /// Staying on a page that asks stops the window's close, and every member
+  /// stays; closing again, and leaving, closes all of it (design D5, #147).
+  func testStayingOnAPageStopsTheWindowsClose() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    defer { home.close() }
+    // Home's member, hidden behind Work's, holds a page that asks.
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    let asking = try await browser.open(url("beforeunload.html"))
+    defer { asking.close() }
+    // The page asks only after a click.
+    _ = try await asking.evaluate("document.body.id = 'body'; 1")
+    try await asking.click("body")
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let work = await browser.waitForSpace("Work")
+    try require(work, "The window doesn't show Work: \(browser.spaceName)")
+
+    browser.nativeWindow.buttons[XCUIIdentifierCloseWindow].click()
+    let cancel = browser.ui.buttons["Cancel"]
+    try require(cancel.waitForExistence(timeout: 15), "Closing the window didn't ask about Home's page")
+    cancel.click()
+    try await Task.sleep(for: .seconds(2))
+    let urls = try await browser.pageTargets().map(\.url)
+    XCTAssertTrue(urls.contains { $0.hasSuffix("beforeunload.html") }, "Staying on the page closed it: \(urls)")
+    XCTAssertTrue(urls.contains { $0.hasPrefix("chrome://newtab") }, "Staying on the page closed Work's tab: \(urls)")
+    XCTAssertEqual(browser.visibleNativeWindowCount, 1, "Staying on the page didn't keep one window")
+
+    browser.nativeWindow.buttons[XCUIIdentifierCloseWindow].click()
+    let leave = browser.ui.buttons["Leave"]
+    try require(leave.waitForExistence(timeout: 15), "Closing the window again didn't ask about Home's page")
+    leave.click()
+    let closed = await Harness.wait(for: 30) { try await browser.pageTargets().isEmpty }
+    XCTAssertTrue(closed, "The window didn't close: \(try await browser.pageTargets().map(\.url))")
+  }
+
   /// A link from another app opens as a tab in a window already open, not
   /// in a window of its own (design D8).
   func testALinkFromAnotherAppOpensInAWindowAlreadyOpen() async throws {
