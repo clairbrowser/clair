@@ -1213,6 +1213,15 @@ void ClairBrowserWindow::CloseTabNow(tabs::TabHandle handle) {
 
 void ClairBrowserWindow::BeforeUnloadFired(content::WebContents* contents,
                                            bool proceed) {
+  // add-profiles D5: staying on a page cancels the window's close, which
+  // Chromium does on hearing the answer, after this; the group's close stops
+  // with it.
+  if (!proceed &&
+      UnloadController::From(browser_)->is_attempting_to_close_browser()) {
+    if (ClairWindowGroup* group = ClairWindowGroup::Of(this)) {
+      group->CloseCancelled(this);
+    }
+  }
   tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
   if (!tab || tab->GetHandle() != pending_close_) {
     return;
@@ -2257,7 +2266,17 @@ void ClairBrowserWindow::Close() {
   // Chromium's close flow: beforeunload may veto it; then the tabs close, and
   // TabStripEmpty() calls this again for the empty browser, whose deletion
   // UnloadController then schedules. The browser is never deleted here.
-  UnloadController::From(browser_)->OnWindowClosing();
+  UnloadController* unload = UnloadController::From(browser_);
+  unload->OnWindowClosing();
+  if (!browser_->IsDeleteScheduled() &&
+      !unload->is_attempting_to_close_browser()) {
+    // add-profiles D5: a warning, as of downloads in progress, stopped the
+    // close before it started; the group's close stops with it.
+    if (ClairWindowGroup* group = ClairWindowGroup::Of(this)) {
+      group->CloseCancelled(this);
+    }
+    return;
+  }
   if (browser_->IsDeleteScheduled()) {
     // add-profiles D4: a cover over this window stays, as the window.
     if (ClairWindowGroup* group = ClairWindowGroup::Of(this)) {

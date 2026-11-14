@@ -18,12 +18,21 @@ on:
         required: false
         default: false
         type: boolean
+      skip_free_space_check:
+        description: "Skip the free-space check before the build. The disk guard still stops a build that nears the floor."
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       ref:
         required: true
         type: string
       clean:
+        required: false
+        default: false
+        type: boolean
+      skip_free_space_check:
         required: false
         default: false
         type: boolean
@@ -182,7 +191,7 @@ jobs:
           fi
 
       - name: Check free space
-        if: ${{ steps.workspace.outputs.stages != '' && steps.key.outputs.published != 'true' }}
+        if: ${{ steps.workspace.outputs.stages != '' && steps.key.outputs.published != 'true' && !inputs.skip_free_space_check }}
         env:
           STAGES: ${{ steps.workspace.outputs.stages }}
         run: |

@@ -30,7 +30,6 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "url/gurl.h"
 
@@ -165,7 +164,6 @@ void ClairWindowGroup::Leave(ClairBrowserWindow* window) {
     return;
   }
   if (group->closing_) {
-    group->close_next_posted_ = true;
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&ClairWindowGroup::CloseNext, weak));
   } else if (was_shown) {
@@ -597,37 +595,19 @@ void ClairWindowGroup::FullscreenChanged(ClairBrowserWindow* member,
 
 // --- Closing (D5, D13) ---
 
-bool ClairWindowGroup::IsClosing() {
-  if (!closing_) {
-    return false;
-  }
-  if (close_next_posted_) {
-    return true;
-  }
-  for (ClairBrowserWindow* member : members_) {
-    Browser* browser = member->browser();
-    UnloadController* unload = UnloadController::From(browser);
-    if (browser->IsDeleteScheduled() ||
-        (unload && unload->is_attempting_to_close_browser())) {
-      return true;
-    }
-  }
-  // The close was cancelled, as by staying on a page that asked.
-  closing_ = false;
-  return false;
-}
-
 void ClairWindowGroup::CloseByUser(tabs::TabInterface* closing) {
   if (IsClosing() || handing_over_) {
     return;
   }
-  closing_ = true;
   base::WeakPtr<ClairWindowGroup> weak = weak_factory_.GetWeakPtr();
   ClairWindowGroup* target = is_regular() && !browser_shutdown::IsTryingToQuit()
                                  ? MostRecentlyActive(this)
                                  : nullptr;
   if (!target) {
-    // Chromium's close flow, member by member, hidden ones first.
+    // Chromium's close flow, member by member, hidden ones first: each that
+    // leaves closes the next. Handing tabs on isn't closing: each member
+    // closes once its strip empties.
+    closing_ = true;
     CloseNext();
     return;
   }
@@ -664,8 +644,16 @@ void ClairWindowGroup::CloseByUser(tabs::TabInterface* closing) {
   }
 }
 
+void ClairWindowGroup::CloseCancelled(ClairBrowserWindow* member) {
+  if (Of(member) == this) {
+    closing_ = false;
+  }
+}
+
 void ClairWindowGroup::CloseNext() {
-  close_next_posted_ = false;
+  if (!closing_) {
+    return;
+  }
   ClairBrowserWindow* next = nullptr;
   for (ClairBrowserWindow* member : members_) {
     if (member != shown_ && !member->browser()->IsDeleteScheduled()) {

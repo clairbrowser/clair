@@ -104,6 +104,10 @@ class ClairWindowGroup {
   // through Chromium's close flow, hidden ones first. `closing`, if any, is a
   // tab that closes with the window instead of being handed on (D13).
   void CloseByUser(tabs::TabInterface* closing = nullptr);
+  // `member`'s close was cancelled, as by staying on a page that asked or
+  // declining a warning: the group's close stops, and the members still
+  // open stay.
+  void CloseCancelled(ClairBrowserWindow* member);
   // A hidden member whose tabs have all gone closes.
   void MaybeCloseEmptyHiddenMember(ClairBrowserWindow* member);
 
@@ -165,9 +169,9 @@ class ClairWindowGroup {
   // Closes the next member through Chromium's close flow, hidden ones
   // first.
   void CloseNext();
-  // Whether the group is closing: a close it started hasn't been cancelled,
-  // as by staying on a page that asked. A cancelled one is forgotten.
-  bool IsClosing();
+  // Whether the group is closing through Chromium's close flow: a close it
+  // started hasn't been cancelled (CloseCancelled()).
+  bool IsClosing() const { return closing_; }
 
   // D6.
   static void SessionRestored(Profile* profile, int tab_count);
@@ -181,7 +185,6 @@ class ClairWindowGroup {
   raw_ptr<ClairBrowserWindow> fullscreen_owner_ = nullptr;
   // Closing through Chromium's close flow, one member after another.
   bool closing_ = false;
-  bool close_next_posted_ = false;
   // D8: handing its pages over; it takes no part any more.
   bool handing_over_ = false;
   // D6: the members session restore arranged, until the group switches; a
