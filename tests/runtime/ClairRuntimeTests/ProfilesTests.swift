@@ -669,9 +669,14 @@ final class ProfilesTests: NativeWindowTestCase {
   func testASettingsLinkWithNoWindowOpen() async throws {
     let (browser, home) = try await startWithWorkProfile()
     home.close()
-    browser.nativeWindow.buttons[XCUIIdentifierCloseWindow].click()
+    // Every tab closes from outside Clair, and each browser with its last.
+    let session = try await browser.browserSession()
+    for target in try await browser.pageTargets() {
+      _ = try? await session.send("Target.closeTarget", ["targetId": target.id])
+    }
+    session.close()
     let closed = await Harness.wait(for: 30) { try await browser.pageTargets().isEmpty }
-    try require(closed, "The window didn't close: \(try await browser.pageTargets().map(\.url))")
+    try require(closed, "The windows didn't close: \(try await browser.pageTargets().map(\.url))")
     try browser.openProfilesPage()
     browser.profileRow("Work")?.click()
     let links = browser.ui.windows["Profiles"].descendants(matching: .any).matching(identifier: "clair.profileLink")
