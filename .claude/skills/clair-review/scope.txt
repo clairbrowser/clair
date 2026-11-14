@@ -1,0 +1,198 @@
+# Which review section owns each tracked file: "<section id or -> <glob>".
+# The first rule that matches a path wins, "-" excludes the path, and "*" also
+# matches "/". `scripts/review.sh check` fails when a tracked file matches no
+# rule.
+#
+# Source files are listed one by one on purpose. A new source file then fails
+# the check until someone decides which reviewer reads it, where a catch-all
+# would hand it to the wrong one without anyone noticing. A section holds both
+# halves of a feature, C++ and Swift, so its reviewer sees each side of the
+# ClairHost.h contract.
+
+# --- 01 contract and window core
+01 native/ClairHost.h
+01 native/module.modulemap
+01 native/ClairUI/ClairUIMain.swift
+01 native/ClairUI/NativeLayer.swift
+01 native/ClairUI/BrowserWindowController.swift
+01 native/ClairUI/BrowserWindowModel.swift
+01 overlay/chrome/browser/clair/clair_native_layer.*
+01 overlay/chrome/browser/clair/clair_version.*
+01 overlay/chrome/browser/clair/window/clair_browser_window.*
+01 overlay/chrome/browser/clair/window/clair_native_window.*
+01 overlay/chrome/browser/clair/window/clair_browser_bridge.*
+01 overlay/chrome/browser/clair/window/clair_window_hooks.*
+01 overlay/ui/views/cocoa/*
+01 overlay/components/constrained_window/*
+01 patches/clair/native-layer-hook.patch
+01 patches/clair/native-window-hook.patch
+01 patches/clair/page-cannot-move-window.patch
+01 docs/native-window.md
+
+# --- 02 spaces, profiles, sessions and the sidebar
+02 native/ClairUI/SpacesModel.swift
+02 native/ClairUI/SpacesLogic.swift
+02 native/ClairUI/SpacesMenu.swift
+02 native/ClairUI/SpaceSwitcher.swift
+02 native/ClairUI/SpaceHeaderView.swift
+02 native/ClairUI/SpaceIconField.swift
+02 native/ClairUI/NewSpaceForm.swift
+02 native/ClairUI/ManageSpacesDialog.swift
+02 native/ClairUI/ProfileDialogs.swift
+02 native/ClairUI/ProfilesSettingsView.swift
+02 native/ClairUI/TabListLogic.swift
+02 native/ClairUI/SidebarView.swift
+02 native/ClairUI/SidebarPreferences.swift
+02 overlay/chrome/browser/clair/clair_space_store.*
+02 overlay/chrome/browser/clair/clair_space_tabs.*
+02 overlay/chrome/browser/clair/clair_profiles.*
+02 overlay/chrome/browser/clair/window/clair_window_group.*
+02 overlay/chrome/browser/clair/window/clair_space_session.*
+02 patches/clair/space-session.patch
+02 patches/clair/space-shortcuts.patch
+02 patches/clair/data-paths.patch
+02 patches/clair/dock-incognito.patch
+02 patches/helium/change-keychain-name.patch
+02 patches/helium/change-product-dir-name.patch
+
+# --- 03 extensions and the web store
+03 native/ClairUI/ExtensionPopupWindow.swift
+03 native/ClairUI/ExtensionPromptSheets.swift
+03 native/ClairUI/ExtensionsMenu.swift
+03 native/ClairUI/PinnedExtensions.swift
+03 overlay/chrome/browser/clair/window/clair_extensions.*
+03 overlay/components/clair_store_fixups/*
+03 patches/clair/restore-web-store.patch
+03 patches/clair/no-extension-uninstall-page.patch
+03 patches/helium/store-fixups-component.patch
+
+# --- 04 update and release chain
+04 native/ClairUI/UpdateConfiguration.swift
+04 native/ClairUI/UpdateController.swift
+04 native/ClairUI/UpdateMenu.swift
+04 native/ClairUI/UpdatePrompts.swift
+04 native/ClairUI/UpdateUserDriver.swift
+04 native/ClairUI/IdleInstaller.swift
+04 native/ClairUI/AboutWindow.swift
+04 overlay/chrome/browser/mac/clair_update_relaunch.*
+04 patches/clair/update-relaunch-hook.patch
+04 patches/clair/versioning.patch
+04 patches/clair/branding.patch
+04 package.sh
+04 package.test.sh
+04 version.txt
+04 .changie.yaml
+04 scripts/append-appcast-item.*
+04 scripts/check-release-credentials.*
+04 scripts/fetch-dmgbuild.*
+04 scripts/fetch-sparkle.*
+04 scripts/find-quality-pass.*
+04 scripts/make-deltas.*
+04 scripts/make-test-appcast.*
+04 scripts/publish-release.*
+04 scripts/release-keychain.*
+04 scripts/release-preflight.*
+04 scripts/render-dmg-background.*
+04 scripts/render-notes.*
+04 scripts/report-quality.*
+04 scripts/verify-app.*
+04 .github/workflows/ci.yml
+04 .github/workflows/engine.yml
+04 .github/workflows/quality.yml
+04 .github/workflows/release.yml
+04 .github/workflows/release-secrets-check.yml
+04 .github/workflows/runner-check.yml
+04 .github/scripts/prepare-runner.sh
+04 .github/scripts/select-xcode.sh
+04 .github/scripts/smoke-test.sh
+04 .github/actionlint.yaml
+04 entitlements/*
+04 .sparkle/*
+04 docs/releasing.md
+04 docs/updates.md
+
+# --- 05 navigation and page-facing UI
+05 native/ClairUI/URLDisplay.swift
+05 native/ClairUI/CommandBarModel.swift
+05 native/ClairUI/SiteControlCenter.swift
+05 native/ClairUI/PeekViews.swift
+05 native/ClairUI/PeekPreference.swift
+05 native/ClairUI/ClairDialog.swift
+05 native/ClairUI/NoticePopup.swift
+05 native/ClairUI/StatusCapsule.swift
+05 native/ClairUI/ReloadStopMode.swift
+05 native/ClairUI/HistoryMenu.swift
+05 overlay/chrome/browser/clair/window/clair_autocomplete.*
+05 overlay/chrome/browser/clair/window/clair_peeks.*
+05 overlay/chrome/browser/clair/window/clair_peek_session.*
+05 overlay/chrome/browser/clair/window/clair_downloads.*
+05 patches/clair/peek-session.patch
+05 patches/clair/copy-url-shortcut.patch
+05 patches/clair/first-run-page.patch
+
+# --- 06 the rest of ClairUI and its unit tests
+06 native/ClairUI/BrowserRootView.swift
+06 native/ClairUI/PageCardView.swift
+06 native/ClairUI/OverlayViews.swift
+06 native/ClairUI/SettingsWindow.swift
+06 native/ClairUI/Tooltip.swift
+06 native/ClairUI/LoadingIndicator.swift
+06 native/ClairUI/PageTopWindowDrag.swift
+06 native/ClairUI/IconButton.swift
+06 native/ClairUI/TitleBarArea.swift
+06 native/ClairUI/WindowLayout.swift
+06 native/ClairUI/SpringValue.swift
+06 native/ClairUI/AnchorResolver.swift
+06 native/ClairUI/MainMenuTitles.swift
+06 native/ClairUITests/*
+06 native/ClairUI.xcodeproj/*
+
+# --- 07 build and test infrastructure
+07 build.sh
+07 retrieve_and_unpack_resource.py
+07 downloads-arm64.ini
+07 flags.clair.gn
+07 flags.macos.gn
+07 .gitmodules
+07 .gitignore
+07 utils/*
+07 scripts/apply-overlay.*
+07 scripts/compile-icon.*
+07 scripts/engine-key.*
+07 scripts/filter-domain-substitution.*
+07 scripts/install-native-contract.*
+07 scripts/patch-no-fuzz.*
+07 scripts/render-icon-images.*
+07 scripts/replace-icon-resources.*
+07 scripts/review.*
+07 scripts/run-local.*
+07 scripts/sync-tree.test.sh
+07 patches/series
+07 patches/clair/settings-logo-icons.patch
+07 patches/helium/webui-logo-icons.patch
+07 patches/ungoogled-chromium-macos/*
+07 tests/*
+07 docs/building.md
+07 resources/*.py
+07 resources/icon/product-logos.txt
+
+# --- 08 specs and decisions
+# Archived tasks and delta specs are history: the specs were synced into
+# openspec/specs when each change was archived.
+-  openspec/changes/archive/.gitkeep
+-  openspec/changes/archive/*/tasks.md
+-  openspec/changes/archive/*/specs/*
+-  openspec/*.openspec.yaml
+-  openspec/*.jpg
+08 openspec/*
+08 CLAUDE.md
+
+# --- excluded
+-  resources/*
+-  .changes/*
+-  .claude/*
+-  .github/FUNDING.yml
+-  CHANGELOG.md
+-  CREDITS.md
+-  LICENSE*
+-  ungoogled-chromium
