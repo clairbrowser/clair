@@ -720,7 +720,7 @@ final class ProfilesTests: NativeWindowTestCase {
     try require(leave.waitForExistence(timeout: 15), "Closing the window again didn't ask about Home's page")
     leave.click()
     let closed = await Harness.wait(for: 30) { try await browser.pageTargets().isEmpty }
-    XCTAssertTrue(closed, "The window didn't close: \(try await browser.pageTargets().map(\.url))")
+    try require(closed, "The window didn't close: \(try await browser.pageTargets().map(\.url))")
   }
 
   /// A link from another app opens as a tab in a window already open, not
