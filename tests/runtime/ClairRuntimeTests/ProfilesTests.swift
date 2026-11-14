@@ -551,6 +551,176 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertTrue(controls, "The window kept the cover's hidden controls")
   }
 
+  /// The Extensions menu acts for the shown Space's profile: Manage
+  /// Extensions… opens Chromium's page in that profile, in its Space.
+  func testTheExtensionsMenuFollowsTheProfile() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    defer { home.close() }
+    try require(browser.spaceName == "Work", "The window doesn't show Work")
+    func manageExtensions() {
+      browser.ui.menuBars.menuBarItems["Extensions"].click()
+      browser.ui.menuItems["Manage Extensions…"].click()
+    }
+    manageExtensions()
+    let inWork = await browser.waitForTabs(30) { $0.contains("Extensions") }
+    XCTAssertTrue(inWork, "Manage Extensions… didn't open in Work: \(browser.tabTitles)")
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    manageExtensions()
+    let inHome = await browser.waitForTabs(30) { $0.contains("Extensions") }
+    XCTAssertTrue(inHome, "Manage Extensions… didn't open in Home: \(browser.tabTitles)")
+    // One page per profile: within one profile Chromium would reuse its tab.
+    let pages = try await browser.pageTargets().filter { $0.url.hasPrefix("chrome://extensions") }
+    XCTAssertEqual(pages.count, 2, "The two Spaces' profiles share an extensions page")
+  }
+
+  /// Taking a tab of another profile between windows keeps its page and
+  /// leaves a still; closing a window with tabs of two profiles keeps them
+  /// all, without a reload (design D5).
+  func testSharedTabsAcrossProfiles() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    defer { home.close() }
+    _ = try await home.evaluate("window.counter = 9; 1")
+    // Window A, on Work, holds Counter w; Counter home, of the default
+    // profile, is in its hidden member.
+    let w = try await browser.open(counter("w"))
+    defer { w.close() }
+    _ = await browser.waitForTabs { $0.contains("Counter w") }
+    _ = try await w.evaluate("window.counter = 5; 1")
+    let b = try await browser.open(counter("b"), newWindow: true)
+    defer { b.close() }
+    _ = try await browser.waitForNativeWindows(2)
+    try await tile([w, b], in: browser)
+    try await Task.sleep(for: .seconds(1))
+    let windows = try await browser.waitForNativeWindows(2).sorted { $0.frame.minX < $1.frame.minX }
+    let windowA = windows[0], windowB = windows[1]
+
+    // B shows Home and takes Counter home, which no window shows.
+    windowB.click()
+    browser.ui.typeKey("1", modifierFlags: .control)
+    let bOnHome = await Harness.wait(for: 15) { windowB.spaceName == "Home" }
+    try require(bOnHome, "B didn't switch to Home")
+    windowB.tabRow("Counter home")?.click()
+    let tookHome = await windowB.waitForActiveRow("Counter home")
+    try require(tookHome, "B didn't show Counter home: \(windowB.activeRow ?? "none")")
+
+    // B switches to Work and takes Counter w from A.
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let bOnWork = await Harness.wait(for: 15) { windowB.spaceName == "Work" }
+    try require(bOnWork, "B didn't switch to Work")
+    windowB.tabRow("Counter w")?.click()
+    let taken = await windowB.waitForActiveRow("Counter w")
+    try require(taken, "B didn't show Counter w: \(windowB.activeRow ?? "none")")
+    let takenCount = try await w.evaluate("window.counter") as? Double
+    XCTAssertEqual(takenCount, 5, "Taking the tab reloaded its page")
+    let still = await windowA.waitForStill()
+    XCTAssertTrue(still, "A shows no still of the tab B took")
+
+    // Closing B keeps both its tabs, of two profiles, in A.
+    windowB.click()
+    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
+    _ = try await browser.waitForNativeWindows(1)
+    let workKept = await browser.waitForTabs { $0.contains("Counter w") }
+    XCTAssertTrue(workKept, "A's Work doesn't list Counter w: \(browser.tabTitles)")
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    let homeKept = await browser.waitForTabs { $0.contains("Counter home") }
+    XCTAssertTrue(homeKept, "A's Home doesn't list Counter home: \(browser.tabTitles)")
+    let wCount = try await w.evaluate("window.counter") as? Double
+    let homeCount = try await home.evaluate("window.counter") as? Double
+    XCTAssertEqual(wCount, 5, "Counter w reloaded")
+    XCTAssertEqual(homeCount, 9, "Counter home reloaded")
+  }
+
+  /// A data folder from before profiles, whose Spaces name no profile, loads
+  /// with every Space on the default profile (design D2).
+  func testAnOldDataFolderLoadsOnTheDefaultProfile() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    home.close()
+    try await Task.sleep(for: .seconds(3))
+    try await browser.quit()
+    let localState = browser.dataDirectory.appending(path: "Local State")
+    guard var state = try JSONSerialization.jsonObject(with: Data(contentsOf: localState)) as? [String: Any],
+      var clair = state["clair"] as? [String: Any],
+      var store = clair["spaces"] as? [String: Any],
+      var entries = store["spaces"] as? [String: [String: Any]]
+    else {
+      throw HarnessError("Local State has no clair.spaces")
+    }
+    for id in entries.keys {
+      entries[id]?.removeValue(forKey: "profile")
+    }
+    store["spaces"] = entries
+    clair["spaces"] = store
+    state["clair"] = clair
+    try JSONSerialization.data(withJSONObject: state).write(to: localState)
+
+    try await browser.start()
+    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
+    try browser.openProfilesPage()
+    let labels = await Harness.wait(for: 15) {
+      browser.profileRows.map(\.label) == ["\(Self.defaultProfile), 2 Spaces", "Work"]
+    }
+    XCTAssertTrue(labels, "Both Spaces aren't on the default profile: \(browser.profileRows.map(\.label))")
+  }
+
+  /// A Settings link for a profile opens with no window open: a new window,
+  /// on a Space of that profile (design D7).
+  func testASettingsLinkWithNoWindowOpen() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    home.close()
+    browser.nativeWindow.buttons[XCUIIdentifierCloseWindow].click()
+    let closed = await Harness.wait(for: 30) { try await browser.pageTargets().isEmpty }
+    try require(closed, "The window didn't close: \(try await browser.pageTargets().map(\.url))")
+    try browser.openProfilesPage()
+    browser.profileRow("Work")?.click()
+    let links = browser.ui.windows["Profiles"].descendants(matching: .any).matching(identifier: "clair.profileLink")
+      .allElementsBoundByIndex
+    try require(links.count == 4, "The page doesn't have four link rows")
+    links[1].click()
+    let opened = await browser.waitForTarget("chrome://settings/privacy", seconds: 30)
+    XCTAssertTrue(opened, "Privacy and Security didn't open chrome://settings/privacy")
+    let window = await Harness.wait(for: 30) { browser.visibleNativeWindowCount == 1 }
+    XCTAssertTrue(window, "No window opened for the link")
+    let shown = await browser.waitForSpace("Work", seconds: 15)
+    XCTAssertTrue(shown, "The settings page isn't in a Space of Work: \(browser.spaceName)")
+  }
+
+  /// A link from another app opens as a tab in a window already open, not
+  /// in a window of its own (design D8).
+  func testALinkFromAnotherAppOpensInAWindowAlreadyOpen() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    defer { home.close() }
+    let session = try await browser.browserSession()
+    defer { session.close() }
+    func windowOf(_ target: Browser.Target) async throws -> Int? {
+      let window = try await session.send("Browser.getWindowForTarget", ["targetId": target.id])
+      return window["windowId"] as? Int
+    }
+    var windows: Set<Int> = []
+    for target in try await browser.pageTargets() {
+      if let window = try await windowOf(target) {
+        windows.insert(window)
+      }
+    }
+    // As a link from outside reaches the running Clair: a second launch on
+    // its data folder hands the URL over and exits. XCUITest loses track of
+    // the app after it, so what follows goes through DevTools alone.
+    let launch = Process()
+    launch.executableURL = browser.appPath.appending(path: "Contents/MacOS/Clair")
+    launch.arguments = [
+      "--user-data-dir=\(browser.dataDirectory.path)", "--use-mock-keychain", url("counter.html?external"),
+    ]
+    try launch.run()
+    let opened = await browser.waitForTarget("?external", seconds: 30)
+    try require(opened, "The link didn't open")
+    guard let target = try await browser.target(endingWith: "?external") else {
+      throw HarnessError("The link's tab is gone")
+    }
+    let window = try await windowOf(target)
+    XCTAssertTrue(window.map(windows.contains) == true, "The link opened in a window of its own")
+  }
+
   func testDownloadSettingsAndLinksPerProfile() async throws {
     let (browser, home) = try await startWithWorkProfile()
     defer { home.close() }

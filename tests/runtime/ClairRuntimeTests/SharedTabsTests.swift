@@ -103,28 +103,6 @@ extension Browser {
 final class SharedTabsTests: NativeWindowTestCase {
   func counter(_ name: String) -> String { url("counter.html?\(name)") }
 
-  /// Puts the windows of `tabs` side by side, left to right, so a click
-  /// meant for one never lands on another.
-  func tile(_ tabs: [DevToolsSession], in browser: Browser) async throws {
-    let session = try await browser.browserSession()
-    defer { session.close() }
-    let screen = NSScreen.main?.frame.size ?? CGSize(width: 1440, height: 900)
-    let width = Int(screen.width) / tabs.count
-    let height = Int(min(900, screen.height - 80))
-    for (index, tab) in tabs.enumerated() {
-      guard let targetID = try await tab.targetID(in: browser) else {
-        throw HarnessError("A tab to tile has no target")
-      }
-      let window = try await session.send("Browser.getWindowForTarget", ["targetId": targetID])
-      guard let windowID = window["windowId"] as? Int else {
-        throw HarnessError("A tab to tile has no window")
-      }
-      try await session.send(
-        "Browser.setWindowBounds",
-        ["windowId": windowID, "bounds": ["left": index * width, "top": 40, "width": width, "height": height]])
-    }
-  }
-
   /// Starts Clair with Counter a in window A, then opens Counter b in a new
   /// window B, which is key, and puts A on the left and B on the right.
   func startWithTwoWindows() async throws -> (Browser, NativeWindow, NativeWindow, DevToolsSession, DevToolsSession) {
@@ -553,5 +531,29 @@ final class SharedTabsTests: NativeWindowTestCase {
     }
     try await Task.sleep(for: .seconds(3))
     XCTAssertEqual(browser.nativeWindows.count, 1, "The window that showed only a still came back")
+  }
+}
+
+extension NativeWindowTestCase {
+  /// Puts the windows of `tabs` side by side, left to right, so a click
+  /// meant for one never lands on another.
+  func tile(_ tabs: [DevToolsSession], in browser: Browser) async throws {
+    let session = try await browser.browserSession()
+    defer { session.close() }
+    let screen = NSScreen.main?.frame.size ?? CGSize(width: 1440, height: 900)
+    let width = Int(screen.width) / tabs.count
+    let height = Int(min(900, screen.height - 80))
+    for (index, tab) in tabs.enumerated() {
+      guard let targetID = try await tab.targetID(in: browser) else {
+        throw HarnessError("A tab to tile has no target")
+      }
+      let window = try await session.send("Browser.getWindowForTarget", ["targetId": targetID])
+      guard let windowID = window["windowId"] as? Int else {
+        throw HarnessError("A tab to tile has no window")
+      }
+      try await session.send(
+        "Browser.setWindowBounds",
+        ["windowId": windowID, "bounds": ["left": index * width, "top": 40, "width": width, "height": height]])
+    }
   }
 }
