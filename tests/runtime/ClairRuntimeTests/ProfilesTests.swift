@@ -422,6 +422,135 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertEqual(rows, ["Counter other", "Counter work"], "The windows don't show their tabs: \(rows)")
   }
 
+  /// A window of two profiles comes back as one window on every relaunch:
+  /// the browser a later profile restores joins the group, and its tabs'
+  /// session tags follow it (design D6).
+  func testRestoringOnKeepsTheGroupAcrossTwoRelaunches() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    let work = try await browser.open(counter("work"))
+    _ = await browser.waitForTabs { $0.contains("Counter work") }
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    try await Task.sleep(for: .seconds(3))
+    [home, work].forEach { $0.close() }
+    try await browser.quit()
+    try Harness.setRestoreWindows(true)
+    for launch in ["first", "second"] {
+      try await browser.start()
+      try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back (\(launch))")
+      // Each profile restores in turn; give the later one time to join.
+      try await Task.sleep(for: .seconds(5))
+      XCTAssertEqual(browser.visibleNativeWindowCount, 1, "The window came back split (\(launch) relaunch)")
+      if launch == "first" {
+        try await browser.quit()
+      }
+    }
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let onWork = await browser.waitForTabs(30) { $0.contains("Counter work") }
+    XCTAssertTrue(onWork, "Work doesn't list its tab: \(browser.tabTitles)")
+    XCTAssertEqual(browser.visibleNativeWindowCount, 1, "Switching to Work showed a second window")
+  }
+
+  /// With restoring on, a window last on a new tab page comes back on one,
+  /// though new tab pages themselves aren't restored (design D6).
+  func testRestoringOnASelectedNewTabPage() async throws {
+    try Harness.setRestoreWindows(true)
+    let (browser, home) = try await startWithPage("counter.html?home")
+    let newTab = try await browser.open("chrome://newtab/")
+    let selected = await browser.waitForActiveRow("New Tab")
+    try require(selected, "The new tab page isn't the active row: \(browser.activeRow ?? "none")")
+    try await Task.sleep(for: .seconds(3))
+    [home, newTab].forEach { $0.close() }
+    try await browser.quit()
+    try await browser.start()
+    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
+    let listed = await browser.waitForTabs(30) { $0.contains("Counter home") }
+    XCTAssertTrue(listed, "Home doesn't list its tab: \(browser.tabTitles)")
+    let onNewTab = await browser.waitForActiveRow("New Tab", seconds: 30)
+    XCTAssertTrue(onNewTab, "The window came back on \(browser.activeRow ?? "none"), not a new tab page")
+  }
+
+  /// Changing the profile of a Space two windows show swaps both, including
+  /// the one that only shows a still of its tab (design D9).
+  func testSettingTheProfileOfASpaceTwoWindowsShow() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    defer { home.close() }
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    let second = try await browser.open(counter("second"), newWindow: true)
+    defer { second.close() }
+    let windows = try await browser.waitForNativeWindows(2)
+    // Both show Home; the second takes Counter home, so the first shows a
+    // still of it and holds no tab it shows.
+    guard let taker = windows.first(where: { $0.activeRow == "Counter second" }),
+      let other = windows.first(where: { $0.frame != taker.frame })
+    else {
+      throw HarnessError("No window shows Counter second: \(windows.map(\.activeRow))")
+    }
+    try require(other.spaceName == "Home" && taker.spaceName == "Home", "The windows don't both show Home")
+    taker.tabRow("Counter home")?.click()
+    let still = await other.waitForStill()
+    try require(still, "The other window doesn't show a still of Counter home")
+    let before = taker.tabTitles
+    try await browser.setProfileFromHeader("Work")
+    try require(browser.dialog.waitForExistence(timeout: 10), "A Space with tabs didn't ask")
+    browser.dialogElement("clair.dialogDefault").click()
+    // Both windows show Home in Work's profile and list its rows alike: the
+    // reopened ones, and one new tab page for the window that showed the
+    // still (D9). A window left on the old profile would list a new tab page
+    // of its own as well.
+    let after = try await browser.waitForNativeWindows(2)
+    let same = await Harness.wait(for: 30) {
+      let titles = after.map(\.tabTitles)
+      return titles.count == 2 && titles[0].sorted() == titles[1].sorted()
+        && titles[0].sorted() == (before + ["New Tab"]).sorted()
+    }
+    XCTAssertTrue(same, "The windows don't list Home's tabs as expected: \(after.map(\.tabTitles)) from \(before)")
+    XCTAssertTrue(after.allSatisfy { $0.spaceName == "Home" }, "A window left Home")
+  }
+
+  /// In full screen, Work covers Home's full-screen window. When Home's
+  /// window closes under it, as its only tab closes from outside Clair,
+  /// Work's window stays, as a window of its own (design D4).
+  func testTheCoverStaysWhenTheFullScreenWindowCloses() async throws {
+    let (browser, home) = try await startWithWorkProfile()
+    defer { home.close() }
+    // Work holds a page of its own, so that only Home's tabs are new tab
+    // pages and Counter home.
+    let work = try await browser.open(counter("work"))
+    defer { work.close() }
+    _ = await browser.waitForTabs { $0.contains("Counter work") }
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    browser.ui.typeKey("f", modifierFlags: [.control, .command])
+    let screen = NSScreen.main?.frame.size ?? .zero
+    let full = await Harness.wait(for: 30) { browser.nativeWindow.frame.size == screen }
+    try require(full, "The window didn't go full screen: \(browser.nativeWindow.frame)")
+    try await Task.sleep(for: .seconds(1))
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let onWork = await browser.waitForSpace("Work", seconds: 30)
+    try require(onWork, "Ctrl+2 didn't show Work in full screen")
+    browser.tabRow("Counter work")?.click()
+    _ = await browser.waitForActiveRow("Counter work")
+    // Every tab of Home's full-screen window closes from outside Clair, and
+    // the window with them.
+    let session = try await browser.browserSession()
+    for target in try await browser.pageTargets()
+    where target.url.hasSuffix("?home") || target.url.hasPrefix("chrome://newtab") {
+      _ = try? await session.send("Target.closeTarget", ["targetId": target.id])
+    }
+    session.close()
+    let gone = await browser.waitForTarget("?home", open: false, seconds: 30)
+    try require(gone, "Counter home didn't close")
+    let alone = await Harness.wait(for: 15) { browser.visibleNativeWindowCount == 1 }
+    XCTAssertTrue(alone, "Work's window didn't stay alone: \(browser.visibleNativeWindowCount)")
+    XCTAssertEqual(browser.spaceName, "Work", "The window doesn't show Work")
+    let controls = await Harness.wait(for: 10) {
+      browser.nativeWindow.buttons[XCUIIdentifierCloseWindow].exists
+    }
+    XCTAssertTrue(controls, "The window kept the cover's hidden controls")
+  }
+
   func testDownloadSettingsAndLinksPerProfile() async throws {
     let (browser, home) = try await startWithWorkProfile()
     defer { home.close() }
