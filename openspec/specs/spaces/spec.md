@@ -17,11 +17,15 @@ Clair SHALL keep an ordered list of Spaces. Each Space SHALL have a name and an 
 - **THEN** the Spaces "Home", "Work" and "Travel" exist in that order, each with its name and icon
 
 ### Requirement: Space header
-Above the tab list, the sidebar SHALL show the current Space's icon, if it has one, and its name. Right-clicking the header SHALL open a menu offering Change Space Icon…, Rename Space…, Manage Spaces… and Delete Space. An incognito or guest window SHALL show no Space header.
+Above the tab list, the sidebar SHALL show the current Space's icon, if it has one, and its name. Right-clicking the header SHALL open a menu offering Change Space Icon…, Rename Space…, Set Profile (`profiles`), Manage Spaces… and Delete Space. An incognito or guest window SHALL show no Space header.
 
 #### Scenario: Header shows the Space
 - **WHEN** a window shows the Space "Work", whose icon is 💼
 - **THEN** the sidebar shows 💼 and "Work" above the "New Tab" row
+
+#### Scenario: Header menu
+- **WHEN** the user right-clicks the header
+- **THEN** the menu lists Change Space Icon…, Rename Space…, Set Profile, Manage Spaces… and Delete Space, in that order
 
 #### Scenario: Incognito window
 - **WHEN** the user opens an incognito window
@@ -73,7 +77,7 @@ A window SHALL always show a tab. When it switches to a Space, it SHALL show the
 - **THEN** B shows a new tab page in "Work", and A is unchanged
 
 ### Requirement: Creating a Space
-Spaces › New Space… and the footer's plus menu SHALL replace the sidebar's content with a form, as in Arc: a name field with an icon button, "Create Space" and "Cancel". "Create Space" SHALL be disabled until a name is typed. Creating SHALL add the Space after the last one and show it in the window. Cancel or Esc SHALL return to the Space shown before, creating nothing.
+Spaces › New Space… and the footer's plus menu SHALL replace the sidebar's content with a form, as in Arc: a name field with an icon button, a profile popup (`profiles`), "Create Space" and "Cancel". "Create Space" SHALL be disabled until a name is typed. Creating SHALL add the Space after the last one and show it in the window. Cancel or Esc SHALL return to the Space shown before, creating nothing.
 
 #### Scenario: Creating a Space
 - **WHEN** the user opens the form, types "Work" and clicks "Create Space"
@@ -144,11 +148,11 @@ Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs
 - **THEN** the Space and its tabs are untouched
 
 ### Requirement: Manage Spaces dialog
-Manage Spaces…, in the Spaces menu and the Space header's menu, SHALL open a dialog on the window, with every Space in order on the left, each with its icon, name and number of tabs, and the selected Space's name and icon on the right. It SHALL open with the window's Space selected, and "Done" or Esc SHALL close it.
+Manage Spaces…, in the Spaces menu and the Space header's menu, SHALL open a dialog on the window, with every Space in order on the left, each with its icon, name and number of tabs, and the selected Space's name, icon and profile popup (`profiles`) on the right. It SHALL open with the window's Space selected, and "Done" or Esc SHALL close it.
 
 #### Scenario: Opening
 - **WHEN** a window shows "Work" and the user chooses Manage Spaces…
-- **THEN** the dialog lists every Space in order with "Work" selected, and shows its name and icon
+- **THEN** the dialog lists every Space in order with "Work" selected, and shows its name, icon and profile
 
 #### Scenario: Closing
 - **WHEN** the user clicks "Done"
@@ -189,22 +193,22 @@ Every tab outside incognito and guest windows SHALL belong to exactly one Space.
 - **THEN** the new tab is listed in "Work"
 
 ### Requirement: Moving a tab to another Space
-With more than one Space, a tab row's context menu SHALL offer "Move to Space" with every other Space. Choosing one SHALL put the tab at the top of that Space's list and remove it from this one, keeping its page as it is and leaving the window on the Space it shows.
-
-#### Scenario: Moving a tab
-- **WHEN** the user moves a tab with a half-filled form from "Home" to "Research"
-- **THEN** the tab is first in "Research" with the form as it was, and "Home" no longer lists it
+With more than one Space, a tab row's context menu SHALL offer "Move to Space" with every other Space, which puts the tab at the top of that Space's list. Moving the active tab SHALL switch the window to that Space, showing the tab; moving another tab SHALL leave the window as it is and show "Tab was moved to" and the Space's name, in the popup Copy URL uses. Within a profile the tab SHALL keep its page; across profiles, `profiles` applies.
 
 #### Scenario: Moving the active tab
-- **WHEN** the user moves the active tab to another Space
-- **THEN** the window stays on its Space and shows the tab it would show had the moved tab been closed
+- **WHEN** a window shows "Home" on a tab, and the user moves that tab to "Research"
+- **THEN** the window shows "Research" with the tab first in its list and active, and "Home" no longer lists it
+
+#### Scenario: Moving a tab
+- **WHEN** a window shows "Home" on the tab "Docs", and the user moves the tab "Maps", which has a half-filled form, to "Research", which uses the same profile
+- **THEN** the window keeps showing "Docs" in "Home", "Maps" is first in "Research" with the form as it was, and a notice says "Tab was moved to Research"
 
 #### Scenario: One Space
 - **WHEN** there is one Space
 - **THEN** the tab's menu has no "Move to Space"
 
 ### Requirement: Tab chosen after a close
-When the user closes the active tab, the window SHALL show, in order: the tab the user selected it from, if it's still listed in the Space; otherwise the row above it; otherwise the row below it, among every row the sidebar lists. A tab another window shows SHALL NOT be skipped: this window shows it, and the other window its still. When the Space has no other tab, the window SHALL show a tab of another Space that no window shows, switching to that Space, or close if there is none.
+When the user closes the active tab, the window SHALL show the tab it was selected from, if the Space still lists it; else the row above; else the row below, among every row the sidebar lists, one another window shows included (that window then shows its still). With no other tab, the window SHALL stay on the Space, on a new tab page with the command bar, never on another Space's tab. Closing a new tab page that is the Space's only tab SHALL close the window.
 
 #### Scenario: Back to where the user came from
 - **WHEN** the rows are E, D, C, B, A, and the user selects A, then C, then closes C
@@ -219,8 +223,12 @@ When the user closes the active tab, the window SHALL show, in order: the tab th
 - **THEN** the row below is active
 
 #### Scenario: The Space's last tab
-- **WHEN** the user closes the only tab of "Work" while "Home" has a tab that no window is showing
-- **THEN** the window shows "Home"
+- **WHEN** the user closes the only tab of "Work" while "Home" has tabs
+- **THEN** the window keeps showing "Work", on a new tab page with the command bar open, and no tab of "Home" is shown or moved
+
+#### Scenario: Closing an empty Space's new tab page
+- **WHEN** the only tab of "Work" is a new tab page and the user closes it
+- **THEN** the window closes
 
 #### Scenario: Staying on a page that asks
 - **WHEN** the user closes the active tab, its page asks whether to leave, and the user cancels
@@ -265,15 +273,23 @@ Tabs › Next Tab (Opt+Cmd+Down), Previous Tab (Opt+Cmd+Up), Ctrl+Tab, Cmd+1 to 
 - **THEN** this window shows Y
 
 ### Requirement: Spaces restored after a relaunch
-After Clair quits and relaunches, each restored tab SHALL return to its Space at its place in the Space's order, and the window SHALL show the Space that was last shown. A tab whose Space no longer exists SHALL join the Space its window shows.
+After Clair quits and relaunches, each restored tab SHALL return to its Space at its place in the Space's order, whichever windows come back (`browser-window`, "Windows restored at launch"). A tab whose Space no longer exists SHALL join the Space its window shows.
 
 #### Scenario: Relaunch
 - **WHEN** the user quits with a window showing "Work", which has three tabs, while "Home" has two, and relaunches
-- **THEN** the window shows "Work" with its three tabs in order, and switching to "Home" lists its two
+- **THEN** the window shows "Work", listing its three tabs in order, and switching to "Home" lists its two
+
+#### Scenario: Two windows, not restored
+- **WHEN** the user quits with two windows open, which opened tabs of "Work" between them, and relaunches with restoring windows off (`browser-window`)
+- **THEN** the one window lists every one of those tabs in "Work", in order
 
 #### Scenario: Reopen Closed Tab
 - **WHEN** the user closes a tab of "Work", switches to "Home" and chooses Restore Last Closed Tab
 - **THEN** the tab comes back in "Work", and the window shows "Work"
+
+#### Scenario: Reopening a tab of a deleted Space
+- **WHEN** the user closes a tab of "Work", deletes "Work", and chooses Restore Last Closed Tab in a window showing "Home"
+- **THEN** the tab comes back in "Home"
 
 ### Requirement: One tab list for every window
 Every window showing a Space SHALL list the same tabs for it, in the same order, whichever window they were opened in. A change made in one window, such as opening, closing or reordering a tab, SHALL show in the others at once.
