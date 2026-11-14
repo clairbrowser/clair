@@ -344,6 +344,10 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   // add-spaces D3: the Space the window showed before the change ClairUI
   // hasn't heard of yet.
   std::optional<std::string> _previousSpace;
+  // add-profiles D3: the member the group swapped this window in for, or
+  // none. ClairUI hears of the swap even when the Space is the one the group
+  // showed, as when that Space's profile changed (D9).
+  ClairBrowserID _swappedInFor;
   ClairChromiumHistoryMenu* __weak _historyMenu;
 }
 
@@ -451,6 +455,13 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   [self postFlush];
 }
 
+- (void)swappedInFrom:(const std::string&)previousSpace
+                  for:(ClairBrowserID)outgoingBrowserID {
+  _previousSpace = previousSpace;
+  _swappedInFor = outgoingBrowserID;
+  [self postFlush];
+}
+
 - (void)activeTabChanged {
   [_historyMenu activeTabChanged];
   _activeTabChanged = YES;
@@ -470,6 +481,7 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   id<ClairWindow> window = _window;
   if (!window || !_browserWindow) {
     _previousSpace.reset();
+    _swappedInFor = ClairBrowserIDNone;
     _activeTabChanged = NO;
     _stillChanged = NO;
     return;
@@ -477,11 +489,15 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   if (_previousSpace) {
     const std::string previous = *_previousSpace;
     _previousSpace.reset();
-    if (previous != _browserWindow->shown_space()) {
+    const ClairBrowserID swappedInFor = _swappedInFor;
+    _swappedInFor = ClairBrowserIDNone;
+    if (previous != _browserWindow->shown_space() ||
+        swappedInFor != ClairBrowserIDNone) {
       [window shownSpaceDidChange:self.shownSpaceID
                              from:previous.empty()
                                       ? nil
-                                      : base::SysUTF8ToNSString(previous)];
+                                      : base::SysUTF8ToNSString(previous)
+                     swappedInFor:swappedInFor];
     }
   }
   // The still before the placeholder it covers becomes active.
