@@ -385,17 +385,19 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
 
   // MARK: Spaces and their tabs (add-spaces design D10)
 
-  func shownSpaceDidChange(_ spaceID: SpaceID, from previousSpaceID: SpaceID?) {
+  func shownSpaceDidChange(
+    _ spaceID: SpaceID, from previousSpaceID: SpaceID?, swappedInFor outgoingBrowserID: BrowserID
+  ) {
     // The earlier Space's header and rows slide out as the new one's slide
     // in, unless Reduce Motion is on (D10).
     // Nor from a Space that's gone: there's no header to slide out, and no
     // place in the order to tell the side from.
     // A window of another profile that the group swaps in (add-profiles
     // D12) didn't show the earlier Space: it draws it from the model, and
-    // takes the outgoing window's sidebar (D3). The engine tells it before
-    // it orders the window in.
-    let swappedIn = previousSpaceID != nil && previousSpaceID != model.shownSpaceID
-    let outgoing = swappedIn ? previousSpaceID.flatMap(swapSource(showing:)) : nil
+    // takes the outgoing window's sidebar (D3). The engine tells it which
+    // window it replaces, before it orders the window in.
+    let swappedIn = outgoingBrowserID != ClairBrowserIDNone
+    let outgoing = swappedIn ? Self.controller(of: outgoingBrowserID, spaces: model.spaces) : nil
     if let outgoing {
       model.sidebar.width = outgoing.model.sidebar.width
       model.sidebar.isHidden = outgoing.model.sidebar.isHidden
@@ -420,16 +422,10 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
   }
 
-  /// The window of the group this one is swapped in for, which shows
-  /// `spaceID`: the key one, as the user switched there, or else one already
-  /// ordered out.
-  private func swapSource(showing spaceID: SpaceID) -> BrowserWindowController? {
-    let candidates = Self.all.allObjects.filter {
-      $0 !== self && $0.browser != nil && $0.model.spaces === model.spaces && $0.model.shownSpaceID == spaceID
-    }
-    // With a dialog up, its sheet is key and the window main.
-    return candidates.first { $0.window.isKeyWindow || $0.window.isMainWindow }
-      ?? candidates.first { !$0.window.isVisible }
+  /// The window of the browser `browserID`, sharing `spaces`: the one a
+  /// swapped-in window replaces.
+  private static func controller(of browserID: BrowserID, spaces: SpacesModel) -> BrowserWindowController? {
+    all.allObjects.first { $0.browser?.browserID == browserID && $0.model.spaces === spaces }
   }
 
   /// D12: a dialog follows a swap. When the group swaps from a window with

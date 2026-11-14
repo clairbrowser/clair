@@ -17,6 +17,7 @@
 #include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "base/uuid.h"
 #include "chrome/browser/clair/clair_profiles.h"
 #include "chrome/browser/clair/clair_space_store.h"
@@ -74,13 +75,11 @@ base::WeakPtr<ClairBrowserWindow>& LastActivatedByRestore() {
   static base::NoDestructor<base::WeakPtr<ClairBrowserWindow>> window;
   return *window;
 }
-bool g_arrange_posted = false;
-// When the last arrangement ran, and the browsers it took in.
-base::TimeTicks g_arranged_at;
-std::vector<base::WeakPtr<ClairBrowserWindow>>& Arranged() {
-  static base::NoDestructor<std::vector<base::WeakPtr<ClairBrowserWindow>>>
-      arranged;
-  return *arranged;
+// Arranges the held windows should session restore never say it has
+// finished. Each arrangement stops it; the next held window starts it again.
+base::OneShotTimer& ArrangeFallback() {
+  static base::NoDestructor<base::OneShotTimer> timer;
+  return *timer;
 }
 // The group the first arrangement of this launch made, with restoring off:
 // browsers a later profile's session restore brings join it (D6).
@@ -98,6 +97,19 @@ bool IsRestored(const ClairBrowserWindow* window) {
 std::string ProfileIDOf(const ClairBrowserWindow* window) {
   return window ? clair::ClairProfiles::IDOf(window->browser()->GetProfile())
                 : std::string();
+}
+
+// D4: a cover is auxiliary only while it covers: a full-screen primary
+// window ordered onto the owner's full-screen Space would go full screen
+// itself, on a Space of its own. Back from covering, it's primary again.
+void SetCoverBehavior(NSWindow* window, bool covering) {
+  const NSWindowCollectionBehavior from =
+      covering ? NSWindowCollectionBehaviorFullScreenPrimary
+               : NSWindowCollectionBehaviorFullScreenAuxiliary;
+  const NSWindowCollectionBehavior to =
+      covering ? NSWindowCollectionBehaviorFullScreenAuxiliary
+               : NSWindowCollectionBehaviorFullScreenPrimary;
+  window.collectionBehavior = (window.collectionBehavior & ~from) | to;
 }
 
 }  // namespace
@@ -125,13 +137,10 @@ void ClairWindowGroup::Join(ClairBrowserWindow* window) {
   // D6: session restore's windows wait until it has finished.
   if (SessionRestore::IsRestoring(window->browser()->GetProfile())) {
     Restored().push_back(window->GetWeakPtr());
-    if (!g_arrange_posted) {
-      g_arrange_posted = true;
-      // Should session restore never say it has finished, the windows show
-      // anyway.
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE, base::BindOnce(&ClairWindowGroup::ArrangeRestoredWindows),
-          base::Seconds(15));
+    if (!ArrangeFallback().IsRunning()) {
+      ArrangeFallback().Start(
+          FROM_HERE, base::Seconds(15),
+          base::BindOnce(&ClairWindowGroup::ArrangeRestoredWindows));
     }
   }
 }
@@ -185,8 +194,14 @@ void ClairWindowGroup::Add(ClairBrowserWindow* window) {
 }
 
 void ClairWindowGroup::Remove(ClairBrowserWindow* window) {
+  // A full-screen owner that leaves under its cover leaves the cover as the
+  // window, normally.
+  OwnerClosing(window);
   std::erase(members_, window);
   Membership().erase(window);
+  std::erase_if(holds_startup_show_, [window](const auto& weak) {
+    return !weak || weak.get() == window;
+  });
   if (cover_ == window) {
     cover_ = nullptr;
   }
@@ -210,6 +225,43 @@ void ClairWindowGroup::Adopt(ClairBrowserWindow* window) {
     }
   }
   Add(window);
+  // Its tabs' sessions name its old group.
+  GroupTagsChanged(window);
+}
+
+// static
+void ClairWindowGroup::GroupTagsChanged(ClairBrowserWindow* member) {
+  if (member && member->space_tabs()) {
+    member->space_tabs()->AllListsChanged();
+  }
+}
+
+void ClairWindowGroup::SetID(std::string id) {
+  if (id == id_) {
+    return;
+  }
+  id_ = std::move(id);
+  for (ClairBrowserWindow* member : members_) {
+    GroupTagsChanged(member);
+  }
+}
+
+void ClairWindowGroup::TakeIn(ClairBrowserWindow* other, bool at_frame) {
+  if (!other || Of(other) == this) {
+    return;
+  }
+  // A second browser of a profile hands its tabs to the first, as a closing
+  // window does (share-tabs D4), and closes.
+  if (ClairBrowserWindow* same = MemberFor(ProfileIDOf(other))) {
+    if (!other->HandTabsTo(same, nullptr)) {
+      other->Close();
+    }
+    return;
+  }
+  Adopt(other);
+  if (at_frame && shown_ && shown_ != other) {
+    [other->ns_window() setFrame:shown_->ns_window().frame display:NO];
+  }
 }
 
 std::vector<ClairBrowserWindow*> ClairWindowGroup::members() const {
@@ -298,6 +350,8 @@ void ClairWindowGroup::ShowSpace(
     return;
   }
   const std::string profile = store->ProfileOf(space);
+  // The group switches on purpose: start-up's shows are over for it.
+  holds_startup_show_.clear();
   if (ProfileIDOf(shown_) == profile) {
     shown_->ShowSpace(space);
     if (then) {
@@ -320,8 +374,9 @@ void ClairWindowGroup::ShowSpace(
               return;
             }
             // ClairUI hears that the window shows `space` coming from the
-            // group's earlier Space, before the member's tab shows it.
-            member->BeginSwapIn(previous);
+            // group's earlier Space, in place of the shown member, before
+            // the member's tab shows it.
+            member->BeginSwapIn(previous, group->shown_);
             member->ShowSpace(space, /*again=*/true);
             group->SwapTo(member, previous);
             if (then) {
@@ -375,6 +430,8 @@ void ClairWindowGroup::SwapTo(ClairBrowserWindow* member,
   }
   if (IsFullscreen()) {
     Cover(member);
+    // The cover took the key window.
+    clair::ClairSpaceStore::Get()->SetLastSpace(member->shown_space());
     ShownSpaceChanged(member);
     return;
   }
@@ -427,7 +484,7 @@ void ClairWindowGroup::ShowMember(ClairBrowserWindow* member) {
   if (space.empty()) {
     return;
   }
-  member->BeginSwapIn(previous);
+  member->BeginSwapIn(previous, shown_);
   member->ShowSpace(space, /*again=*/true);
   SwapTo(member, previous);
 }
@@ -456,11 +513,7 @@ void ClairWindowGroup::Cover(ClairBrowserWindow* member) {
   NSWindow* owner_window = owner->ns_window();
   NSWindow* window = member->ns_window();
   ClairBrowserWindow* previous_cover = cover_;
-  // Auxiliary only: a full-screen primary window ordered onto the owner's
-  // full-screen Space would go full screen itself, on a Space of its own.
-  window.collectionBehavior =
-      (window.collectionBehavior & ~NSWindowCollectionBehaviorFullScreenPrimary) |
-      NSWindowCollectionBehaviorFullScreenAuxiliary;
+  SetCoverBehavior(window, /*covering=*/true);
   // The owner's corners and window controls mustn't show around it, and it
   // lies over the menu bar's place too.
   member->SetCovering(true);
@@ -473,10 +526,7 @@ void ClairWindowGroup::Cover(ClairBrowserWindow* member) {
   member->Reveal(nil, /*make_key=*/true);
   if (previous_cover && previous_cover != member) {
     [owner_window removeChildWindow:previous_cover->ns_window()];
-    previous_cover->SetCovering(false);
-    previous_cover->ns_window().collectionBehavior =
-        (previous_cover->ns_window().collectionBehavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary) |
-        NSWindowCollectionBehaviorFullScreenPrimary;
+    EndCovering(previous_cover);
     previous_cover->Conceal(/*order_out=*/true);
   } else if (!previous_cover) {
     // The owner stays in place under the cover; its pages are hidden.
@@ -491,11 +541,29 @@ void ClairWindowGroup::Uncover() {
   }
   cover_ = nullptr;
   [fullscreen_owner_->ns_window() removeChildWindow:cover->ns_window()];
-  cover->SetCovering(false);
-  cover->ns_window().collectionBehavior =
-      (cover->ns_window().collectionBehavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary) |
-      NSWindowCollectionBehaviorFullScreenPrimary;
+  EndCovering(cover);
   cover->Conceal(/*order_out=*/true);
+}
+
+// static
+void ClairWindowGroup::EndCovering(ClairBrowserWindow* cover) {
+  cover->SetCovering(false);
+  SetCoverBehavior(cover->ns_window(), /*covering=*/false);
+}
+
+void ClairWindowGroup::OwnerClosing(ClairBrowserWindow* member) {
+  if (!member || member != fullscreen_owner_ || !cover_) {
+    return;
+  }
+  // Before the owner is ordered out, which would take its child window
+  // with it.
+  ClairBrowserWindow* cover = cover_;
+  cover_ = nullptr;
+  fullscreen_owner_ = nullptr;
+  [member->ns_window() removeChildWindow:cover->ns_window()];
+  EndCovering(cover);
+  shown_ = cover;
+  cover->Reveal(nil, /*make_key=*/true);
 }
 
 void ClairWindowGroup::FullscreenChanged(ClairBrowserWindow* member,
@@ -520,10 +588,7 @@ void ClairWindowGroup::FullscreenChanged(ClairBrowserWindow* member,
   NSWindow* owner_window = member->ns_window();
   NSWindow* window = cover->ns_window();
   [owner_window removeChildWindow:window];
-  cover->SetCovering(false);
-  window.collectionBehavior =
-      (window.collectionBehavior & ~NSWindowCollectionBehaviorFullScreenAuxiliary) |
-      NSWindowCollectionBehaviorFullScreenPrimary;
+  EndCovering(cover);
   [window setFrame:owner_window.frame display:YES];
   shown_ = cover;
   cover->Reveal(owner_window, /*make_key=*/true);
@@ -532,7 +597,7 @@ void ClairWindowGroup::FullscreenChanged(ClairBrowserWindow* member,
 
 // --- Closing (D5, D13) ---
 
-bool ClairWindowGroup::IsClosing() const {
+bool ClairWindowGroup::IsClosing() {
   if (!closing_) {
     return false;
   }
@@ -622,7 +687,9 @@ void ClairWindowGroup::CloseNext() {
 }
 
 void ClairWindowGroup::MaybeCloseEmptyHiddenMember(ClairBrowserWindow* member) {
-  if (!member || IsClosing() || !IsHidden(member) || IsRestored(member) ||
+  // The full-screen owner under a cover holds the group's full screen (D4).
+  if (!member || member == fullscreen_owner_ || IsClosing() ||
+      !IsHidden(member) || IsRestored(member) ||
       member->HasRealTabs() || member->browser()->IsDeleteScheduled()) {
     return;
   }
@@ -649,10 +716,15 @@ std::string ClairWindowGroup::SpaceForNewWindow(Profile* profile) {
   if (store->ProfileOf(last) == profile_id) {
     return last;
   }
+  return SpaceOfProfile(profile_id);
+}
+
+// static
+std::string ClairWindowGroup::SpaceOfProfile(const std::string& profile_id) {
   if (std::string space = LastShownSpaceOf(profile_id); !space.empty()) {
     return space;
   }
-  for (const clair::Space& space : store->spaces()) {
+  for (const clair::Space& space : clair::ClairSpaceStore::Get()->spaces()) {
     if (space.profile == profile_id) {
       return space.id;
     }
@@ -661,41 +733,57 @@ std::string ClairWindowGroup::SpaceForNewWindow(Profile* profile) {
 }
 
 // static
-void ClairWindowGroup::OpenInSpace(const std::string& space, const GURL& url) {
+void ClairWindowGroup::OpenInSpace(
+    const std::string& space,
+    const GURL& url,
+    base::OnceCallback<void(ClairBrowserWindow*)> then) {
   clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
   if (!store->Contains(space)) {
+    if (then) {
+      std::move(then).Run(nullptr);
+    }
     return;
   }
   if (ClairWindowGroup* group = MostRecentlyActive(nullptr)) {
-    group->ShowSpace(space, base::BindOnce(
-                                [](GURL url, ClairBrowserWindow* member) {
-                                  if (member) {
-                                    member->OpenInShownSpace(url);
-                                    member->Activate();
-                                  }
-                                },
-                                url));
+    group->ShowSpace(
+        space, base::BindOnce(
+                   [](GURL url, base::OnceCallback<void(ClairBrowserWindow*)> then,
+                      ClairBrowserWindow* member) {
+                     if (member) {
+                       member->OpenInShownSpace(url);
+                       member->Activate();
+                     }
+                     if (then) {
+                       std::move(then).Run(member);
+                     }
+                   },
+                   url, std::move(then)));
     return;
   }
   // No window: a new one, on the Space.
   clair::ClairProfiles::Get()->Load(
       store->ProfileOf(space),
       base::BindOnce(
-          [](std::string space, GURL url, Profile* profile) {
-            if (!profile || !clair::ClairSpaceStore::Get()->Contains(space)) {
-              return;
+          [](std::string space, GURL url,
+             base::OnceCallback<void(ClairBrowserWindow*)> then,
+             Profile* profile) {
+            ClairBrowserWindow* window = nullptr;
+            if (profile && clair::ClairSpaceStore::Get()->Contains(space)) {
+              BrowserWindowInterface* browser =
+                  CreateBrowserWindow(BrowserWindowCreateParams(
+                      *profile, /*from_user_gesture=*/true));
+              window = browser ? ClairBrowserWindow::FromBrowser(browser)
+                               : nullptr;
             }
-            BrowserWindowInterface* browser = CreateBrowserWindow(
-                BrowserWindowCreateParams(*profile, /*from_user_gesture=*/true));
-            ClairBrowserWindow* window =
-                browser ? ClairBrowserWindow::FromBrowser(browser) : nullptr;
-            if (!window) {
-              return;
+            if (window) {
+              window->ShowSpaceOnNewTab(space, url);
+              window->Show();
             }
-            window->ShowSpaceOnNewTab(space, url);
-            window->Show();
+            if (then) {
+              std::move(then).Run(window);
+            }
           },
-          space, url));
+          space, url, std::move(then)));
 }
 
 // static
@@ -711,9 +799,21 @@ void ClairWindowGroup::HandOverToLastSpace(ClairBrowserWindow* window) {
   if (urls.empty()) {
     urls.push_back(GURL());
   }
-  for (const GURL& url : urls) {
-    OpenInSpace(space, url);
-  }
+  // One window: the first page opens as any link does, which may wait for a
+  // profile to load, and the rest follow it there.
+  const GURL first = urls.front();
+  urls.erase(urls.begin());
+  OpenInSpace(space, first,
+              base::BindOnce(
+                  [](std::vector<GURL> rest, ClairBrowserWindow* member) {
+                    if (!member) {
+                      return;
+                    }
+                    for (const GURL& url : rest) {
+                      member->OpenInShownSpace(url);
+                    }
+                  },
+                  std::move(urls)));
   window->Close();
 }
 
@@ -739,12 +839,32 @@ bool ClairWindowGroup::HoldsShow(ClairBrowserWindow* window) {
 }
 
 // static
-bool ClairWindowGroup::JustArranged(const ClairBrowserWindow* window) {
-  return !g_arranged_at.is_null() &&
-         base::TimeTicks::Now() - g_arranged_at < base::Seconds(5) &&
-         std::ranges::any_of(Arranged(), [window](const auto& weak) {
-           return weak.get() == window;
-         });
+bool ClairWindowGroup::TakeStartupShow(const ClairBrowserWindow* window) {
+  ClairWindowGroup* group = Of(window);
+  if (!group || !group->IsHidden(window)) {
+    return false;
+  }
+  auto held = std::ranges::find_if(
+      group->holds_startup_show_,
+      [window](const auto& weak) { return weak.get() == window; });
+  if (held == group->holds_startup_show_.end()) {
+    return false;
+  }
+  // Start-up's Show() and Activate() come together: both are absorbed, and
+  // the hold ends after the current task.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<ClairWindowGroup> group,
+                        base::WeakPtr<ClairBrowserWindow> window) {
+                       if (group) {
+                         std::erase_if(group->holds_startup_show_,
+                                       [&window](const auto& weak) {
+                                         return !weak || weak.get() == window.get();
+                                       });
+                       }
+                     },
+                     group->weak_factory_.GetWeakPtr(), *held));
+  return true;
 }
 
 // static
@@ -780,14 +900,7 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
   ClairBrowserWindow* last_active = LastActivatedByRestore().get();
   Restored().clear();
   LastActivatedByRestore() = nullptr;
-  if (!windows.empty()) {
-    g_arranged_at = base::TimeTicks::Now();
-    Arranged().clear();
-    for (ClairBrowserWindow* window : windows) {
-      Arranged().push_back(window->GetWeakPtr());
-    }
-  }
-  g_arrange_posted = false;
+  ArrangeFallback().Stop();
   clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
 
   std::vector<ClairBrowserWindow*> regular;
@@ -828,15 +941,9 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
       if (existing && existing->shown_) {
         const std::string space = store->WindowSpace(tag);
         for (ClairBrowserWindow* member : members) {
-          if (ClairBrowserWindow* same = existing->MemberFor(ProfileIDOf(member))) {
-            if (!member->HandTabsTo(same, nullptr)) {
-              member->Close();
-            }
-            continue;
-          }
-          existing->Adopt(member);
-          [member->ns_window() setFrame:existing->shown_->ns_window().frame display:NO];
-          if (!space.empty() && store->ProfileOf(space) == ProfileIDOf(member)) {
+          existing->TakeIn(member, /*at_frame=*/true);
+          if (Of(member) == existing && !space.empty() &&
+              store->ProfileOf(space) == ProfileIDOf(member)) {
             member->ShowRestoredSpace(space);
             existing->ShowMember(member);
           }
@@ -851,19 +958,10 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
       if (std::ranges::none_of(Groups(), [&tag](ClairWindowGroup* other) {
             return other->id_ == tag;
           })) {
-        group->id_ = tag;
+        group->SetID(tag);
       }
       for (ClairBrowserWindow* other : members) {
-        if (other == lead) {
-          continue;
-        }
-        if (ClairBrowserWindow* same = group->MemberFor(ProfileIDOf(other))) {
-          if (!other->HandTabsTo(same, nullptr)) {
-            other->Close();
-          }
-        } else {
-          group->Adopt(other);
-        }
+        group->TakeIn(other, /*at_frame=*/false);
       }
       // The member of the Space the window showed, on the tab Chromium
       // restored as its selected one.
@@ -896,17 +994,7 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
     // A later profile's session restore: its browsers join the window the
     // first arrangement made, hidden.
     for (ClairBrowserWindow* other : regular) {
-      if (Of(other) == earlier) {
-        continue;
-      }
-      if (ClairBrowserWindow* same = earlier->MemberFor(ProfileIDOf(other))) {
-        if (!other->HandTabsTo(same, nullptr)) {
-          other->Close();
-        }
-      } else {
-        earlier->Adopt(other);
-        [other->ns_window() setFrame:earlier->shown_->ns_window().frame display:NO];
-      }
+      earlier->TakeIn(other, /*at_frame=*/true);
     }
   } else if (!regular.empty()) {
     // Off, as Arc by default: one window, at the frame of the one last
@@ -920,15 +1008,8 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
       RestoreGroup() = group->weak_factory_.GetWeakPtr();
     }
     for (ClairBrowserWindow* other : regular) {
-      if (other == lead || !group) {
-        continue;
-      }
-      if (ClairBrowserWindow* same = group->MemberFor(ProfileIDOf(other))) {
-        if (!other->HandTabsTo(same, nullptr)) {
-          other->Close();
-        }
-      } else {
-        group->Adopt(other);
+      if (group) {
+        group->TakeIn(other, /*at_frame=*/false);
       }
     }
     if (group) {
@@ -957,6 +1038,14 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
                 group->ShownSpaceChanged(member);
               },
               group->weak_factory_.GetWeakPtr(), space, frame));
+    }
+  }
+
+  // Start-up still shows and activates the browsers it restored; one left
+  // hidden absorbs the first such call, until its group next switches.
+  for (ClairBrowserWindow* window : windows) {
+    if (ClairWindowGroup* group = Of(window)) {
+      group->holds_startup_show_.push_back(window->GetWeakPtr());
     }
   }
 

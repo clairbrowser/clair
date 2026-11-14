@@ -373,9 +373,11 @@ class ClairBrowserWindow : public BrowserWindow {
   // --- Window groups (add-profiles D3 to D6, D8, D13) ---
   // Whether the window is a member its group has ordered out.
   bool IsHiddenMember() const;
-  // The group is about to swap this member in from a window showing
-  // `previous_space`: ClairUI hears that Space as the one shown before.
-  void BeginSwapIn(const std::string& previous_space);
+  // The group is about to swap this member in for `outgoing`, which shows
+  // `previous_space`: ClairUI hears that Space as the one shown before, and
+  // which window this one replaces (add-profiles D3, D12).
+  void BeginSwapIn(const std::string& previous_space,
+                   ClairBrowserWindow* outgoing);
   // Orders the window in above `above` (or front), makes it key when
   // `make_key`, and shows its pages.
   void Reveal(NSWindow* above, bool make_key);

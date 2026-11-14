@@ -93,6 +93,9 @@ class ClairWindowGroup {
   bool IsFullscreen() const;
   // `member` entered or left macOS full screen.
   void FullscreenChanged(ClairBrowserWindow* member, bool entered);
+  // `member` is about to close. If it's the full-screen owner under a cover,
+  // the cover becomes the window, as it isn't covering anything any more.
+  void OwnerClosing(ClairBrowserWindow* member);
 
   // --- Closing (D5, D13) ---
   // The user closes the window: each member's tabs go to the most recently
@@ -107,12 +110,18 @@ class ClairWindowGroup {
   // --- Opening (D7, D8) ---
   // Opens `url`, or a new tab page when it's empty, in a new foreground tab
   // of `space`: in the most recently active regular group, or a new window.
-  static void OpenInSpace(const std::string& space, const GURL& url);
+  // `then` runs with the member that opened it, or null.
+  static void OpenInSpace(
+      const std::string& space,
+      const GURL& url,
+      base::OnceCallback<void(ClairBrowserWindow*)> then = {});
   // The Space a new window of `profile` shows: the profile's Space shown
   // most recently in this run, or else its first; empty when it has none.
   static std::string SpaceForNewWindow(Profile* profile);
   // The Space of a profile shown most recently in this run, if any.
   static std::string LastShownSpaceOf(const std::string& profile_id);
+  // D7: that Space, or else the profile's first; empty when it has none.
+  static std::string SpaceOfProfile(const std::string& profile_id);
   // D8: `window` opened in a profile no Space uses. Its pages open in
   // clair.last_space instead, and it closes.
   static void HandOverToLastSpace(ClairBrowserWindow* window);
@@ -120,11 +129,12 @@ class ClairWindowGroup {
   // --- Session restore (D6) ---
   // Whether `window`'s Show() waits for session restore to finish.
   static bool HoldsShow(ClairBrowserWindow* window);
-  // Whether session restore arranged `window` moments ago: Chromium's
-  // start-up then still shows and activates the browsers it restored, which
-  // mustn't switch a group away from the member the arrangement chose.
-  // Members the group makes itself aren't held.
-  static bool JustArranged(const ClairBrowserWindow* window);
+  // Whether a Show() or Activate() of `window` is start-up's, which mustn't
+  // switch its group away from the member the arrangement chose: `window`
+  // was arranged, is hidden, and its group hasn't switched since. The first
+  // such call, and any others in the same task, are absorbed; after it the
+  // window is forgotten. Members the group makes itself aren't held.
+  static bool TakeStartupShow(const ClairBrowserWindow* window);
   // Session restore activated `window`: it was the last active one.
   static void NoteRestoreActivation(ClairBrowserWindow* window);
   // Reads the restore setting and starts listening for session restore.
@@ -139,15 +149,25 @@ class ClairWindowGroup {
   void Remove(ClairBrowserWindow* window);
   // Moves `window` from its group into this one, hidden.
   void Adopt(ClairBrowserWindow* window);
+  // D6: `other` joins the group, hidden (at the shown member's frame with
+  // `at_frame`), or, when the group has a member of its profile, hands its
+  // tabs to it and closes.
+  void TakeIn(ClairBrowserWindow* other, bool at_frame);
+  // Renames the group, as to the tag its restored tabs carry.
+  void SetID(std::string id);
+  // The group `member`'s tabs belong to changed: the session's tags follow.
+  static void GroupTagsChanged(ClairBrowserWindow* member);
   // D4: shows `member` over the full-screen owner, or takes the cover away.
   void Cover(ClairBrowserWindow* member);
   void Uncover();
+  // A cover stops covering: window controls, corners and behaviour back.
+  static void EndCovering(ClairBrowserWindow* cover);
   // Closes the next member through Chromium's close flow, hidden ones
   // first.
   void CloseNext();
   // Whether the group is closing: a close it started hasn't been cancelled,
   // as by staying on a page that asked. A cancelled one is forgotten.
-  bool IsClosing() const;
+  bool IsClosing();
 
   // D6.
   static void SessionRestored(Profile* profile, int tab_count);
@@ -160,10 +180,13 @@ class ClairWindowGroup {
   raw_ptr<ClairBrowserWindow> cover_ = nullptr;
   raw_ptr<ClairBrowserWindow> fullscreen_owner_ = nullptr;
   // Closing through Chromium's close flow, one member after another.
-  mutable bool closing_ = false;
+  bool closing_ = false;
   bool close_next_posted_ = false;
   // D8: handing its pages over; it takes no part any more.
   bool handing_over_ = false;
+  // D6: the members session restore arranged, until the group switches; a
+  // hidden one absorbs start-up's first show (TakeStartupShow).
+  std::vector<base::WeakPtr<ClairBrowserWindow>> holds_startup_show_;
   base::WeakPtrFactory<ClairWindowGroup> weak_factory_{this};
 };
 

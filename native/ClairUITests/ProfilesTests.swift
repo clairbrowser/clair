@@ -587,7 +587,7 @@ struct SwapTests {
     controller.model.sidebar.isHidden = true
     let homeRows = host.list(FakeHost.homeID).map(\.tabID)
     // The group swapped from the window showing Home to this one.
-    incoming.shownSpaceDidChange(work, from: FakeHost.homeID)
+    incoming.shownSpaceDidChange(work, from: FakeHost.homeID, swappedInFor: browser.browserID)
     if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
       let slide = try #require(incoming.model.spaceSlide)
       #expect(slide.fromSpace?.spaceID == FakeHost.homeID)
@@ -603,7 +603,7 @@ struct SwapTests {
   /// D9: the shown Space's profile changed; the window of the new profile is
   /// swapped in for the same Space, with no slide, and Manage Spaces moves.
   @Test func aSwapForTheSameSpaceKeepsManageSpaces() throws {
-    let (host, _, controller, work, _) = profilesWindow()
+    let (host, browser, controller, work, _) = profilesWindow()
     controller.manageSpaces()
     let state = try #require(controller.openManageSpaces)
     let member = FakeBrowser(host: host)
@@ -612,7 +612,7 @@ struct SwapTests {
       browser: member, spaces: member.spaces,
       preferences: SidebarPreferences(defaults: UserDefaults(suiteName: #function + ".member")!))
     member.clairWindow = incoming
-    incoming.shownSpaceDidChange(FakeHost.homeID, from: FakeHost.homeID)
+    incoming.shownSpaceDidChange(FakeHost.homeID, from: FakeHost.homeID, swappedInFor: browser.browserID)
     #expect(incoming.model.shownSpaceID == FakeHost.homeID)
     #expect(incoming.model.spaceSlide == nil)
     #expect(incoming.openManageSpaces === state)
@@ -620,7 +620,7 @@ struct SwapTests {
   }
 
   @Test func manageSpacesFollowsTheSwap() throws {
-    let (host, _, controller, work, _) = profilesWindow()
+    let (host, browser, controller, work, _) = profilesWindow()
     controller.manageSpaces()
     let state = try #require(controller.openManageSpaces)
     state.select(work)
@@ -631,10 +631,52 @@ struct SwapTests {
       browser: member, spaces: member.spaces,
       preferences: SidebarPreferences(defaults: UserDefaults(suiteName: #function + ".member")!))
     member.clairWindow = incoming
-    incoming.shownSpaceDidChange(work, from: FakeHost.homeID)
+    incoming.shownSpaceDidChange(work, from: FakeHost.homeID, swappedInFor: browser.browserID)
     #expect(controller.openManageSpaces == nil)
     #expect(incoming.openManageSpaces === state)
     #expect(incoming.openManageSpaces?.selection == work)
     #expect(incoming.dialogs.showing?.page.title == "Manage Spaces")
+  }
+
+  /// D3: the window takes the sidebar and Manage Spaces of the window the
+  /// engine names, not of another window showing the same Space.
+  @Test func theSwapTakesFromTheWindowItReplaces() throws {
+    let (host, browser, controller, work, _) = profilesWindow()
+    controller.model.sidebar.width = 300
+    // Another group's window shows Home too, with its own sidebar and dialog.
+    let other = FakeBrowser(host: host)
+    other.showSpace(FakeHost.homeID)
+    let bystander = BrowserWindowController(
+      browser: other, spaces: other.spaces,
+      preferences: SidebarPreferences(defaults: UserDefaults(suiteName: #function + ".other")!))
+    other.clairWindow = bystander
+    bystander.model.sidebar.width = 260
+    bystander.manageSpaces()
+    let bystanderState = try #require(bystander.openManageSpaces)
+    let member = FakeBrowser(host: host)
+    member.showSpace(work)
+    let incoming = BrowserWindowController(
+      browser: member, spaces: member.spaces,
+      preferences: SidebarPreferences(defaults: UserDefaults(suiteName: #function + ".member")!))
+    member.clairWindow = incoming
+    incoming.shownSpaceDidChange(work, from: FakeHost.homeID, swappedInFor: browser.browserID)
+    #expect(incoming.model.sidebar.width == 300)
+    #expect(bystander.openManageSpaces === bystanderState)
+    #expect(incoming.openManageSpaces == nil)
+  }
+
+  /// A Space change that isn't a swap takes nothing from another window.
+  @Test func aSpaceChangeIsntASwap() throws {
+    let (host, _, controller, work, _) = profilesWindow()
+    controller.model.sidebar.width = 300
+    let member = FakeBrowser(host: host)
+    member.showSpace(work)
+    let incoming = BrowserWindowController(
+      browser: member, spaces: member.spaces,
+      preferences: SidebarPreferences(defaults: UserDefaults(suiteName: #function + ".member")!))
+    member.clairWindow = incoming
+    incoming.model.sidebar.width = 240
+    incoming.shownSpaceDidChange(work, from: FakeHost.homeID, swappedInFor: ClairBrowserIDNone)
+    #expect(incoming.model.sidebar.width == 240)
   }
 }

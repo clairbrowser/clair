@@ -74,6 +74,10 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   static void SetRestoredWindowTag(content::WebContents* contents,
                                    const std::string& group);
   static std::string WindowTag(content::WebContents* contents);
+  // add-profiles D6: the restored tab a window selected in place of the new
+  // tab page session restore dropped. Taking it forgets it.
+  static void SetRestoredNewTabWasSelected(content::WebContents* contents);
+  static bool TakeRestoredNewTabWasSelected(content::WebContents* contents);
   // The tags session restore and Reopen Closed Tab need to put `contents`
   // back: its Space, its index in the Space's list and its window's group.
   // Empty for a tab with no Space, as an incognito one.

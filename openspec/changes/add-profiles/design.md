@@ -53,7 +53,7 @@ The overlay registers disabled as the default of Local State's `kBrowserProfileP
 
 A Space in `clair.spaces` gains `"profile"`, the profile's directory name, read as the default profile when absent. A new Local State pref, `clair.windows`, maps a window group's UUID to the Space it shows (D3). The store gains two rules:
 
-- A Space whose profile no longer exists moves to the default profile, at load and when `ProfileAttributesStorage` reports a removal. Clair's own UI can't cause this (D7); Chromium's profile pages can.
+- A Space whose profile no longer exists moves to the default profile, at load and when `ProfileAttributesStorage` reports a removal; if the default profile is the one removed, to the first remaining one (`ClairProfiles::FallbackID`). Clair's own UI can't cause this (D7); Chromium's profile pages can.
 - `clair.windows` entries for groups that no longer exist are dropped once session restore has finished.
 
 ### D3. A window is a group of browsers, one per profile, and switching profile swaps them in place
@@ -62,8 +62,8 @@ A Space in `clair.spaces` gains `"profile"`, the profile's directory name, read 
 
 - **Same profile:** the shown member changes which Space it shows, as in `add-spaces`.
 - **Another profile:** the group finds or creates its member for that profile, gives it the shown member's frame and sidebar state, shows it and makes it key, then orders the old one out, all in one run-loop turn with window animations off.
-- **Frame and sidebar:** a group has one frame, one sidebar width and one sidebar visibility; a member takes them when it is shown. The engine gives it the frame. The sidebar is `ClairUI`'s, which the contract doesn't expose, so the incoming window copies it from the outgoing one when it hears `shownSpaceDidChange:from:` with a Space it didn't show (D12); the engine posts that before it orders the incoming window in.
-- **A hidden member stays hidden.** `ClairBrowserWindow::Show()` and `Activate()` on a hidden member switch the group to that member's Space, since Chromium is asking to see it (a link from another app, "Switch to Tab").
+- **Frame and sidebar:** a group has one frame, one sidebar width and one sidebar visibility; a member takes them when it is shown. The engine gives it the frame. The sidebar is `ClairUI`'s, which the contract doesn't expose, so the incoming window copies it from the outgoing one, which the engine names: `shownSpaceDidChange:from:swappedInFor:` carries the outgoing window's `ClairBrowserID` (D11, D12). The engine posts it before it orders the incoming window in.
+- **A hidden member stays hidden.** `ClairBrowserWindow::Show()` and `Activate()` on a hidden member switch the group to that member's Space, since Chromium is asking to see it (a link from another app, "Switch to Tab"). The exception is start-up's (D6).
 - **A `Browser` Chromium creates on its own** (Cmd+N, session restore, `chrome.windows.create`) starts a group of its own, unless its tabs carry a group's tag (D6).
 - **Incognito and guest windows** are groups of one, with no Spaces, and take no part in groups, shared tabs or Spaces.
 
@@ -81,6 +81,7 @@ While a group is in macOS full screen, one member, the **owner**, holds the full
 
 - **Why:** the prototype showed it is instant, where a second full-screen window costs a 0.6 s transition.
 - **Fallback, if it fails with real Chromium windows**: the group leaves full screen, then swaps.
+- **The owner closing under its cover** (an extension's `chrome.windows.remove`): before Chromium orders the owner out, which would take its child window with it, the cover is detached and becomes the window, as when the owner leaves full screen. An owner under a cover is never closed as an empty hidden member (D5).
 - **Proved on 2026-11-13** (task 2.5, with `tests/probe/`, on a test build): the switch shows in one frame, with no transition between macOS Spaces; a page's own full screen, Esc and the menu bar's reveal work on the cover; leaving full screen returns the window to its earlier frame. It needed four things the prototype didn't show: the cover is `.fullScreenAuxiliary` only while it covers (with `.fullScreenPrimary` AppKit put it in a full screen of its own, on a new macOS Space); a member is ordered in with `.moveToActiveSpace`, so it never pulls the user back to the macOS Space it was last on; the cover lies over the menu bar's place (`constrainFrameRect:` leaves its frame alone) with its window controls hidden; and Ctrl+Cmd+F, View › Exit Full Screen and AppKit's `toggleFullScreen:` on the cover go to the owner, which AppKit and Chromium would otherwise ignore or treat as entering full screen.
 
 ### D5. Tabs across windows, per profile
@@ -97,14 +98,16 @@ For the window the user sees, nothing changes from `share-tabs-across-windows`: 
 
 Each tab's session extra data gains `clair_window`, its group's UUID, beside `clair_space` and `clair_order`. Chromium's session restore still reopens every browser it saved, in every profile. What the overlay makes of them follows "When opening Clair, restore windows from previous session", the user default `ClairRestoreWindows` (off when unset), read once at launch:
 
-No restored browser shows before session restore has finished: `Show()` and `Activate()` on one are held, and once every profile session restore started on has been restored (`SessionRestore::RegisterOnSessionRestoredCallback`, or 15 s at most), the overlay arranges them:
+No restored browser shows before session restore has finished: `Show()` and `Activate()` on one are held, and once every profile session restore started on has been restored (`SessionRestore::RegisterOnSessionRestoredCallback`, or 15 s at most), the overlay arranges them. The 15 s fallback is a timer each arrangement stops and the next held browser starts again, so it never arranges a later profile's restore part-way through. Chromium restores each profile in turn, so a later profile's browsers join the groups an earlier arrangement made: by tag with the setting on, or the one window with it off. A browser joining a group, or a group renamed to its tag, rewrites its tabs' `clair_window` tags.
 
 - **On:** each restored browser joins the group named by its first tagged tab. The group shows the member whose profile matches its Space in `clair.windows`, on the tab Chromium restored as that member's selected one; the others stay hidden.
 - **Off, as Arc by default:** every restored browser joins the group of the window session restore activated, which was the last active, at its frame. A second browser of a profile hands its tabs to the first, as a closing window does (`share-tabs` D4), and closes. The group shows `clair.last_space` on a new tab page with the command bar open, as a new window does. `clair.last_space` doesn't change while Clair quits: each window that closes makes another key, which would otherwise record that window's Space instead of the one shown before the quit.
 
+**Start-up's own shows.** Chromium's start-up may still show or activate a browser it restored after the arrangement, which would switch a group away from the member the arrangement chose (D3). So each browser an arrangement took in and left hidden absorbs the first `Show()` or `Activate()` it gets, with any others in the same task, until its group next switches Space; after that it is an ordinary hidden member. A member the group creates itself is never held. A per-window hold, not a time window: a slow launch can't outlast it, and it can't swallow a later request once the window has been used.
+
 Today every window comes back (`add-spaces` D11), so "off" as the default is a change of behaviour for existing sessions, to Arc's.
 
-**New tab pages aren't restored.** Where `peek-session.patch` already calls `DropPeeks` on the windows session restore is about to restore, the overlay also drops every tab whose current entry is the new tab page, and a window left without tabs. So the new tab page a launch opens is the only one, and those left by Cmd+N or an emptied Space (D13) don't pile up across launches. With the setting on, a group whose restored member has no selected tab of its Space left opens a new tab page there.
+**New tab pages aren't restored.** Where `peek-session.patch` already calls `DropPeeks` on the windows session restore is about to restore, the overlay also drops every tab whose current entry is the new tab page, and a window left without tabs. So the new tab page a launch opens is the only one, and those left by Cmd+N or an emptied Space (D13) don't pile up across launches. A window whose selected tab was a dropped new tab page selects another, which carries a mark (`clair_new_tab_was_selected`, in the restored tab's extra data only, never saved). With the setting on, a group whose restored member has no selected tab of its Space left, or whose selected tab carries the mark, opens a new tab page there.
 
 - **Why drop them at restore, and not reuse a blank one:** it is one filter beside an existing one, where reuse needs to know whether a page was ever navigated and whether a window shows it, in every place a new tab page is opened.
 - **Why a tab tag for the group:** it needs no hook where Chromium creates the restored browser, and no second rebuild hook: `space-session.patch`'s calls already carry every tag `clair_space_session` returns.
@@ -131,6 +134,7 @@ A new window shows the Space of the group that was active when it opened, or `cl
 - **No leave-page prompt.** The originals close without running `beforeunload`, since the user has confirmed, and Arc's confirmation says it can't be undone.
 - **Peeks close** with their parents.
 - **The active tab.** In each group showing the Space, the tab reopened from the active one becomes active, in the group's member for the new profile, which the group swaps to (D3).
+- **Every other group showing the Space** swaps to its member for the new profile too, before the original tab closes, even if it holds none of the Space's tabs (as one showing a still of them): left on the old profile's member, it would show the Space in the wrong profile.
 - **Stills.** A window showing a still of one of the tabs gets a new tab page, as for any still whose tab closes (`share-tabs` D2). A take waiting for its page's copy is dropped first.
 
 Moving one tab to a Space of another profile is this step for one tab; to a Space of the same profile it stays `add-spaces`' retag.
@@ -151,10 +155,11 @@ Moving one tab to a Space of another profile is this step for one tab; to a Spac
   - `downloadSettingsForProfile:completion:` (the folder and whether it asks every time, as the completion's two arguments), `setDownloadDirectory:forProfile:` and `setAsksWhereToSave:forProfile:`, which load the profile if needed and use its `download.default_directory`, `savefile.default_directory` and `download.prompt_for_download` prefs through `DownloadPrefs`;
   - `openURL:inProfile:`;
   - `warnsBeforeQuitting`, read and write, over Local State's `browser.confirm_to_quit`, which Chromium registers as on.
+- **`ClairWindow`'s `shownSpaceDidChange:from:` becomes `shownSpaceDidChange:from:swappedInFor:`**: the `ClairBrowserID` of the window the group swaps this one in for, or the new `ClairBrowserIDNone`. The engine knows both windows; `ClairUI` no longer guesses the outgoing one from which window is key or ordered out, which picked the wrong window when two groups showed the same Space.
 
 ### D12. `ClairUI`
 
-- **The slide across profiles:** `shownSpaceDidChange:from:` reaches the window that is now shown, which draws the earlier Space's header and rows from `SpacesModel` and slides to the new one. So a cross-profile swap animates in the incoming window.
+- **The slide across profiles:** `shownSpaceDidChange:from:swappedInFor:` reaches the window that is now shown, which draws the earlier Space's header and rows from `SpacesModel` and slides to the new one. So a cross-profile swap animates in the incoming window. With an outgoing window named, it also takes that window's sidebar and open Manage Spaces.
 - **Dialogs:** `ProfileDialogs` holds the new, rename and delete dialogs as `ClairDialog`s, used from Settings and from "New Profile…" in the form, the Set Profile and Change Profile menus and Manage Spaces, where they swap the card's content.
 - **Settings:** `SettingsPage` gains `profiles` after `general`; `ProfilesSettingsView` is the page, 684 pt wide, where the other pages stay 520. The window opens on General each time: `SettingsPage.stored(in:)` and the `ClairSettingsPage` user default go. The Advanced page gains two toggles: "Warn before quitting", bound to the host's `warnsBeforeQuitting`, and "When opening Clair, restore windows from previous session", bound to `ClairRestoreWindows` (D6).
 - **A dialog follows a swap.** A `ClairDialog` is attached to one member's window. When the group swaps under an open Manage Spaces dialog, as when the shown Space's profile changes there, the incoming window presents the dialog again with the same selection, in the same run-loop turn.

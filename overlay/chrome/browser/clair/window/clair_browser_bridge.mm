@@ -344,10 +344,10 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   // add-spaces D3: the Space the window showed before the change ClairUI
   // hasn't heard of yet.
   std::optional<std::string> _previousSpace;
-  // add-profiles D3: the group swapped this window in, which ClairUI hears
-  // even when the Space is the one the group showed, as when that Space's
-  // profile changed (D9).
-  BOOL _swappedIn;
+  // add-profiles D3: the member the group swapped this window in for, or
+  // none. ClairUI hears of the swap even when the Space is the one the group
+  // showed, as when that Space's profile changed (D9).
+  ClairBrowserID _swappedInFor;
   ClairChromiumHistoryMenu* __weak _historyMenu;
 }
 
@@ -455,9 +455,10 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   [self postFlush];
 }
 
-- (void)swappedInFrom:(const std::string&)previousSpace {
+- (void)swappedInFrom:(const std::string&)previousSpace
+                  for:(ClairBrowserID)outgoingBrowserID {
   _previousSpace = previousSpace;
-  _swappedIn = YES;
+  _swappedInFor = outgoingBrowserID;
   [self postFlush];
 }
 
@@ -480,7 +481,7 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   id<ClairWindow> window = _window;
   if (!window || !_browserWindow) {
     _previousSpace.reset();
-    _swappedIn = NO;
+    _swappedInFor = ClairBrowserIDNone;
     _activeTabChanged = NO;
     _stillChanged = NO;
     return;
@@ -488,13 +489,15 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   if (_previousSpace) {
     const std::string previous = *_previousSpace;
     _previousSpace.reset();
-    const BOOL swappedIn = _swappedIn;
-    _swappedIn = NO;
-    if (previous != _browserWindow->shown_space() || swappedIn) {
+    const ClairBrowserID swappedInFor = _swappedInFor;
+    _swappedInFor = ClairBrowserIDNone;
+    if (previous != _browserWindow->shown_space() ||
+        swappedInFor != ClairBrowserIDNone) {
       [window shownSpaceDidChange:self.shownSpaceID
                              from:previous.empty()
                                       ? nil
-                                      : base::SysUTF8ToNSString(previous)];
+                                      : base::SysUTF8ToNSString(previous)
+                     swappedInFor:swappedInFor];
     }
   }
   // The still before the placeholder it covers becomes active.

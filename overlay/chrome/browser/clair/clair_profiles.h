@@ -51,6 +51,9 @@ class ClairProfiles : public ProfileAttributesStorageObserver {
 
   // Every profile, the default one first, then by name.
   std::vector<Info> List() const;
+  // The profile a Space whose own is gone falls back to (add-profiles D2):
+  // the default one while it exists, or else the first in List().
+  std::string FallbackID() const;
   bool Exists(std::string_view id) const;
   // The profile's directory, or an empty path for an unknown or malformed ID.
   base::FilePath PathOf(std::string_view id) const;

@@ -91,6 +91,15 @@ void ClairProfiles::Start() {
   }
 }
 
+std::string ClairProfiles::FallbackID() const {
+  const std::string default_id = DefaultID();
+  if (Exists(default_id)) {
+    return default_id;
+  }
+  const std::vector<Info> list = List();
+  return list.empty() ? default_id : list.front().id;
+}
+
 std::vector<ClairProfiles::Info> ClairProfiles::List() const {
   std::vector<Info> list;
   ProfileAttributesStorage* storage = Storage();

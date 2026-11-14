@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+class GURL;
+
 namespace content {
 class WebContents;
 }  // namespace content
@@ -35,6 +37,9 @@ inline constexpr char kSpaceSessionKey[] = "clair_space";
 inline constexpr char kOrderSessionKey[] = "clair_order";
 // add-profiles D6: the UUID of the window group the tab's window belongs to.
 inline constexpr char kWindowSessionKey[] = "clair_window";
+// add-profiles D6: set at restore, never saved, on the tab a window selects
+// in place of a new tab page DropNewTabPages() dropped.
+inline constexpr char kNewTabWasSelectedKey[] = "clair_new_tab_was_selected";
 
 // session_service_base.cc, in the rebuild: the tags to write for `contents`.
 std::map<std::string, std::string> SpaceSessionData(
@@ -55,6 +60,9 @@ void ReadSpaceExtraData(content::WebContents* contents,
 // only one (add-profiles design D6).
 void DropNewTabPages(
     std::vector<std::unique_ptr<sessions::SessionWindow>>* windows);
+
+// Whether `url` is the new tab page.
+bool IsNewTabPageURL(const GURL& url);
 
 }  // namespace clair
 

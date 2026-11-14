@@ -68,6 +68,9 @@ static const ClairTabID ClairTabIDNone = -1;
 // runs.
 typedef NSInteger ClairBrowserID NS_SWIFT_NAME(BrowserID);
 
+// No browser window.
+static const ClairBrowserID ClairBrowserIDNone = 0;
+
 // A Space's ID, a UUID string that never changes (add-spaces design D1).
 typedef NSString *ClairSpaceID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(SpaceID);
 
@@ -948,8 +951,14 @@ NS_SWIFT_NAME(ClairWindow)
 // The window shows another Space (add-spaces design D3). `previousSpaceID` is
 // the Space it showed before, or nil for none. It comes before the
 // -activeTabDidChange: that shows the new Space's tab.
-- (void)shownSpaceDidChange:(ClairSpaceID)spaceID from:(nullable ClairSpaceID)previousSpaceID
-    NS_SWIFT_NAME(shownSpaceDidChange(_:from:));
+// `outgoingBrowserID` is the window this one's group swaps it in for
+// (add-profiles design D3, D12), or ClairBrowserIDNone: the window then
+// didn't show `previousSpaceID` itself, and takes the outgoing one's sidebar
+// and open Manage Spaces. It comes before the window is ordered in.
+- (void)shownSpaceDidChange:(ClairSpaceID)spaceID
+                       from:(nullable ClairSpaceID)previousSpaceID
+               swappedInFor:(ClairBrowserID)outgoingBrowserID
+    NS_SWIFT_NAME(shownSpaceDidChange(_:from:swappedInFor:));
 // Another tab became active; its page view is -[ClairBrowser pageViewForTab:].
 - (void)activeTabDidChange:(ClairTabID)tabID NS_SWIFT_NAME(activeTabDidChange(_:));
 // The active tab's docked DevTools view or layout changed.

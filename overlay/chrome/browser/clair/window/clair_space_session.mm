@@ -42,6 +42,9 @@ void ReadSpaceExtraData(content::WebContents* contents,
       base::Uuid::ParseLowercase(group->second).is_valid()) {
     ClairSpaceTabs::SetRestoredWindowTag(contents, group->second);
   }
+  if (contents && extra_data.contains(kNewTabWasSelectedKey)) {
+    ClairSpaceTabs::SetRestoredNewTabWasSelected(contents);
+  }
   auto space = extra_data.find(kSpaceSessionKey);
   // Only a Space's UUID: anything else is left to the window's Space (D2).
   if (!contents || space == extra_data.end() ||
@@ -68,13 +71,16 @@ bool IsOnNewTabPage(const sessions::SessionTab& tab) {
   }
   const int index = std::clamp(tab.current_navigation_index, 0,
                                static_cast<int>(tab.navigations.size()) - 1);
-  const GURL& url = tab.navigations[index].virtual_url();
+  return IsNewTabPageURL(tab.navigations[index].virtual_url());
+}
+
+}  // namespace
+
+bool IsNewTabPageURL(const GURL& url) {
   return url.SchemeIs(content::kChromeUIScheme) &&
          (url.host() == chrome::kChromeUINewTabHost ||
           url.host() == chrome::kChromeUINewTabPageHost);
 }
-
-}  // namespace
 
 void DropNewTabPages(
     std::vector<std::unique_ptr<sessions::SessionWindow>>* windows) {
@@ -88,20 +94,28 @@ void DropNewTabPages(
     std::vector<std::unique_ptr<sessions::SessionTab>> kept;
     const int selected = window->selected_tab_index;
     int new_selected = 0;
+    bool selected_dropped = false;
     for (size_t i = 0; i < window->tabs.size(); ++i) {
       const bool drop = IsOnNewTabPage(*window->tabs[i]);
-      if (static_cast<int>(i) == selected && !drop) {
-        new_selected = static_cast<int>(kept.size());
+      if (static_cast<int>(i) == selected) {
+        if (drop) {
+          selected_dropped = true;
+        } else {
+          new_selected = static_cast<int>(kept.size());
+        }
       }
       if (!drop) {
         kept.push_back(std::move(window->tabs[i]));
       }
     }
     // A window whose selected tab was a new tab page selects its first kept
-    // one; with the restore setting on, the window opens a new tab page in
-    // its Space again (ClairWindowGroup).
+    // one, marked, so that with the restore setting on the window opens a
+    // new tab page in its Space again (ClairBrowserWindow::ShowRestoredSpace).
     window->tabs = std::move(kept);
     window->selected_tab_index = window->tabs.empty() ? -1 : new_selected;
+    if (selected_dropped && !window->tabs.empty()) {
+      window->tabs[new_selected]->extra_data[kNewTabWasSelectedKey] = "1";
+    }
   }
   std::erase_if(*windows, [](const std::unique_ptr<sessions::SessionWindow>& w) {
     return w->type == sessions::SessionWindow::TYPE_NORMAL && w->tabs.empty();

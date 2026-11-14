@@ -31,11 +31,12 @@ constexpr char kNameKey[] = "name";
 constexpr char kIconKey[] = "icon";
 constexpr char kProfileKey[] = "profile";
 
-// A profile that exists, or the default one (add-profiles design D2).
+// A profile that exists, or the one a Space falls back to (add-profiles
+// design D2).
 std::string ExistingProfile(const std::string* profile) {
   ClairProfiles* profiles = ClairProfiles::Get();
   return profile && profiles->Exists(*profile) ? *profile
-                                               : ClairProfiles::DefaultID();
+                                               : profiles->FallbackID();
 }
 
 // `text` without surrounding whitespace, cut to `max` bytes on a character
@@ -231,7 +232,9 @@ bool ClairSpaceStore::SetProfile(std::string_view id, std::string_view profile) 
 }
 
 void ClairSpaceStore::ProfileRemoved(std::string_view profile) {
-  const std::string fallback = ClairProfiles::DefaultID();
+  // The default profile itself may be the one removed, through Chromium's
+  // own pages.
+  const std::string fallback = ClairProfiles::Get()->FallbackID();
   bool changed = false;
   for (Space& space : spaces_) {
     if (space.profile == profile && space.profile != fallback) {

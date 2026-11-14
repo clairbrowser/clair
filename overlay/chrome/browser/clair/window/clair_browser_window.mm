@@ -39,6 +39,7 @@
 #include "chrome/browser/clair/window/clair_extensions.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
+#include "chrome/browser/clair/window/clair_space_session.h"
 #include "chrome/browser/clair/window/clair_window_group.h"
 #include "chrome/browser/clair/window/clair_window_hooks.h"
 #include "chrome/browser/clair/clair_profiles.h"
@@ -1132,9 +1133,7 @@ bool ClairBrowserWindow::IsEmptiedSpacePage(tabs::TabInterface* row) const {
   const std::vector<tabs::TabInterface*> rows = Rows();
   const GURL& url = row->GetContents()->GetVisibleURL();
   return rows.size() == 1 && rows.front() == row &&
-         url.SchemeIs(content::kChromeUIScheme) &&
-         (url.host() == chrome::kChromeUINewTabHost ||
-          url.host() == chrome::kChromeUINewTabPageHost);
+         clair::IsNewTabPageURL(url);
 }
 
 bool ClairBrowserWindow::KeepEmptiedSpace(tabs::TabInterface* row) {
@@ -1287,8 +1286,11 @@ bool ClairBrowserWindow::IsHiddenMember() const {
   return group && group->IsHidden(this);
 }
 
-void ClairBrowserWindow::BeginSwapIn(const std::string& previous_space) {
-  [bridge_ swappedInFrom:previous_space];
+void ClairBrowserWindow::BeginSwapIn(const std::string& previous_space,
+                                     ClairBrowserWindow* outgoing) {
+  [bridge_ swappedInFrom:previous_space
+                     for:outgoing ? outgoing->browser()->GetSessionID().id()
+                                  : ClairBrowserIDNone];
 }
 
 void ClairBrowserWindow::JoinActiveSpace() {
@@ -1398,9 +1400,7 @@ std::vector<GURL> ClairBrowserWindow::PageURLs() const {
     content::WebContents* contents = strip->GetWebContentsAt(i);
     const GURL& url = contents->GetVisibleURL();
     if (ClairSpaceTabs::IsPlaceholder(contents) || !url.is_valid() ||
-        (url.SchemeIs(content::kChromeUIScheme) &&
-         (url.host() == chrome::kChromeUINewTabHost ||
-          url.host() == chrome::kChromeUINewTabPageHost))) {
+        clair::IsNewTabPageURL(url)) {
       continue;
     }
     urls.push_back(url);
@@ -1424,7 +1424,13 @@ void ClairBrowserWindow::ShowRestoredSpace(const std::string& space) {
     return;
   }
   tabs::TabInterface* active = browser_->tab_strip_model()->GetActiveTab();
-  if (active && space_tabs_->IntendedSpaceOf(active) == space) {
+  // D6: a selected new tab page isn't restored; the tab selected in its
+  // place says so.
+  const bool new_tab_was_selected =
+      active &&
+      ClairSpaceTabs::TakeRestoredNewTabWasSelected(active->GetContents());
+  if (active && !new_tab_was_selected &&
+      space_tabs_->IntendedSpaceOf(active) == space) {
     SetShownSpace(space);
     return;
   }
@@ -2190,7 +2196,7 @@ void ClairBrowserWindow::Show() {
   if (ClairWindowGroup* group = ClairWindowGroup::Of(this);
       group && group->IsHidden(this)) {
     // Start-up showing what it restored, after the arrangement chose.
-    if (ClairWindowGroup::JustArranged(this)) {
+    if (ClairWindowGroup::TakeStartupShow(this)) {
       return;
     }
     group->ShowMember(this);
@@ -2253,6 +2259,10 @@ void ClairBrowserWindow::Close() {
   // UnloadController then schedules. The browser is never deleted here.
   UnloadController::From(browser_)->OnWindowClosing();
   if (browser_->IsDeleteScheduled()) {
+    // add-profiles D4: a cover over this window stays, as the window.
+    if (ClairWindowGroup* group = ClairWindowGroup::Of(this)) {
+      group->OwnerClosing(this);
+    }
     DetachFromClairUI();
     [ns_window_ orderOut:nil];
   }
@@ -2265,7 +2275,7 @@ void ClairBrowserWindow::Activate() {
   }
   if (ClairWindowGroup* group = ClairWindowGroup::Of(this);
       group && group->IsHidden(this)) {
-    if (ClairWindowGroup::JustArranged(this)) {
+    if (ClairWindowGroup::TakeStartupShow(this)) {
       return;
     }
     group->ShowMember(this);

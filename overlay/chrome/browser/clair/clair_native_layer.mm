@@ -323,16 +323,8 @@ void OpenURLInProfile(const GURL& url, Profile* profile) {
     return;
   }
   // D7: the profile's Space shown most recently, or its first.
-  const std::string profile = base::SysNSStringToUTF8(profileID ?: @"");
-  std::string space = ClairWindowGroup::LastShownSpaceOf(profile);
-  if (space.empty()) {
-    for (const clair::Space& candidate : clair::ClairSpaceStore::Get()->spaces()) {
-      if (candidate.profile == profile) {
-        space = candidate.id;
-        break;
-      }
-    }
-  }
+  const std::string space = ClairWindowGroup::SpaceOfProfile(
+      base::SysNSStringToUTF8(profileID ?: @""));
   if (space.empty()) {
     return;
   }

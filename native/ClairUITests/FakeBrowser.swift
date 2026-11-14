@@ -600,7 +600,7 @@ final class FakeBrowser: NSObject, ClairBrowser {
     if profileKind == .regular {
       host.lastShownSpaceID = spaceID
     }
-    clairWindow?.shownSpaceDidChange(spaceID, from: previous)
+    clairWindow?.shownSpaceDidChange(spaceID, from: previous, swappedInFor: ClairBrowserIDNone)
   }
 
   /// D4: the row to show before the active row `rowID` leaves the Space: the
@@ -1108,7 +1108,7 @@ final class RecordingWindow: NSObject, ClairWindow {
   var opensPeekOnShiftClick = true
   private(set) var calls: [String] = []
 
-  func shownSpaceDidChange(_ spaceID: SpaceID, from previousSpaceID: SpaceID?) {
+  func shownSpaceDidChange(_ spaceID: SpaceID, from previousSpaceID: SpaceID?, swappedInFor outgoingBrowserID: BrowserID) {
     calls.append("space \(spaceID) from \(previousSpaceID ?? "-")")
   }
 

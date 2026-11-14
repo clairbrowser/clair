@@ -80,6 +80,9 @@ struct SpaceTag : public base::SupportsUserData::Data {
   // and the group the session holds for it.
   std::string window;
   std::string written_window;
+  // add-profiles D6: the window selected this restored tab in place of a new
+  // tab page it dropped.
+  bool new_tab_was_selected = false;
 };
 
 // add-profiles D6: the group of the window holding `contents`, or empty.
@@ -236,9 +239,7 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
     _displayHost = url.has_host() ? base::SysUTF16ToNSString(
                                         url_formatter::IDNToUnicode(url.host()))
                                   : nil;
-    _isNewTabPage = url.SchemeIs(content::kChromeUIScheme) &&
-                    (url.host() == chrome::kChromeUINewTabHost ||
-                     url.host() == chrome::kChromeUINewTabPageHost);
+    _isNewTabPage = clair::IsNewTabPageURL(url);
     const security_state::SecurityLevel security_level =
         chrome_security_state::GetSecurityLevel(contents);
     _isNotSecure = security_level == security_state::WARNING ||
@@ -395,6 +396,25 @@ void ClairSpaceTabs::SetRestoredWindowTag(content::WebContents* contents,
 std::string ClairSpaceTabs::WindowTag(content::WebContents* contents) {
   SpaceTag* tag = GetTag(contents);
   return tag ? tag->window : std::string();
+}
+
+// static
+void ClairSpaceTabs::SetRestoredNewTabWasSelected(
+    content::WebContents* contents) {
+  if (contents) {
+    EnsureTag(contents)->new_tab_was_selected = true;
+  }
+}
+
+// static
+bool ClairSpaceTabs::TakeRestoredNewTabWasSelected(
+    content::WebContents* contents) {
+  SpaceTag* tag = GetTag(contents);
+  if (!tag || !tag->new_tab_was_selected) {
+    return false;
+  }
+  tag->new_tab_was_selected = false;
+  return true;
 }
 
 // static
@@ -1284,6 +1304,19 @@ void CloseReopened(tabs::TabHandle handle) {
   }
 }
 
+// add-profiles D9: each group showing `space` on a member of another profile
+// than the Space's switches to its member for the Space's profile.
+void SwapGroupsShowing(const std::string& space) {
+  const std::string profile = ClairSpaceStore::Get()->ProfileOf(space);
+  for (ClairWindowGroup* group : ClairWindowGroup::RegularByActivation()) {
+    ClairBrowserWindow* shown = group->shown();
+    if (shown && group->shown_space() == space &&
+        ClairProfiles::IDOf(shown->browser()->GetProfile()) != profile) {
+      group->ShowSpace(space);
+    }
+  }
+}
+
 // add-profiles D9: reopens each of `rows`, in order, as a tab of `space` in
 // its window group's member for the Space's profile, from `first_rank` on,
 // and closes the originals. In a window that showed one of them, the tab
@@ -1333,13 +1366,18 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
                           ClairWindowGroup* group =
                               ClairWindowGroup::Of(member);
                           if (group && group->shown() != member) {
-                            member->BeginSwapIn(previous);
+                            member->BeginSwapIn(previous, group->shown());
                           }
                           member->ActivateTab(reopened);
                           if (group) {
                             group->SwapTo(member, previous);
                           }
                         }
+                        // D9: every other group showing the Space swaps to
+                        // its member for the Space's profile too, before the
+                        // original closes: its outgoing member, hidden, then
+                        // shows no still of it to replace.
+                        SwapGroupsShowing(space);
                         CloseReopened(handle);
                       },
                       handle, url, space, this_rank, shown, previous,
@@ -1368,12 +1406,11 @@ void DeleteSpace(const std::string& space) {
       showing.push_back(group);
     }
   }
+  // Its tabs close once every window showing it has moved on, which is at
+  // once when none does.
   base::RepeatingClosure barrier = base::BarrierClosure(
       showing.size(),
       base::BindOnce(&CloseTabsOfDeletedSpace, space, neighbour));
-  if (showing.empty()) {
-    return;
-  }
   for (ClairWindowGroup* group : showing) {
     group->ShowSpace(neighbour,
                      base::BindOnce(
@@ -1447,6 +1484,15 @@ void SetSpaceProfile(const std::string& space, const std::string& profile) {
     }
   }
   if (rows.empty()) {
+    // No tab to reopen, but a window may still show the Space.
+    ClairProfiles::Get()->Load(
+        profile, base::BindOnce(
+                     [](std::string space, Profile* loaded) {
+                       if (loaded && ClairSpaceStore::Get()->Contains(space)) {
+                         SwapGroupsShowing(space);
+                       }
+                     },
+                     space));
     return;
   }
   ReopenInProfile(std::move(rows), space, /*first_rank=*/0);
