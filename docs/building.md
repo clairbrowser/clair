@@ -208,4 +208,4 @@ Measured with `du` in the same workspace after the full compile:
 | Whole workspace | about 38 GB |
 | Published engine zip | 164 MB |
 
-`build/base`, the pristine clone kept by `build.sh -k`, shares its blocks with `build/src` through APFS and adds only the files Clair's layer changes, but `du` counts it in full. `engine.yml` sizes the workspace without it and allows 50 GB for a fresh tree, plus the 30 GB reserve. That estimate is generous for an incremental build: when it refuses one, `gh workflow run engine.yml -f ref=<branch> -f skip_space_check=true` skips the check, and the build still stops if free space falls below 10 GB.
+`build/base`, the pristine clone kept by `build.sh -k`, shares its blocks with `build/src` through APFS and adds only the files Clair's layer changes, but `du` counts it in full. `engine.yml` sizes the workspace without it and allows 50 GB for a fresh tree, plus the 30 GB reserve. That estimate is generous for an incremental build: when it refuses one, `gh workflow run engine.yml -f ref=<branch> -f skip_free_space_check=true` skips the check, and the build still stops if free space falls below 10 GB.
