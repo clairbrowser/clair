@@ -2539,7 +2539,7 @@ bool IsOtherSite(const GURL& url, const GURL& current) {
   // As in Arc: another host is another site, subdomains and "www." included;
   // another port isn't.
   return url.scheme() != current.scheme() ||
-         url.host_piece() != current.host_piece();
+         url.host() != current.host();
 }
 
 bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url) {
