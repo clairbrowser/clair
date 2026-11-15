@@ -45,6 +45,8 @@ if test_clair_running; then
   pkill -f "^$(test_clair)/Contents/MacOS/Clair( |$)" || true
   for _ in 1 2 3 4 5 6 7 8 9 10; do test_clair_running || break; sleep 0.5; done
 fi
+# pkill leaves Chromium's code-sign clone behind, several hundred MB each.
+"$root/scripts/clean-code-sign-clones.sh" "$clair_id" || true
 echo "$app" >"$work/clair-app"
 "$lsregister" -f "$app"
 unregister_other_clairs "$app"

@@ -23,6 +23,12 @@ if [[ -z "$app" ]]; then
 fi
 
 executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
+
+# The runner keeps its disk, and killing the app below leaves Chromium's
+# code-sign clone in the user's temporary folder. HOME doesn't move that
+# folder, so clear the clones earlier runs left.
+"$root_dir/scripts/clean-code-sign-clones.sh" "$bundle_id" || true
 support="$HOME/Library/Application Support"
 
 # The runner is a fresh machine, so the branded app's data directory must not
