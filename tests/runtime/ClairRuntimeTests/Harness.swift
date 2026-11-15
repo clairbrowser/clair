@@ -136,10 +136,9 @@ final class Browser {
         path: "Library/Application Support/Clair")
   }
 
-  /// Starts Clair and waits until it answers over DevTools.
-  func start(
-    feed: String? = nil, idleSeconds: Int = 3600, arguments: [String] = []
-  ) async throws {
+  /// The arguments every launch passes: DevTools on, logging to a fresh
+  /// file, and the throwaway data directory, if any.
+  func launchArguments() throws -> [String] {
     // run.sh uploads these logs when the suite fails.
     let logs = Fixture.directory.appending(path: "logs")
     try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
@@ -151,7 +150,14 @@ final class Browser {
     if let userDataDirectory {
       launchArguments += ["--user-data-dir=\(userDataDirectory.path)", "--use-mock-keychain"]
     }
-    ui.launchArguments = launchArguments + arguments
+    return launchArguments
+  }
+
+  /// Starts Clair and waits until it answers over DevTools.
+  func start(
+    feed: String? = nil, idleSeconds: Int = 3600, arguments: [String] = []
+  ) async throws {
+    ui.launchArguments = try launchArguments() + arguments
     ui.launchEnvironment["CLAIR_TEST_UPDATE_IDLE_SECONDS"] = String(idleSeconds)
     if let feed {
       ui.launchEnvironment["CLAIR_TEST_FEED_URL"] = feed

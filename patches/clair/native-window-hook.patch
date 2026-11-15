@@ -467,7 +467,7 @@
      return;  // IN-TEST
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -3340,6 +3340,53 @@
+@@ -3340,6 +3340,54 @@
    }
  
    if (is_mac) {

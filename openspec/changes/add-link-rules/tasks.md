@@ -29,7 +29,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 
 ## 4. Release notes and integration
 
-- [ ] 4.1 Add a Changie fragment (`changie new`): Added for link rules in Settings › Links, which open links from other apps in a chosen Space. Verify that it's in the PR.
+- [ ] 4.1 Add a Changie fragment (`changie new`): New for link rules in Settings › Links, which open links from other apps in a chosen Space. Verify that it's in the PR.
 - [ ] 4.2 Run the merge gate, and start `quality.yml` on the branch with the last push. Verify that CI and the quality checks pass.
 
 ## Workflow follow-up
