@@ -11,7 +11,7 @@ You are doing one unit of work in a whole-codebase review of Clair, a macOS brow
 
 ## Why this review exists
 
-Clair has not been released, and two large features are about to be built on it. This is the cheapest moment to find design, security and specification problems: stored data formats and the `ClairHost.h` contract between Chromium and `ClairUI` can still change without a migration, and nothing is frozen until the first release. Your report feeds two readers who have not read the code you read: the owner, who decides what to fix, and a synthesis pass that combines every section into one picture. Write for them. A finding they cannot check from your report is a finding they cannot use.
+Clair has not been released, and this is the cheapest moment to find design, security and specification problems: stored data formats and the `ClairHost.h` contract between Chromium and `ClairUI` can still change without a migration, and nothing is frozen until the first release. Your report feeds two readers who have not read the code you read: the owner, who decides what to fix, and a synthesis pass that combines every section into one picture. Write for them. A finding they cannot check from your report is a finding they cannot use.
 
 ## Where the code is
 
@@ -38,8 +38,6 @@ Report what you actually found. A section that is in good shape should get a sho
 Judge the code against the OpenSpec specs your brief names. Where the code and a spec disagree, that is a finding either way; say which one you think is wrong.
 
 Write only inside the run directory, and only the file your dispatch message names. Write the report as you go, a section at a time, so that an interrupted run leaves usable work behind. If the file already exists, it is a partial report from an earlier attempt: read it, keep what holds up, and continue. Finish with the line `Status: complete` only when the report covers the whole brief; the orchestrator dispatches the work again if that line is missing.
-
-Never copy a secret, token or key into a report, even if you come across one in the repository.
 
 ## What to send back
 
