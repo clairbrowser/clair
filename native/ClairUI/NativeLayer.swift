@@ -36,6 +36,9 @@ final class NativeLayer {
 
   /// The menu bar's Spaces menu (add-spaces D8).
   private(set) var spacesMenu: SpacesMenu?
+  /// Clair's items in the Tab and View menus (add-pinned-tabs-and-favorites
+  /// D11).
+  private(set) var pinsMenu: PinsMenu?
 
   init(host: any ClairHost) {
     self.host = host
@@ -62,6 +65,10 @@ final class NativeLayer {
     let spacesMenu = SpacesMenu(spaces: spaces)
     spacesMenu.install(in: NSApp.mainMenu)
     self.spacesMenu = spacesMenu
+    // add-pinned-tabs-and-favorites D11.
+    let pinsMenu = PinsMenu()
+    pinsMenu.install(in: NSApp.mainMenu)
+    self.pinsMenu = pinsMenu
 
     let updates = UpdateController(host: host, configuration: .current)
     updates.start()

@@ -10,16 +10,24 @@ import Observation
 /// each time a link opens, so a change applies to open windows at once.
 struct PeekPreference {
   static let key = "ClairPeekOnShiftClick"
+  /// Whether a link to another site from a pinned tab or favorite opens a
+  /// Peek (add-pinned-tabs-and-favorites design D7, D10). On unless the user
+  /// turned it off.
+  static let otherSitesKey = "ClairPeekForOtherSites"
 
   let defaults: UserDefaults
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
-    defaults.register(defaults: [Self.key: true])
+    defaults.register(defaults: [Self.key: true, Self.otherSitesKey: true])
   }
 
   var isEnabled: Bool {
     defaults.bool(forKey: Self.key)
+  }
+
+  var opensForOtherSites: Bool {
+    defaults.bool(forKey: Self.otherSitesKey)
   }
 }
 

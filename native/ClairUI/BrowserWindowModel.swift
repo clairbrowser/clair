@@ -27,6 +27,43 @@ final class BrowserWindowModel {
   private(set) var tabs: [any ClairTab] = []
   private(set) var activeTabID: TabID = ClairTabIDNone
 
+  /// The pinned tabs of the Space the window shows, and the favorites of its
+  /// profile, in their order (add-pinned-tabs-and-favorites D11); none in an
+  /// incognito or guest window.
+  private(set) var pins: [any ClairPin] = []
+  private(set) var favorites: [any ClairPin] = []
+  /// The latest snapshot of each open pin's tab and its Peek, by tab ID.
+  private(set) var pinTabs: [TabID: any ClairTab] = [:]
+
+  /// The tabs of the window's pins and favorites, each followed by its Peek,
+  /// then its Today tabs: every tab its rows and tiles stand for.
+  var allTabs: [any ClairTab] {
+    pinFamilies(favorites) + pinFamilies(pins) + tabs
+  }
+
+  private func pinFamilies(_ pins: [any ClairPin]) -> [any ClairTab] {
+    pins.flatMap { pin in pin.tabs.compactMap { pinTabs[$0.tabID] ?? $0 } }
+  }
+
+  /// The bound tab of `pin`, as last reported, or nil.
+  func tab(ofPin pin: any ClairPin) -> (any ClairTab)? {
+    guard pin.tabID != ClairTabIDNone else { return nil }
+    return pinTabs[pin.tabID] ?? PinsLogic.tab(of: pin)
+  }
+
+  /// The pin `tabID` is bound to, among the window's.
+  func pin(ofTab tabID: TabID) -> (any ClairPin)? {
+    guard tabID != ClairTabIDNone else { return nil }
+    return pins.first { $0.tabID == tabID } ?? favorites.first { $0.tabID == tabID }
+  }
+
+  /// The favorites' profile: the shown Space's.
+  var profileID: ProfileID? { shownSpace?.profileID }
+
+  /// Whether the window shows pinned tabs and favorites: not in incognito
+  /// and guest windows.
+  var showsPins: Bool { showsSpaces }
+
   /// The tab another window took, whose dimmed still the card shows, or none
   /// (share-tabs-across-windows D2). Its row stays highlighted.
   private(set) var stillTabID: TabID = ClairTabIDNone
@@ -52,7 +89,7 @@ final class BrowserWindowModel {
   /// The tab whose page the card shows, which the URL field and the
   /// navigation buttons follow: none while the card shows a still.
   var activeTab: (any ClairTab)? {
-    isShowingStill ? nil : tabs.first { $0.tabID == activeTabID }
+    isShowingStill ? nil : allTabs.first { $0.tabID == activeTabID }
   }
 
   /// The row highlighted in `tabs`: the still's while there's one, else the
@@ -60,6 +97,12 @@ final class BrowserWindowModel {
   func highlightedRow(in tabs: [any ClairTab]) -> TabID {
     isShowingStill ? stillTabID : TabListLogic.highlightedRow(activeTabID: activeTabID, in: tabs)
   }
+
+  /// The row or tile highlighted among every tab the window lists.
+  var highlightedTab: TabID { highlightedRow(in: allTabs) }
+
+  /// The pin or favorite whose row or tile is highlighted, if one is.
+  var activePin: (any ClairPin)? { pin(ofTab: highlightedTab) }
 
   /// Each row's Peek, whose favicon the row shows as a badge; the still's
   /// row shows none, as the still shows the page without its Peek.
@@ -105,6 +148,13 @@ final class BrowserWindowModel {
   // --- the window's own state ---
   /// What the Space header is editing (add-spaces D10).
   var spaceHeaderEdit: SpaceHeaderEdit?
+  /// The row whose title is a field, and where its caret goes
+  /// (add-pinned-tabs-and-favorites D11).
+  var renaming: RowRename?
+  /// Whether the shown Space's pinned section is collapsed.
+  var isPinnedSectionCollapsed = false
+  /// Whether the empty favorites box shows, for a profile with none.
+  var showsFavoritesHint = false
   /// The New Space form, while it shows in place of the header and list.
   var newSpaceForm: NewSpaceFormState?
   /// The slide from the Space shown before, while it runs.
@@ -161,6 +211,26 @@ final class BrowserWindowModel {
     tabs =
       listsOwnTabsOnly
       ? spaces.tabs(inSpace: shownSpaceID, browser: browserID) : spaces.tabs(inSpace: shownSpaceID)
+    reloadPins()
+  }
+
+  /// Reads the Space's pinned tabs and the profile's favorites again.
+  func reloadPins() {
+    guard showsPins else {
+      pins = []
+      favorites = []
+      pinTabs = [:]
+      return
+    }
+    pins = spaces.pins(inSpace: shownSpaceID)
+    favorites = profileID.map { spaces.favorites(ofProfile: $0) } ?? []
+    var latest: [TabID: any ClairTab] = [:]
+    for pin in pins + favorites {
+      for tab in pin.tabs {
+        latest[tab.tabID] = tab
+      }
+    }
+    pinTabs = latest
   }
 
   /// The window shows a still of `tabID`, with `image`, or none.
@@ -172,10 +242,21 @@ final class BrowserWindowModel {
   /// Replaces the snapshot of one tab; a tab the list doesn't have is ignored,
   /// since the list update that adds it carries its state.
   func updateTab(_ tab: any ClairTab) {
+    if pinTabs[tab.tabID] != nil {
+      pinTabs[tab.tabID] = tab
+      return
+    }
     guard let index = tabs.firstIndex(where: { $0.tabID == tab.tabID }) else {
       return
     }
     tabs[index] = tab
+  }
+
+  /// Whether `tab` is one of the window's: a Today tab of its Space, or an
+  /// open pin's.
+  func lists(_ tab: any ClairTab) -> Bool {
+    pinTabs[tab.tabID] != nil
+      || (tab.spaceID == shownSpaceID && (!listsOwnTabsOnly || tab.browserID == browserID))
   }
 
   func setActiveTab(_ tabID: TabID) {
@@ -203,6 +284,21 @@ final class BrowserWindowModel {
   }
 }
 
+/// A row being renamed in place (tab-names spec, "Renaming a row in place").
+struct RowRename: Equatable {
+  enum Row: Equatable {
+    case tab(TabID)
+    case pin(PinID)
+  }
+
+  let row: Row
+  /// Rename… selects the whole name; a double-click puts the caret where it
+  /// clicked, at this offset in the title.
+  var selectsAll: Bool
+  var caret: Int?
+  let id = UUID()
+}
+
 /// A slide from one Space to another (add-spaces D10): the earlier Space's
 /// header and rows, as they were, slide out while the new Space's slide in.
 struct SpaceSlide: Identifiable {
@@ -212,6 +308,8 @@ struct SpaceSlide: Identifiable {
   /// Whether the new Space comes in from the trailing side, being later in
   /// the order.
   let fromTrailing: Bool
+  /// Its pinned tabs (add-pinned-tabs-and-favorites D11).
+  var fromPins: [any ClairPin] = []
 }
 
 /// A toast at the bottom of the card. Each has its own ID, so the same

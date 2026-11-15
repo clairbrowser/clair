@@ -46,6 +46,10 @@ bool ClairIsRemovedCommand(int command) {
     case IDC_SHOW_CUSTOMIZE_CHROME_TOOLBAR:
     case IDC_TAB_SEARCH:
     case IDC_TAB_SEARCH_CLOSE:
+    // add-pinned-tabs-and-favorites: Chromium's own pinning; Clair's Pin Tab
+    // is ClairUI's.
+    case IDC_WINDOW_PIN_TAB:
+    case IDC_PIN_TARGET_TAB:
     case IDC_CREATE_NEW_TAB_GROUP:
     case IDC_WINDOW_GROUP_TAB:
     case IDC_GROUP_TARGET_TAB:

@@ -126,6 +126,10 @@ struct GeneralSettingsView: View {
 /// How links open (add-peek design D10).
 struct LinksSettingsView: View {
   @AppStorage(PeekPreference.key) private var peekOnShiftClick = true
+  @AppStorage(PeekPreference.otherSitesKey) private var peekForOtherSites = true
+
+  static let otherSitesLabel = "Open a Peek window when clicking on links to other sites"
+  static let otherSitesNote = "(Note: This only affects Favorites and Pinned tabs)"
 
   var body: some View {
     Form {
@@ -133,6 +137,12 @@ struct LinksSettingsView: View {
         Toggle("Open a Peek window when clicking on links with Shift held", isOn: $peekOnShiftClick)
           // Accessibility reads the switch and its label as separate elements.
           .accessibilityIdentifier("clair.peekToggle")
+        // add-pinned-tabs-and-favorites D10.
+        Toggle(isOn: $peekForOtherSites) {
+          Text(Self.otherSitesLabel)
+          Text(Self.otherSitesNote)
+        }
+        .accessibilityIdentifier("clair.peekOtherSitesToggle")
       }
     }
     .formStyle(.grouped)

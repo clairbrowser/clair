@@ -44,6 +44,9 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   private let dragPreference: WindowDragPreference
   /// Whether Shift+click opens a Peek (add-peek design D10).
   private let peekPreference: PeekPreference
+  /// The collapse of pinned sections and the favorites box
+  /// (add-pinned-tabs-and-favorites D11).
+  let pinsPreferences: PinsPreferences
   /// Watches the rest of a press once the window server has its window drag.
   private var safetyNetMonitor: Any?
   private var safetyNet = WindowDragSafetyNet()
@@ -58,13 +61,14 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   init(
     browser: any ClairBrowser, spaces: SpacesModel? = nil, preferences: SidebarPreferences = SidebarPreferences(),
     dragPreference: WindowDragPreference = WindowDragPreference(),
-    peekPreference: PeekPreference = PeekPreference()
+    peekPreference: PeekPreference = PeekPreference(), pinsPreferences: PinsPreferences = PinsPreferences()
   ) {
     self.browser = browser
     self.window = browser.window
     self.preferences = preferences
     self.dragPreference = dragPreference
     self.peekPreference = peekPreference
+    self.pinsPreferences = pinsPreferences
     let spaces = spaces ?? NativeLayer.current?.spaces ?? .detached
     let model = BrowserWindowModel(
       profileKind: browser.profileKind, sidebar: preferences.initialState, browserID: browser.browserID,
@@ -115,6 +119,13 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     setUpWindowDrag()
     spaces.addListener(self)
     model.reloadTabs()
+    refreshPinPreferences()
+    observers.append(
+      NotificationCenter.default.addObserver(
+        forName: PinsPreferences.collapsedDidChange, object: nil, queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated { self?.refreshPinPreferences() }
+      })
     model.setExtensionActions(browser.extensionActions)
     model.setDownloads(browser.downloads, progress: browser.downloadProgress)
     stillDidChange()
@@ -379,6 +390,10 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     peekPreference.isEnabled
   }
 
+  var opensPeekForOtherSites: Bool {
+    peekPreference.opensForOtherSites
+  }
+
   func peekDidKeepEscape(for duration: TimeInterval) {
     model.peekConfirm.show(for: duration)
   }
@@ -409,13 +424,16 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     {
       model.spaceSlide = SpaceSlide(
         fromSpace: previousSpace, fromTabs: swappedIn ? model.spaces.tabs(inSpace: previousSpaceID) : model.tabs,
-        fromTrailing: SpacesLogic.slidesFromTrailing(to: spaceID, from: previousSpaceID, in: model.spaces.spaces))
+        fromTrailing: SpacesLogic.slidesFromTrailing(to: spaceID, from: previousSpaceID, in: model.spaces.spaces),
+        fromPins: model.spaces.pins(inSpace: previousSpaceID))
     } else {
       model.spaceSlide = nil
     }
     model.spaceHeaderEdit = nil
     model.newSpaceForm = nil
+    model.renaming = nil
     model.setShownSpace(spaceID)
+    refreshPinPreferences()
     tabsChanged()
     if let outgoing {
       takeManageSpaces(from: outgoing)
@@ -470,13 +488,23 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   }
 
   func spaceTabDidChange(_ tab: any ClairTab) {
-    guard tab.spaceID == model.shownSpaceID, !model.listsOwnTabsOnly || tab.browserID == model.browserID else {
-      return
-    }
+    guard model.lists(tab) else { return }
     tabChanged(tab)
   }
 
   func spacesDidChange() {}
+
+  func spacePinsDidChange(_ spaceID: SpaceID) {
+    guard spaceID == model.shownSpaceID, model.showsPins else { return }
+    pinsChanged()
+    tabsChanged()
+  }
+
+  func favoritesDidChange(_ profileID: ProfileID) {
+    guard profileID == model.profileID, model.showsPins else { return }
+    pinsChanged()
+    tabsChanged()
+  }
 
   /// The window's rows were added, closed or moved, or it shows another
   /// Space.
@@ -555,7 +583,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   /// What the card shows: the active tab's page, or a Peek over its parent's
   /// (add-peek design D4).
   private func showPages() {
-    let shown = TabListLogic.shownPeek(activeTabID: model.activeTabID, in: model.tabs)
+    let shown = TabListLogic.shownPeek(activeTabID: model.activeTabID, in: model.allTabs)
     if shown?.peekID != shownPeek?.peekID {
       model.peekConfirm.hide()
     }
@@ -753,7 +781,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
 
   func activate(tab: TabID) {
     // A tab with a Peek shows with its Peek (add-peek D4).
-    browser?.activate(tab: TabListLogic.tabToActivate(forRow: tab, in: model.tabs))
+    browser?.activate(tab: TabListLogic.tabToActivate(forRow: tab, in: model.allTabs))
   }
 
   func close(tab: TabID) {
@@ -773,9 +801,14 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   }
 
   func copyLink(of tab: TabID) {
-    guard let tab = model.tabs.first(where: { $0.tabID == tab }), let link = TabListLogic.link(of: tab) else {
+    guard let tab = model.allTabs.first(where: { $0.tabID == tab }), let link = TabListLogic.link(of: tab) else {
       return
     }
+    copyLinkToPasteboard(link)
+  }
+
+  /// Copies a row's link and says so.
+  func copyLinkToPasteboard(_ link: String) {
     copyToPasteboard(link)
     showToast("Copied Link")
   }
@@ -1018,7 +1051,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     // add-profiles D9: the window follows its active tab; moving any other
     // tab leaves it, and says where the tab went.
     let isActive =
-      !model.isShowingStill && TabListLogic.highlightedRow(activeTabID: model.activeTabID, in: model.tabs) == tab
+      !model.isShowingStill && TabListLogic.highlightedRow(activeTabID: model.activeTabID, in: model.allTabs) == tab
     guard let space = model.spaces.space(spaceID) else { return }
     model.spaces.moveTab(tab, toSpace: spaceID)
     if !isActive {

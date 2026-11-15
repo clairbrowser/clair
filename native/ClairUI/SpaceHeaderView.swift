@@ -51,6 +51,12 @@ struct SpaceHeaderView: View {
   /// The Space it shows: the window's, or the one sliding out.
   let space: (any ClairSpace)?
   weak var actions: (any SpaceActions)?
+  /// Whether the Space's pinned section is collapsed, which keeps the
+  /// chevron showing, pointing sideways (pinned-tabs spec, "Collapsing the
+  /// pinned section").
+  var pinsCollapsed = false
+  /// The chevron's click; nil for a header without one.
+  var onToggleCollapse: (() -> Void)?
 
   static let height: CGFloat = 32
   /// Room under the header, so the name's centre sits 41 pt above the "New
@@ -64,6 +70,7 @@ struct SpaceHeaderView: View {
 
   @State private var draft = ""
   @FocusState private var nameFocused: Bool
+  @State private var isHovered = false
 
   private var isCurrent: Bool { space?.spaceID == model.shownSpaceID }
   private var edit: SpaceHeaderEdit? { isCurrent ? model.spaceHeaderEdit : nil }
@@ -102,10 +109,30 @@ struct SpaceHeaderView: View {
     .padding(.trailing, 13)
     .frame(height: Self.height)
     .contentShape(Rectangle())
+    .overlay(alignment: .leading) {
+      // The chevron at the leading edge, on hover or while collapsed.
+      if let onToggleCollapse, edit == nil, isHovered || pinsCollapsed {
+        Button(action: onToggleCollapse) {
+          Image(systemName: "chevron.down")
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(pinsCollapsed ? -90 : 0))
+            .frame(width: 12, height: Self.height)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 1)
+        .tooltip(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
+        .accessibilityLabel(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
+        .accessibilityIdentifier("clair.pinnedChevron")
+      }
+    }
+    .onHover { isHovered = $0 }
     .padding(.bottom, Self.bottomGap)
     .overlay {
       if edit == nil {
         RowClickCatcher(onMiddleClick: {}, menuItems: menuItems)
+          .padding(.leading, onToggleCollapse != nil && (isHovered || pinsCollapsed) ? 14 : 0)
       }
     }
     .accessibilityElement(children: .contain)
