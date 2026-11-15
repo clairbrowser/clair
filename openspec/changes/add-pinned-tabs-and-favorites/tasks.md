@@ -62,6 +62,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - **Peeks:** whether Arc peeks a link between subdomains of one site (D7);
   - **Back to Pinned URL:** how Arc shows a pinned tab whose URL redirects, or whose page rewrites its path (Risks);
   - **Rename:** whether clicking elsewhere keeps or discards an edit in progress;
+  - **Collapse:** whether a collapsed pinned section shows collapsed in Arc's other windows, and after a relaunch with restoring windows off and on;
   - **Empty favorites:** whether Arc shows the "Drag to add Favorites" box for a newly created profile.
 
   Update the specs and design where Arc differs. Verify by the owner accepting the comparison.
