@@ -2,6 +2,7 @@
 # The first line is the pilot. Each has a brief in sections/<id>-<slug>.md,
 # and scope.txt says which files belong to it.
 03 extensions fable
+09 hardening fable
 04 release-chain fable
 02 spaces-profiles fable
 01 window-core fable

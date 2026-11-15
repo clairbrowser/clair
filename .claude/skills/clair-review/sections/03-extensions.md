@@ -4,7 +4,7 @@
 
 ungoogled-chromium removes the Chrome Web Store integration and the extension update machinery on purpose. Clair puts part of it back: `restore-web-store.patch` and the `clair_store_fixups` component (adapted from Helium) make the store usable again, `clair_extensions.mm` exposes extensions to the native interface, and the Swift files draw the extensions menu, pinned extensions, popups and the install and permission prompts.
 
-Extensions are the most privileged third-party code a browser runs, and this section re-opens paths that the upstream project closed. It is small, which also makes it the pilot: the report here calibrates the format and the cost for the rest of the review.
+Extensions are the most privileged third-party code a browser runs, and this section re-opens paths that the upstream project closed. It is small, which also makes it the pilot: the report here calibrates the format for the rest of the review.
 
 ## Specs to judge against
 
@@ -30,6 +30,14 @@ Start from the files the three patches touch. Expect to need `chrome/browser/ext
 - Extension popups are shown in a native window. Which `WebContents` hosts them, does the popup keep the isolation and the lifetime Chromium gives it, and what happens when the extension is disabled, updated or uninstalled while its popup is open?
 - With window groups, an extension sees the hidden per-profile browser windows through `chrome.windows`. What can it do to them?
 - `no-extension-uninstall-page.patch` removes behaviour. Check what else used the code it disables.
+
+**The extension API surface**
+- Many extension APIs assume Chromium's own window and its views. Go through the ones that do: `chrome.windows`, `chrome.tabs`, `chrome.tabGroups`, `chrome.action`, `chrome.sidePanel`, `chrome.sessions`, `chrome.debugger`, `chrome.desktopCapture` and `chrome.tabCapture`, `chrome.permissions.request`, `chrome.management` and native messaging. For each, does it work, fail safely, or do something in Clair's window that Chromium's would not allow?
+- Several of them rely on browser UI to keep the user informed: the banner while a debugger is attached, the picker for screen and tab capture, the prompt for optional permissions, the indicator that a tab is being captured or recorded. Which of these does Clair draw, and which request now succeeds or fails with nothing shown?
+- What can an extension do to tabs the user is not looking at: tabs of another Space, of another profile's hidden window, a peek, a pinned tab or favourite with no page loaded? Can it move a tab between Spaces or profiles, or create one where Clair's model does not expect it?
+- Is the incognito setting of each extension honoured in Clair's windows, and can an extension tell from the windows it sees that incognito or another profile is in use?
+- Where an extension's name, icon, badge text, tooltip or popup size reaches native UI, is it bounded and clearly attributed to the extension?
+- Does Clair ship, force-install or allowlist any extension, and do the system-wide paths in the `app-identity` spec (external extensions, native messaging hosts) let another local program install one without a prompt?
 
 **Quality**
 - Is extension state held once, or copied between `clair_extensions.mm` and the Swift views?

@@ -43,12 +43,21 @@
 02 native/ClairUI/TabListLogic.swift
 02 native/ClairUI/SidebarView.swift
 02 native/ClairUI/SidebarPreferences.swift
+02 native/ClairUI/BrowserWindowController+Pins.swift
+02 native/ClairUI/FavoritesLayout.swift
+02 native/ClairUI/PinDialogs.swift
+02 native/ClairUI/PinsLogic.swift
+02 native/ClairUI/PinsMenu.swift
+02 native/ClairUI/PinsPreferences.swift
+02 native/ClairUI/PinsViews.swift
 02 overlay/chrome/browser/clair/clair_space_store.*
 02 overlay/chrome/browser/clair/clair_space_tabs.*
+02 overlay/chrome/browser/clair/clair_pin_store.*
 02 overlay/chrome/browser/clair/clair_profiles.*
 02 overlay/chrome/browser/clair/window/clair_window_group.*
 02 overlay/chrome/browser/clair/window/clair_space_session.*
 02 patches/clair/space-session.patch
+02 patches/clair/always-restore.patch
 02 patches/clair/space-shortcuts.patch
 02 patches/clair/data-paths.patch
 02 patches/clair/dock-incognito.patch
@@ -125,8 +134,10 @@
 05 overlay/chrome/browser/clair/window/clair_autocomplete.*
 05 overlay/chrome/browser/clair/window/clair_peeks.*
 05 overlay/chrome/browser/clair/window/clair_peek_session.*
+05 overlay/chrome/browser/clair/window/clair_pinned_link_throttle.*
 05 overlay/chrome/browser/clair/window/clair_downloads.*
 05 patches/clair/peek-session.patch
+05 patches/clair/pinned-link-peek.patch
 05 patches/clair/copy-url-shortcut.patch
 05 patches/clair/first-run-page.patch
 
@@ -151,8 +162,6 @@
 07 build.sh
 07 retrieve_and_unpack_resource.py
 07 downloads-arm64.ini
-07 flags.clair.gn
-07 flags.macos.gn
 07 .gitmodules
 07 .gitignore
 07 utils/*
@@ -170,11 +179,18 @@
 07 patches/series
 07 patches/clair/settings-logo-icons.patch
 07 patches/helium/webui-logo-icons.patch
-07 patches/ungoogled-chromium-macos/*
 07 tests/*
 07 docs/building.md
 07 resources/*.py
 07 resources/icon/product-logos.txt
+
+# --- 09 engine hardening
+# The GN flags and the build patches copied from ungoogled-chromium-macos.
+# Section 09 also reads patches/series and every patch in it, whichever
+# section owns the patch, for its effect on Chromium's hardening only.
+09 flags.clair.gn
+09 flags.macos.gn
+09 patches/ungoogled-chromium-macos/*
 
 # --- 08 specs and decisions
 # Archived tasks and delta specs are history: the specs were synced into
