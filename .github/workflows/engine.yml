@@ -2,7 +2,9 @@
 # it as the prerelease chromium-engine-<key> (change 1 design D10, D11). Started
 # by hand: gh workflow run engine.yml -f ref=<branch>, or by a release that has no
 # engine for its commit. Once the engine is
-# published, it re-runs the engine check of open pull requests waiting for it.
+# published, it re-runs the engine check of open pull requests waiting for it,
+# and deletes all but the 5 newest engines and those main or an open pull
+# request still needs (scripts/prune-engines.sh).
 name: Engine
 
 on:
@@ -391,3 +393,29 @@ jobs:
                        --jq '.check_runs[] | select(.app.slug == "github-actions") | "\(.id) \(.conclusion)"')
           done < <(gh pr list --state open --limit 200 --json number,headRefOid --jq '.[] | "\(.number) \(.headRefOid)"')
           echo "Re-ran $rerun engine check(s) waiting for $tag"
+
+  prune:
+    # Keeps the 5 newest engines and any main or an open pull request needs,
+    # and deletes the rest with their tags. Hosted, like recheck, so the Mac's
+    # job never holds a token that can delete releases.
+    name: Delete old engines
+    needs: [engine, publish]
+    if: ${{ always() && needs.engine.result == 'success' && (needs.publish.result == 'success' || needs.engine.outputs.published == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Delete old engines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: ./scripts/prune-engines.sh --keep 5

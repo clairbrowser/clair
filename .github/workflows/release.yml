@@ -7,7 +7,7 @@
 # It works out the version, makes sure the commit has an engine and passing quality
 # checks, then packages, signs and notarizes the app. A dry run stops there, with
 # the DMG as a workflow artifact and nothing changed. See docs/releasing.md.
-name: Release
+name: 🚀 Release
 
 on:
   workflow_dispatch:
