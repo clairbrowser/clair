@@ -191,7 +191,8 @@ struct FavoriteTile: View {
   @Environment(\.colorScheme) private var colorScheme
 
   static let cornerRadius: CGFloat = 10
-  static let iconSize: CGFloat = 20
+  /// Arc draws the icon at about 16 pt, whatever the tile's size.
+  static let iconSize: CGFloat = 16
 
   var body: some View {
     let icon = PinsLogic.icon(of: pin, tab: tab)
@@ -200,7 +201,7 @@ struct FavoriteTile: View {
         .fill(PinFill.tile(colorScheme, hovered: isHovered, selected: isSelected))
       if isSelected {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-          .strokeBorder(Color(nsColor: IconColor.main(of: icon) ?? .controlAccentColor), lineWidth: 2)
+          .strokeBorder(Color(nsColor: IconColor.ring(of: icon)), lineWidth: 2)
       }
       PinIcon(icon: icon, isLoading: tab?.isLoading == true, size: Self.iconSize)
     }
@@ -216,7 +217,7 @@ struct FavoriteTile: View {
     .overlay(RowClickCatcher(onMiddleClick: {}, menuItems: menuItems))
     .onHover { hovering in withAnimation(sidebarHoverFade) { isHovered = hovering } }
     .onDrag { SidebarDragItem.pin(pin.pinID).itemProvider() }
-    .tooltip(PinsLogic.title(of: pin, tab: tab), delay: TabRow.titleTooltipDelay)
+    // No tooltip: Arc shows none on a tile, renamed or not.
     .accessibilityElement()
     .accessibilityLabel(PinsLogic.title(of: pin, tab: tab))
     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -238,22 +239,33 @@ struct FavoritesHintBox: View {
 
   @State private var isTargeted = false
 
-  static let height: CGFloat = 105.5
+  /// The box as drawn, 8 pt below the URL field and 30 pt above the Space
+  /// name's centre, as in Arc.
+  static let height: CGFloat = 94
+  static let topInset: CGFloat = 8
+  static let bottomInset: CGFloat = 11.5
   static let title = "Drag to add Favorites"
   static let message = "Favorites keep your most used sites and apps close"
 
   var body: some View {
-    VStack(spacing: 6) {
+    // Arc's, measured: a 16 pt star 11.5 pt from the top, the title centred
+    // 42 pt down and the message's lines 15 pt apart, in a 94 pt box.
+    VStack(spacing: 0) {
       Image(systemName: "star.fill")
-        .font(.system(size: 12, weight: .semibold))
+        .font(.system(size: 8, weight: .bold))
         .foregroundStyle(.white)
-        .frame(width: 26, height: 26)
+        .frame(width: 16, height: 16)
         .background(Color.accentColor, in: .circle)
-      Text(Self.title).font(.system(size: 13, weight: .bold))
+        .padding(.top, 11.5)
+      Text(Self.title)
+        .font(.system(size: 13, weight: .semibold))
+        .padding(.top, 6.5)
       Text(Self.message)
-        .font(.system(size: 11))
+        .font(.system(size: 12))
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
+        .padding(.top, 3)
+      Spacer(minLength: 0)
     }
     .padding(.horizontal, 16)
     .frame(maxWidth: .infinity)
@@ -276,7 +288,8 @@ struct FavoritesHintBox: View {
       return true
     }
     .padding(.horizontal, FavoritesLayout.inset)
-    .padding(.vertical, FavoritesLayout.inset)
+    .padding(.top, Self.topInset)
+    .padding(.bottom, Self.bottomInset)
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("clair.favoritesHint")
   }
@@ -302,6 +315,13 @@ struct PinRow: View {
   @State private var isIconHovered = false
   @Environment(\.colorScheme) private var colorScheme
 
+  /// Arc's Back to Pinned URL button: 38 pt, 10 pt before the icon.
+  static let backButtonSize: CGFloat = 38
+  static let backButtonLeading: CGFloat = 10
+  /// The "/" between the icon and the title, which starts 10 pt after the
+  /// icon, as Arc's at x=45.
+  static let slashWidth: CGFloat = 10
+
   var body: some View {
     let navigated = PinsLogic.isNavigatedAway(pin)
     let title = PinsLogic.title(of: pin, tab: tab)
@@ -309,29 +329,41 @@ struct PinRow: View {
     HStack(spacing: TabRow.titleGap) {
       HStack(spacing: 0) {
         if navigated {
-          // D6: the icon turns into Back to Pinned URL under the pointer.
-          Button {
-            actions?.returnToPinnedURL(pin.pinID)
-          } label: {
-            PinIcon(icon: PinsLogic.icon(of: pin, tab: tab), isLoading: tab?.isLoading == true, size: TabRow.faviconSize)
-              .frame(width: TabRow.iconSize, height: TabRow.iconSize)
-              .padding(5)
-              .background(
-                isIconHovered ? SidebarFill.hover(colorScheme) : .clear, in: .rect(cornerRadius: 6, style: .continuous))
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          .padding(.leading, -5)
-          .padding(.vertical, -5)
-          .onHover { isIconHovered = $0 }
-          .tooltip("\(pin.name ?? pin.title)\nBack to Pinned URL")
-          .accessibilityLabel("Back to Pinned URL")
-          .accessibilityIdentifier("clair.backToPinnedURL")
+          // D6: the icon turns into Back to Pinned URL under the pointer:
+          // Arc's 38 pt button, from 10 pt before the icon to the title,
+          // covering the "/".
+          PinIcon(icon: PinsLogic.icon(of: pin, tab: tab), isLoading: tab?.isLoading == true, size: TabRow.faviconSize)
+            .frame(width: TabRow.iconSize, height: TabRow.iconSize)
+            .background {
+              RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isIconHovered ? PinFill.backButton(colorScheme) : .clear)
+                .frame(width: Self.backButtonSize, height: Self.backButtonSize)
+                .offset(x: (Self.backButtonSize - TabRow.iconSize) / 2 - Self.backButtonLeading)
+            }
+            .overlay {
+              Color.clear
+                .frame(width: Self.backButtonSize, height: Self.backButtonSize)
+                .contentShape(Rectangle())
+                .offset(x: (Self.backButtonSize - TabRow.iconSize) / 2 - Self.backButtonLeading)
+                .onTapGesture { actions?.returnToPinnedURL(pin.pinID) }
+                .onHover { isIconHovered = $0 }
+                // A renamed pin's says where the icon goes; any other's is
+                // the row's own (tab-names spec).
+                .tooltip(
+                  pin.name.flatMap { $0.isEmpty ? nil : "\($0)\nBack to Pinned URL" }
+                    ?? PinsLogic.tooltip(title: title, name: nil),
+                  delay: TabRow.titleTooltipDelay)
+                .accessibilityElement()
+                .accessibilityLabel("Back to Pinned URL")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("clair.backToPinnedURL")
+            }
+            .zIndex(1)
           Text("/")
             .font(TabRow.titleFont)
             .foregroundStyle(.tertiary)
-            .padding(.leading, 3)
-            .padding(.trailing, 4)
+            .opacity(isIconHovered ? 0 : 1)
+            .frame(width: Self.slashWidth)
         } else {
           PinIcon(icon: PinsLogic.icon(of: pin, tab: tab), isLoading: tab?.isLoading == true, size: TabRow.faviconSize)
             .frame(width: TabRow.iconSize, height: TabRow.iconSize)
@@ -361,7 +393,9 @@ struct PinRow: View {
         PeekBadge(peek: peek)
           .padding(.trailing, isHovered ? 0 : PeekBadge.trailing - TabRow.horizontalPadding)
       }
-      if isHovered && rename == nil {
+      // A double-click's field leaves the button, as Arc's; Rename…'s takes
+      // its room.
+      if isHovered && rename?.selectsAll != true {
         IconButton(
           systemImage: button.systemImage, help: button.help, shortcut: button.shortcut, size: TabRow.closeSize,
           glyphSize: 12, glyphWeight: .bold, dimsWhenInactive: false
@@ -508,11 +542,15 @@ struct TodayDivider: View {
 
   static let height: CGFloat = 17
 
+  /// Where the hairline sits in the row, as Arc's.
+  static let hairlineY: CGFloat = 7.5
+
   var body: some View {
     HStack(spacing: 6) {
       Rectangle()
         .fill(PinFill.divider)
         .frame(height: 0.5)
+        .offset(y: Self.hairlineY + 0.25 - Self.height / 2)
       if showsClear {
         Button(action: action) {
           HStack(spacing: 3) {
@@ -546,11 +584,19 @@ enum PinFill {
     if selected {
       return scheme == .dark ? Color(white: 0.6) : Color.white
     }
+    // Arc's tiles sit 16 below the sidebar in Light Mode and 19 above it in
+    // Dark Mode, 22 and 29 under the pointer, out of 255.
     return scheme == .dark
-      ? Color.white.opacity(hovered ? 0.16 : 0.11) : Color.black.opacity(hovered ? 0.11 : 0.07)
+      ? Color.white.opacity(hovered ? 0.12 : 0.08) : Color.black.opacity(hovered ? 0.10 : 0.07)
   }
 
   static let divider = Color.primary.opacity(0.14)
+
+  /// The Back to Pinned URL button under the pointer: Arc's hovered × or −
+  /// background.
+  static func backButton(_ scheme: ColorScheme) -> Color {
+    scheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.08)
+  }
 }
 
 // MARK: Renaming in place (tab-names spec, design D11)
@@ -630,13 +676,13 @@ struct RenameField: NSViewRepresentable {
 
   /// A field that runs `onWindow` once, after it joins a window.
   final class FocusingField: NSTextField {
-    var onWindow: (() -> Void)?
+    var onWindow: (@MainActor () -> Void)?
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
       guard window != nil, let onWindow else { return }
       self.onWindow = nil
-      DispatchQueue.main.async(execute: onWindow)
+      Task { @MainActor in onWindow() }
     }
   }
 
@@ -671,10 +717,10 @@ struct RenameField: NSViewRepresentable {
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
-      // Clicking elsewhere discards the edit (tab-names spec); an end before
-      // the field has the keyboard is no edit at all.
-      guard isEditing else { return }
-      end(.unchanged)
+      // Clicking elsewhere keeps the edit, as in Arc (tab-names spec); an end
+      // before the field has the keyboard is no edit at all.
+      guard isEditing, let field = notification.object as? NSTextField else { return }
+      end(PinsLogic.nameChange(draft: field.stringValue, current: current))
     }
 
     private func end(_ change: PinsLogic.NameChange) {
@@ -691,6 +737,13 @@ struct RenameField: NSViewRepresentable {
 /// once per image.
 enum IconColor {
   private static let cache = NSCache<NSImage, NSColor>()
+
+  /// The selected tile's ring: the icon's main colour, lightened about 30%
+  /// toward white, as Arc's (Hacker News's orange 255 102 0 rings 254 144 93).
+  static func ring(of image: NSImage?) -> NSColor {
+    let main = Self.main(of: image) ?? .controlAccentColor
+    return main.blended(withFraction: 0.3, of: .white) ?? main
+  }
 
   static func main(of image: NSImage?) -> NSColor? {
     guard let image else { return nil }

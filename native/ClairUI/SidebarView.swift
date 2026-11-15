@@ -115,7 +115,6 @@ struct SidebarView: View {
       if model.showsPins && model.newSpaceForm == nil {
         if !model.favorites.isEmpty {
           FavoritesGrid(model: model, actions: actions)
-            .padding(.top, 2)
         } else if model.showsFavoritesHint {
           FavoritesHintBox(actions: actions)
         }
@@ -161,9 +160,15 @@ struct SidebarView: View {
   private var tabListTopPadding: CGFloat {
     switch model.profileKind {
     case .incognito: 0
-    case .regular: 9
+    // Below the favorites, or their empty box, the name's centre sits
+    // 18.5 pt down, as in Arc.
+    case .regular: showsFavoritesSection ? 2.5 : 9
     default: 8
     }
+  }
+
+  private var showsFavoritesSection: Bool {
+    model.showsPins && model.newSpaceForm == nil && (!model.favorites.isEmpty || model.showsFavoritesHint)
   }
 }
 
@@ -1157,7 +1162,9 @@ struct TabRow: View {
         PeekBadge(peek: peek)
           .padding(.trailing, isHovered ? 0 : PeekBadge.trailing - Self.horizontalPadding)
       }
-      if isHovered && rename == nil {
+      // A double-click's field leaves the button, as Arc's; Rename…'s takes
+      // its room.
+      if isHovered && rename?.selectsAll != true {
         TabCloseButton { actions?.close(tab: tab.tabID) }
           .padding(.trailing, Self.closeTrailing - Self.horizontalPadding)
       }

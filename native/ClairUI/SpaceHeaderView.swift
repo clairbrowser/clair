@@ -62,7 +62,7 @@ struct SpaceHeaderView: View {
   /// Room under the header, so the name's centre sits 41 pt above the "New
   /// Tab" row's, as in Arc.
   static let bottomGap: CGFloat = 4.5
-  static let leading: CGFloat = 13
+  static let leading: CGFloat = 16
   static let iconSize: CGFloat = 26
   static let nameGap: CGFloat = 2
   /// Arc's name: 13 pt semibold, in the sidebar's secondary grey.
@@ -71,6 +71,14 @@ struct SpaceHeaderView: View {
   @State private var draft = ""
   @FocusState private var nameFocused: Bool
   @State private var isHovered = false
+  @Environment(\.colorScheme) private var colorScheme
+
+  /// Where the name starts while the chevron shows.
+  static let chevronLeading: CGFloat = 44
+
+  private var showsChevron: Bool {
+    onToggleCollapse != nil && edit == nil && (isHovered || pinsCollapsed)
+  }
 
   private var isCurrent: Bool { space?.spaceID == model.shownSpaceID }
   private var edit: SpaceHeaderEdit? { isCurrent ? model.spaceHeaderEdit : nil }
@@ -105,23 +113,32 @@ struct SpaceHeaderView: View {
         Spacer(minLength: 0)
       }
     }
-    .padding(.leading, Self.leading)
+    // Arc's header under the pointer: a pill, the chevron at x=20.5 and the
+    // name moved from x=17 to x=45; the chevron stays, pointing sideways, while the
+    // pinned tabs are collapsed.
+    .padding(.leading, showsChevron ? Self.chevronLeading : Self.leading)
     .padding(.trailing, 13)
     .frame(height: Self.height)
+    .background {
+      if isHovered && edit == nil && onToggleCollapse != nil {
+        RoundedRectangle(cornerRadius: TabRow.cornerRadius, style: .continuous)
+          .fill(SidebarFill.hover(colorScheme))
+          .padding(.horizontal, 8)
+      }
+    }
     .contentShape(Rectangle())
     .overlay(alignment: .leading) {
-      // The chevron at the leading edge, on hover or while collapsed.
-      if let onToggleCollapse, edit == nil, isHovered || pinsCollapsed {
+      if let onToggleCollapse, showsChevron {
         Button(action: onToggleCollapse) {
           Image(systemName: "chevron.down")
-            .font(.system(size: 8, weight: .bold))
+            .font(.system(size: 12.5, weight: .bold))
             .foregroundStyle(.secondary)
             .rotationEffect(.degrees(pinsCollapsed ? -90 : 0))
             .frame(width: 12, height: Self.height)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.leading, 1)
+        .padding(.leading, 20)
         .tooltip(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
         .accessibilityLabel(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
         .accessibilityIdentifier("clair.pinnedChevron")
@@ -132,7 +149,6 @@ struct SpaceHeaderView: View {
     .overlay {
       if edit == nil {
         RowClickCatcher(onMiddleClick: {}, menuItems: menuItems)
-          .padding(.leading, onToggleCollapse != nil && (isHovered || pinsCollapsed) ? 14 : 0)
       }
     }
     .accessibilityElement(children: .contain)

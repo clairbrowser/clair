@@ -239,11 +239,23 @@ struct TooltipView: View {
 
   var body: some View {
     let accent = Color.accentColor
+    let lines = tooltip.text.split(separator: "\n", maxSplits: 1).map(String.init)
+    let ink = colorScheme == .dark ? Color.white.mix(with: accent, by: 0.1) : Color.primary.mix(with: accent, by: 0.3)
     HStack(spacing: 6) {
-      Text(tooltip.text)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(colorScheme == .dark ? Color.white.mix(with: accent, by: 0.1) : Color.primary.mix(with: accent, by: 0.3))
-        .lineLimit(1)
+      if lines.count > 1 {
+        // Arc's two-line tooltip, as a row's "Double-click to rename": the
+        // title in semibold, the hint lighter.
+        VStack(alignment: .leading, spacing: 1) {
+          Text(lines[0]).font(.system(size: 12, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+          Text(lines[1]).font(.system(size: 12)).foregroundStyle(ink.opacity(0.7)).lineLimit(1)
+        }
+        .padding(.vertical, 6)
+      } else {
+        Text(tooltip.text)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(ink)
+          .lineLimit(1)
+      }
       if !tooltip.shortcut.isEmpty {
         HStack(spacing: 3) {
           ForEach(Array(tooltip.shortcut.enumerated()), id: \.offset) { _, key in
@@ -254,11 +266,11 @@ struct TooltipView: View {
     }
     // The same on both sides, keys or not.
     .padding(.horizontal, 10)
-    .frame(height: Self.height)
+    .frame(minHeight: Self.height)
     // The shadow belongs to the capsule alone; on the whole view it would
     // blur the text and shade the key caps.
     .background {
-      Capsule()
+      RoundedRectangle(cornerRadius: lines.count > 1 ? 12 : Self.height / 2, style: .continuous)
         // In Dark Mode, Arc's deep tinted capsule.
         .fill(colorScheme == .dark ? Color.black.mix(with: accent, by: 0.4) : OverlayStyle.background.mix(with: accent, by: 0.07))
         .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
