@@ -121,6 +121,8 @@ EOF
 
 home="$workdir/home"
 mkdir -p "$home/Library/Application Support/Clair"
+# Chromium's code-sign clones, in a directory of the tests' own.
+clones="$workdir/code_sign_clone"
 work="$workdir/work"
 
 output=""
@@ -138,6 +140,7 @@ run() {
     FAKE_GH_ERROR="$fake_gh_error" \
     CLAIR_RUN_LOCAL_ENGINE_KEY="$key" CLAIR_RUN_LOCAL_PACKAGE="$bin/package.sh" \
     CLAIR_RUN_LOCAL_DEFAULTS_DOMAIN="$defaults_domain" FAKE_CLAIR_DEFAULTS="$defaults_domain" \
+    CLAIR_CODE_SIGN_CLONE_DIR="$clones" \
     "$run_local" --work "$work" "$@" 2>&1)" || status=$?
 }
 
@@ -228,6 +231,19 @@ if [[ -z "$(ls -A "$home/Library/Application Support/Clair")" ]]; then
   check "leaves ~/Library/Application Support/Clair alone" pass
 else
   check "leaves ~/Library/Application Support/Clair alone" fail
+fi
+
+# --- code-sign clones -----------------------------------------------------------------
+# A clone a killed Clair left behind; clean-code-sign-clones.test.sh covers
+# which clones are kept.
+mkdir -p "$clones/code_sign_clone.Stale1/Clair.app.bundle"
+touch -t "$(date -v-1H +%Y%m%d%H%M.%S)" "$clones/code_sign_clone.Stale1"
+run "$key_a"
+if (( status == 0 )) && [[ ! -e "$clones/code_sign_clone.Stale1" ]]; then
+  check "deletes Chromium's stale code-sign clones when Clair quits" pass
+else
+  check "deletes Chromium's stale code-sign clones when Clair quits" fail
+  echo "         got ($status): $output"
 fi
 
 # --- cache hit ------------------------------------------------------------------------

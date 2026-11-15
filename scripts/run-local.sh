@@ -26,6 +26,9 @@
 # saved before the launch and put back when Clair quits, so changes made by
 # an installed Clair while this one runs are lost.
 #
+# When Clair quits, the code-sign clones Chromium left in the temporary folder
+# are deleted (scripts/clean-code-sign-clones.sh), apart from ones still in use.
+#
 # For tests only: CLAIR_RUN_LOCAL_ENGINE_KEY replaces the computed engine key,
 # CLAIR_RUN_LOCAL_PACKAGE replaces package.sh, and
 # CLAIR_RUN_LOCAL_DEFAULTS_DOMAIN replaces the user defaults domain.
@@ -196,6 +199,8 @@ cleanup() {
   if $throwaway; then
     rm -rf "$profile"
   fi
+  # Quitting with Ctrl-C leaves Chromium's code-sign clone behind.
+  "$root/scripts/clean-code-sign-clones.sh" || true
 }
 trap cleanup EXIT
 echo "run-local: launching with the profile $profile" >&2
