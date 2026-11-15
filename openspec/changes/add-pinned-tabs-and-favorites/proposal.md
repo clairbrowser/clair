@@ -8,7 +8,8 @@ This builds on `add-spaces`, `share-tabs-across-windows`, `add-peek` and `add-pr
 
 ## What Changes
 
-- **A pin is a saved item.** A pinned tab or favorite keeps its pinned URL, page title, icon and any custom name in a store Clair owns, whether or not a page is loaded. A live tab attaches to it while open. Pins come back after every relaunch, whatever Chromium's "On startup" setting says. That setting now decides only whether Today tabs come back.
+- **A pin is a saved item.** A pinned tab or favorite keeps its pinned URL, page title, icon and any custom name in a store Clair owns, whether or not a page is loaded. A live tab attaches to it while open. Pins come back after every relaunch.
+- **Tabs always come back at launch, as in Arc.** Today tabs, and the pages of pinned tabs and favorites that were open, return until the user closes them. Chromium's "On startup" section leaves `chrome://settings`, and a startup choice from a stored preference or an extension is ignored. Which windows come back stays Clair's "restore windows" toggle. Today, "On startup" can still be set to open a new tab page instead.
 - **Favorites, per profile.** A grid of tiles above the Space header, laid out as Arc's: up to four tiles across, as few rows as possible, square tiles once a row is full. The favorites stay put when the user switches to another Space of the same profile. A selected favorite's tile turns white with a ring in its icon's colour.
 - **Pinned tabs, per Space.** A pinned section between the Space header and a divider, above "New Tab" and the Today tabs. The header's chevron collapses the section, and the active pinned tab stays visible while it's collapsed.
 - **Pinning and unpinning.** Cmd+D (Tabs › Pin/Unpin Tab) pins a Today tab at the bottom of the pinned section, and unpins a pinned tab to the top of Today. "Pin to Favorites" in a tab's menu adds a favorite. Dragging moves tabs between Today, the pinned section and favorites, and reorders within each.
@@ -55,15 +56,16 @@ This builds on `add-spaces`, `share-tabs-across-windows`, `add-peek` and `add-pr
 - `profiles`: "Pinned tabs and favorites when a Space's profile changes" is added, and "Removing a profile" removes its favorites.
 - `peek`: "Links to other sites from pinned tabs and favorites" is added.
 - `settings-window`: "Peek on links to other sites toggle" is added.
+- `chromium-engine`: "Browser behavior as in ungoogled-chromium outside Clair's interface" lists "On startup" among the absent settings sections.
 - `browser-window`:
   - "No bookmarks in the interface" gives Cmd+D to Pin/Unpin Tab.
-  - "Tabs restored at launch" brings pins back whatever "On startup" says.
+  - "Tabs restored at launch" always restores tabs, open pins included, and hides "On startup".
   - The window's title is in `tab-names`.
 
 ## Impact
 
 - **`native/ClairHost.h`** changes, so the engine key changes and the engine is rebuilt.
-- **Overlay:** a new pin store in Local State next to the Space store, holding each item's URL, title, name, cached icon and order. A session tag ties a live tab to its pin, and another keeps a Today tab's name. The tab lists, the next-tab choice, the Tabs menu, Peek's link handling, Space and profile deletion, and session restore all change.
+- **Overlay:** a new pin store in Local State next to the Space store, holding each item's URL, title, name, cached icon and order. A session tag ties a live tab to its pin, and another keeps a Today tab's name. The tab lists, the next-tab choice, the Tabs menu, Peek's link handling, Space and profile deletion, and session restore all change. A hook makes session restore run at every launch.
 - **`ClairUI`:** the favorites grid, the pinned section and its collapse, the divider and Clear, pinned rows and their states, inline rename and the rename dialog, Edit Pinned URL, drag and drop between sections, the new menu items, and the Links toggle. The window title changes too.
 - **Runtime suite:** new coverage for pins, favorites and renaming. Views the suite drives change, so the quality checks run on the branch before merging.
 - **Arc references:** captured on 2026-11-14 in light and dark for this change. The measurements and behaviours go into `design.md`; the screenshots stay out of git.

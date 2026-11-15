@@ -133,14 +133,14 @@ Hovering the Space header SHALL show a chevron at its leading edge. Clicking it,
 - **THEN** "Work"'s pinned section is still collapsed
 
 ### Requirement: Pinned tabs after a relaunch
-Pinned tabs SHALL come back after every relaunch, in their Spaces and order, with their pinned URLs and names, whatever Chromium's "On startup" setting and Clair's restore-windows setting say. A pinned tab whose page was open SHALL come back open only when Today tabs are restored.
+Pinned tabs SHALL come back after every relaunch, in their Spaces and order, with their pinned URLs and names, whichever windows come back. A pinned tab whose page was open when Clair quit SHALL come back open at the URL it showed (`browser-window`); one whose page wasn't SHALL come back not open.
 
-#### Scenario: Starting on a new tab page
-- **WHEN** "On startup" is "Open the New Tab page", and the user quits with three pinned tabs in "Work" and relaunches
-- **THEN** "Work" lists the three pinned tabs, none of them open
+#### Scenario: Relaunch
+- **WHEN** the user quits with three pinned tabs in "Work", one of them open, and relaunches
+- **THEN** "Work" lists the three pinned tabs in order, the one that was open open again, and the other two not open
 
-#### Scenario: Continuing where the user left off
-- **WHEN** "On startup" is "Continue where you left off", and the user quits with the pinned tab "Mail" open at another URL than its pinned URL, and relaunches
+#### Scenario: Navigated away
+- **WHEN** the user quits with the pinned tab "Mail" open at another URL than its pinned URL, and relaunches
 - **THEN** "Mail" is open at that URL, and its row shows "/"
 
 #### Scenario: After a crash

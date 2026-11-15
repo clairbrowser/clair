@@ -19,6 +19,11 @@ See proposal.md, "Why". What shapes the approach:
   - Shift+click opens a Peek through `clair::MaybeOpenPeek` in `browser_web_contents_delegate.cc`, which reads `ClairWindow.opensPeekOnShiftClick` for each link.
   - A plain link click that navigates in place never reaches those delegate calls.
   - `ClairPeeks::Expand` turns a Peek into a tab directly below its parent.
+- **"On startup" decides whether tabs come back at all.**
+  - Chromium's session restore brings back windows and their tabs together, and runs only when the profile's `session.restore_on_startup` says "continue where you left off".
+  - `add-spaces` D11 made that the default through `clair::RegisterProfilePrefOverrides`, except in headless mode, but left the setting changeable in `chrome://settings`, and extensions can override startup pages.
+  - Which windows come back is Clair's own `ClairRestoreWindows` toggle, applied after Chromium's restore (`add-profiles` D6).
+  - Arc has no setting to start without tabs. Clair has no users yet, so nothing needs migrating.
 - **Cmd+D and the window title:**
   - Cmd+D is `IDC_BOOKMARK_THIS_TAB`, which `ClairIsRemovedCommand` hides with its key equivalent.
   - `ClairBrowserWindow::UpdateTitleBar` sets the `NSWindow` title from Chromium's title for the current tab.
@@ -106,7 +111,7 @@ clair.pins  { "version": 1,
 - **Icons go in files,** `<user data dir>/Clair Pin Icons/<pin uuid>.png`, at most 64 × 64 px. The engine writes one on a background sequence when a bound tab (D2) at its pinned URL gets a new favicon, and deletes it with the pin. Snapshots load it lazily and cache it.
 - **Why Local State:** it's where the Spaces are, for the reasons `add-spaces` D1 gives. A pinned tab refers to a Space and a favorite to a profile directory, both of which Local State already holds. Deleting a Space or profile drops its entry in the same store (D9).
 - **Why not Chromium's favicon database:** it belongs to a profile's history, which "Clearing history" empties, and favorites must keep their icons.
-- **Alternative: pins as Chromium tabs, discarded when closed.** Rejected because they would vanish with "On startup: Open the New Tab page" or a failed restore, and every pin would cost a tab.
+- **Alternative: pins as Chromium tabs, discarded when closed.** Rejected because a pin would vanish with a failed or skipped session restore, such as headless mode or a guest session, and every pin would cost a tab.
 - **Alternative: per-profile prefs.** Rejected because pinned tabs belong to Spaces, which are app-wide.
 
 ### D2. A live tab binds to its pin
@@ -123,7 +128,7 @@ clair.pins  { "version": 1,
 
 ### D3. Restoring pins
 
-- **At launch:** the store is read before any window opens, so every pin is listed whatever "On startup" says. When session restore runs, a restored tab whose `clair_pin` names a pin with no tab binds to it. A tab whose pin is gone, or already bound, joins the Today list of its `clair_space`, keeping its name. With restore off, every pin starts unbound.
+- **At launch:** the store is read before any window opens, so every pin is listed even before session restore finishes. Session restore always runs (D12). A restored tab whose `clair_pin` names a pin with no tab binds to it. A tab whose pin is gone, or already bound, joins the Today list of its `clair_space`, keeping its name. Every other pin starts unbound.
 - **New tab pages:** a restored bound tab at the new tab page is dropped with the others (`add-profiles` D6), leaving its pin unbound.
 - **Removed pins:** `ClairPinStore` keeps the last 25 removed records in memory, each with its container, its index and the time it was removed.
   - A hook at the start of `IDC_RESTORE_TAB`, in `browser_command_controller.cc`, compares the newest removal with the newest `TabRestoreService` entry.
@@ -220,6 +225,18 @@ This is a breaking change to the contract, so the engine key changes.
   - Main menu items inserted by `InstallNativeWindowMenus` into Chromium's Tab menu: Pin Tab (Cmd+D), Back to Pinned URL, Close and Keep Pinned and Clear Today (Shift+Cmd+K). View › Collapse Pinned Tabs is inserted after Hide Sidebar.
   - Each item uses `ClairSidebarMenuTarget`'s pattern: Clair tags, actions sent to the key `ClairWindow`, which validates titles and enabled states.
   - Cmd+D leaves `ClairIsRemovedCommand`'s hidden bookmark item and moves to Pin Tab.
+
+### D12. Session restore always runs
+
+Clair restores tabs at every launch, as Arc does:
+
+- **The hook:** `SessionStartupPref::GetStartupPref(const PrefService*)`, in `session_startup_pref.cc`, ends with a call to `clair::ApplyStartupPref`, which sets the type to `LAST`, except in headless mode. Guest sessions never reach it, as Chromium already returns `DEFAULT` for them first.
+- **What it covers:** a value the user stored, startup pages an extension sets through `chrome_settings_overrides`, and anything else that writes `session.restore_on_startup`. All of them read through that call.
+- **Settings:** the `page_visibility.ts` hunk of `native-window-hook.patch` sets `onStartup: false`, so `chrome://settings` has no "On startup" section.
+- **The old default** in `clair::RegisterProfilePrefOverrides` goes, since the hook replaces it.
+- **Windows are unchanged:** which windows come back stays `ClairRestoreWindows` (`add-profiles` D6).
+- **Why a hook and not only the default and a hidden section:** an extension's startup pages and a policy would still turn restore off, with no visible setting left to explain it.
+- **Alternative: `--restore-last-session`.** Rejected, for `add-spaces` D11's reason: it would break the headless commands.
 
 ## Risks / Trade-offs
 
