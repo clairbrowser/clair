@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clair pins page</title>
+<style>a { display: inline-block; padding: 12px; font-size: 20px; }</style>
+<!-- add-pinned-tabs-and-favorites runtime tests: a link within the site
+     (localhost) and one to another site (127.0.0.1). -->
+<p><a id="same" href="http://localhost:8123/pages/pins-same.html">A page on the same site</a></p>
+<p><a id="other" href="http://127.0.0.1:8123/pages/peek-target.html?other">A page on another site</a></p>
+<p><a id="script" href="#" onclick="return false">Nothing</a></p>
+<script>
+  // A navigation the page starts itself, without a click.
+  window.goElsewhere = () => { location.href = "http://127.0.0.1:8123/pages/peek-target.html?script"; };
+</script>

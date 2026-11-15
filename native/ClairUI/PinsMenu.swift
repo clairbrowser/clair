@@ -35,8 +35,14 @@ final class PinsMenu: NSObject, NSMenuItemValidation {
     let viewMenu = mainMenu.items.first { $0.tag == Self.viewMenuTag }?.submenu
     guard let tabMenu else { return false }
     // Where Chromium's own Pin Tab (IDC_WINDOW_PIN_TAB) and its alternate
-    // (IDC_PIN_TARGET_TAB) were, which the engine hides.
-    let chromiumPin = tabMenu.items.lastIndex { $0.tag == 35013 || $0.tag == 35051 }
+    // (IDC_PIN_TARGET_TAB) were: Clair doesn't use Chromium's pinned tabs, so
+    // they're hidden, and have no key equivalent to fire.
+    let chromiumPinTags: Set<Int> = [35013, 35051]
+    for item in tabMenu.items where chromiumPinTags.contains(item.tag) {
+      item.isHidden = true
+      item.keyEquivalent = ""
+    }
+    let chromiumPin = tabMenu.items.lastIndex { chromiumPinTags.contains($0.tag) }
     var index = chromiumPin.map { $0 + 1 } ?? tabMenu.numberOfItems
     for command in [PinsLogic.MainMenuCommand.togglePin, .backToPinnedURL, .closeKeepingPin, .clearToday] {
       tabMenu.insertItem(make(command), at: index)
