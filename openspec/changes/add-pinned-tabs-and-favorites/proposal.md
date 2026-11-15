@@ -59,7 +59,7 @@ This builds on `add-spaces`, `share-tabs-across-windows`, `add-peek` and `add-pr
 - `chromium-engine`: "Browser behavior as in ungoogled-chromium outside Clair's interface" lists "On startup" among the absent settings sections.
 - `browser-window`:
   - "No bookmarks in the interface" gives Cmd+D to Pin/Unpin Tab.
-  - "Tabs restored at launch" always restores tabs, open pins included, and hides "On startup".
+  - "Tabs restored at launch" is replaced by "Tabs always restored at launch", which always restores tabs, open pins included, and hides "On startup".
   - The window's title is in `tab-names`.
 
 ## Impact
