@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Tabs always come back when Clair opens, as in Arc: chrome://settings no longer has an On startup section, and a startup page set there or by an extension is ignored'
+time: 2026-11-14T21:00:05-05:00

@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Sections of the sidebar
-Below the URL field, the sidebar SHALL show, in this order: the favorites of the Space's profile (`favorites`), the Space header, the Space's pinned tabs (`pinned-tabs`), the divider, the "New Tab" row and the Space's Today tabs. Rows SHALL show a tab's custom name in place of its title (`tab-names`). The sections SHALL scroll together.
+Below the URL field, the sidebar SHALL show, in this order: the favorites of the Space's profile (`favorites`), the Space header, the Space's pinned tabs (`pinned-tabs`), the divider, the "New Tab" row and the Space's Today tabs. Rows SHALL show a tab's custom name in place of its title (`tab-names`). The pinned tabs, the divider, "New Tab" and the Today tabs SHALL scroll together; the favorites stay above them, also while the window slides to another Space of the same profile.
 
 #### Scenario: Order of the sections
 - **WHEN** a Space's profile has two favorites, and the Space has one pinned tab and one Today tab
