@@ -30,8 +30,9 @@ sidebar shown too.
 
 ## Toolbar colour (probed 2026-11-15)
 
-These are for comparison: whether Clair follows them is the owner's
-decision, recorded in `design.md`. Each screenshot is the top 300 px of a
+These are for comparison. The owner decided Clair's toolbar stays a fixed
+grey in this change, as Arc's mostly is, and that following the page's
+colour, as Dia does, is a future change. Each screenshot is the top 300 px of a
 960 × 976 pt window.
 
 | File | Page | Toolbar | Line below it | Page's top row |

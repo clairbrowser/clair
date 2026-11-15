@@ -27,7 +27,7 @@ Change 1's roadmap decided "URL bar only in the sidebar, with no top toolbar and
 - **Narrow windows.** The host stays centred. As room runs out, the toolbar leaves out pinned extensions, then reload and the link icon, as Arc does.
 - **Split view (future):** every pane will show this header whatever the setting, and the sidebar's controls will show only when no pane shows a header. The design keeps that rule in one place; split view itself isn't part of this change.
 
-**Out of scope:** split view; Arc's "Show Full URL"; Arc's split-view button in the toolbar; and a first-run flow, which only gets the reusable picker.
+**Out of scope:** split view; a toolbar coloured from the page, as Dia's is (the toolbar stays a fixed grey, and page colours are a future change); Arc's "Show Full URL"; Arc's split-view button in the toolbar; and a first-run flow, which only gets the reusable picker.
 
 ## Capabilities
 

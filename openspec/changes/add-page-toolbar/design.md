@@ -34,6 +34,7 @@
 
 **Non-Goals:**
 - Split view.
+- A toolbar coloured from the page, as Dia's is (`dia-reference/README.md`). The owner chose a fixed grey for this change and left page colours to a future change.
 - Arc's Developer Mode toolbar for `localhost`.
 - Show Full URL.
 - Animating the switch between layouts. It's instant, and whether Arc animates it is unverified.
@@ -83,7 +84,7 @@ The Peek gets its own header instead (`arc-reference/screenshots/toolbar-peek.jp
 
 Split view will add its pane variants here: a focused pane with site controls, split and close, and an inactive pane with back, forward, the host and close.
 
-The background is a fixed grey: 238 in Light Mode, which Arc shows on white, black and orange page tops alike. On iana.org, Arc's toolbar and its Peek's took the page's light blue-grey header colour (`toolbar-page-tint-iana.jpg`). That page declares no `theme-color`, and the rule behind it is unknown, so Clair doesn't copy it.
+The background is a fixed grey: 238 in Light Mode, which Arc shows on white, black and orange page tops alike. On iana.org, Arc's toolbar and its Peek's took the page's light blue-grey header colour (`toolbar-page-tint-iana.jpg`). That page declares no `theme-color`, and the rule behind it is unknown, so Clair doesn't copy it. Dia instead colours its toolbar from the page's background as it scrolls (`dia-reference/`). Following the page is a future change; the toolbar's background is one fill, so that change can replace it without touching the layout.
 
 Layout, using Arc's metrics:
 - **Leading group:** buttons centred at 21, 57.75, 94.75 and 132 pt from the card's leading edge.
