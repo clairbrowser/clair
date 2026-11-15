@@ -31,15 +31,19 @@ final class FakeTab: NSObject, ClairTab {
   let peekID: TabID
   let spaceID: SpaceID
   let browserID: BrowserID
+  let pinID: PinID?
+  let name: String?
 
   init(
     id: TabID, title: String = "", url: String? = nil, isLoading: Bool = false, loadProgress: Double = 0,
     canGoBack: Bool = false, canGoForward: Bool = false, isAudible: Bool = false, isMuted: Bool = false, isCrashed: Bool = false,
     indicators: TabIndicators = [], infobars: [any ClairInfobar] = [], isNotSecure: Bool = false,
     peekParentID: TabID = ClairTabIDNone, peekID: TabID = ClairTabIDNone, spaceID: SpaceID = FakeHost.homeID,
-    browserID: BrowserID = 0
+    browserID: BrowserID = 0, pinID: PinID? = nil, name: String? = nil
   ) {
     tabID = id
+    self.pinID = pinID
+    self.name = name
     self.peekParentID = peekParentID
     self.peekID = peekID
     self.spaceID = spaceID
@@ -66,7 +70,8 @@ final class FakeTab: NSObject, ClairTab {
     title: String? = nil, url: String? = nil, isLoading: Bool? = nil, loadProgress: Double? = nil,
     isAudible: Bool? = nil, isMuted: Bool? = nil, canGoBack: Bool? = nil, canGoForward: Bool? = nil,
     isCrashed: Bool? = nil, indicators: TabIndicators? = nil, isNotSecure: Bool? = nil,
-    peekParentID: TabID? = nil, peekID: TabID? = nil, spaceID: SpaceID? = nil, browserID: BrowserID? = nil
+    peekParentID: TabID? = nil, peekID: TabID? = nil, spaceID: SpaceID? = nil, browserID: BrowserID? = nil,
+    pinID: PinID?? = nil, name: String?? = nil
   ) -> FakeTab {
     FakeTab(
       id: tabID, title: title ?? self.title, url: url ?? (self.url?.absoluteString),
@@ -76,7 +81,40 @@ final class FakeTab: NSObject, ClairTab {
       isMuted: isMuted ?? self.isMuted, isCrashed: isCrashed ?? self.isCrashed,
       indicators: indicators ?? self.indicators, infobars: infobars, isNotSecure: isNotSecure ?? self.isNotSecure,
       peekParentID: peekParentID ?? self.peekParentID, peekID: peekID ?? self.peekID,
-      spaceID: spaceID ?? self.spaceID, browserID: browserID ?? self.browserID)
+      spaceID: spaceID ?? self.spaceID, browserID: browserID ?? self.browserID, pinID: pinID ?? self.pinID,
+      name: name ?? self.name)
+  }
+}
+
+/// A stand-in for a pin snapshot (add-pinned-tabs-and-favorites design D10).
+final class FakePin: NSObject, ClairPin {
+  let pinID: PinID
+  let isFavorite: Bool
+  let spaceID: SpaceID?
+  let profileID: ProfileID
+  let url: URL
+  let title: String
+  let name: String?
+  let icon: NSImage? = nil
+  let tabID: TabID
+  let tabs: [any ClairTab]
+  let isAtPinnedURL: Bool
+
+  init(
+    id: PinID, isFavorite: Bool = false, spaceID: SpaceID? = FakeHost.homeID,
+    profileID: ProfileID = FakeHost.defaultProfileID, url: String, title: String = "", name: String? = nil,
+    tab: FakeTab? = nil, isAtPinnedURL: Bool = true
+  ) {
+    pinID = id
+    self.isFavorite = isFavorite
+    self.spaceID = isFavorite ? nil : spaceID
+    self.profileID = profileID
+    self.url = URL(string: url)!
+    self.title = title
+    self.name = name
+    tabID = tab?.tabID ?? ClairTabIDNone
+    tabs = tab.map { [$0] } ?? []
+    self.isAtPinnedURL = isAtPinnedURL
   }
 }
 
@@ -451,9 +489,22 @@ final class FakeBrowser: NSObject, ClairBrowser {
   private func rowTab(_ tabID: TabID) -> FakeTab? {
     guard let tab = host.tab(tabID) else { return nil }
     if tab.browserID == browserID { return tab }
-    guard profileKind == .regular, host.isSpace(tab.spaceID), host.browser(tab.browserID)?.profileKind == .regular
+    guard profileKind == .regular, host.isSpace(tab.spaceID) || tab.pinID != nil,
+      host.browser(tab.browserID)?.profileKind == .regular
     else { return nil }
     return tab
+  }
+
+  /// The open pinned tabs of the Space the window shows, in the pins' order
+  /// (add-pinned-tabs-and-favorites D4).
+  var pinnedTabs: [FakeTab] {
+    profileKind == .regular ? host.pinRecords(inSpace: shownSpaceID).compactMap { host.boundTab(of: $0.id) } : []
+  }
+
+  /// The rows of open tabs Clair picks the next tab from: open pinned tabs,
+  /// then Today rows.
+  var openRows: [TabID] {
+    pinnedTabs.map(\.tabID) + TabListLogic.rows(tabs).map(\.tabID)
   }
 
   /// The window holding a tab.
@@ -523,6 +574,22 @@ final class FakeBrowser: NSObject, ClairBrowser {
   func closeTabNow(_ tabID: TabID) {
     host.operation {
       guard let tab = tab(tabID) else { return }
+      // A bound tab closing leaves its pin, unbound (D2).
+      if let pinID = tab.pinID, host.boundTab(of: pinID)?.tabID == tabID {
+        host.pageViews[tabID] = nil
+        if cameFromID == tabID {
+          cameFromID = ClairTabIDNone
+        }
+        host.unbind(pinID)
+        if activeTabID == tabID {
+          cameFromID = ClairTabIDNone
+          isChoosingNext = true
+          setActive(TabListLogic.rows(tabs).first?.tabID ?? ClairTabIDNone)
+          isChoosingNext = false
+        }
+        host.tabClosed(tabID)
+        return
+      }
       var next = ClairTabIDNone
       if activeTabID == tabID {
         let strip = allTabs
@@ -573,9 +640,14 @@ final class FakeBrowser: NSObject, ClairBrowser {
             cameFromID = row
           }
         }
-        lastActive[tab.spaceID] = tabID
-        if tab.spaceID != shownSpaceID {
-          setShown(tab.spaceID)
+        // A favorite's tab belongs to no Space, and leaves the window's.
+        if !tab.spaceID.isEmpty {
+          lastActive[tab.spaceID] = tabID
+          if tab.spaceID != shownSpaceID {
+            setShown(tab.spaceID)
+          }
+        } else {
+          lastActive[shownSpaceID] = tabID
         }
       }
       if tabID != placeholderID, stillTabID != ClairTabIDNone {
@@ -608,12 +680,17 @@ final class FakeBrowser: NSObject, ClairBrowser {
   /// or below, from every window's rows. With `avoidingShown`, for a close
   /// another window started, none another window shows.
   func nextRow(leaving rowID: TabID, avoidingShown: Bool = false) -> TabID? {
-    let rows = TabListLogic.rows(tabs).map(\.tabID)
-    guard let index = rows.firstIndex(of: rowID) else { return nil }
+    // add-pinned-tabs-and-favorites D4: open pinned tabs, then Today rows;
+    // unopened pins are passed over, and a favorite counts as came-from.
+    let rows = openRows
+    let isFavorite = host.isFavoriteTab(rowID)
+    let index = rows.firstIndex(of: rowID)
+    guard index != nil || isFavorite else { return nil }
     let usable = { (row: TabID) in row != rowID && (!avoidingShown || !self.host.isShown(row, except: self)) }
-    if cameFromID != ClairTabIDNone, rows.contains(cameFromID), usable(cameFromID) {
+    if cameFromID != ClairTabIDNone, rows.contains(cameFromID) || host.isFavoriteTab(cameFromID), usable(cameFromID) {
       return cameFromID
     }
+    guard let index else { return rows.first(where: usable) }
     if let above = rows[..<index].last(where: usable) { return above }
     return rows[(index + 1)...].first(where: usable)
   }
@@ -621,7 +698,7 @@ final class FakeBrowser: NSObject, ClairBrowser {
   /// Shows `row`, or its Peek, taking it from another window if need be.
   private func activateRow(_ row: TabID) {
     guard let tab = host.tab(row) else { return }
-    let target = TabListLogic.tabToActivate(forRow: row, in: host.list(tab.spaceID))
+    let target = tab.pinID != nil ? row : TabListLogic.tabToActivate(forRow: row, in: host.list(tab.spaceID))
     if self.tab(target) != nil {
       setActive(target)
     } else {
@@ -641,7 +718,8 @@ final class FakeBrowser: NSObject, ClairBrowser {
   /// Whether `tabID` is the row the window shows: the active tab, or the
   /// parent of the active Peek.
   func isActiveRow(_ tabID: TabID) -> Bool {
-    activeTabID != placeholderID && TabListLogic.highlightedRow(activeTabID: activeTabID, in: tabs) == tabID
+    activeTabID != placeholderID
+      && TabListLogic.highlightedRow(activeTabID: activeTabID, in: tabs + pinnedTabs) == tabID
   }
 
   /// add-profiles D9: the active tab moved to another Space; the window
@@ -674,7 +752,7 @@ final class FakeBrowser: NSObject, ClairBrowser {
       if let next = nextRow(leaving: tabID, avoidingShown: forAnotherWindow) {
         choose(next)
       } else if tab.peekParentID == ClairTabIDNone, profileKind == .regular {
-        if tab.isNewTabPage {
+        if tab.isNewTabPage && tab.pinID == nil {
           closeWindowAsUser(closing: tabID)
           return
         }
@@ -724,6 +802,10 @@ final class FakeBrowser: NSObject, ClairBrowser {
   /// Moves `row` and its Peek into this window, keeping their place.
   fileprivate func moveFamilyHere(_ row: TabID) {
     guard let tab = host.tab(row) else { return }
+    if let pinID = tab.pinID, host.boundTab(of: pinID)?.tabID == row {
+      host.rebind(pinID, to: tab.with(browserID: browserID))
+      return
+    }
     let family: Set<TabID> = [row, tab.peekID]
     mutate(tab.spaceID) { list in
       for index in list.indices where family.contains(list[index].tabID) {
@@ -1021,6 +1103,33 @@ final class FakeBrowser: NSObject, ClairBrowser {
     }
   }
 
+  // MARK: Pins (add-pinned-tabs-and-favorites D4, D5)
+
+  func openPin(_ pinID: PinID) {
+    host.operation {
+      record("openPin \(pinID)")
+      guard profileKind == .regular, let record = host.pinRecord(pinID) else { return }
+      if let bound = host.boundTab(of: pinID) {
+        if bound.browserID == browserID { setActive(bound.tabID) } else { take(bound.tabID) }
+        return
+      }
+      let tab = FakeTab(
+        id: host.newTabID(), title: record.title, url: record.url, spaceID: record.spaceID ?? "",
+        browserID: browserID, pinID: pinID)
+      host.pageViews[tab.tabID] = NSView()
+      host.bind(pinID, to: tab)
+      setActive(tab.tabID)
+    }
+  }
+
+  func unpin(_ pinID: PinID, to index: Int) {
+    host.operation {
+      record("unpin \(pinID) \(index)")
+      guard profileKind == .regular else { return }
+      host.unpin(pinID, toIndex: index, in: self)
+    }
+  }
+
   func duplicate(tab tabID: TabID) { record("duplicate \(tabID)") }
   func setMuted(_ muted: Bool, tab tabID: TabID) { record("\(muted ? "mute" : "unmute") \(tabID)") }
   func goBack() { record("back") }
@@ -1106,6 +1215,7 @@ final class RecordingWindow: NSObject, ClairWindow {
   let pageContainerView = NSView()
   var isSidebarHidden = false
   var opensPeekOnShiftClick = true
+  var opensPeekForOtherSites = true
   private(set) var calls: [String] = []
 
   func shownSpaceDidChange(_ spaceID: SpaceID, from previousSpaceID: SpaceID?, swappedInFor outgoingBrowserID: BrowserID) {
@@ -1171,5 +1281,13 @@ final class RecordingSpacesObserver: NSObject, ClairSpacesObserver {
 
   func profilesDidChange(_ profiles: [any ClairProfile]) {
     calls.append("profiles \(profiles.map(\.name).joined(separator: ","))")
+  }
+
+  func pinsDidChange(_ pins: [any ClairPin], inSpace spaceID: SpaceID) {
+    calls.append("pins \(spaceID) \(pins.map(\.title).joined(separator: ","))")
+  }
+
+  func favoritesDidChange(_ favorites: [any ClairPin], ofProfile profileID: ProfileID) {
+    calls.append("favorites \(profileID) \(favorites.map(\.title).joined(separator: ","))")
   }
 }

@@ -24,6 +24,7 @@ class BrowserWindowInterface;
 class ExtensionInstallPromptShowParams;
 class PrefRegistrySimple;
 class Profile;
+struct SessionStartupPref;
 class TabStripModel;
 
 class GURL;
@@ -153,13 +154,21 @@ bool ExtensionInstalled(BrowserWindowInterface* browser,
                         const extensions::Extension* extension);
 
 // browser_prefs.cc: Clair's profile defaults, set after Chromium registers its
-// profile prefs: passwords and autofill are off (D17), and "On startup"
-// continues where the user left off (add-spaces D11). They're defaults, not
-// forced values: chrome://settings still changes them.
+// profile prefs: passwords and autofill are off (D17). They're defaults, not
+// forced values.
 void RegisterProfilePrefOverrides(user_prefs::PrefRegistrySyncable* registry);
 
+// session_startup_pref.cc, at the end of SessionStartupPref::GetStartupPref:
+// tabs always come back at launch, as in Arc, whatever the stored value, an
+// extension's startup pages or a policy say (add-pinned-tabs-and-favorites
+// D12). Not in headless mode, which has no windows to come back to: with a
+// restore, Chromium opens the command line's URL through session restore,
+// which never hands it to --dump-dom and the other headless commands, so they
+// never finish (add-spaces D11).
+void ApplyStartupPref(SessionStartupPref* pref);
+
 // browser_prefs.cc: Clair's own Local State prefs, which hold the Spaces
-// (add-spaces D1).
+// (add-spaces D1) and the pins (add-pinned-tabs-and-favorites D1).
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
 
 // render_view_context_menu_mac_cocoa.mm: whether `view` is in a native

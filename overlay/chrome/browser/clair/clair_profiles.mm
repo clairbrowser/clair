@@ -15,6 +15,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
+#import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/profiles/delete_profile_helper.h"
@@ -239,6 +240,9 @@ void ClairProfiles::OnProfileWasRemoved(const base::FilePath& profile_path,
   // D2: a Space whose profile is gone, as when Chromium's own pages delete
   // it, uses the default profile.
   ClairSpaceStore::Get()->ProfileRemoved(profile_path.BaseName().AsUTF8Unsafe());
+  // add-pinned-tabs-and-favorites D9: its favorites go with it.
+  ClairPinStore::Get()->RemoveContainer(
+      PinContainer::OfProfile(profile_path.BaseName().AsUTF8Unsafe()));
   Changed();
 }
 

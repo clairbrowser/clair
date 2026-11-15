@@ -19,6 +19,7 @@
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/top_sites_factory.h"
+#import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -483,6 +484,12 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
     case ClairOpenDispositionNewWindow:
       params.disposition = WindowOpenDisposition::NEW_WINDOW;
       break;
+  }
+  // add-pinned-tabs-and-favorites D7: another site leaves a favorite's page
+  // as it is, in a new Today tab.
+  if (params.disposition == WindowOpenDisposition::CURRENT_TAB &&
+      clair::LeavesFavorite(_browserWindow.get(), destination.url)) {
+    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   }
   params.window_action = NavigateParams::WindowAction::kShowWindow;
   Navigate(&params);

@@ -17,6 +17,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #import "chrome/browser/app_controller_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
+#import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
@@ -196,6 +197,11 @@ bool ExecuteCommand(ClairBrowserWindow* window,
       break;
     case IDC_SHOW_AS_TAB:
       menu_item.hidden = YES;
+      break;
+    case IDC_RESTORE_TAB:
+      // add-pinned-tabs-and-favorites D3: a removed pin can come back though
+      // Chromium has no tab to reopen.
+      enable |= clair::HasRemovedPin(browser_window);
       break;
     case IDC_BACK:
     case IDC_DUPLICATE_TAB:

@@ -1,0 +1,29 @@
+# Tabs always come back at launch, as in Arc (add-pinned-tabs-and-favorites
+# design D12). SessionStartupPref::GetStartupPref(const PrefService*), which
+# every reader of the startup preference goes through, ends with a call to
+# overlay/chrome/browser/clair/window/clair_window_hooks, which makes the type
+# "continue where you left off" whatever the stored value, an extension's
+# startup pages or a policy say, except in headless mode. Guest sessions
+# return earlier, as in Chromium.
+
+--- a/chrome/browser/prefs/session_startup_pref.cc
++++ b/chrome/browser/prefs/session_startup_pref.cc
+@@ -11,6 +11,7 @@
+ #include "base/feature_list.h"
+ #include "base/values.h"
+ #include "build/build_config.h"
++#include "chrome/browser/clair/window/clair_window_hooks.h"  // nogncheck
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/pref_names.h"
+@@ -126,6 +127,10 @@
+       prefs->GetList(prefs::kURLsToRestoreOnStartup);
+   URLListToPref(url_list, &pref);
+ 
++  // Clair: tabs always come back at launch, whatever the stored value, an
++  // extension or a policy says (add-pinned-tabs-and-favorites design D12).
++  clair::ApplyStartupPref(&pref);
++
+   return pref;
+ }
+ 

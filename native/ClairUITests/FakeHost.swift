@@ -259,20 +259,320 @@ final class FakeHost: NSObject, ClairHost {
     }
   }
 
-  /// The tab with `tabID`, in whichever Space it is.
+  /// The tab with `tabID`, in whichever Space it is, or bound to a pin.
   func tab(_ tabID: TabID) -> FakeTab? {
     for tabs in lists.values {
       if let tab = tabs.first(where: { $0.tabID == tabID }) {
         return tab
       }
     }
-    return nil
+    return bound.values.first { $0.tabID == tabID }
   }
 
-  /// Every tab a window holds, in each Space's order, Spaces in order.
+  /// Every tab a window holds, in each Space's order, Spaces in order, then
+  /// its pins' tabs.
   func tabs(ofBrowser browserID: BrowserID) -> [FakeTab] {
     let order = spaces.map(\.spaceID) + lists.keys.filter { !isSpace($0) }.sorted()
     return order.flatMap { list($0).filter { $0.browserID == browserID } }
+      + bound.values.filter { $0.browserID == browserID }.sorted { $0.tabID < $1.tabID }
+  }
+
+  // MARK: Pins (add-pinned-tabs-and-favorites design D1 to D6)
+
+  /// A pin as the engine's store keeps it.
+  struct PinRecord {
+    let id: PinID
+    /// A pinned tab's Space, or nil for a favorite.
+    var spaceID: SpaceID?
+    var profileID: ProfileID
+    var url: String
+    var title: String
+    var name: String?
+  }
+
+  private var records: [PinID: PinRecord] = [:]
+  private var pinOrder: [SpaceID: [PinID]] = [:]
+  private var favoriteOrder: [ProfileID: [PinID]] = [:]
+  /// Each open pin's tab.
+  private var bound: [PinID: FakeTab] = [:]
+  /// Pins removed, newest first, for Restore Last Closed Tab (D3).
+  private(set) var removedPins: [(record: PinRecord, index: Int)] = []
+  private var nextPin = 1
+
+  func pinRecord(_ pinID: PinID) -> PinRecord? { records[pinID] }
+
+  func pinRecords(inSpace spaceID: SpaceID) -> [PinRecord] {
+    (pinOrder[spaceID] ?? []).compactMap { records[$0] }
+  }
+
+  func favoriteRecords(ofProfile profileID: ProfileID) -> [PinRecord] {
+    (favoriteOrder[profileID] ?? []).compactMap { records[$0] }
+  }
+
+  func boundTab(of pinID: PinID) -> FakeTab? { bound[pinID] }
+
+  func isFavoriteTab(_ tabID: TabID) -> Bool {
+    guard let tab = tab(tabID), let pinID = tab.pinID, bound[pinID]?.tabID == tabID else { return false }
+    return records[pinID]?.spaceID == nil
+  }
+
+  /// Adds a pin as the engine's store would, without a tab, and returns it.
+  @discardableResult
+  func addPin(
+    url: String, title: String, name: String? = nil, inSpace spaceID: SpaceID? = FakeHost.homeID,
+    profile profileID: ProfileID = FakeHost.defaultProfileID
+  ) -> PinID {
+    let pinID = "pin-\(nextPin)"
+    nextPin += 1
+    records[pinID] = PinRecord(id: pinID, spaceID: spaceID, profileID: profileID, url: url, title: title, name: name)
+    if let spaceID {
+      pinOrder[spaceID, default: []].append(pinID)
+    } else {
+      favoriteOrder[profileID, default: []].append(pinID)
+    }
+    pinsChanged(of: pinID)
+    return pinID
+  }
+
+  private func snapshot(_ record: PinRecord) -> FakePin {
+    let tab = bound[record.id]
+    let atPinnedURL = tab.map { ($0.url?.absoluteString ?? $0.urlText) == record.url } ?? true
+    return FakePin(
+      id: record.id, isFavorite: record.spaceID == nil, spaceID: record.spaceID, profileID: record.profileID,
+      url: record.url, title: record.title, name: record.name, tab: tab, isAtPinnedURL: atPinnedURL)
+  }
+
+  private func pinsChanged(of pinID: PinID) {
+    guard let record = records[pinID] else { return }
+    containerChanged(spaceID: record.spaceID, profileID: record.profileID)
+  }
+
+  private func containerChanged(spaceID: SpaceID?, profileID: ProfileID) {
+    if let spaceID {
+      let pins = self.pins(inSpace: spaceID)
+      for observer in allObservers {
+        observer.pinsDidChange(pins, inSpace: spaceID)
+      }
+    } else {
+      let favorites = self.favorites(ofProfile: profileID)
+      for observer in allObservers {
+        observer.favoritesDidChange(favorites, ofProfile: profileID)
+      }
+    }
+  }
+
+  /// Binds `tab` to the pin, as the engine does when it opens or restores it.
+  func bind(_ pinID: PinID, to tab: FakeTab) {
+    bound[pinID] = tab.with(spaceID: records[pinID]?.spaceID ?? "", pinID: .some(pinID), name: .some(nil))
+    pinsChanged(of: pinID)
+  }
+
+  /// Keeps a bound tab's new snapshot, as when it moves window.
+  func rebind(_ pinID: PinID, to tab: FakeTab) {
+    bound[pinID] = tab
+    pinsChanged(of: pinID)
+  }
+
+  /// The pin's tab closed; the pin stays.
+  func unbind(_ pinID: PinID) {
+    bound[pinID] = nil
+    pinsChanged(of: pinID)
+  }
+
+  /// D5: the pin goes, and its tab, or a new one in `browser`, joins its
+  /// Space's Today tabs at `index`, with its name.
+  func unpin(_ pinID: PinID, toIndex index: Int, in browser: FakeBrowser) {
+    guard let record = records[pinID] else { return }
+    let spaceID = record.spaceID ?? browser.shownSpaceID
+    let tab =
+      bound[pinID]?.with(spaceID: spaceID, pinID: .some(nil), name: .some(record.name))
+      ?? FakeTab(
+        id: newTabID(), title: record.title, url: record.url, spaceID: spaceID, browserID: browser.browserID,
+        name: record.name)
+    if pageViews[tab.tabID] == nil {
+      pageViews[tab.tabID] = NSView()
+    }
+    removeRecord(pinID)
+    bound[pinID] = nil
+    var tabs = list(spaceID)
+    tabs.insert(tab, at: max(0, min(index, tabs.count)))
+    setList(tabs, inSpace: spaceID)
+    containerChanged(spaceID: record.spaceID, profileID: record.profileID)
+  }
+
+  /// Takes the record out of the store; returns its index.
+  @discardableResult
+  private func removeRecord(_ pinID: PinID) -> Int? {
+    guard let record = records.removeValue(forKey: pinID) else { return nil }
+    if let spaceID = record.spaceID {
+      let index = pinOrder[spaceID]?.firstIndex(of: pinID)
+      pinOrder[spaceID]?.removeAll { $0 == pinID }
+      return index
+    }
+    let index = favoriteOrder[record.profileID]?.firstIndex(of: pinID)
+    favoriteOrder[record.profileID]?.removeAll { $0 == pinID }
+    return index
+  }
+
+  private func insertRecord(_ record: PinRecord, at index: Int) {
+    records[record.id] = record
+    if let spaceID = record.spaceID {
+      var order = pinOrder[spaceID] ?? []
+      order.insert(record.id, at: max(0, min(index, order.count)))
+      pinOrder[spaceID] = order
+    } else {
+      var order = favoriteOrder[record.profileID] ?? []
+      order.insert(record.id, at: max(0, min(index, order.count)))
+      favoriteOrder[record.profileID] = order
+    }
+  }
+
+  /// D3: Restore Last Closed Tab puts the newest removed pin back in place.
+  @discardableResult
+  func restoreRemovedPin() -> PinID? {
+    guard !removedPins.isEmpty else { return nil }
+    let (record, index) = removedPins.removeFirst()
+    insertRecord(record, at: index)
+    pinsChanged(of: record.id)
+    return record.id
+  }
+
+  // MARK: ClairHost: pins
+
+  func pins(inSpace spaceID: SpaceID) -> [any ClairPin] {
+    pinRecords(inSpace: spaceID).map(snapshot)
+  }
+
+  func favorites(ofProfile profileID: ProfileID) -> [any ClairPin] {
+    favoriteRecords(ofProfile: profileID).map(snapshot)
+  }
+
+  /// D5: a Today tab becomes a pin of its Space, or of its profile's
+  /// favorites, keeping its page and name.
+  private func pin(tab tabID: TabID, at index: Int, favorite: Bool) {
+    guard let tab = tab(tabID), tab.pinID == nil, isSpace(tab.spaceID), tab.peekParentID == ClairTabIDNone,
+      let profileID = profile(ofSpace: tab.spaceID)
+    else { return }
+    let pinID = "pin-\(nextPin)"
+    nextPin += 1
+    let record = PinRecord(
+      id: pinID, spaceID: favorite ? nil : tab.spaceID, profileID: profileID,
+      url: tab.url?.absoluteString ?? tab.urlText, title: tab.title, name: tab.name)
+    insertRecord(record, at: index)
+    setList(list(tab.spaceID).filter { $0.tabID != tabID && $0.peekParentID != tabID }, inSpace: tab.spaceID)
+    bind(pinID, to: tab)
+  }
+
+  func pin(tab tabID: TabID, at index: Int) {
+    commands.append("pin \(tabID) \(index)")
+    pin(tab: tabID, at: index, favorite: false)
+  }
+
+  func favorite(tab tabID: TabID, at index: Int) {
+    commands.append("favorite \(tabID) \(index)")
+    pin(tab: tabID, at: index, favorite: true)
+  }
+
+  func movePin(_ pinID: PinID, toSpace spaceID: SpaceID, at index: Int) {
+    commands.append("movePin \(pinID) \(spaceID) \(index)")
+    guard var record = records[pinID], isSpace(spaceID), let profileID = profile(ofSpace: spaceID) else { return }
+    let from = (record.spaceID, record.profileID)
+    removeRecord(pinID)
+    record.spaceID = spaceID
+    let changedProfile = record.profileID != profileID
+    record.profileID = profileID
+    insertRecord(record, at: index)
+    if var tab = bound[pinID] {
+      if changedProfile {
+        // add-profiles D9: reopened in the other profile, with a new ID.
+        tab = FakeTab(
+          id: newTabID(), title: tab.title, url: tab.url?.absoluteString, spaceID: spaceID, browserID: tab.browserID,
+          pinID: pinID)
+        pageViews[tab.tabID] = NSView()
+      }
+      bound[pinID] = tab.with(spaceID: spaceID)
+    }
+    containerChanged(spaceID: from.0, profileID: from.1)
+    pinsChanged(of: pinID)
+  }
+
+  func movePin(_ pinID: PinID, toFavoritesAt index: Int) {
+    commands.append("movePinToFavorites \(pinID) \(index)")
+    guard var record = records[pinID] else { return }
+    let from = (record.spaceID, record.profileID)
+    removeRecord(pinID)
+    record.spaceID = nil
+    insertRecord(record, at: index)
+    if let tab = bound[pinID] {
+      bound[pinID] = tab.with(spaceID: "")
+    }
+    if from.0 != nil {
+      containerChanged(spaceID: from.0, profileID: from.1)
+    }
+    pinsChanged(of: pinID)
+  }
+
+  func removePin(_ pinID: PinID) {
+    commands.append("removePin \(pinID)")
+    guard let record = records[pinID], let index = removeRecord(pinID) else { return }
+    removedPins.insert((record, index), at: 0)
+    let tab = bound.removeValue(forKey: pinID)
+    containerChanged(spaceID: record.spaceID, profileID: record.profileID)
+    // Its page closes through the close flow, as a Today tab.
+    if let tab, let browser = browser(tab.browserID) {
+      let today = tab.with(spaceID: record.spaceID ?? browser.shownSpaceID, pinID: .some(nil))
+      setList([today] + list(today.spaceID), inSpace: today.spaceID)
+      browser.close(tab: tab.tabID)
+    }
+  }
+
+  func returnToPinnedURL(_ pinID: PinID) {
+    commands.append("returnToPinnedURL \(pinID)")
+    guard let record = records[pinID], let tab = bound[pinID] else { return }
+    bound[pinID] = tab.with(title: record.title, url: record.url, canGoBack: true)
+    pinsChanged(of: pinID)
+  }
+
+  func replacePinnedURLWithCurrent(_ pinID: PinID) {
+    commands.append("replacePinnedURL \(pinID)")
+    guard var record = records[pinID], let tab = bound[pinID] else { return }
+    record.url = tab.url?.absoluteString ?? tab.urlText
+    record.title = tab.title
+    records[pinID] = record
+    pinsChanged(of: pinID)
+  }
+
+  func setPinnedURL(_ url: URL, forPin pinID: PinID) {
+    commands.append("setPinnedURL \(pinID) \(url.absoluteString)")
+    guard var record = records[pinID] else { return }
+    record.url = url.absoluteString
+    records[pinID] = record
+    pinsChanged(of: pinID)
+  }
+
+  func setName(_ name: String?, forTab tabID: TabID) {
+    commands.append("nameTab \(tabID) \(name ?? "-")")
+    guard let tab = tab(tabID) else { return }
+    if let pinID = tab.pinID, bound[pinID]?.tabID == tabID {
+      setName(name, forPin: pinID)
+      return
+    }
+    replace(tab.with(name: .some(name?.isEmpty == true ? nil : name)))
+  }
+
+  func setName(_ name: String?, forPin pinID: PinID) {
+    commands.append("namePin \(pinID) \(name ?? "-")")
+    guard var record = records[pinID] else { return }
+    record.name = name?.isEmpty == true ? nil : name
+    records[pinID] = record
+    pinsChanged(of: pinID)
+  }
+
+  func clearToday(inSpace spaceID: SpaceID) {
+    commands.append("clearToday \(spaceID)")
+    for row in TabListLogic.rows(list(spaceID)) {
+      browser(row.browserID)?.close(tab: row.tabID)
+    }
   }
 
   /// Replaces a Space's list and tells the observers.
@@ -285,6 +585,13 @@ final class FakeHost: NSObject, ClairHost {
 
   /// Replaces a tab's snapshot in its list and tells the observers.
   func replace(_ tab: FakeTab) {
+    if let pinID = tab.pinID, bound[pinID]?.tabID == tab.tabID {
+      bound[pinID] = tab
+      for observer in allObservers {
+        observer.tabDidChange(tab)
+      }
+      return
+    }
     guard var tabs = lists[tab.spaceID], let index = tabs.firstIndex(where: { $0.tabID == tab.tabID }) else {
       return
     }
@@ -384,6 +691,15 @@ final class FakeHost: NSObject, ClairHost {
     for tab in list(spaceID) {
       browser(tab.browserID)?.closeTabNow(tab.tabID)
     }
+    // add-pinned-tabs-and-favorites D9: its pinned tabs go, for good.
+    for pinID in pinOrder[spaceID] ?? [] {
+      if let tab = bound[pinID] {
+        browser(tab.browserID)?.closeTabNow(tab.tabID)
+      }
+      records[pinID] = nil
+      bound[pinID] = nil
+    }
+    pinOrder[spaceID] = nil
     spaces.remove(at: index)
     lists[spaceID] = nil
     if lastShownSpaceID == spaceID {
@@ -394,6 +710,14 @@ final class FakeHost: NSObject, ClairHost {
 
   func move(tab tabID: TabID, toSpace spaceID: SpaceID) {
     commands.append("moveToSpace \(tabID) \(spaceID)")
+    if let tab = tab(tabID), let pinID = tab.pinID, bound[pinID]?.tabID == tabID {
+      // add-pinned-tabs-and-favorites D5: at the end of its pinned tabs.
+      movePin(pinID, toSpace: spaceID, at: Int.max)
+      if let browser = browser(tab.browserID), browser.isActiveRow(tabID) {
+        browser.followActiveTab()
+      }
+      return
+    }
     guard isSpace(spaceID), var tab = tab(tabID), isSpace(tab.spaceID), let browser = browser(tab.browserID)
     else { return }
     // A Peek moves with its parent.
@@ -482,6 +806,11 @@ final class FakeHost: NSObject, ClairHost {
     guard !spaces.contains(where: { $0.profileID == profileID }) else { return }
     profiles.removeAll { $0.profileID == profileID }
     downloadSettings[profileID] = nil
+    for pinID in favoriteOrder[profileID] ?? [] {
+      records[pinID] = nil
+      bound[pinID] = nil
+    }
+    favoriteOrder[profileID] = nil
     profilesChanged()
   }
 

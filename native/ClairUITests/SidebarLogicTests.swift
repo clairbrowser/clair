@@ -336,16 +336,28 @@ struct CommandBarDeletionTests {
 /// The line between a scrolling tab list and the footer follows the tabs as
 /// well as the list's height.
 struct TabListOverflowTests {
+  private func rows(_ tabs: Int, pins: Int = 0) -> CGFloat {
+    TabList.rowsHeight(pinCount: pins, tabCount: tabs, divider: pins > 0 && tabs > 0)
+  }
+
   @Test func followsTheTabCountAtAFixedHeight() {
-    let height = TabList.contentHeight(tabCount: 10) - 20
-    #expect(TabList.overflows(height: height, tabCount: 10))
+    let height = TabList.contentHeight(rows: rows(10)) - 20
+    #expect(TabList.overflows(height: height, rows: rows(10)))
     // Tabs closed until the rows fit: the capped list keeps its height.
-    #expect(!TabList.overflows(height: height, tabCount: 9))
-    #expect(!TabList.overflows(height: TabList.contentHeight(tabCount: 3), tabCount: 3))
+    #expect(!TabList.overflows(height: height, rows: rows(9)))
+    #expect(!TabList.overflows(height: TabList.contentHeight(rows: rows(3)), rows: rows(3)))
+  }
+
+  @Test func countsPinnedRowsAndTheDivider() {
+    // add-pinned-tabs-and-favorites: the pinned rows and the divider scroll
+    // with the Today rows.
+    #expect(rows(2, pins: 1) == TabRow.pitch * 4 + TodayDivider.height)
+    let height = TabList.contentHeight(rows: rows(3))
+    #expect(TabList.overflows(height: height, rows: rows(3, pins: 1)))
   }
 
   @Test func notBeforeTheListIsLaidOut() {
-    #expect(!TabList.overflows(height: 0, tabCount: 5))
+    #expect(!TabList.overflows(height: 0, rows: rows(5)))
   }
 }
 

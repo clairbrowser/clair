@@ -7,7 +7,7 @@ Users can give a tab, pinned tab or favorite a name of their own, as in Arc, whi
 ## ADDED Requirements
 
 ### Requirement: Renaming a row in place
-Double-clicking a Today or pinned tab's row, or choosing Rename… in its menu, SHALL turn its title into a field in place, in the same font, with no border, on the row's highlight. A double-click SHALL put the caret where it clicked; Rename… SHALL select the whole name. Return SHALL keep the name, and Esc or clicking elsewhere without Return SHALL discard the edit.
+Double-clicking a Today or pinned tab's row, or choosing Rename… in its menu, SHALL turn its title into a field in place, in the same font, with no border, on the row's highlight. A double-click SHALL put the caret where it clicked; Rename… SHALL select the whole name. Return, or clicking elsewhere, SHALL keep the name, as in Arc, and Esc SHALL discard the edit.
 
 #### Scenario: Rename…
 - **WHEN** the user chooses Rename… on the tab "Example Domain", types "Fruit Co" and presses Return

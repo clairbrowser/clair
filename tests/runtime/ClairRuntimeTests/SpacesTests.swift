@@ -534,27 +534,4 @@ final class SpacesTests: NativeWindowTestCase {
     let inWork = await browser.waitForTabs { $0.contains("Counter w2") }
     XCTAssertTrue(inWork, "The restored tab isn't in Work: \(browser.tabTitles)")
   }
-
-  /// D11's default is a default: "Open the New Tab page" still opens one new
-  /// tab page.
-  func testOnStartupSettingStillApplies() async throws {
-    let (browser, tab) = try await startWithPage("counter.html?a")
-    let settings = try await browser.open("chrome://settings/onStartup")
-    // Chromium's settings page sets the pref as its radio button does.
-    _ = try await settings.evaluate(
-      "(async () => { await chrome.settingsPrivate.setPref('session.restore_on_startup', 5); return 1; })()")
-    try await Task.sleep(for: .seconds(3))
-    settings.close()
-    tab.close()
-    try await browser.quit()
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
-    let one = await Harness.wait(for: 30) {
-      let targets = try await browser.pageTargets()
-      return targets.count == 1 && targets.allSatisfy { $0.url.hasPrefix("chrome://newtab") }
-    }
-    XCTAssertTrue(one, "\"Open the New Tab page\" didn't open one new tab page")
-    let restored = try await browser.target(endingWith: "?a")
-    XCTAssertNil(restored, "The tabs came back though the user chose a new tab page")
-  }
 }

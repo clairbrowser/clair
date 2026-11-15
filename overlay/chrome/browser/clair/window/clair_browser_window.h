@@ -331,7 +331,10 @@ class ClairBrowserWindow : public BrowserWindow {
   // profile holds them: with Peeks, or only the rows the sidebar lists. An
   // incognito or guest window's are its own.
   std::vector<tabs::TabInterface*> SpaceTabs() const;
+  // add-pinned-tabs-and-favorites D4: the rows of open tabs, its open pinned
+  // tabs first; and its Today rows alone.
   std::vector<tabs::TabInterface*> Rows() const;
+  std::vector<tabs::TabInterface*> TodayRows() const;
   // Whether `tab` is the row the window shows: the active tab, or the parent
   // of the active Peek. Never while the window shows a still.
   bool IsActiveRow(const tabs::TabInterface* tab) const;

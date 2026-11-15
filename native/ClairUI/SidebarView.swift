@@ -8,7 +8,7 @@ import SwiftUI
 
 /// What the sidebar asks the window to do.
 @MainActor
-protocol SidebarActions: SpaceActions {
+protocol SidebarActions: SpaceActions, PinActions {
   // Tabs.
   func activate(tab: TabID)
   func close(tab: TabID)
@@ -110,12 +110,21 @@ struct SidebarView: View {
           .frame(height: 37)
           .padding(.top, 8)
       }
+      // The profile's favorites, which stay put as the Spaces of the profile
+      // slide under them (add-pinned-tabs-and-favorites D11).
+      if model.showsPins && model.newSpaceForm == nil {
+        if !model.favorites.isEmpty {
+          FavoritesGrid(model: model, actions: actions)
+        } else if model.showsFavoritesHint {
+          FavoritesHintBox(actions: actions)
+        }
+      }
       // The Space's header and tabs, or the New Space form, between the URL
       // field and the footer: the part that slides between Spaces
       // (add-spaces D10). The footer stays at the bottom however short the
       // list is; the space between moves the window like the rest of the
       // sidebar.
-      SpacePager(model: model, actions: actions, tabListHeight: $tabListHeight)
+      SpacePager(model: model, actions: actions, isSidebarHovered: isHovered, tabListHeight: $tabListHeight)
         .padding(.top, tabListTopPadding)
         .frame(maxHeight: .infinity, alignment: .top)
       SidebarFooter(model: model, actions: actions)
@@ -123,7 +132,7 @@ struct SidebarView: View {
           // Arc's line between a list that scrolls and the footer: 1 pt
           // across the sidebar, about 4% black in Light Mode and 8% white
           // in Dark Mode, as measured.
-          if TabList.overflows(height: tabListHeight, tabCount: TabListLogic.rowCount(model.tabs)) {
+          if TabList.overflows(height: tabListHeight, rows: TabList.rowsHeight(model: model)) {
             Rectangle().fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)).frame(height: 1)
           }
         }
@@ -151,9 +160,15 @@ struct SidebarView: View {
   private var tabListTopPadding: CGFloat {
     switch model.profileKind {
     case .incognito: 0
-    case .regular: 9
+    // Below the favorites, or their empty box, the name's centre sits
+    // 18.5 pt down, as in Arc.
+    case .regular: showsFavoritesSection ? 2.5 : 9
     default: 8
     }
+  }
+
+  private var showsFavoritesSection: Bool {
+    model.showsPins && model.newSpaceForm == nil && (!model.favorites.isEmpty || model.showsFavoritesHint)
   }
 }
 
@@ -558,6 +573,8 @@ struct SidebarFooter: View {
 struct SpacePager: View {
   let model: BrowserWindowModel
   weak var actions: (any SidebarActions)?
+  /// Whether the pointer is over the sidebar, which shows Clear.
+  var isSidebarHovered = false
   @Binding var tabListHeight: CGFloat
 
   @State private var width: CGFloat = 0
@@ -585,15 +602,15 @@ struct SpacePager: View {
         // transition of its own once it's out: removed inside the slide's
         // animation, it would fade where it was instead of sliding out.
         if let slide {
-          SpacePage(model: model, space: slide.fromSpace, tabs: slide.fromTabs, actions: nil)
+          SpacePage(model: model, space: slide.fromSpace, tabs: slide.fromTabs, pins: slide.fromPins, actions: nil)
             .offset(x: -direction * width * progress)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .transition(.identity)
         }
         SpacePage(
-          model: model, space: model.shownSpace, tabs: model.tabs, actions: actions,
-          tabListHeight: $tabListHeight
+          model: model, space: model.shownSpace, tabs: model.tabs, pins: model.pins, actions: actions,
+          isSidebarHovered: isSidebarHovered, tabListHeight: $tabListHeight
         )
         .offset(x: slide == nil ? 0 : direction * width * (1 - progress))
       }
@@ -601,7 +618,10 @@ struct SpacePager: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .clipped()
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-    .onChange(of: model.spaceSlide?.id) { _, id in
+    // From the first appearance too: a window a group swaps in may draw its
+    // sidebar for the first time with the slide already set (add-profiles
+    // D12), and a slide that never starts would leave the page offset.
+    .onChange(of: model.spaceSlide?.id, initial: true) { _, id in
       guard id != nil else { return }
       animatedSlide = id
       progress = 0
@@ -623,15 +643,21 @@ struct SpacePage: View {
   let model: BrowserWindowModel
   let space: (any ClairSpace)?
   let tabs: [any ClairTab]
+  /// Its pinned tabs (add-pinned-tabs-and-favorites D11).
+  var pins: [any ClairPin] = []
   weak var actions: (any SidebarActions)?
+  var isSidebarHovered = false
   var tabListHeight: Binding<CGFloat>?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if model.showsSpaces {
-        SpaceHeaderView(model: model, space: space, actions: actions)
+        SpaceHeaderView(
+          model: model, space: space, actions: actions,
+          pinsCollapsed: space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false,
+          onToggleCollapse: { [weak actions] in actions?.togglePinnedSection() })
       }
-      TabList(model: model, tabs: tabs, actions: actions)
+      TabList(model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, actions: actions)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tabListHeight?.wrappedValue = $0 }
         // Ahead of the space below, which would otherwise take half the room.
         .layoutPriority(1)
@@ -802,26 +828,63 @@ struct DownloadRow: View {
   }
 }
 
-/// The "New Tab" row and the tab list, in Chromium's tab order.
+/// The pinned section, the divider, the "New Tab" row and the Today tabs, in
+/// one list that scrolls (add-pinned-tabs-and-favorites D11). Rows drag
+/// between the pinned section and Today, and to and from the favorites.
 struct TabList: View {
   let model: BrowserWindowModel
-  /// The rows' tabs: the window's in its Space, or the Space sliding out's.
+  /// The Today rows' tabs: the window's in its Space, or the Space sliding
+  /// out's.
   let tabs: [any ClairTab]
+  /// The pinned rows' pins.
+  var pins: [any ClairPin] = []
+  /// Whether the pointer is over the sidebar, which shows Clear.
+  var isSidebarHovered = false
   weak var actions: (any SidebarActions)?
 
   /// Room beyond the rows, so a list that fits never scrolls.
   static let slack: CGFloat = 8
 
-  /// The height of the "New Tab" row and the tabs, which the list grows to.
-  static func contentHeight(tabCount: Int) -> CGFloat {
-    TabRow.pitch * CGFloat(tabCount + 1) + slack
+  /// One of the list's items.
+  enum Item: Identifiable {
+    case pin(any ClairPin)
+    case divider
+    case newTab
+    case tab(any ClairTab)
+
+    var id: String {
+      switch self {
+      case .pin(let pin): "pin-\(pin.pinID)"
+      case .divider: "divider"
+      case .newTab: "newTab"
+      case .tab(let tab): "tab-\(tab.tabID)"
+      }
+    }
+  }
+
+  /// The height of the list's rows, which the list grows to.
+  static func contentHeight(rows: CGFloat) -> CGFloat {
+    rows + slack
+  }
+
+  /// The rows' height: "New Tab", the pinned and Today rows, and the divider.
+  static func rowsHeight(pinCount: Int, tabCount: Int, divider: Bool) -> CGFloat {
+    TabRow.pitch * CGFloat(pinCount + tabCount + 1) + (divider ? TodayDivider.height : 0)
+  }
+
+  static func rowsHeight(model: BrowserWindowModel) -> CGFloat {
+    let todayRows = TabListLogic.rowCount(model.tabs)
+    let pins = PinsLogic.visiblePins(
+      model.pins, collapsed: model.isPinnedSectionCollapsed, highlighted: model.highlightedTab)
+    return rowsHeight(
+      pinCount: pins.count, tabCount: todayRows, divider: PinsLogic.showsDivider(todayRowCount: todayRows))
   }
 
   /// Whether a list this tall is shorter than its rows, so it scrolls. It
-  /// follows the number of tabs as well as the height: a list capped at the
-  /// room left keeps its height while tabs come and go.
-  static func overflows(height: CGFloat, tabCount: Int) -> Bool {
-    height > 0 && height + 0.5 < contentHeight(tabCount: tabCount)
+  /// follows the rows as well as the height: a list capped at the room left
+  /// keeps its height while tabs come and go.
+  static func overflows(height: CGFloat, rows: CGFloat) -> Bool {
+    height > 0 && height + 0.5 < contentHeight(rows: rows)
   }
 
   var body: some View {
@@ -829,32 +892,46 @@ struct TabList: View {
     // Worked out once per update, not per row.
     let rows = TabListLogic.rows(tabs)
     let peeks = model.rowPeeks(in: tabs)
-    let highlighted = model.highlightedRow(in: tabs)
+    let highlighted = model.highlightedTab
     let moveTargets = model.showsSpaces ? SpacesLogic.moveTargets(from: model.shownSpaceID, in: model.spaces.spaces) : []
+    let visiblePins = PinsLogic.visiblePins(pins, collapsed: model.isPinnedSectionCollapsed, highlighted: highlighted)
+    let showsDivider = !visiblePins.isEmpty || !pins.isEmpty ? PinsLogic.showsDivider(todayRowCount: rows.count) : false
+    let boundary = (showsDivider ? 1 : 0) + 1
+    let items: [Item] =
+      visiblePins.map { .pin($0) } + (showsDivider ? [.divider] : []) + [.newTab] + rows.map { .tab($0) }
     List {
-      NewTabRow(isHighlighted: model.commandBar?.mode == .newTab) { actions?.newTab() }
-        // From inside a row, where it can reach the list's scroll view.
-        .background(ScrollerControlSize(size: .small))
-        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: -1))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .moveDisabled(true)
-      ForEach(rows, id: \.tabID) { tab in
-        TabRow(
-          tab: tab, isActive: tab.tabID == highlighted, isWindowKey: model.isWindowKey,
-          isIncognito: model.profileKind == .incognito,
-          peek: peeks[tab.tabID], moveTargets: moveTargets, actions: actions)
+      ForEach(items) { item in
+        row(item, peeks: peeks, highlighted: highlighted, moveTargets: moveTargets)
           .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: -1))
           .listRowSeparator(.hidden)
           .listRowBackground(Color.clear)
       }
       .onMove { source, destination in
-        // The offsets count the rows only, not the "New Tab" row or Peeks.
-        guard let from = source.first,
-          let target = TabListLogic.moveTarget(from: from, to: destination, count: rows.count),
-          let index = TabListLogic.stripIndex(movingRow: from, toRow: target, in: tabs)
-        else { return }
-        actions?.move(tab: rows[from].tabID, to: index)
+        guard let from = source.first, items.indices.contains(from) else { return }
+        let drop: PinsLogic.ListDrop
+        let dragged: SidebarDragItem
+        switch items[from] {
+        case .pin(let pin):
+          dragged = .pin(pin.pinID)
+          drop = PinsLogic.listDrop(
+            destination: destination, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs,
+            movingPin: from)
+        case .tab(let tab):
+          dragged = .tab(tab.tabID)
+          drop = PinsLogic.listDrop(
+            destination: destination, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs,
+            movingTodayRow: from - visiblePins.count - boundary)
+        case .divider, .newTab:
+          return
+        }
+        actions?.drop(dragged, on: target(of: drop, visiblePins: visiblePins))
+      }
+      .onInsert(of: [SidebarDragItem.type]) { index, providers in
+        let drop = PinsLogic.listDrop(
+          destination: index, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs)
+        let target = target(of: drop, visiblePins: visiblePins)
+        let actions = actions
+        SidebarDragItem.load(from: providers) { item in actions?.drop(item, on: target) }
       }
     }
     .listStyle(.plain)
@@ -863,8 +940,60 @@ struct TabList: View {
     // No taller than its rows, so the space below the last tab is the
     // sidebar's, which moves the window (design D18); the list scrolls once
     // the rows don't fit.
-    .frame(maxHeight: Self.contentHeight(tabCount: rows.count))
+    .frame(
+      maxHeight: Self.contentHeight(
+        rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count, divider: showsDivider)))
     .accessibilityIdentifier("clair.tabList")
+  }
+
+  /// Where a drop in the list goes, its pinned index counted among every pin
+  /// while the section is collapsed.
+  private func target(of drop: PinsLogic.ListDrop, visiblePins: [any ClairPin]) -> SidebarDropTarget {
+    switch drop {
+    case .today(let index):
+      return .today(index)
+    case .pinned(let index):
+      guard visiblePins.count != pins.count else { return .pinned(index) }
+      if index < visiblePins.count, let full = pins.firstIndex(where: { $0.pinID == visiblePins[index].pinID }) {
+        return .pinned(full)
+      }
+      return .pinned(pins.count)
+    }
+  }
+
+  @ViewBuilder
+  private func row(
+    _ item: Item, peeks: [TabID: any ClairTab], highlighted: TabID, moveTargets: [any ClairSpace]
+  ) -> some View {
+    switch item {
+    case .pin(let pin):
+      let tab = model.tab(ofPin: pin)
+      PinRow(
+        pin: pin, tab: tab, peek: tab.flatMap { $0.peekID != ClairTabIDNone ? model.pinTabs[$0.peekID] : nil },
+        isActive: pin.tabID != ClairTabIDNone && pin.tabID == highlighted, isWindowKey: model.isWindowKey,
+        moveTargets: moveTargets, rename: model.renaming?.row == .pin(pin.pinID) ? model.renaming : nil,
+        actions: actions
+      )
+      .itemProvider { SidebarDragItem.pin(pin.pinID).itemProvider() }
+    case .divider:
+      TodayDivider(
+        showsClear: PinsLogic.showsClear(todayRowCount: TabListLogic.rowCount(tabs), isSidebarHovered: isSidebarHovered)
+      ) { actions?.clearToday() }
+      .moveDisabled(true)
+    case .newTab:
+      NewTabRow(isHighlighted: model.commandBar?.mode == .newTab) { actions?.newTab() }
+        // From inside a row, where it can reach the list's scroll view.
+        .background(ScrollerControlSize(size: .small))
+        .moveDisabled(true)
+    case .tab(let tab):
+      TabRow(
+        tab: tab, isActive: tab.tabID == highlighted, isWindowKey: model.isWindowKey,
+        isIncognito: model.profileKind == .incognito, canPin: model.showsPins,
+        peek: peeks[tab.tabID], moveTargets: moveTargets,
+        rename: model.renaming?.row == .tab(tab.tabID) ? model.renaming : nil, actions: actions
+      )
+      .itemProvider { model.showsPins ? SidebarDragItem.tab(tab.tabID).itemProvider() : nil }
+    }
   }
 }
 
@@ -942,12 +1071,20 @@ struct TabRow: View {
   let isActive: Bool
   let isWindowKey: Bool
   var isIncognito = false
+  /// Whether its menu offers the pin items: not in incognito and guest
+  /// windows (add-pinned-tabs-and-favorites).
+  var canPin = false
   /// The tab's Peek, whose favicon the row shows as a badge (add-peek D4).
   var peek: (any ClairTab)?
   /// The Spaces "Move to Space" lists: every other one, or none with one
   /// Space (add-spaces D7).
   var moveTargets: [any ClairSpace] = []
+  /// The rename in progress on this row, if any (tab-names spec).
+  var rename: RowRename?
   weak var actions: (any SidebarActions)?
+
+  /// What the row reads: the tab's custom name, or its title.
+  var shownTitle: String { tab.name.flatMap { $0.isEmpty ? nil : $0 } ?? tab.title }
 
   @State private var isHovered = false
   @State private var showsSpeaker = false
@@ -1011,15 +1148,23 @@ struct TabRow: View {
           .padding(.trailing, showsSpeaker ? Self.speakerTrailing : Self.titleGap)
           .allowsHitTesting(showsSpeaker)
           .accessibilityHidden(!showsSpeaker)
-        Text(tab.title).font(Self.titleFont).lineLimit(1)
-          .accessibilityIdentifier("clair.tabTitle")
+        if let rename {
+          RenameField(text: shownTitle, placeholder: tab.title, rename: rename, current: tab.name) { change in
+            actions?.endRenaming(.tab(tab.tabID), change: change)
+          }
+        } else {
+          Text(shownTitle).font(Self.titleFont).lineLimit(1)
+            .accessibilityIdentifier("clair.tabTitle")
+        }
       }
       Spacer(minLength: 0)
       if let peek {
         PeekBadge(peek: peek)
           .padding(.trailing, isHovered ? 0 : PeekBadge.trailing - Self.horizontalPadding)
       }
-      if isHovered {
+      // A double-click's field leaves the button, as Arc's; Rename…'s takes
+      // its room.
+      if isHovered && rename?.selectsAll != true {
         TabCloseButton { actions?.close(tab: tab.tabID) }
           .padding(.trailing, Self.closeTrailing - Self.horizontalPadding)
       }
@@ -1040,13 +1185,26 @@ struct TabRow: View {
     .padding(.bottom, Self.pillInset + Self.spacing)
     .contentShape(Rectangle())
     .onTapGesture { actions?.activate(tab: tab.tabID) }
+    // tab-names: a double-click renames, with the caret where it clicked.
+    .simultaneousGesture(
+      SpatialTapGesture(count: 2).onEnded { value in
+        guard canPin else { return }
+        let titleStart = Self.horizontalPadding + Self.iconSize + Self.titleGap
+        actions?.beginRenaming(
+          RowRename(
+            row: .tab(tab.tabID), selectsAll: false,
+            caret: RenameField.caret(in: shownTitle, at: value.location.x - titleStart)))
+      })
     // AppKit's context menu rather than SwiftUI's, which makes the list draw
     // a selection ring around the row (design D18).
     .overlay(RowClickCatcher(onMiddleClick: { actions?.close(tab: tab.tabID) }, menuItems: menuItems))
     // The hover background and the close button come and go at once.
     .onHover { isHovered = $0 }
-    // The full title, once the pointer has rested on the row (design D18).
-    .tooltip(tab.title.isEmpty ? nil : tab.title, delay: Self.titleTooltipDelay)
+    // The name, or the full title and the hint, once the pointer has rested
+    // on the row (design D18, tab-names spec).
+    .tooltip(
+      canPin ? PinsLogic.tooltip(title: tab.title, name: tab.name) : (tab.title.isEmpty ? nil : tab.title),
+      delay: Self.titleTooltipDelay)
     // The speaker comes and goes with the sound, the title making room. The
     // list's rows ignore implicit animations, so the row animates its own
     // state.
@@ -1055,7 +1213,7 @@ struct TabRow: View {
       withAnimation(.snappy(duration: 0.25)) { showsSpeaker = shows }
     }
     .accessibilityElement(children: .contain)
-    .accessibilityLabel(tab.title)
+    .accessibilityLabel(shownTitle)
     .accessibilityIdentifier("clair.tabRow")
     .accessibilityAddTraits(isActive ? .isSelected : [])
   }
@@ -1142,31 +1300,37 @@ struct TabCloseButton: View {
 }
 
 extension TabRow {
-  /// The row's context menu.
+  /// The row's context menu (sidebar spec, "Today tab menu"): Rename… and
+  /// the pin items only where the window shows pins.
   var menuItems: [RowClickCatcher.Item] {
     let tabID = tab.tabID, isMuted = tab.isMuted
-    var items: [RowClickCatcher.Item] = [
-      .action("Copy Link") { actions?.copyLink(of: tabID) },
-      .action("Duplicate") { actions?.duplicate(tab: tabID) },
-      .action(isMuted ? "Unmute" : "Mute") { actions?.setMuted(!isMuted, tab: tabID) },
-    ]
-    // add-spaces D7: every other Space, and no item with one Space.
-    if !moveTargets.isEmpty {
-      items.append(.separator)
-      items.append(
-        .submenu(
-          "Move to Space",
+    let menu = PinsLogic.todayMenu(isMuted: isMuted, canMoveToSpace: !moveTargets.isEmpty, canPin: canPin)
+    return menu.compactMap { item -> RowClickCatcher.Item? in
+      guard let item else { return .separator }
+      switch item.command {
+      case .copyLink: return .action(item.title) { actions?.copyLink(of: tabID) }
+      case .rename:
+        guard canPin else { return nil }
+        return .action(item.title) {
+          actions?.beginRenaming(RowRename(row: .tab(tabID), selectsAll: true, caret: nil))
+        }
+      case .duplicate: return .action(item.title) { actions?.duplicate(tab: tabID) }
+      case .mute, .unmute: return .action(item.title) { actions?.setMuted(!isMuted, tab: tabID) }
+      case .pin: return .action(item.title) { actions?.pin(tab: tabID) }
+      case .pinToFavorites: return .action(item.title) { actions?.pinToFavorites(tab: tabID) }
+      case .moveToSpace:
+        // add-spaces D7: every other Space, and no item with one Space.
+        return .submenu(
+          item.title,
           moveTargets.map { space in
             let spaceID = space.spaceID
             return .action(SpacesLogic.label(of: space)) { actions?.moveTab(tabID, toSpace: spaceID) }
-          }))
+          })
+      case .closeTab: return .action(item.title) { actions?.close(tab: tabID) }
+      case .closeTabsBelow: return .action(item.title) { actions?.closeTabs(below: tabID) }
+      default: return nil
+      }
     }
-    items += [
-      .separator,
-      .action("Close Tab") { actions?.close(tab: tabID) },
-      .action("Close Tabs Below") { actions?.closeTabs(below: tabID) },
-    ]
-    return items
   }
 }
 

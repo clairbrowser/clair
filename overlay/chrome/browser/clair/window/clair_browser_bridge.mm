@@ -25,6 +25,7 @@
 #include "chrome/browser/clair/window/clair_downloads.h"
 #include "chrome/browser/clair/window/clair_extensions.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
+#include "chrome/browser/clair/clair_profiles.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_window.h"
@@ -408,7 +409,8 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   }
   tabs::TabInterface* tab = tabs::TabHandle(static_cast<int32_t>(tabID)).Get();
   ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
-  if (!holder || holder->space_tabs() != lists || lists->SpaceOf(tab).empty()) {
+  // add-pinned-tabs-and-favorites D2: a bound tab, and its Peek, are rows too.
+  if (!holder || holder->space_tabs() != lists || !lists->IsListed(tab)) {
     return nullptr;
   }
   return tab;
@@ -437,8 +439,14 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   if (!lists) {
     return;
   }
-  // A Peek is linked or unlinked on the active row, in the shown Space.
+  // A Peek is linked or unlinked on the active row, in the shown Space: a
+  // Today tab, a pinned tab or a favorite (add-pinned-tabs-and-favorites D2).
   lists->ListChanged(_browserWindow->shown_space());
+  if (lists->is_regular()) {
+    clair::PinsChanged(clair::PinContainer::OfSpace(_browserWindow->shown_space()));
+    clair::PinsChanged(clair::PinContainer::OfProfile(
+        clair::ClairProfiles::IDOf(lists->profile())));
+  }
 }
 
 - (void)tabChanged:(content::WebContents*)contents {
@@ -675,7 +683,17 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   const int index = [self indexOfTab:tabID];
   if (index != TabStripModel::kNoTab) {
     if (chrome::CanDuplicateTabAt(self.browser, index)) {
-      chrome::DuplicateTabAt(self.browser, index);
+      tabs::TabInterface* source = self.tabStrip->GetTabAtIndex(index);
+      ClairSpaceTabs* lists = _browserWindow->space_tabs();
+      const bool bound = lists && !lists->PinOf(source).empty();
+      content::WebContents* copy = chrome::DuplicateTabAt(self.browser, index);
+      // add-pinned-tabs-and-favorites D8: a pinned tab's or favorite's copy
+      // is a Today tab at the top.
+      if (tabs::TabInterface* copied =
+              copy ? tabs::TabInterface::MaybeGetFromContents(copy) : nullptr;
+          bound && copied) {
+        lists->MoveTab(copied, 0);
+      }
     }
     return;
   }
@@ -700,7 +718,28 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
       AddTabTypes::ADD_ACTIVE | AddTabTypes::ADD_INHERIT_OPENER);
   tabs::TabInterface* copied = tabs::TabInterface::MaybeGetFromContents(raw_copy);
   if (ClairSpaceTabs* lists = _browserWindow->space_tabs(); lists && copied) {
-    lists->MoveTabBeside(copied, source, /*after=*/true);
+    // add-pinned-tabs-and-favorites D8: a pinned tab's or favorite's copy is
+    // a Today tab at the top.
+    if (!lists->PinOf(source).empty()) {
+      lists->MoveTab(copied, 0);
+    } else {
+      lists->MoveTabBeside(copied, source, /*after=*/true);
+    }
+  }
+}
+
+// --- ClairBrowser: pins (add-pinned-tabs-and-favorites D4, D5) ---
+
+- (void)openPin:(ClairPinID)pinID {
+  if (_browserWindow && pinID) {
+    clair::OpenPin(_browserWindow, base::SysNSStringToUTF8(pinID));
+  }
+}
+
+- (void)unpin:(ClairPinID)pinID toIndex:(NSInteger)index {
+  if (_browserWindow && pinID) {
+    clair::Unpin(_browserWindow, base::SysNSStringToUTF8(pinID),
+                 static_cast<int>(std::clamp<NSInteger>(index, 0, INT_MAX)));
   }
 }
 
@@ -765,6 +804,12 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   }
   NavigateParams params(browser, gurl, ui::PAGE_TRANSITION_TYPED);
   params.disposition = DispositionFor(disposition);
+  // add-pinned-tabs-and-favorites D7: another site leaves a favorite's page
+  // as it is, in a new Today tab.
+  if (params.disposition == WindowOpenDisposition::CURRENT_TAB &&
+      clair::LeavesFavorite(_browserWindow, gurl)) {
+    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  }
   params.window_action = NavigateParams::WindowAction::kShowWindow;
   Navigate(&params);
 }

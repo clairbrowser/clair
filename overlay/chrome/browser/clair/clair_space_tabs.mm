@@ -5,6 +5,7 @@
 #import "chrome/browser/clair/clair_space_tabs.h"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 #include "base/barrier_closure.h"
@@ -13,10 +14,12 @@
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/strings/escape.h"
+#include "base/strings/string_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/browser_process.h"
+#import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_profiles.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_window_group.h"
@@ -29,6 +32,7 @@
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ssl/chrome_security_state_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -44,8 +48,14 @@
 #include "components/infobars/core/infobar.h"
 #include "components/security_state/core/security_state.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "components/sessions/core/tab_restore_service.h"
 #include "components/url_formatter/url_formatter.h"
+#include "base/scoped_observation.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/favicon/core/favicon_driver_observer.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/referrer.h"
@@ -83,6 +93,16 @@ struct SpaceTag : public base::SupportsUserData::Data {
   // add-profiles D6: the window selected this restored tab in place of a new
   // tab page it dropped.
   bool new_tab_was_selected = false;
+  // add-pinned-tabs-and-favorites D2, D3: the pin the tab is bound to, is to
+  // be bound to as it joins a strip, or was bound to before Remove Pin, so
+  // that Restore Last Closed Tab binds it again. Bound or not is
+  // ClairSpaceTabs::bound_'s.
+  std::string pin;
+  // The tab's custom name while it isn't bound; a bound tab's is its pin's.
+  std::string name;
+  // What the session holds for the two; nullopt when unknown.
+  std::optional<std::string> written_pin;
+  std::optional<std::string> written_name;
 };
 
 // add-profiles D6: the group of the window holding `contents`, or empty.
@@ -194,7 +214,9 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
                     peekParentID:(ClairTabID)peekParentID
                           peekID:(ClairTabID)peekID
                          spaceID:(NSString*)spaceID
-                       browserID:(ClairBrowserID)browserID;
+                       browserID:(ClairBrowserID)browserID
+                           pinID:(NSString*)pinID
+                            name:(NSString*)name;
 @end
 
 @implementation ClairChromiumTab
@@ -219,17 +241,23 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 @synthesize peekID = _peekID;
 @synthesize spaceID = _spaceID;
 @synthesize browserID = _browserID;
+@synthesize pinID = _pinID;
+@synthesize name = _name;
 
 - (instancetype)initWithContents:(content::WebContents*)contents
                     peekParentID:(ClairTabID)peekParentID
                           peekID:(ClairTabID)peekID
                          spaceID:(NSString*)spaceID
-                       browserID:(ClairBrowserID)browserID {
+                       browserID:(ClairBrowserID)browserID
+                           pinID:(NSString*)pinID
+                            name:(NSString*)name {
   if ((self = [super init])) {
     _peekParentID = peekParentID;
     _peekID = peekID;
     _spaceID = [spaceID copy];
     _browserID = browserID;
+    _pinID = [pinID copy];
+    _name = [name copy];
     const GURL& url = contents->GetVisibleURL();
     _tabID = clair::TabIDOf(contents);
     _url = url.is_valid() ? net::NSURLWithGURL(url) : nil;
@@ -284,6 +312,49 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 }
 @end
 
+@interface ClairChromiumPin : NSObject <ClairPin>
+- (instancetype)initWithPin:(const clair::Pin&)pin
+                       tabs:(NSArray<id<ClairTab>>*)tabs
+              isAtPinnedURL:(BOOL)isAtPinnedURL;
+@end
+
+@implementation ClairChromiumPin
+@synthesize pinID = _pinID;
+@synthesize isFavorite = _isFavorite;
+@synthesize spaceID = _spaceID;
+@synthesize profileID = _profileID;
+@synthesize url = _url;
+@synthesize title = _title;
+@synthesize name = _name;
+@synthesize icon = _icon;
+@synthesize tabID = _tabID;
+@synthesize tabs = _tabs;
+@synthesize isAtPinnedURL = _isAtPinnedURL;
+
+- (instancetype)initWithPin:(const clair::Pin&)pin
+                       tabs:(NSArray<id<ClairTab>>*)tabs
+              isAtPinnedURL:(BOOL)isAtPinnedURL {
+  if ((self = [super init])) {
+    clair::ClairPinStore* store = clair::ClairPinStore::Get();
+    _pinID = base::SysUTF8ToNSString(pin.id);
+    _isFavorite = pin.container.is_favorites();
+    _spaceID = _isFavorite ? nil : base::SysUTF8ToNSString(pin.container.space);
+    _profileID = base::SysUTF8ToNSString(store->ProfileOf(pin));
+    _url = net::NSURLWithGURL(pin.url) ?: [NSURL URLWithString:@"about:blank"];
+    _title = base::SysUTF8ToNSString(pin.title);
+    if (_title.length == 0) {
+      _title = base::SysUTF16ToNSString(url_formatter::FormatUrl(pin.url));
+    }
+    _name = pin.name.empty() ? nil : base::SysUTF8ToNSString(pin.name);
+    _icon = store->IconOf(pin.id);
+    _tabs = [tabs copy] ?: @[];
+    _tabID = _tabs.count ? _tabs.firstObject.tabID : ClairTabIDNone;
+    _isAtPinnedURL = isAtPinnedURL;
+  }
+  return self;
+}
+@end
+
 @interface ClairChromiumSpace : NSObject <ClairSpace>
 - (instancetype)initWithSpace:(const clair::Space&)space;
 @end
@@ -308,15 +379,43 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 // --- Observation ---------------------------------------------------------------
 
 // Tells the lists when a tab's load progress or security state changes, so it
-// rides the tab's coalesced push (replace-browser-window D4).
-class ClairSpaceTabs::ProgressObserver : public content::WebContentsObserver {
+// rides the tab's coalesced push (replace-browser-window D4), and when a bound
+// tab's title, icon or URL changes (add-pinned-tabs-and-favorites D2).
+class ClairSpaceTabs::ProgressObserver
+    : public content::WebContentsObserver,
+      public favicon::FaviconDriverObserver {
  public:
   ProgressObserver(ClairSpaceTabs* owner, content::WebContents* contents)
-      : content::WebContentsObserver(contents), owner_(owner) {}
+      : content::WebContentsObserver(contents), owner_(owner) {
+    if (auto* favicons =
+            favicon::ContentFaviconDriver::FromWebContents(contents)) {
+      favicon_observation_.Observe(favicons);
+    }
+  }
 
   // content::WebContentsObserver:
   void LoadProgressChanged(double progress) override {
     owner_->TabChanged(web_contents());
+  }
+  void TitleWasSet(content::NavigationEntry* entry) override {
+    owner_->BoundTabUpdated(web_contents());
+  }
+  void DidFinishNavigation(content::NavigationHandle* handle) override {
+    if (handle->IsInPrimaryMainFrame() && handle->HasCommitted()) {
+      owner_->BoundTabUpdated(web_contents());
+    }
+  }
+  void WebContentsDestroyed() override { favicon_observation_.Reset(); }
+
+  // favicon::FaviconDriverObserver:
+  void OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
+                        NotificationIconType notification_icon_type,
+                        const GURL& icon_url,
+                        bool icon_url_changed,
+                        const gfx::Image& image) override {
+    if (notification_icon_type == NON_TOUCH_16_DIP && !image.IsEmpty()) {
+      owner_->BoundFaviconUpdated(web_contents(), image.ToNSImage());
+    }
   }
   // Mixed content can be found after a load has finished.
   void DidChangeVisibleSecurityState() override {
@@ -332,6 +431,9 @@ class ClairSpaceTabs::ProgressObserver : public content::WebContentsObserver {
 
  private:
   const raw_ptr<ClairSpaceTabs> owner_;
+  base::ScopedObservation<favicon::FaviconDriver,
+                          favicon::FaviconDriverObserver>
+      favicon_observation_{this};
 };
 
 // --- ClairSpaceTabs ------------------------------------------------------------
@@ -365,11 +467,18 @@ std::vector<ClairSpaceTabs*> ClairSpaceTabs::All() {
   return std::vector<ClairSpaceTabs*>(Instances().begin(), Instances().end());
 }
 
+namespace clair {
+namespace {
+void FlushPins();
+}  // namespace
+}  // namespace clair
+
 // static
 void ClairSpaceTabs::FlushAll() {
   for (ClairSpaceTabs* tabs : All()) {
     tabs->Flush();
   }
+  clair::FlushPins();
 }
 
 // static
@@ -399,6 +508,36 @@ std::string ClairSpaceTabs::WindowTag(content::WebContents* contents) {
 }
 
 // static
+void ClairSpaceTabs::SetRestoredPinTag(content::WebContents* contents,
+                                       const std::string& pin,
+                                       const std::string& name) {
+  if (!contents) {
+    return;
+  }
+  SpaceTag* tag = EnsureTag(contents);
+  tag->pin = pin;
+  tag->name = name;
+  tag->written_pin = pin;
+  tag->written_name = name;
+}
+
+// static
+void ClairSpaceTabs::SetPendingPin(content::WebContents* contents,
+                                   const std::string& pin) {
+  if (!contents) {
+    return;
+  }
+  SpaceTag* tag = EnsureTag(contents);
+  tag->pin = pin;
+  // add-spaces D3: a pinned tab's window shows its Space once it's active,
+  // which may be before the lists hear of it.
+  const clair::Pin* record = clair::ClairPinStore::Get()->Find(pin);
+  if (record && !record->container.is_favorites()) {
+    tag->space = record->container.space;
+  }
+}
+
+// static
 void ClairSpaceTabs::SetRestoredNewTabWasSelected(
     content::WebContents* contents) {
   if (contents) {
@@ -423,24 +562,38 @@ std::map<std::string, std::string> ClairSpaceTabs::SessionTags(
   std::map<std::string, std::string> tags;
   SpaceTag* tag = GetTag(contents);
   ClairSpaceTabs* lists = ForWebContents(contents);
-  if (!tag || !lists || !lists->is_regular() || tag->space.empty()) {
+  tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
+  if (!tag || !lists || !lists->is_regular()) {
     return tags;
   }
-  int rank = tag->written_rank;
-  tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
-  if (auto list = lists->lists_.find(tag->space);
-      tab && list != lists->lists_.end()) {
-    auto it = std::ranges::find(list->second, tab->GetHandle());
-    if (it != list->second.end()) {
-      rank = static_cast<int>(it - list->second.begin());
-    }
+  // add-pinned-tabs-and-favorites D2: a bound tab carries its pin, and a
+  // favorite's tab may have no Space.
+  const std::string pin = lists->SessionPinOf(tab);
+  if (tag->space.empty() && pin.empty()) {
+    return tags;
   }
-  tags[clair::kSpaceSessionKey] = tag->space;
-  if (rank >= 0) {
-    tags[clair::kOrderSessionKey] = base::NumberToString(rank);
+  if (!tag->space.empty()) {
+    int rank = pin.empty() ? tag->written_rank : -1;
+    if (auto list = lists->lists_.find(tag->space);
+        tab && list != lists->lists_.end()) {
+      auto it = std::ranges::find(list->second, tab->GetHandle());
+      if (it != list->second.end()) {
+        rank = static_cast<int>(it - list->second.begin());
+      }
+    }
+    tags[clair::kSpaceSessionKey] = tag->space;
+    if (rank >= 0) {
+      tags[clair::kOrderSessionKey] = base::NumberToString(rank);
+    }
   }
   if (std::string group = GroupOf(contents); !group.empty()) {
     tags[clair::kWindowSessionKey] = group;
+  }
+  if (!pin.empty()) {
+    tags[clair::kPinSessionKey] = pin;
+  }
+  if (std::string name = lists->NameOf(tab); !name.empty()) {
+    tags[clair::kNameSessionKey] = name;
   }
   return tags;
 }
@@ -464,9 +617,11 @@ ClairSpaceTabs::ClairSpaceTabs(Profile* profile) : profile_(profile) {
         "private-" + base::NumberToString(next_private_space++);
   }
   Instances().insert(this);
+  clair::ClairPinStore::Get()->AddObserver(this);
 }
 
 ClairSpaceTabs::~ClairSpaceTabs() {
+  clair::ClairPinStore::Get()->RemoveObserver(this);
   Instances().erase(this);
   infobar_observations_.RemoveAllObservations();
   progress_observers_.clear();
@@ -517,6 +672,16 @@ ClairBrowserWindow* ClairSpaceTabs::WindowFor(const TabStripModel* model) const 
   return nullptr;
 }
 
+namespace {
+
+// The tab `peek` is a Peek of, in its window, or null.
+tabs::TabInterface* PeekParentOf(const tabs::TabInterface* peek) {
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(peek);
+  return holder && holder->peeks() ? holder->peeks()->ParentOf(peek) : nullptr;
+}
+
+}  // namespace
+
 std::string ClairSpaceTabs::SpaceOf(const tabs::TabInterface* tab) const {
   if (!tab) {
     return std::string();
@@ -527,7 +692,147 @@ std::string ClairSpaceTabs::SpaceOf(const tabs::TabInterface* tab) const {
       return space;
     }
   }
-  return std::string();
+  // add-pinned-tabs-and-favorites D2: a pinned tab's is its pin's, and a
+  // favorite's tab has none. A bound tab's Peek follows it.
+  const tabs::TabInterface* bound = tab;
+  std::string pin = PinOf(tab);
+  if (pin.empty()) {
+    bound = PeekParentOf(tab);
+    pin = bound ? PinOf(bound) : std::string();
+  }
+  const clair::Pin* record =
+      pin.empty() ? nullptr : clair::ClairPinStore::Get()->Find(pin);
+  return record ? record->container.space : std::string();
+}
+
+bool ClairSpaceTabs::IsListed(const tabs::TabInterface* tab) const {
+  if (!tab) {
+    return false;
+  }
+  if (!SpaceOf(tab).empty() || !PinOf(tab).empty()) {
+    return true;
+  }
+  const tabs::TabInterface* parent = PeekParentOf(tab);
+  return parent && !PinOf(parent).empty();
+}
+
+std::string ClairSpaceTabs::PinOf(const tabs::TabInterface* tab) const {
+  SpaceTag* tag = tab ? GetTag(tab->GetContents()) : nullptr;
+  if (!tag || tag->pin.empty()) {
+    return std::string();
+  }
+  auto found = bound_.find(tag->pin);
+  return found != bound_.end() && found->second == tab->GetHandle()
+             ? tag->pin
+             : std::string();
+}
+
+std::string ClairSpaceTabs::SessionPinOf(const tabs::TabInterface* tab) const {
+  std::string pin = PinOf(tab);
+  if (!pin.empty()) {
+    return pin;
+  }
+  // A tab closing as its pin stays, or after Remove Pin while the pin can
+  // come back, keeps it for Reopen Closed Tab.
+  SpaceTag* tag = tab ? GetTag(tab->GetContents()) : nullptr;
+  if (!tag || tag->pin.empty()) {
+    return std::string();
+  }
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  return store->WasRemoved(tag->pin) ||
+                 (store->Find(tag->pin) && !clair::BoundTabOf(tag->pin))
+             ? tag->pin
+             : std::string();
+}
+
+tabs::TabInterface* ClairSpaceTabs::BoundTab(std::string_view pin) const {
+  auto found = bound_.find(std::string(pin));
+  return found == bound_.end() ? nullptr : found->second.Get();
+}
+
+bool ClairSpaceTabs::IsFavoriteTab(const tabs::TabInterface* tab) const {
+  const std::string pin = PinOf(tab);
+  const clair::Pin* record =
+      pin.empty() ? nullptr : clair::ClairPinStore::Get()->Find(pin);
+  return record && record->container.is_favorites();
+}
+
+std::vector<tabs::TabInterface*> ClairSpaceTabs::PinnedTabsIn(
+    const std::string& space) const {
+  std::vector<tabs::TabInterface*> result;
+  for (const clair::Pin* pin : clair::ClairPinStore::Get()->PinsIn(
+           clair::PinContainer::OfSpace(space))) {
+    if (tabs::TabInterface* tab = BoundTab(pin->id)) {
+      result.push_back(tab);
+    }
+  }
+  return result;
+}
+
+std::vector<tabs::TabInterface*> ClairSpaceTabs::FavoriteTabs() const {
+  std::vector<tabs::TabInterface*> result;
+  if (!is_regular()) {
+    return result;
+  }
+  for (const clair::Pin* pin :
+       clair::ClairPinStore::Get()->PinsIn(clair::PinContainer::OfProfile(
+           clair::ClairProfiles::IDOf(profile_)))) {
+    if (tabs::TabInterface* tab = BoundTab(pin->id)) {
+      result.push_back(tab);
+    }
+  }
+  return result;
+}
+
+std::string ClairSpaceTabs::NameOf(const tabs::TabInterface* tab) const {
+  const std::string pin = PinOf(tab);
+  if (!pin.empty()) {
+    const clair::Pin* record = clair::ClairPinStore::Get()->Find(pin);
+    return record ? record->name : std::string();
+  }
+  SpaceTag* tag = tab ? GetTag(tab->GetContents()) : nullptr;
+  return tag ? tag->name : std::string();
+}
+
+void ClairSpaceTabs::SetName(tabs::TabInterface* tab, const std::string& name) {
+  if (!tab || !is_regular()) {
+    return;
+  }
+  std::string cleaned(base::TrimWhitespaceASCII(name, base::TRIM_ALL));
+  std::string cut;
+  base::TruncateUTF8ToByteSize(cleaned, clair::ClairPinStore::kMaxNameLength,
+                               &cut);
+  const std::string pin = PinOf(tab);
+  if (!pin.empty()) {
+    clair::ClairPinStore::Get()->SetName(pin, cut);
+    return;
+  }
+  SpaceTag* tag = EnsureTag(tab->GetContents());
+  if (tag->name == cut) {
+    return;
+  }
+  tag->name = cut;
+  TabChanged(tab->GetContents());
+  // Its session tags are written with its list.
+  ListChanged(SpaceOf(tab));
+}
+
+bool ClairSpaceTabs::IsAtPinnedURL(const tabs::TabInterface* tab) const {
+  const std::string pin = PinOf(tab);
+  const clair::Pin* record =
+      pin.empty() ? nullptr : clair::ClairPinStore::Get()->Find(pin);
+  if (!record) {
+    return true;
+  }
+  content::NavigationEntry* entry =
+      tab->GetContents()->GetController().GetLastCommittedEntry();
+  if (!entry || entry->IsInitialEntry()) {
+    return true;
+  }
+  // D2: a redirect from the pinned URL counts as being at it.
+  return clair::SamePinnedURL(entry->GetURL(), record->url) ||
+         clair::SamePinnedURL(entry->GetVirtualURL(), record->url) ||
+         clair::SamePinnedURL(entry->GetOriginalRequestURL(), record->url);
 }
 
 std::string ClairSpaceTabs::SpaceOf(content::WebContents* contents) const {
@@ -541,9 +846,20 @@ std::string ClairSpaceTabs::IntendedSpaceOf(tabs::TabInterface* tab) const {
     return space;
   }
   SpaceTag* tag = GetTag(tab->GetContents());
-  return tag && clair::ClairSpaceStore::Get()->Contains(tag->space)
-             ? tag->space
-             : std::string();
+  if (!tag) {
+    return std::string();
+  }
+  // add-pinned-tabs-and-favorites D2: a favorite's tab, bound or about to
+  // be, belongs to no Space, and leaves its window's as it is.
+  if (!tag->pin.empty()) {
+    const clair::Pin* record = clair::ClairPinStore::Get()->Find(tag->pin);
+    if (record && record->container.is_favorites() &&
+        (PinOf(tab) == tag->pin || !BoundTab(tag->pin))) {
+      return std::string();
+    }
+  }
+  return clair::ClairSpaceStore::Get()->Contains(tag->space) ? tag->space
+                                                              : std::string();
 }
 
 std::vector<tabs::TabInterface*> ClairSpaceTabs::TabsIn(
@@ -599,12 +915,33 @@ id<ClairTab> ClairSpaceTabs::Snapshot(content::WebContents* contents) const {
       }
     }
   }
+  const std::string pin = PinOf(tab);
+  const std::string name = NameOf(tab);
   return [[ClairChromiumTab alloc]
       initWithContents:contents
           peekParentID:peek_parent_id
                 peekID:peek_id
                spaceID:base::SysUTF8ToNSString(SpaceOf(tab))
-             browserID:browser_id];
+             browserID:browser_id
+                 pinID:pin.empty() ? nil : base::SysUTF8ToNSString(pin)
+                  name:name.empty() ? nil : base::SysUTF8ToNSString(name)];
+}
+
+id<ClairPin> ClairSpaceTabs::PinSnapshot(const clair::Pin& pin) const {
+  NSMutableArray<id<ClairTab>>* tabs = [NSMutableArray array];
+  tabs::TabInterface* bound = BoundTab(pin.id);
+  if (bound) {
+    [tabs addObject:Snapshot(bound->GetContents())];
+    ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(bound);
+    if (tabs::TabInterface* peek =
+            holder && holder->peeks() ? holder->peeks()->PeekOf(bound)
+                                      : nullptr) {
+      [tabs addObject:Snapshot(peek->GetContents())];
+    }
+  }
+  return [[ClairChromiumPin alloc] initWithPin:pin
+                                          tabs:tabs
+                                 isAtPinnedURL:!bound || IsAtPinnedURL(bound)];
 }
 
 NSArray<id<ClairTab>>* ClairSpaceTabs::Snapshots(const std::string& space) const {
@@ -633,6 +970,16 @@ void ClairSpaceTabs::Insert(TabStripModel* model,
   }
   clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
   SpaceTag* tag = GetTag(contents);
+  // add-pinned-tabs-and-favorites D3: a tab restored or opened for a pin
+  // binds to it, unless the pin is gone or already has a tab.
+  if (is_regular() && tag && !tag->pin.empty()) {
+    if (Bind(tab, tag->pin)) {
+      return;
+    }
+    if (!clair::ClairPinStore::Get()->WasRemoved(tag->pin)) {
+      tag->pin.clear();
+    }
+  }
   std::string space;
   std::optional<int> rank;
   if (!is_regular()) {
@@ -690,6 +1037,14 @@ void ClairSpaceTabs::Insert(TabStripModel* model,
 }
 
 std::string ClairSpaceTabs::Remove(const tabs::TabInterface* tab) {
+  std::string space = RemoveFromLists(tab);
+  // add-pinned-tabs-and-favorites D2: a bound tab leaving for good leaves its
+  // pin in place, unbound.
+  Unbind(tab, /*keep_tag=*/true);
+  return space;
+}
+
+std::string ClairSpaceTabs::RemoveFromLists(const tabs::TabInterface* tab) {
   if (!tab) {
     return std::string();
   }
@@ -701,6 +1056,248 @@ std::string ClairSpaceTabs::Remove(const tabs::TabInterface* tab) {
     }
   }
   return std::string();
+}
+
+// --- Binding (add-pinned-tabs-and-favorites D2 to D5) ---
+
+bool ClairSpaceTabs::Bind(tabs::TabInterface* tab, const std::string& pin) {
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  if (!tab || !is_regular() || ClairSpaceTabs::IsPlaceholder(tab->GetContents())) {
+    return false;
+  }
+  // D3: a tab Restore Last Closed Tab brings back with a removed pin brings
+  // the pin back first.
+  if (!store->Find(pin) && store->WasRemoved(pin)) {
+    store->Restore(pin);
+  }
+  const clair::Pin* record = store->Find(pin);
+  if (!record || store->ProfileOf(*record) != clair::ClairProfiles::IDOf(profile_)) {
+    return false;
+  }
+  if (tabs::TabInterface* bound = BoundTab(pin); bound && bound != tab) {
+    return false;
+  }
+  const std::string old = PinOf(tab);
+  if (!old.empty() && old != pin) {
+    Unbind(tab, /*keep_tag=*/false);
+  }
+  content::WebContents* contents = tab->GetContents();
+  SpaceTag* tag = EnsureTag(contents);
+  // A Peek is in no list while its parent is bound; it follows it.
+  for (tabs::TabInterface* member : FamilyOf(tab)) {
+    RemoveFromLists(member);
+    SpaceTag* member_tag = EnsureTag(member->GetContents());
+    if (!record->container.is_favorites()) {
+      member_tag->space = record->container.space;
+    }
+    member_tag->rank.reset();
+  }
+  bound_[pin] = tab->GetHandle();
+  tag->pin = pin;
+  // The name moves into the record.
+  if (!tag->name.empty()) {
+    if (record->name.empty()) {
+      store->SetName(pin, tag->name);
+    }
+    tag->name.clear();
+  }
+  changed_bound_.insert(tab->GetHandle());
+  clair::PinsChanged(record->container);
+  TabChanged(contents);
+  PostFlush();
+  return true;
+}
+
+void ClairSpaceTabs::Unbind(const tabs::TabInterface* tab, bool keep_tag) {
+  const std::string pin = PinOf(tab);
+  if (pin.empty()) {
+    return;
+  }
+  bound_.erase(pin);
+  changed_bound_.erase(tab->GetHandle());
+  if (!keep_tag) {
+    EnsureTag(tab->GetContents())->pin.clear();
+  }
+  if (const clair::Pin* record = clair::ClairPinStore::Get()->Find(pin)) {
+    clair::PinsChanged(record->container);
+  }
+}
+
+void ClairSpaceTabs::ListInToday(tabs::TabInterface* tab,
+                                 const std::string& space,
+                                 int index) {
+  if (!tab || space.empty()) {
+    return;
+  }
+  std::vector<tabs::TabHandle> handles;
+  for (tabs::TabInterface* member : FamilyOf(tab)) {
+    RemoveFromLists(member);
+    SpaceTag* tag = EnsureTag(member->GetContents());
+    tag->space = space;
+    tag->rank.reset();
+    handles.push_back(member->GetHandle());
+  }
+  std::vector<tabs::TabHandle>& list = lists_[space];
+  const size_t at = static_cast<size_t>(
+      std::clamp(index, 0, static_cast<int>(list.size())));
+  list.insert(list.begin() + at, handles.begin(), handles.end());
+  ListChanged(space);
+  TabChanged(tab->GetContents());
+}
+
+std::string ClairSpaceTabs::FallbackSpaceFor(tabs::TabInterface* tab) const {
+  clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
+  const std::string profile = clair::ClairProfiles::IDOf(profile_);
+  SpaceTag* tag = tab ? GetTag(tab->GetContents()) : nullptr;
+  if (tag && store->Contains(tag->space) && store->ProfileOf(tag->space) == profile) {
+    return tag->space;
+  }
+  if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
+      holder && store->Contains(holder->shown_space())) {
+    return holder->shown_space();
+  }
+  for (const clair::Space& space : store->spaces()) {
+    if (space.profile == profile) {
+      return space.id;
+    }
+  }
+  return store->last_space();
+}
+
+std::string ClairSpaceTabs::PinTab(tabs::TabInterface* tab,
+                                   const clair::PinContainer& container,
+                                   size_t index) {
+  if (!tab || !is_regular() || !PinOf(tab).empty() || SpaceOf(tab).empty() ||
+      PeekParentOf(tab)) {
+    return std::string();
+  }
+  content::WebContents* contents = tab->GetContents();
+  content::NavigationEntry* entry =
+      contents->GetController().GetLastCommittedEntry();
+  const GURL url = entry && !entry->IsInitialEntry() ? entry->GetURL()
+                                                      : contents->GetVisibleURL();
+  SpaceTag* tag = EnsureTag(contents);
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  const std::string pin =
+      store->Create(container, index, url, base::UTF16ToUTF8(contents->GetTitle()),
+                    tag->name);
+  if (pin.empty()) {
+    return pin;
+  }
+  if (auto* favicons = favicon::ContentFaviconDriver::FromWebContents(contents);
+      favicons && favicons->FaviconIsValid()) {
+    gfx::Image image = favicons->GetFavicon();
+    if (!image.IsEmpty()) {
+      store->SetIcon(pin, image.ToNSImage());
+    }
+  }
+  tag->name.clear();
+  Bind(tab, pin);
+  return pin;
+}
+
+void ClairSpaceTabs::UnbindToToday(tabs::TabInterface* tab,
+                                   const std::string& space,
+                                   int index) {
+  const std::string pin = PinOf(tab);
+  if (pin.empty()) {
+    return;
+  }
+  const clair::Pin* record = clair::ClairPinStore::Get()->Find(pin);
+  const std::string name = record ? record->name : std::string();
+  Unbind(tab, /*keep_tag=*/false);
+  EnsureTag(tab->GetContents())->name = name;
+  ListInToday(tab, space, index);
+  changed_bound_.erase(tab->GetHandle());
+}
+
+void ClairSpaceTabs::UnbindForReopen(tabs::TabInterface* tab) {
+  Unbind(tab, /*keep_tag=*/false);
+}
+
+void ClairSpaceTabs::PeekExpanded(tabs::TabInterface* peek,
+                                  const std::string& space) {
+  if (!peek || !is_regular() || IsListed(peek)) {
+    return;
+  }
+  // D7: at the top of Today, as any new tab.
+  ListInToday(peek, space, 0);
+}
+
+void ClairSpaceTabs::OnPinsChanged(const clair::PinContainer& container) {
+  if (!is_regular()) {
+    return;
+  }
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  const std::string profile = clair::ClairProfiles::IDOf(profile_);
+  std::vector<std::pair<std::string, tabs::TabHandle>> bound(bound_.begin(),
+                                                             bound_.end());
+  for (const auto& [pin, handle] : bound) {
+    tabs::TabInterface* tab = handle.Get();
+    const clair::Pin* record = store->Find(pin);
+    if (!tab) {
+      bound_.erase(pin);
+      continue;
+    }
+    if (!record) {
+      // D3, D9: the pin was removed; its tab, unless it's closing, joins a
+      // Space's Today tabs. It keeps the pin in its tag while Restore Last
+      // Closed Tab can bring it back.
+      Unbind(tab, /*keep_tag=*/true);
+      ListInToday(tab, FallbackSpaceFor(tab), 0);
+      continue;
+    }
+    if (store->ProfileOf(*record) != profile) {
+      // D5: it moved to another profile, which reopens the tab there; this
+      // one closes.
+      continue;
+    }
+    // It may have moved between a Space and the favorites, or between
+    // Spaces, or changed its name.
+    for (tabs::TabInterface* member : FamilyOf(tab)) {
+      if (!record->container.is_favorites()) {
+        EnsureTag(member->GetContents())->space = record->container.space;
+      }
+    }
+    changed_bound_.insert(handle);
+    TabChanged(tab->GetContents());
+  }
+  PostFlush();
+}
+
+void ClairSpaceTabs::BoundChanged(const tabs::TabInterface* tab) {
+  const std::string pin = PinOf(tab);
+  const clair::Pin* record =
+      pin.empty() ? nullptr : clair::ClairPinStore::Get()->Find(pin);
+  if (record) {
+    clair::PinsChanged(record->container);
+  }
+}
+
+void ClairSpaceTabs::BoundTabUpdated(content::WebContents* contents) {
+  tabs::TabInterface* tab =
+      contents ? tabs::TabInterface::MaybeGetFromContents(contents) : nullptr;
+  const std::string pin = PinOf(tab);
+  if (pin.empty()) {
+    return;
+  }
+  // D2: the pin's title follows its page only at the pinned URL.
+  if (IsAtPinnedURL(tab) && !contents->GetTitle().empty()) {
+    clair::ClairPinStore::Get()->SetTitle(pin,
+                                          base::UTF16ToUTF8(contents->GetTitle()));
+  }
+  BoundChanged(tab);
+}
+
+void ClairSpaceTabs::BoundFaviconUpdated(content::WebContents* contents,
+                                         NSImage* icon) {
+  tabs::TabInterface* tab =
+      contents ? tabs::TabInterface::MaybeGetFromContents(contents) : nullptr;
+  const std::string pin = PinOf(tab);
+  if (pin.empty() || !icon || !IsAtPinnedURL(tab)) {
+    return;
+  }
+  clair::ClairPinStore::Get()->SetIcon(pin, icon);
 }
 
 std::vector<tabs::TabInterface*> ClairSpaceTabs::FamilyOf(
@@ -784,8 +1381,21 @@ void ClairSpaceTabs::SetSpace(tabs::TabInterface* tab,
 
 void ClairSpaceTabs::PeekLinked(tabs::TabInterface* parent,
                                 tabs::TabInterface* peek) {
+  if (!peek) {
+    return;
+  }
+  // add-pinned-tabs-and-favorites D2: a bound tab's Peek is in no list; it
+  // comes with its pin.
+  if (!PinOf(parent).empty()) {
+    RemoveFromLists(peek);
+    if (std::string space = SpaceOf(parent); !space.empty()) {
+      EnsureTag(peek->GetContents())->space = space;
+    }
+    BoundChanged(parent);
+    return;
+  }
   const std::string space = SpaceOf(parent);
-  if (space.empty() || !peek) {
+  if (space.empty()) {
     return;
   }
   Remove(peek);
@@ -838,6 +1448,16 @@ void ClairSpaceTabs::EndMove(tabs::TabInterface* tab) {
     tag->written_space.clear();
     tag->written_rank = -1;
     tag->written_window.clear();
+    tag->written_pin.reset();
+    tag->written_name.reset();
+  }
+  if (!PinOf(tab).empty()) {
+    changed_bound_.insert(tab->GetHandle());
+    BoundChanged(tab);
+    PostFlush();
+  } else if (tabs::TabInterface* parent = PeekParentOf(tab);
+             parent && !PinOf(parent).empty()) {
+    BoundChanged(parent);
   }
   ListChanged(SpaceOf(tab));
 }
@@ -863,6 +1483,15 @@ void ClairSpaceTabs::ListChanged(const std::string& space) {
 }
 
 void ClairSpaceTabs::AllListsChanged() {
+  for (const auto& [pin, handle] : bound_) {
+    if (tabs::TabInterface* tab = handle.Get()) {
+      if (SpaceTag* tag = GetTag(tab->GetContents())) {
+        tag->written_window.clear();
+      }
+      changed_bound_.insert(handle);
+    }
+  }
+  PostFlush();
   for (const auto& [space, list] : lists_) {
     for (const tabs::TabHandle& handle : list) {
       if (tabs::TabInterface* tab = handle.Get()) {
@@ -912,9 +1541,22 @@ void ClairSpaceTabs::Flush() {
     }
     clair::NotifyTabsInSpace(space);
   }
+  std::set<tabs::TabHandle> bound = std::move(changed_bound_);
+  changed_bound_.clear();
+  if (SessionService* service =
+          is_regular() ? SessionServiceFactory::GetForProfileIfExisting(profile_)
+                       : nullptr) {
+    for (const tabs::TabHandle& handle : bound) {
+      tabs::TabInterface* tab = handle.Get();
+      if (tab && !PinOf(tab).empty()) {
+        SpaceTag* tag = EnsureTag(tab->GetContents());
+        WriteTabTags(tab, service, tag->space, /*rank=*/-1);
+      }
+    }
+  }
   for (int32_t raw : changed) {
     tabs::TabInterface* tab = tabs::TabHandle(raw).Get();
-    if (tab && !SpaceOf(tab).empty()) {
+    if (tab && IsListed(tab)) {
       clair::NotifyTab(Snapshot(tab->GetContents()));
     }
   }
@@ -935,33 +1577,55 @@ void ClairSpaceTabs::WriteSessionTags(const std::string& space) {
     if (!tab) {
       continue;
     }
-    content::WebContents* contents = tab->GetContents();
-    SpaceTag* tag = EnsureTag(contents);
     // Restored ranks have done their work once the list is written.
-    tag->rank.reset();
-    BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
-    const std::string group = GroupOf(contents);
-    if (service && browser &&
-        (tag->written_space != space || tag->written_rank != index ||
-         tag->written_window != group)) {
-      const SessionID window_id = browser->GetSessionID();
-      const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
-      if (window_id.is_valid() && tab_id.is_valid()) {
-        service->AddTabExtraData(window_id, tab_id, clair::kSpaceSessionKey,
-                                 space);
-        service->AddTabExtraData(window_id, tab_id, clair::kOrderSessionKey,
-                                 base::NumberToString(index));
-        if (!group.empty()) {
-          service->AddTabExtraData(window_id, tab_id, clair::kWindowSessionKey,
-                                   group);
-        }
-        tag->written_space = space;
-        tag->written_rank = index;
-        tag->written_window = group;
-      }
-    }
+    EnsureTag(tab->GetContents())->rank.reset();
+    WriteTabTags(tab, service, space, index);
     ++index;
   }
+}
+
+void ClairSpaceTabs::WriteTabTags(tabs::TabInterface* tab,
+                                  SessionService* service,
+                                  const std::string& space,
+                                  int rank) {
+  content::WebContents* contents = tab->GetContents();
+  SpaceTag* tag = EnsureTag(contents);
+  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
+  const std::string group = GroupOf(contents);
+  // add-pinned-tabs-and-favorites D2, D3: its pin and its name.
+  const std::string pin = SessionPinOf(tab);
+  const std::string name = NameOf(tab);
+  if (!service || !browser ||
+      (tag->written_space == space && tag->written_rank == rank &&
+       tag->written_window == group && tag->written_pin == pin &&
+       tag->written_name == name)) {
+    return;
+  }
+  const SessionID window_id = browser->GetSessionID();
+  const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
+  if (!window_id.is_valid() || !tab_id.is_valid()) {
+    return;
+  }
+  if (!space.empty()) {
+    service->AddTabExtraData(window_id, tab_id, clair::kSpaceSessionKey, space);
+  }
+  if (rank >= 0) {
+    service->AddTabExtraData(window_id, tab_id, clair::kOrderSessionKey,
+                             base::NumberToString(rank));
+  }
+  if (!group.empty()) {
+    service->AddTabExtraData(window_id, tab_id, clair::kWindowSessionKey,
+                             group);
+  }
+  // Written even when empty, so an unpinned or unnamed tab doesn't come back
+  // with what it had.
+  service->AddTabExtraData(window_id, tab_id, clair::kPinSessionKey, pin);
+  service->AddTabExtraData(window_id, tab_id, clair::kNameSessionKey, name);
+  tag->written_space = space;
+  tag->written_rank = rank;
+  tag->written_window = group;
+  tag->written_pin = pin;
+  tag->written_name = name;
 }
 
 // --- TabStripModelObserver ---
@@ -1011,8 +1675,11 @@ void ClairSpaceTabs::OnTabStripModelChanged(
         SpaceTag* new_tag = EnsureTag(replace->new_contents);
         new_tag->space = old_tag->space;
         new_tag->rank = old_tag->rank;
+        new_tag->pin = old_tag->pin;
+        new_tag->name = old_tag->name;
       }
       ListChanged(SpaceOf(replace->tab));
+      BoundChanged(replace->tab);
       break;
     }
     case TabStripModelChange::kMoved:
@@ -1121,6 +1788,59 @@ NSHashTable<id<ClairSpacesObserver>>* Observers() {
   return observers;
 }
 
+// add-pinned-tabs-and-favorites D10: pushes each container's pins once per
+// run-loop turn, after the tab lists.
+class PinPusher : public ClairPinStore::Observer {
+ public:
+  static PinPusher* Get() {
+    static base::NoDestructor<PinPusher> pusher;
+    return pusher.get();
+  }
+
+  PinPusher() { ClairPinStore::Get()->AddObserver(this); }
+
+  void Changed(const PinContainer& container) {
+    pending_.insert(container);
+    if (posted_) {
+      return;
+    }
+    posted_ = true;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce([] { PinPusher::Get()->Flush(); }));
+  }
+
+  void Flush() {
+    posted_ = false;
+    std::set<PinContainer> pending = std::move(pending_);
+    pending_.clear();
+    for (const PinContainer& container : pending) {
+      NSArray<id<ClairPin>>* pins = PinSnapshots(container);
+      for (id<ClairSpacesObserver> observer in Observers().allObjects) {
+        if (container.is_favorites()) {
+          [observer favoritesDidChange:pins
+                             ofProfile:base::SysUTF8ToNSString(container.profile)];
+        } else {
+          [observer pinsDidChange:pins
+                          inSpace:base::SysUTF8ToNSString(container.space)];
+        }
+      }
+    }
+  }
+
+  // ClairPinStore::Observer:
+  void OnPinsChanged(const PinContainer& container) override {
+    Changed(container);
+  }
+
+ private:
+  std::set<PinContainer> pending_;
+  bool posted_ = false;
+};
+
+void FlushPins() {
+  PinPusher::Get()->Flush();
+}
+
 // Tells the observers when the store changes.
 class StoreWatcher : public ClairSpaceStore::Observer {
  public:
@@ -1150,6 +1870,7 @@ NSInteger InfobarIDOf(const infobars::InfoBar* infobar) {
 
 void AddSpacesObserver(id<ClairSpacesObserver> observer) {
   static base::NoDestructor<StoreWatcher> watcher;
+  PinPusher::Get();
   ClairProfiles::Get()->Start();
   [Observers() addObject:observer];
 }
@@ -1225,6 +1946,9 @@ void CloseTabsOfDeletedSpace(const std::string& space,
       continue;
     }
     std::vector<tabs::TabHandle> handles;
+    for (tabs::TabInterface* tab : lists->PinnedTabsIn(space)) {
+      handles.push_back(tab->GetHandle());
+    }
     for (tabs::TabInterface* tab : lists->TabsIn(space)) {
       handles.push_back(tab->GetHandle());
     }
@@ -1251,6 +1975,10 @@ void CloseTabsOfDeletedSpace(const std::string& space,
     for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
       lists->SpaceRemoved(space, neighbour);
     }
+    // add-pinned-tabs-and-favorites D9: its pinned tabs go, for good; a tab
+    // still bound to one, as one whose leave-page confirmation is up, joins
+    // the neighbour's Today tabs.
+    ClairPinStore::Get()->RemoveContainer(PinContainer::OfSpace(space));
   }
 }
 
@@ -1259,12 +1987,18 @@ void CloseTabsOfDeletedSpace(const std::string& space,
 tabs::TabInterface* OpenTabInSpace(ClairBrowserWindow* window,
                                    const GURL& url,
                                    const std::string& space,
-                                   int rank) {
+                                   int rank,
+                                   const std::string& pin = std::string(),
+                                   const std::string& name = std::string()) {
   Profile* profile = window->browser()->GetProfile();
   std::unique_ptr<content::WebContents> contents =
       content::WebContents::Create(content::WebContents::CreateParams(profile));
-  // Its Space and place, before it joins the strip, as a restored tab's.
+  // Its Space and place, before it joins the strip, as a restored tab's, and
+  // the pin it's bound to (add-pinned-tabs-and-favorites D5).
   ClairSpaceTabs::SetRestoredTag(contents.get(), space, rank);
+  if (!pin.empty() || !name.empty()) {
+    ClairSpaceTabs::SetRestoredPinTag(contents.get(), pin, name);
+  }
   contents->GetController().LoadURL(
       url.is_valid() ? url : GURL(chrome::kChromeUINewTabURL),
       content::Referrer(), ui::PAGE_TRANSITION_AUTO_TOPLEVEL, std::string());
@@ -1349,19 +2083,38 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
               const std::string previous = group->shown_space();
               const GURL url = row->GetContents()->GetVisibleURL();
               const int this_rank = rank++;
+              // add-pinned-tabs-and-favorites D5: a bound tab reopens bound
+              // to its pin, and a tab keeps its name.
+              ClairSpaceTabs* lists =
+                  ClairSpaceTabs::ForWebContents(row->GetContents());
+              const std::string pin =
+                  lists ? lists->PinOf(row) : std::string();
+              const std::string name =
+                  lists && pin.empty() ? lists->NameOf(row) : std::string();
               // The profile is loaded, so the member comes at once.
               group->EnsureMember(
                   profile,
                   base::BindOnce(
                       [](tabs::TabHandle handle, GURL url, std::string space,
                          int rank, bool shown, std::string previous,
+                         std::string pin, std::string name,
                          base::WeakPtr<ClairBrowserWindow> holder,
                          ClairBrowserWindow* member) {
                         if (!member) {
                           return;
                         }
-                        tabs::TabInterface* reopened =
-                            OpenTabInSpace(member, url, space, rank);
+                        // The original lets go of its pin first, so the
+                        // reopened tab binds to it.
+                        if (tabs::TabInterface* row = handle.Get();
+                            row && !pin.empty()) {
+                          if (ClairSpaceTabs* lists =
+                                  ClairSpaceTabs::ForWebContents(
+                                      row->GetContents())) {
+                            lists->UnbindForReopen(row);
+                          }
+                        }
+                        tabs::TabInterface* reopened = OpenTabInSpace(
+                            member, url, space, rank, pin, name);
                         if (shown && reopened) {
                           ClairWindowGroup* group =
                               ClairWindowGroup::Of(member);
@@ -1380,8 +2133,8 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
                         SwapGroupsShowing(space);
                         CloseReopened(handle);
                       },
-                      handle, url, space, this_rank, shown, previous,
-                      holder->GetWeakPtr()));
+                      handle, url, space, this_rank, shown, previous, pin,
+                      name, holder->GetWeakPtr()));
             }
           },
           std::move(rows), space, first_rank));
@@ -1439,6 +2192,13 @@ void MoveTabToSpace(tabs::TabInterface* tab, const std::string& space) {
   if (lists->SpaceOf(tab) == space) {
     return;
   }
+  // add-pinned-tabs-and-favorites D5: a pinned tab moves with its pin, to the
+  // end of the other Space's pinned tabs.
+  if (const std::string pin = lists->PinOf(tab); !pin.empty()) {
+    MovePin(pin, PinContainer::OfSpace(space),
+            std::numeric_limits<size_t>::max());
+    return;
+  }
   // add-profiles D9: a page can't change profile; it reopens at the top of
   // the other Space, in its profile.
   if (store->ProfileOf(space) != ClairProfiles::IDOf(lists->profile())) {
@@ -1468,12 +2228,17 @@ void SetSpaceProfile(const std::string& space, const std::string& profile) {
       !store->SetProfile(space, profile)) {
     return;
   }
-  // D9: every tab of the Space, in its order, Peeks left out.
+  // D9: every tab of the Space, in its order, Peeks left out: the open
+  // pinned tabs, which reopen bound to their pins
+  // (add-pinned-tabs-and-favorites D5), then the Today tabs.
   std::vector<tabs::TabHandle> rows;
   for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
     if (!lists->is_regular() ||
         ClairProfiles::IDOf(lists->profile()) != old_profile) {
       continue;
+    }
+    for (tabs::TabInterface* tab : lists->PinnedTabsIn(space)) {
+      rows.push_back(tab->GetHandle());
     }
     for (tabs::TabInterface* tab : lists->TabsIn(space)) {
       ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
@@ -1496,6 +2261,293 @@ void SetSpaceProfile(const std::string& space, const std::string& profile) {
     return;
   }
   ReopenInProfile(std::move(rows), space, /*first_rank=*/0);
+}
+
+// --- Pins (add-pinned-tabs-and-favorites D2 to D7, D9, D10) ---
+
+tabs::TabInterface* BoundTabOf(std::string_view pin) {
+  for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
+    if (tabs::TabInterface* tab = lists->BoundTab(pin)) {
+      return tab;
+    }
+  }
+  return nullptr;
+}
+
+NSArray<id<ClairPin>>* PinSnapshots(const PinContainer& container) {
+  NSMutableArray<id<ClairPin>>* pins = [NSMutableArray array];
+  ClairPinStore* store = ClairPinStore::Get();
+  for (const Pin* pin : store->PinsIn(container)) {
+    ClairSpaceTabs* holder = nullptr;
+    for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
+      if (lists->BoundTab(pin->id)) {
+        holder = lists;
+        break;
+      }
+    }
+    if (!holder) {
+      [pins addObject:[[ClairChromiumPin alloc] initWithPin:*pin
+                                                       tabs:@[]
+                                              isAtPinnedURL:YES]];
+      continue;
+    }
+    [pins addObject:holder->PinSnapshot(*pin)];
+  }
+  return pins;
+}
+
+void PinsChanged(const PinContainer& container) {
+  if (container.space.empty() && container.profile.empty()) {
+    return;
+  }
+  PinPusher::Get()->Changed(container);
+}
+
+void UpdateWindowTitles() {
+  for (ClairBrowserWindow* window : ClairBrowserWindow::All()) {
+    window->UpdateTitleBar();
+  }
+}
+
+void PinTab(tabs::TabInterface* tab, size_t index, bool favorite) {
+  ClairSpaceTabs* lists =
+      tab ? ClairSpaceTabs::ForWebContents(tab->GetContents()) : nullptr;
+  if (!lists || !lists->is_regular()) {
+    return;
+  }
+  const std::string space = lists->SpaceOf(tab);
+  if (space.empty() || !lists->PinOf(tab).empty()) {
+    return;
+  }
+  lists->PinTab(tab,
+                favorite ? PinContainer::OfProfile(
+                               ClairProfiles::IDOf(lists->profile()))
+                         : PinContainer::OfSpace(space),
+                index);
+}
+
+void MovePin(const std::string& pin, const PinContainer& to, size_t index) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const Pin* record = store->Find(pin);
+  if (!record) {
+    return;
+  }
+  const std::string old_profile = store->ProfileOf(*record);
+  tabs::TabInterface* bound = BoundTabOf(pin);
+  if (!store->Move(pin, to, index)) {
+    return;
+  }
+  record = store->Find(pin);
+  if (!bound || !record) {
+    return;
+  }
+  // add-profiles D9: a page can't change profile; the tab reopens in the
+  // Space's profile, bound to the pin.
+  if (store->ProfileOf(*record) != old_profile) {
+    ReopenInProfile({bound->GetHandle()}, record->container.space,
+                    /*first_rank=*/0);
+    return;
+  }
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(bound);
+  // A pinned tab that left a Space leaves the stills of it there.
+  if (!record->container.is_favorites()) {
+    for (ClairBrowserWindow* other : ClairBrowserWindow::All()) {
+      if (other != holder && other->still_tab() == bound->GetHandle() &&
+          other->shown_space() != record->container.space) {
+        other->StillTabClosed();
+      }
+    }
+  }
+  if (holder && holder->IsActiveRow(bound)) {
+    holder->FollowActiveTab();
+  }
+}
+
+void RemovePin(const std::string& pin) {
+  ClairPinStore* store = ClairPinStore::Get();
+  if (!store->Find(pin)) {
+    return;
+  }
+  tabs::TabInterface* bound = BoundTabOf(pin);
+  const tabs::TabHandle handle =
+      bound ? bound->GetHandle() : tabs::TabHandle::Null();
+  // D3: removed before its tab closes, so the tab's own entry in the
+  // recently closed list is the newer, and brings the pin back with it.
+  store->Remove(pin, /*remember=*/true);
+  tabs::TabInterface* tab = handle.Get();
+  if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab)) {
+    holder->CloseTab(tab);
+  }
+}
+
+void ReturnToPinnedURL(const std::string& pin) {
+  const Pin* record = ClairPinStore::Get()->Find(pin);
+  tabs::TabInterface* tab = BoundTabOf(pin);
+  if (!record || !tab) {
+    return;
+  }
+  // D6: a new navigation the browser starts, so Back returns.
+  tab->GetContents()->GetController().LoadURL(
+      record->url, content::Referrer(), ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+      std::string());
+}
+
+void ReplacePinnedURLWithCurrent(const std::string& pin) {
+  ClairPinStore* store = ClairPinStore::Get();
+  tabs::TabInterface* tab = BoundTabOf(pin);
+  if (!store->Find(pin) || !tab) {
+    return;
+  }
+  content::WebContents* contents = tab->GetContents();
+  content::NavigationEntry* entry =
+      contents->GetController().GetLastCommittedEntry();
+  if (!entry || entry->IsInitialEntry()) {
+    return;
+  }
+  store->SetURL(pin, entry->GetURL());
+  if (!contents->GetTitle().empty()) {
+    store->SetTitle(pin, base::UTF16ToUTF8(contents->GetTitle()));
+  }
+  if (auto* favicons = favicon::ContentFaviconDriver::FromWebContents(contents);
+      favicons && favicons->FaviconIsValid() && !favicons->GetFavicon().IsEmpty()) {
+    store->SetIcon(pin, favicons->GetFavicon().ToNSImage());
+  }
+}
+
+void SetPinnedURL(const std::string& pin, const GURL& url) {
+  ClairPinStore::Get()->SetURL(pin, url);
+}
+
+void SetPinName(const std::string& pin, const std::string& name) {
+  std::string cleaned(base::TrimWhitespaceASCII(name, base::TRIM_ALL));
+  ClairPinStore::Get()->SetName(pin, cleaned);
+  UpdateWindowTitles();
+}
+
+void ClearToday(const std::string& space) {
+  // D4: the Space's Today tabs in every window, through the close flow; a
+  // Peek closes with its parent.
+  std::vector<tabs::TabHandle> rows;
+  for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
+    if (!lists->is_regular()) {
+      continue;
+    }
+    for (tabs::TabInterface* tab : lists->TabsIn(space)) {
+      if (!PeekParentOf(tab)) {
+        rows.push_back(tab->GetHandle());
+      }
+    }
+  }
+  for (const tabs::TabHandle& handle : rows) {
+    tabs::TabInterface* tab = handle.Get();
+    if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab)) {
+      holder->CloseTab(tab);
+    }
+  }
+}
+
+void OpenPin(ClairBrowserWindow* window, const std::string& pin) {
+  ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
+  ClairPinStore* store = ClairPinStore::Get();
+  const Pin* record = store->Find(pin);
+  if (!lists || !lists->is_regular() || !record ||
+      store->ProfileOf(*record) != ClairProfiles::IDOf(lists->profile())) {
+    return;
+  }
+  // D2: one tab per pin.
+  if (tabs::TabInterface* bound = lists->BoundTab(pin)) {
+    window->ActivateRow(bound);
+    return;
+  }
+  std::unique_ptr<content::WebContents> contents = content::WebContents::Create(
+      content::WebContents::CreateParams(window->browser()->GetProfile()));
+  ClairSpaceTabs::SetPendingPin(contents.get(), pin);
+  contents->GetController().LoadURL(record->url, content::Referrer(),
+                                    ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+                                    std::string());
+  TabStripModel* strip = window->browser()->tab_strip_model();
+  strip->InsertWebContentsAt(strip->count(), std::move(contents),
+                             AddTabTypes::ADD_ACTIVE);
+}
+
+void Unpin(ClairBrowserWindow* window, const std::string& pin, int index) {
+  ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
+  ClairPinStore* store = ClairPinStore::Get();
+  const Pin* record = store->Find(pin);
+  if (!lists || !lists->is_regular() || !record ||
+      store->ProfileOf(*record) != ClairProfiles::IDOf(lists->profile())) {
+    return;
+  }
+  // A favorite becomes a Today tab of the Space the window shows.
+  const std::string space = record->container.is_favorites()
+                                ? window->shown_space()
+                                : record->container.space;
+  if (!ClairSpaceStore::Get()->Contains(space)) {
+    return;
+  }
+  if (tabs::TabInterface* bound = lists->BoundTab(pin)) {
+    lists->UnbindToToday(bound, space, index);
+    store->Remove(pin, /*remember=*/false);
+    ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(bound);
+    if (holder && holder->IsActiveRow(bound)) {
+      holder->FollowActiveTab();
+    }
+    return;
+  }
+  // D5: a pin without a page opens one, in the background.
+  const GURL url = record->url;
+  const std::string name = record->name;
+  store->Remove(pin, /*remember=*/false);
+  OpenTabInSpace(window, url, space, index, std::string(), name);
+}
+
+bool RestoreRemovedPin(ClairBrowserWindow* window) {
+  ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
+  if (!lists || !lists->is_regular()) {
+    return false;
+  }
+  ClairPinStore* store = ClairPinStore::Get();
+  const ClairPinStore::Removal* removal =
+      store->NewestRemoval(ClairProfiles::IDOf(lists->profile()));
+  if (!removal) {
+    return false;
+  }
+  base::Time newest;
+  if (sessions::TabRestoreService* service =
+          TabRestoreServiceFactory::GetForProfile(window->browser()->GetProfile());
+      service && !service->entries().empty()) {
+    newest = service->entries().front()->timestamp;
+  }
+  // D3: the newer of the two comes back.
+  if (removal->time <= newest) {
+    return false;
+  }
+  return store->Restore(removal->pin.id);
+}
+
+bool HasRemovedPin(ClairBrowserWindow* window) {
+  ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
+  return lists && lists->is_regular() &&
+         ClairPinStore::Get()->NewestRemoval(
+             ClairProfiles::IDOf(lists->profile()));
+}
+
+bool IsOtherSite(const GURL& url, const GURL& current) {
+  if (!url.is_valid() || !current.is_valid()) {
+    return false;
+  }
+  // As in Arc: another host is another site, subdomains and "www." included;
+  // another port isn't.
+  return url.scheme() != current.scheme() ||
+         url.host() != current.host();
+}
+
+bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url) {
+  ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
+  tabs::TabInterface* active =
+      window ? window->browser()->tab_strip_model()->GetActiveTab() : nullptr;
+  return lists && active && lists->IsFavoriteTab(active) &&
+         IsOtherSite(url, active->GetContents()->GetLastCommittedURL());
 }
 
 }  // namespace clair

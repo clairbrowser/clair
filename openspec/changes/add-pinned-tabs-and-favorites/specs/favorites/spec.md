@@ -88,7 +88,7 @@ A favorite's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Edit
 - **THEN** the menu offers Copy Link, Rename…, Mute, Edit Pinned Page, Duplicate, Close Tab and Remove Favorite
 
 ### Requirement: Leaving a favorite's site
-From a favorite, a URL the user enters in the command bar or URL field that is on another site SHALL open in a new Today tab at the top, leaving the favorite's page as it was. A URL on the same site SHALL load in the favorite. A favorite's page navigated away from its pinned URL SHALL keep Back to Pinned URL in the Tabs menu (`pinned-tabs`).
+From a favorite, a URL the user enters in the command bar or URL field that is on another site (another scheme or host, as for Peeks in `peek`) SHALL open in a new Today tab at the top, leaving the favorite's page as it was. A URL on the same site SHALL load in the favorite. A favorite's page navigated away from its pinned URL SHALL keep Back to Pinned URL in the Tabs menu (`pinned-tabs`).
 
 #### Scenario: Another site from the URL field
 - **WHEN** the window shows the favorite "Mail" at `https://mail.example.com/` and the user enters `https://news.example.org/` in the URL field

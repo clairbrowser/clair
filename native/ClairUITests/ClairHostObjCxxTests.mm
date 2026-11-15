@@ -75,6 +75,34 @@
 }
 - (void)openURL:(NSURL*)url inProfile:(ClairProfileID)profileID {
 }
+- (NSArray<id<ClairPin>>*)pinsInSpace:(ClairSpaceID)spaceID {
+  return @[];
+}
+- (NSArray<id<ClairPin>>*)favoritesOfProfile:(ClairProfileID)profileID {
+  return @[];
+}
+- (void)pinTab:(ClairTabID)tabID atIndex:(NSInteger)index {
+}
+- (void)favoriteTab:(ClairTabID)tabID atIndex:(NSInteger)index {
+}
+- (void)movePin:(ClairPinID)pinID toSpace:(ClairSpaceID)spaceID atIndex:(NSInteger)index {
+}
+- (void)movePin:(ClairPinID)pinID toFavoritesAtIndex:(NSInteger)index {
+}
+- (void)removePin:(ClairPinID)pinID {
+}
+- (void)returnToPinnedURL:(ClairPinID)pinID {
+}
+- (void)replacePinnedURLWithCurrent:(ClairPinID)pinID {
+}
+- (void)setPinnedURL:(NSURL*)url forPin:(ClairPinID)pinID {
+}
+- (void)setName:(NSString*)name forTab:(ClairTabID)tabID {
+}
+- (void)setName:(NSString*)name forPin:(ClairPinID)pinID {
+}
+- (void)clearTodayInSpace:(ClairSpaceID)spaceID {
+}
 @synthesize warnsBeforeQuitting = _warnsBeforeQuitting;
 @end
 
@@ -112,6 +140,14 @@
   host.warnsBeforeQuitting = YES;
   XCTAssertTrue(host.warnsBeforeQuitting);
   XCTAssertEqual([host tabsInSpace:space].count, 0u);
+  // The pin calls (add-pinned-tabs-and-favorites design D10).
+  XCTAssertEqual([host pinsInSpace:space].count, 0u);
+  XCTAssertEqual([host favoritesOfProfile:@"Default"].count, 0u);
+  [host pinTab:3 atIndex:0];
+  [host setName:nil forTab:3];
+  ClairPinID pin = @(std::string("6f1c0d1e-0000-4000-8000-000000000000").c_str());
+  [host movePin:pin toSpace:space atIndex:NSIntegerMax];
+  [host setPinnedURL:[NSURL URLWithString:@"https://example.com/"] forPin:pin];
   ClairBrowserID browser = 7;
   XCTAssertEqual(browser, 7);
 }
@@ -137,7 +173,8 @@
          @protocol(ClairSuggestion), @protocol(ClairDownload),
          @protocol(ClairExtensionAction), @protocol(ClairExtensionPrompt), @protocol(ClairInfobar),
          @protocol(ClairHistoryMenu), @protocol(ClairHistoryMenuDelegate), @protocol(ClairHistoryItem),
-         @protocol(ClairSpace), @protocol(ClairSpacesObserver), @protocol(ClairProfile)
+         @protocol(ClairSpace), @protocol(ClairSpacesObserver), @protocol(ClairProfile),
+         @protocol(ClairPin)
        ]) {
     XCTAssertTrue(protocol_conformsToProtocol(protocol, @protocol(NSObject)));
   }

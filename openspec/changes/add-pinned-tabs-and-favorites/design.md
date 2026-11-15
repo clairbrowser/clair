@@ -123,7 +123,7 @@ clair.pins  { "version": 1,
   - `ClairSpaceTabs` keeps a bound pinned tab out of the Space's Today list and lists it with its pin, in the pin's order.
   - A bound favorite's tab is in no Space: `ClairSpaceTabs` holds it in a per-profile favorites list.
   - `add-spaces` D3's invariant becomes: a browser's active tab belongs to its shown Space, or is a favorite's tab of its profile.
-- **Title and icon:** the pin's `title` and icon follow the bound tab only while it is at its pinned URL. A tab is at its pinned URL when its last committed entry's URL, or the entry's original request URL (so a redirect counts), equals the pinned URL, ignoring the fragment.
+- **Title and icon:** the pin's `title` and icon follow the bound tab only while it is at its pinned URL. A tab is at its pinned URL when its last committed entry's URL, or the entry's original request URL (so a redirect counts), equals the pinned URL, ignoring the query and fragment: Arc shows a pin navigated away only for another scheme, host, port or path (checked in task 3.10, a page rewriting its path with `pushState` included).
 - **Names:** a pinned tab's or favorite's custom name is the record's `name`. A Today tab's is a fourth session tag, `clair_name`. Pinning moves the name into the record; unpinning or dragging out moves it back to the tag.
 
 ### D3. Restoring pins
@@ -131,7 +131,7 @@ clair.pins  { "version": 1,
 - **At launch:** the store is read before any window opens, so every pin is listed even before session restore finishes. Session restore always runs (D12). A restored tab whose `clair_pin` names a pin with no tab binds to it. A tab whose pin is gone, or already bound, joins the Today list of its `clair_space`, keeping its name. Every other pin starts unbound.
 - **New tab pages:** a restored bound tab at the new tab page is dropped with the others (`add-profiles` D6), leaving its pin unbound.
 - **Removed pins:** `ClairPinStore` keeps the last 25 removed records in memory, each with its container, its index and the time it was removed.
-  - A hook at the start of `IDC_RESTORE_TAB`, in `browser_command_controller.cc`, compares the newest removal with the newest `TabRestoreService` entry.
+  - The native window's `ExecuteTabCommand`, which runs before Chromium's own command handling for every command of a native window, handles `IDC_RESTORE_TAB` first: it compares the newest removal of the window's profile with the newest `TabRestoreService` entry. Its menu validation enables Reopen Closed Tab while a removal can come back, though Chromium has no entry. No patch is needed: pins exist only in native windows.
   - When the removal is newer, it puts the record back at its index and stops. A pin that had no tab comes back that way, with nothing to reopen.
   - Otherwise Chromium restores the entry. If the restored tab carries the `clair_pin` of a removed record, the record goes back first, and the tab binds to it.
   - The memory goes with the session, as Chromium's own recently-closed list does for windows that never saved.
@@ -139,7 +139,7 @@ clair.pins  { "version": 1,
 
 ### D4. Opening, closing and the next tab
 
-- **Opening:** `openPin:inBrowser:` selects the bound tab, or creates a tab in the window's browser at the pinned URL, binds it and activates it. For a pinned tab the new tab joins the Space shown; for a favorite, the favorites list.
+- **Opening:** `-[ClairBrowser openPin:]` selects the bound tab, or creates a tab in the window's browser at the pinned URL, binds it and activates it. For a pinned tab the new tab joins the Space shown; for a favorite, the favorites list.
 - **Closing:** − and Cmd+W close the bound tab through Chromium's close flow, so leave-page prompts apply. The next tab is chosen by `add-spaces` D4, over rows of open tabs, pinned rows first and then Today. Unbound pins are skipped. A favorite counts as a came-from tab but not as a row.
 - **Tab commands:** `add-spaces` D5's rows become every pin of the Space, bound or not, then the Today tabs. Cmd+N or Ctrl+Tab landing on an unbound pin opens it. Favorites are never rows. Ctrl+Shift+PageUp/Down reorders within the row's own section.
 - **Clear Today** closes the Space's Today tabs in every window through the close flow, as Close Tabs Below does, and leaves every bound pin alone.
@@ -148,7 +148,7 @@ clair.pins  { "version": 1,
 
 - **Contract calls** (D10):
   - `pinTab:atIndex:` and `favoriteTab:atIndex:` create a record from the tab, with its current URL, title, icon and `clair_name`, and bind the tab to it.
-  - `unpinTab:atIndex:` deletes the record and returns the tab, opening it at the pinned URL if unbound, to the Today list at the index, with its name in `clair_name`.
+  - `-[ClairBrowser unpin:toIndex:]` deletes the record and returns the tab, or opens one at the pinned URL in that window's browser if unbound, to the Today list at the index (the window's shown Space for a favorite), with its name in `clair_name`. It's the browser's because an unbound pin needs a window to open in.
   - `movePin:toSpace:atIndex:` and `movePin:toFavoritesAtIndex:` move a record between containers, carrying its bound tab between the Space and favorites lists.
   - Indices are positions in the destination section, so drags and Cmd+D go through the same calls.
 - **Move to Space** of a pinned tab moves the record to the bottom of the destination's pinned section, then moves the bound tab, if any, with `add-spaces` D7. Across profiles, `add-profiles` D9 reopens the tab, keeping its `clair_pin`.
@@ -158,7 +158,7 @@ clair.pins  { "version": 1,
 
 - **Back to Pinned URL** loads the pinned URL in the bound tab as a new browser-initiated navigation with `PAGE_TRANSITION_AUTO_BOOKMARK`, so it adds a history entry and Back returns.
 - **Replace Pinned URL with Current** copies the tab's last committed URL and title, and its icon, into the record.
-- **Edit…** sets the URL. The dialog's Save is enabled when `url_formatter::FixupURL` of the field gives a valid http(s), file or chrome URL; the fixed-up URL is what's saved.
+- **Edit…** sets the URL. `ClairUI` can't call `url_formatter::FixupURL`, so `PinsLogic.fixedUpURL` does its common cases: a URL with an http(s), file or chrome scheme as typed, or a host typed alone (with a dot, or localhost) given https. Save is enabled while that gives a URL, and the engine refuses any other scheme.
 - **Snapshots:** `ClairPin.isAtPinnedURL` (D2's rule) drives the row's "/" and the Tabs menu item's enabled state.
 
 ### D7. Peeks for links to other sites
@@ -169,12 +169,12 @@ A new `ClairPinnedLinkThrottle` (`overlay/chrome/browser/clair/window/clair_pinn
 - its page transition's core type is `PAGE_TRANSITION_LINK`;
 - its tab is bound to a pin (D2);
 - the tab's native window reports `opensPeekForOtherSites` (D10);
-- the destination's scheme differs from the current page's, or `net::registry_controlled_domains::SameDomainOrHost` with private registries is false for the two.
+- the destination's scheme or host differs from the current page's (ports aside).
 
 A link opening a new tab or window never reaches it as a navigation of this tab, so Cmd-click and Shift+click keep their behaviour.
 
 - **Why a throttle:** a plain link click that stays in the tab goes straight to the renderer's navigation and never reaches `OpenURLFromTab`, where `MaybeOpenPeek` sits.
-- **Why "site" and not host:** an app that spans subdomains (mail and docs of one service) should stay in its pin, and Chromium's site is the standard boundary for that. Whether Arc compares sites or hosts is checked in task 3.10; if Arc uses hosts, the spec and this decision change before merging.
+- **Why the host and not Chromium's site:** Arc compares hosts. Checked in task 3.10 with a pinned tab: a link from `www.wikipedia.org` to `en.wikipedia.org`, and from `localhost` to `www.localhost`, opened a Peek; one to another port on the same host navigated the pin. An app that spans subdomains opens its other subdomains in a Peek, as in Arc.
 
 **Leaving a favorite's site:** when the command bar or URL field opens a URL in the current tab and that tab is a favorite's, the engine opens it as a new foreground Today tab instead if it is on another site, by the same test.
 
@@ -194,16 +194,17 @@ A link opening a new tab or window never reaches it as a navigation of this tab,
 
 ### D10. The contract (`native/ClairHost.h`)
 
-- **A new snapshot, `ClairPin`:** `pinID`, `isFavorite`, `spaceID` (pinned tabs) or `profileID` (favorites), `url`, `title`, `name` (nullable), `icon` (nullable), `tabID` (`ClairTabIDNone` when unbound) and `isAtPinnedURL`.
+- **A new snapshot, `ClairPin`:** `pinID`, `isFavorite`, `spaceID` (pinned tabs; nil for favorites), `profileID` (a favorite's, or its Space's), `url`, `title`, `name` (nullable), `icon` (nullable), `tabID` (`ClairTabIDNone` when unbound), `tabs` (the bound tab's snapshot and its Peek's, so `ClairUI` has them from the start) and `isAtPinnedURL`.
 - **`ClairTab` gains** `pinID` (nullable) and `name` (nullable): the custom name, from the record for a bound tab.
 - **The host gains:**
   - `pinsInSpace:` and `favoritesOfProfile:`;
-  - the D5 calls;
-  - `openPin:inBrowser:`, `removePin:`, `returnToPinnedURL:`, `replacePinnedURLWithCurrent:` and `setPinnedURL:forPin:`;
+  - the D5 calls `pinTab:atIndex:`, `favoriteTab:atIndex:`, `movePin:toSpace:atIndex:` and `movePin:toFavoritesAtIndex:`;
+  - `removePin:`, `returnToPinnedURL:`, `replacePinnedURLWithCurrent:` and `setPinnedURL:forPin:`;
   - `setName:forTab:` and `setName:forPin:`, where nil or empty clears the name;
   - `clearTodayInSpace:`.
 - **Lists:** `tabsInSpace:` keeps returning the Space's tabs, now Today tabs only, Peeks following parents. Bound tabs reach `ClairUI` through their pins' snapshots, which carry `tabID`, and through `spaceTabDidChange:` for their state.
 - **`ClairSpacesObserver` gains** `pinsDidChangeInSpace:` and `favoritesDidChangeForProfile:`, coalesced per run-loop turn like the rest.
+- **`ClairBrowser` gains** `openPin:` and `unpin:toIndex:`, which need the window they open a tab in.
 - **`ClairWindow` gains** `opensPeekForOtherSites`, read for each link as `opensPeekOnShiftClick` is, backed by the user default `ClairPeekForOtherSites`, registered as true.
 
 This is a breaking change to the contract, so the engine key changes.
@@ -211,7 +212,7 @@ This is a breaking change to the contract, so the engine key changes.
 ### D11. `ClairUI`
 
 - **`SpacesModel`** caches pins per Space and favorites per profile next to tabs, and notifies listeners. `BrowserWindowModel` copies the window's Space's pinned rows and its profile's favorites, as it does tabs.
-- **`SidebarView`'s `TabList`** becomes the sections, in order: favorites grid, Space header, pinned section, divider, New Tab, Today.
+- **`SidebarView`** shows the sections in order: favorites grid, Space header, pinned section, divider, New Tab, Today. The favorites grid sits above the Space pager, so it stays put while the Spaces of its profile slide under it; the pinned rows, the divider, New Tab and the Today rows are one `List`, which scrolls as one and lets rows move between the pinned section and Today with `onMove`, and take a tile dropped from the grid with `onInsert`.
   - Rows stay `TabRow`, which gains a pinned style: the − or × button by selection, the "/" with the navigated title, and the favicon button with the "Back to Pinned URL" line on hover.
   - The divider is a new view with Clear, shown on sidebar hover while Today has tabs.
 - **`FavoritesGrid`:** a pure layout function in `FavoritesLayout.swift` gives rows, columns and tile frames for a count and width, unit-tested with Arc's table. Tiles carry the hover and selected states, the selected ring's colour (the favicon's most saturated dominant colour, computed once per icon), and the Peek badge from `PeekBadge`. The empty box shows with a dismiss ×.
@@ -222,9 +223,8 @@ This is a breaking change to the contract, so the engine key changes.
 - **Settings › Links** gains the second toggle, bound to `ClairPeekForOtherSites`.
 - **Menus:**
   - The tab, pinned and favorite context menus as the specs list.
-  - Main menu items inserted by `InstallNativeWindowMenus` into Chromium's Tab menu: Pin Tab (Cmd+D), Back to Pinned URL, Close and Keep Pinned and Clear Today (Shift+Cmd+K). View › Collapse Pinned Tabs is inserted after Hide Sidebar.
-  - Each item uses `ClairSidebarMenuTarget`'s pattern: Clair tags, actions sent to the key `ClairWindow`, which validates titles and enabled states.
-  - Cmd+D leaves `ClairIsRemovedCommand`'s hidden bookmark item and moves to Pin Tab.
+  - `ClairUI`'s `PinsMenu`, as its Spaces menu does, inserts into Chromium's Tab menu (`IDC_TAB_MENU`) Pin Tab (Cmd+D), Back to Pinned URL, Close and Keep Pinned and Clear Today (Shift+Cmd+K), where Chromium's own Pin Tab and its alternate were, and hides those two, which Clair doesn't use. View › Collapse Pinned Tabs goes at the top of the View menu, under Hide Sidebar once the engine adds it. The items have Clair tags and `PinsMenu` as their target, and act on and are validated by the main window's controller, which gives their titles and enabled states. This keeps the menus out of the contract.
+  - Cmd+D was free already: `ClairIsRemovedCommand` hides the bookmark item and clears its key equivalent, and an item that isn't Chromium's `commandDispatch:` is handled by the main menu after the page declines the key, as the Spaces menu's are.
 
 ### D12. Session restore always runs
 
@@ -240,7 +240,7 @@ Clair restores tabs at every launch, as Arc does:
 
 ## Risks / Trade-offs
 
-- **[A redirecting pin looks navigated away]** A pinned URL that redirects (to a sign-in, or to `/u/0/`) would show "/" at once. → D2 counts the entry's original request URL. Task 3.10 checks Arc on a redirecting pin and a single-page app that rewrites its path; if Arc ignores path changes within the site, `isAtPinnedURL` follows it.
+- **[A redirecting pin looks navigated away]** A pinned URL that redirects (to a sign-in, or to `/u/0/`) would show "/" at once. → D2 counts the entry's original request URL. Arc, checked in task 3.10, shows "/" when a page rewrites its path but not for another query, so `isAtPinnedURL` ignores the query and fragment and nothing more.
 - **[Peek on every link out of an app]** Sign-in and payment flows hop sites with real link clicks. → Only renderer-initiated link clicks with a gesture peek; redirects, form posts and scripts without a gesture don't. The toggle turns it off.
 - **[Local State grows with pins]** A few hundred bytes per record, written through Chromium's pref writer with its batching. → Icons are files, not prefs.
 - **[Icon files outlive a crash mid-delete]** → At start-up, `ClairPinStore` deletes icon files whose pin isn't in the store.

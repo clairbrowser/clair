@@ -18,10 +18,16 @@ protocol SpacesModelListener: AnyObject {
   func spacesDidChange()
   /// Profiles were created, renamed or deleted.
   func profilesDidChange()
+  /// A Space's pinned tabs changed (add-pinned-tabs-and-favorites D11).
+  func spacePinsDidChange(_ spaceID: SpaceID)
+  /// A profile's favorites changed.
+  func favoritesDidChange(_ profileID: ProfileID)
 }
 
 extension SpacesModelListener {
   func profilesDidChange() {}
+  func spacePinsDidChange(_ spaceID: SpaceID) {}
+  func favoritesDidChange(_ profileID: ProfileID) {}
 }
 
 /// Every Space and each Space's tabs, as the host's `ClairSpacesObserver`
@@ -42,6 +48,10 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
 
   /// Each Space's tabs, in its order, as last reported.
   @ObservationIgnored private var tabsBySpace: [SpaceID: [any ClairTab]] = [:]
+  /// Each Space's pinned tabs and each profile's favorites, in order, as last
+  /// reported (add-pinned-tabs-and-favorites D11).
+  @ObservationIgnored private var pinsBySpace: [SpaceID: [any ClairPin]] = [:]
+  @ObservationIgnored private var favoritesByProfile: [ProfileID: [any ClairPin]] = [:]
   @ObservationIgnored private let listeners = NSHashTable<AnyObject>.weakObjects()
 
   init(host: (any ClairHost)?) {
@@ -84,6 +94,31 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
   /// The tabs of a Space that a window holds, in the Space's order.
   func tabs(inSpace spaceID: SpaceID, browser browserID: BrowserID) -> [any ClairTab] {
     tabs(inSpace: spaceID).filter { $0.browserID == browserID }
+  }
+
+  /// A Space's pinned tabs, in its order.
+  func pins(inSpace spaceID: SpaceID) -> [any ClairPin] {
+    if let pins = pinsBySpace[spaceID] {
+      return pins
+    }
+    let pins = host?.pins(inSpace: spaceID) ?? []
+    pinsBySpace[spaceID] = pins
+    return pins
+  }
+
+  /// A profile's favorites, in its order.
+  func favorites(ofProfile profileID: ProfileID) -> [any ClairPin] {
+    if let favorites = favoritesByProfile[profileID] {
+      return favorites
+    }
+    let favorites = host?.favorites(ofProfile: profileID) ?? []
+    favoritesByProfile[profileID] = favorites
+    return favorites
+  }
+
+  /// The number of a Space's pinned tabs whose page is open.
+  func openPinCount(inSpace spaceID: SpaceID) -> Int {
+    pins(inSpace: spaceID).count { $0.tabID != ClairTabIDNone }
   }
 
   func space(_ spaceID: SpaceID) -> (any ClairSpace)? {
@@ -155,6 +190,63 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     host?.move(tab: tab, toSpace: spaceID)
   }
 
+  // MARK: Pins (add-pinned-tabs-and-favorites design D5, D6, D8)
+
+  func pin(tab: TabID, at index: Int) {
+    host?.pin(tab: tab, at: index)
+  }
+
+  func favorite(tab: TabID, at index: Int) {
+    host?.favorite(tab: tab, at: index)
+  }
+
+  func movePin(_ pinID: PinID, toSpace spaceID: SpaceID, at index: Int) {
+    host?.movePin(pinID, toSpace: spaceID, at: index)
+  }
+
+  func movePin(_ pinID: PinID, toFavoritesAt index: Int) {
+    host?.movePin(pinID, toFavoritesAt: index)
+  }
+
+  func removePin(_ pinID: PinID) {
+    host?.removePin(pinID)
+  }
+
+  func returnToPinnedURL(_ pinID: PinID) {
+    host?.returnToPinnedURL(pinID)
+  }
+
+  func replacePinnedURLWithCurrent(_ pinID: PinID) {
+    host?.replacePinnedURLWithCurrent(pinID)
+  }
+
+  func setPinnedURL(_ url: URL, forPin pinID: PinID) {
+    host?.setPinnedURL(url, forPin: pinID)
+  }
+
+  func setName(_ name: String?, forTab tabID: TabID) {
+    host?.setName(name, forTab: tabID)
+  }
+
+  func setName(_ name: String?, forPin pinID: PinID) {
+    host?.setName(name, forPin: pinID)
+  }
+
+  func clearToday(inSpace spaceID: SpaceID) {
+    host?.clearToday(inSpace: spaceID)
+  }
+
+  /// A pin of any Space or profile, by its ID.
+  func pin(_ pinID: PinID) -> (any ClairPin)? {
+    for pins in pinsBySpace.values {
+      if let pin = pins.first(where: { $0.pinID == pinID }) { return pin }
+    }
+    for pins in favoritesByProfile.values {
+      if let pin = pins.first(where: { $0.pinID == pinID }) { return pin }
+    }
+    return nil
+  }
+
   // MARK: Profiles (add-profiles design D1, D7, D9)
 
   /// Creates a profile named `name` without the spaces around it, and calls
@@ -192,7 +284,8 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
   struct ProfileChange {
     let space: any ClairSpace
     let profile: any ClairProfile
-    /// Its rows, in every window.
+    /// Its open rows, in every window: the Today rows and the pinned tabs
+    /// whose page is open (add-pinned-tabs-and-favorites D5).
     let tabCount: Int
     /// Whether to ask first: only when it has tabs (profiles spec, "Changing
     /// a Space's profile").
@@ -203,7 +296,8 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     guard let space = space(spaceID), space.profileID != profileID, let profile = profile(profileID) else {
       return nil
     }
-    return ProfileChange(space: space, profile: profile, tabCount: rowCount(inSpace: spaceID))
+    return ProfileChange(
+      space: space, profile: profile, tabCount: rowCount(inSpace: spaceID) + openPinCount(inSpace: spaceID))
   }
 
   /// Makes a Space use another profile, reopening its tabs there, without
@@ -216,7 +310,8 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
   /// What deleting a Space takes.
   struct Deletion {
     let space: any ClairSpace
-    /// Its rows, in every window.
+    /// Its rows, in every window, and its pinned tabs, which go with it
+    /// (add-pinned-tabs-and-favorites D9).
     let tabCount: Int
     /// Whether to ask first (spaces spec, "Deleting a Space").
     var needsConfirmation: Bool { SpacesLogic.deletionNeedsConfirmation(tabCount: tabCount) }
@@ -226,7 +321,7 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
   /// Space, or one that's gone.
   func deletion(of spaceID: SpaceID) -> Deletion? {
     guard spaces.count > 1, let space = space(spaceID) else { return nil }
-    return Deletion(space: space, tabCount: rowCount(inSpace: spaceID))
+    return Deletion(space: space, tabCount: rowCount(inSpace: spaceID) + pins(inSpace: spaceID).count)
   }
 
   /// Deletes a Space and closes its tabs, without asking; the caller asks
@@ -246,6 +341,7 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     // and stay.
     for space in self.spaces where !known.contains(space.spaceID) {
       tabsBySpace[space.spaceID] = nil
+      pinsBySpace[space.spaceID] = nil
     }
     self.spaces = spaces
     for listener in allListeners {
@@ -275,6 +371,20 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     }
     for listener in allListeners {
       listener.spaceTabDidChange(tab)
+    }
+  }
+
+  func pinsDidChange(_ pins: [any ClairPin], inSpace spaceID: SpaceID) {
+    pinsBySpace[spaceID] = pins
+    for listener in allListeners {
+      listener.spacePinsDidChange(spaceID)
+    }
+  }
+
+  func favoritesDidChange(_ favorites: [any ClairPin], ofProfile profileID: ProfileID) {
+    favoritesByProfile[profileID] = favorites
+    for listener in allListeners {
+      listener.favoritesDidChange(profileID)
     }
   }
 }

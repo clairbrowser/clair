@@ -269,7 +269,17 @@ void ClairPeeks::Unlink(std::vector<Pair>::iterator pair) {
   if (confirm_peek_ == pair->peek) {
     confirm_peek_.reset();
   }
+  const tabs::TabHandle peek = pair->peek;
   pairs_.erase(pair);
+  // add-pinned-tabs-and-favorites D7: a pinned tab's or favorite's Peek is in
+  // no list while it's one; a normal tab from now on, it joins the top of the
+  // Today tabs of the Space the window shows.
+  if (tabs::TabInterface* tab = peek.Get();
+      tab && model_ && strip()->GetIndexOfTab(tab) != TabStripModel::kNoTab) {
+    if (ClairSpaceTabs* lists = window_->space_tabs()) {
+      lists->PeekExpanded(tab, window_->shown_space());
+    }
+  }
   Changed();
 }
 
