@@ -600,7 +600,7 @@ struct RenameField: NSViewRepresentable {
   }
 
   func makeNSView(context: Context) -> NSTextField {
-    let field = NSTextField(string: text)
+    let field = FocusingField(string: text)
     field.isBordered = false
     field.drawsBackground = false
     field.focusRingType = .none
@@ -611,19 +611,33 @@ struct RenameField: NSViewRepresentable {
     field.delegate = context.coordinator
     field.setAccessibilityIdentifier("clair.renameField")
     let rename = self.rename
-    DispatchQueue.main.async { [weak field] in
-      guard let field, let window = field.window else { return }
-      window.makeFirstResponder(field)
-      guard let editor = field.currentEditor() else { return }
+    let coordinator = context.coordinator
+    // Once it's in the window: before then, it can't take the keyboard.
+    field.onWindow = { [weak field] in
+      guard let field, let window = field.window, window.makeFirstResponder(field),
+        let editor = field.currentEditor()
+      else { return }
       let length = (field.stringValue as NSString).length
       if rename.selectsAll {
         editor.selectedRange = NSRange(location: 0, length: length)
       } else {
         editor.selectedRange = NSRange(location: min(rename.caret ?? length, length), length: 0)
       }
-      context.coordinator.isEditing = true
+      coordinator.isEditing = true
     }
     return field
+  }
+
+  /// A field that runs `onWindow` once, after it joins a window.
+  final class FocusingField: NSTextField {
+    var onWindow: (() -> Void)?
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      guard window != nil, let onWindow else { return }
+      self.onWindow = nil
+      DispatchQueue.main.async(execute: onWindow)
+    }
   }
 
   func updateNSView(_ field: NSTextField, context: Context) {
@@ -657,7 +671,9 @@ struct RenameField: NSViewRepresentable {
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
-      // Clicking elsewhere discards the edit (tab-names spec).
+      // Clicking elsewhere discards the edit (tab-names spec); an end before
+      // the field has the keyboard is no edit at all.
+      guard isEditing else { return }
       end(.unchanged)
     }
 

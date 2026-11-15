@@ -613,7 +613,10 @@ struct SpacePager: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .clipped()
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-    .onChange(of: model.spaceSlide?.id) { _, id in
+    // From the first appearance too: a window a group swaps in may draw its
+    // sidebar for the first time with the slide already set (add-profiles
+    // D12), and a slide that never starts would leave the page offset.
+    .onChange(of: model.spaceSlide?.id, initial: true) { _, id in
       guard id != nil else { return }
       animatedSlide = id
       progress = 0

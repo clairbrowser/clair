@@ -401,4 +401,84 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertFalse(pin.isEnabled, "Tab › Pin Tab is on in incognito")
     browser.ui.typeKey(.escape, modifierFlags: [])
   }
+
+  /// Creates a Space from the Spaces menu and closes the command bar it
+  /// opens with.
+  func createSpace(_ name: String, in browser: Browser) async throws {
+    try browser.chooseSpacesItem("New Space…")
+    let field = browser.element("clair.newSpaceName")
+    try require(field.waitForExistence(timeout: 10), "The New Space form didn't open")
+    field.click()
+    field.typeText(name)
+    browser.element("clair.createSpace").click()
+    let shown = await browser.waitForSpace(name)
+    try require(shown, "The window doesn't show \(name)")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+  }
+
+  func testFavoritesAcrossSpacesAndLeavingTheirSite() async throws {
+    let (browser, tab) = try await startWithPage("pins.html")
+    defer { tab.close() }
+    _ = await browser.waitForActiveRow(pinsTitle)
+    try browser.choose("Pin to Favorites", inMenuOf: try XCTUnwrap(browser.tabRow(pinsTitle)))
+    _ = await browser.waitForFavorites { $0 == [self.pinsTitle] }
+    try await createSpace("Travel", in: browser)
+    XCTAssertEqual(browser.favoriteTitles, [pinsTitle], "Another Space of the profile doesn't show the favorite")
+    // The same page, in the other Space.
+    let before = try await browser.pageTargets().count
+    browser.favoriteTile(pinsTitle).click()
+    try await Task.sleep(for: .seconds(1))
+    let after = try await browser.pageTargets().count
+    XCTAssertEqual(before, after, "Selecting the favorite in another Space opened another page")
+    XCTAssertEqual(browser.spaceName, "Travel", "Selecting the favorite left the Space")
+
+    // A URL to another site from the favorite opens a Today tab.
+    browser.ui.typeKey("l", modifierFlags: .command)
+    try await Task.sleep(for: .seconds(1))
+    browser.ui.typeKey("a", modifierFlags: .command)
+    browser.ui.typeText("http://127.0.0.1:8123/pages/counter.html?typed\r")
+    let today = await browser.waitForTabs { $0.first == "Counter typed" }
+    XCTAssertTrue(today, "The URL didn't open as a Today tab: \(browser.tabTitles)")
+    let kept = try await tab.evaluate("location.pathname") as? String
+    XCTAssertEqual(kept, "/pages/pins.html", "The favorite navigated to another site")
+
+    // A Cmd-click from the favorite opens a tab, not a Peek.
+    browser.favoriteTile(pinsTitle).click()
+    try await Task.sleep(for: .seconds(1))
+    try await tab.click("other", modifiers: 4)
+    let opened = await browser.waitForTarget("?other")
+    XCTAssertTrue(opened, "Cmd-click didn't open the link")
+    XCTAssertFalse(browser.peek.exists, "Cmd-click opened a Peek")
+  }
+
+  func testDeletingASpaceRemovesItsPins() async throws {
+    let (browser, tab) = try await startWithPage("counter.html?home")
+    defer { tab.close() }
+    try await createSpace("Work", in: browser)
+    let work = try await browser.open(url("pins.html?work"))
+    defer { work.close() }
+    _ = await browser.waitForActiveRow(pinsTitle)
+    browser.ui.typeKey("d", modifierFlags: .command)
+    _ = await browser.waitForPins { $0 == [self.pinsTitle] }
+    browser.ui.typeKey("w", modifierFlags: .command)
+    _ = await browser.waitForTarget("?work", open: false)
+    // Delete Space counts the pinned tab and asks.
+    let header = browser.element("clair.spaceHeader")
+    header.rightClick()
+    let delete = browser.ui.menuItems["Delete Space"]
+    try require(delete.waitForExistence(timeout: 5), "The header's menu has no Delete Space")
+    delete.click()
+    let confirm = browser.ui.buttons["clair.dialogDefault"]
+    try require(confirm.waitForExistence(timeout: 10), "Deleting a Space with a pinned tab didn't ask")
+    confirm.click()
+    let home = await browser.waitForSpace("Home")
+    try require(home, "The window didn't go back to Home")
+    XCTAssertTrue(browser.pinTitles.isEmpty, "Home shows Work's pinned tab")
+    try await Task.sleep(for: .seconds(3))
+    try await browser.quit()
+    try await browser.start()
+    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
+    try await Task.sleep(for: .seconds(3))
+    XCTAssertTrue(browser.pinTitles.isEmpty, "The deleted Space's pin came back")
+  }
 }
