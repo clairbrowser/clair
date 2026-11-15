@@ -161,8 +161,8 @@ struct LinksSettingsView: View {
       } header: {
         // Centred between the cards: the header's own spacing sits above it.
         Divider()
-          .padding(.top, -2)
-          .padding(.bottom, 18)
+          .padding(.top, -6)
+          .padding(.bottom, 9)
           .accessibilityIdentifier("clair.linkRulesDivider")
       }
     }

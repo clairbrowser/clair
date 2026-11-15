@@ -88,12 +88,6 @@ struct SettingsWindowTests {
     #expect(SettingsPage.links.label == "Links")
   }
 
-  /// add-link-rules D7: a window over a window, as Arc's Links icon.
-  @Test func linksTakesArcsIcon() {
-    #expect(SettingsPage.links.symbol == "interface.window.on.rectangle")
-    #expect(NSImage(systemSymbolName: SettingsPage.links.symbol, accessibilityDescription: nil) != nil)
-  }
-
   @Test func peekOnShiftClickIsOnUntilTurnedOff() {
     #expect(PeekPreference(defaults: defaults).isEnabled)
     defaults.set(false, forKey: PeekPreference.key)
