@@ -45,7 +45,7 @@ Apart from its identity (`app-identity`), native layer (`native-layer`), updater
 
 #### Scenario: Settings unchanged
 - **WHEN** a user opens `chrome://settings` in the native window
-- **THEN** it shows the same settings and defaults as the same ungoogled-chromium release, apart from Clair's identity and versions, the absent "Autofill and passwords" section, and "On startup" set to continue where the user left off
+- **THEN** it shows the same settings and defaults as the same ungoogled-chromium release, apart from Clair's identity and versions, and the absent "Autofill and passwords" and "On startup" sections
 
 ### Requirement: Changes to Chromium limited to hooks and identity
 Clair's patches to existing Chromium source files SHALL be limited to macOS build fixes, identity and branding, versioning, hooks, and restoring the Chrome Web Store installer and extension update checks that ungoogled-chromium removes, including sending those checks through the restored code. Other behaviour Clair adds SHALL live in the native layer or in new source files added to the Chromium tree.

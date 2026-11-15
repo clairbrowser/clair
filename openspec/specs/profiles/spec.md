@@ -187,7 +187,7 @@ Rename SHALL ask for the selected profile's new name in a dialog that says the n
 - **THEN** "Save" is disabled
 
 ### Requirement: Removing a profile
-Remove SHALL be enabled only for a profile that no Space uses. It SHALL ask for confirmation in a dialog that says the profile's cookies, history, preferences and logins will be permanently removed, and SHALL enable "Delete" only once the user has typed the profile's name. Confirming SHALL delete the profile and its data.
+Remove SHALL be enabled only for a profile that no Space uses. It SHALL ask for confirmation in a dialog that says the profile's cookies, history, preferences and logins will be permanently removed, and SHALL enable "Delete" only once the user has typed the profile's name. Confirming SHALL delete the profile, its data and its favorites.
 
 #### Scenario: Profile in use
 - **WHEN** the user selects a profile that one Space uses
@@ -204,6 +204,10 @@ Remove SHALL be enabled only for a profile that no Space uses. It SHALL ask for 
 #### Scenario: Wrong name
 - **WHEN** the user types "client 2" in the dialog for "Client"
 - **THEN** "Delete" stays disabled
+
+#### Scenario: Favorites go with the profile
+- **WHEN** "Client" had two favorites, and the user removes it, then creates a profile named "Client" and gives a Space to it
+- **THEN** that Space shows no favorites
 
 ### Requirement: Download location
 The selected profile's settings SHALL have a "Download location" popup, as in Arc. Closed, it SHALL show the folder the profile's downloads are saved to, or "Ask every time". Its menu SHALL offer that folder, "Other…", which chooses another folder with macOS's folder picker, and, after a divider, "Ask every time", which makes each download ask where to save. Choosing the folder or "Other…" SHALL turn asking off. The choice SHALL apply to that profile only, and to its next download.
@@ -238,3 +242,14 @@ Below Download location, one group SHALL hold the rows Search Engine, Privacy an
 #### Scenario: Profile without a Space
 - **WHEN** the user selects a profile that no Space uses
 - **THEN** the four rows are disabled, and a note says to use the profile in a Space first
+
+### Requirement: Pinned tabs and favorites when a Space's profile changes
+When a Space's profile changes, its pinned tabs SHALL stay in their order, with their pinned URLs and names, and those whose page was open SHALL reopen in the new profile. The Space's windows SHALL show the new profile's favorites. A Space whose only tabs are pinned tabs with no open page SHALL change at once, without the dialog.
+
+#### Scenario: Pinned tabs and favorites
+- **WHEN** a Space of "Personal" has two pinned tabs, one of them open, and the user sets its profile to "Work" and confirms
+- **THEN** both stay pinned in the same order, the open one reloaded in "Work", and the sidebar shows the favorites of "Work" in place of those of "Personal"
+
+#### Scenario: Only closed pinned tabs
+- **WHEN** a Space's only tabs are two pinned tabs, neither open, and the user sets its profile to "Work"
+- **THEN** the Space uses "Work" at once, with no prompt, and keeps both pinned tabs
