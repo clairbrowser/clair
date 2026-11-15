@@ -22,6 +22,7 @@
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
 #import "chrome/browser/app_controller_mac.h"
+#include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/browser_process.h"
 #import "chrome/browser/clair/clair_pin_store.h"
@@ -497,25 +498,39 @@ bool IsNativeLayerRunning() {
   return g_entry_point != nil;
 }
 
-bool MaybeConfirmQuit(id sender) {
+namespace {
+
+// native-quit-confirmation D2, once the quit is known to come from the user:
+// shows ClairUI's quit dialog when warn-before-quitting is on and no download
+// is in progress. Chromium's own download warning asks otherwise.
+bool AskBeforeQuitting() {
   if (!IsNativeLayerRunning() || browser_shutdown::IsTryingToQuit()) {
-    return false;
-  }
-  // Cmd+Q reaches -terminate: through the Quit item's key equivalent, so the
-  // item is the sender either way.
-  NSMenuItem* item = base::apple::ObjCCast<NSMenuItem>(sender);
-  if (!item || item.tag != IDC_EXIT) {
     return false;
   }
   if (!g_browser_process->local_state()->GetBoolean(
           prefs::kConfirmToQuitEnabled)) {
     return false;
   }
-  // Chromium's own warning about downloads asks instead.
   if (DownloadCoreService::BlockingShutdownCountAllProfiles() > 0) {
     return false;
   }
   return ShowQuitConfirmation();
+}
+
+}  // namespace
+
+bool MaybeConfirmQuit(id sender) {
+  // A click on Clair > Quit Clair sends the item itself.
+  NSMenuItem* item = base::apple::ObjCCast<NSMenuItem>(sender);
+  return item && item.tag == IDC_EXIT && AskBeforeQuitting();
+}
+
+bool MaybeConfirmKeyboardQuit() {
+  // Cmd+Q runs IDC_EXIT through the window's command dispatcher, and
+  // chrome::Exit() reaches -confirmQuitIfNeeded with the key still current.
+  NSEvent* event = NSApp.currentEvent;
+  return event && CommandForKeyEvent(event).chrome_command == IDC_EXIT &&
+         AskBeforeQuitting();
 }
 
 id<ClairWindow> CreateClairWindow(id<ClairBrowser> browser) {

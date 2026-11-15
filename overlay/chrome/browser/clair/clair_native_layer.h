@@ -24,6 +24,12 @@ void StartNativeLayer();
 // Whether ClairUI is running, so normal browser windows are native.
 bool IsNativeLayerRunning();
 
+// app_controller_mac.mm's -confirmQuitIfNeeded hook (native-quit-confirmation
+// D2): the same as MaybeConfirmQuit for Cmd+Q, which reaches Chromium as the
+// IDC_EXIT command rather than through -terminate:. True when the dialog
+// shows and the quit must stop.
+bool MaybeConfirmKeyboardQuit();
+
 // Whether Clair was relaunched while another app was active and should stay
 // behind it. Holds until the user brings Clair forward, or for a minute after
 // start-up, by which time the restored windows are showing.
@@ -35,12 +41,12 @@ bool ShouldStayInBackground();
 id<ClairWindow> CreateClairWindow(id<ClairBrowser> browser);
 
 // chrome_browser_application_mac.mm's -terminate: hook
-// (native-quit-confirmation). When the user asked to quit with Cmd+Q or
-// Clair > Quit Clair (`sender` is that menu item) while warn-before-quitting
-// is on, a native window is open and no download is in progress, shows
-// ClairUI's quit dialog and returns true: the quit waits for the user's
-// answer. Returns false otherwise, and the quit goes on. Other quits, such as
-// the Dock's, logging out or -[ClairHost quitWithoutWarning], never ask.
+// (native-quit-confirmation D2). When the user clicked Clair > Quit Clair
+// (`sender` is that menu item) while warn-before-quitting is on, a native
+// window is open and no download is in progress, shows ClairUI's quit dialog
+// and returns true: the quit waits for the user's answer. Returns false
+// otherwise, and the quit goes on. Other quits, such as the Dock's, logging
+// out or -[ClairHost quitWithoutWarning], never ask.
 bool MaybeConfirmQuit(id sender);
 #endif
 

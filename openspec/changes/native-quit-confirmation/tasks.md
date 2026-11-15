@@ -10,7 +10,7 @@ Groups 1 and 2 change the engine key, so build the engine first and push docs af
 
 ## 2. Engine
 
-- [ ] 2.1 Add `clair::MaybeConfirmQuit` and `quitWithoutWarning` to `clair_native_layer.mm` (D2, D4), and `clair::ShowQuitConfirmation` to `clair_window_hooks.mm` (D3). Verify with the runtime test in 3.1.
+- [ ] 2.1 Add `clair::MaybeConfirmQuit`, `clair::MaybeConfirmKeyboardQuit` and `quitWithoutWarning` to `clair_native_layer.mm` (D2, D4), and `clair::ShowQuitConfirmation` to `clair_window_hooks.mm` (D3). Verify with the runtime test in 3.1.
 - [ ] 2.2 Add `patches/clair/quit-confirmation.patch` (the `-terminate:` and `-confirmQuitIfNeeded` hooks, D1) to `patches/series`. Verify that the patch check applies it.
 - [ ] 2.3 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
 

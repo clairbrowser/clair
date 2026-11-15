@@ -4,9 +4,11 @@
 # patch only adds the calls. Both do nothing while ClairUI isn't running, so a
 # bare engine behaves as Chromium.
 #
-# - chrome_browser_application_mac.mm: -terminate: from Cmd+Q or the Quit menu
-#   item shows the dialog and waits for the answer.
-# - app_controller_mac.mm: the hold-to-quit panel never shows.
+# - chrome_browser_application_mac.mm: -terminate: from a click on the Quit
+#   menu item shows the dialog and waits for the answer.
+# - app_controller_mac.mm: Cmd+Q, which Chromium runs as IDC_EXIT and which
+#   reaches -terminate: only after -confirmQuitIfNeeded, shows the dialog
+#   there instead of the hold-to-quit panel.
 
 --- a/chrome/browser/chrome_browser_application_mac.mm
 +++ b/chrome/browser/chrome_browser_application_mac.mm
@@ -14,7 +16,7 @@
  // NSApplication event loop, so final post- MessageLoop::Run() work is done
  // before exiting.
  - (void)terminate:(id)sender {
-+  // Clair: Cmd+Q and the Quit menu item ask in ClairUI's dialog first.
++  // Clair: a click on Quit Clair asks in ClairUI's dialog first.
 +  if (clair::MaybeConfirmQuit(sender)) {
 +    return;
 +  }
@@ -31,14 +33,15 @@
  #include "chrome/browser/command_updater_impl.h"
  #include "chrome/browser/download/download_core_service.h"
  #include "chrome/browser/download/download_core_service_factory.h"
-@@ -1007,6 +1008,12 @@
+@@ -1007,6 +1008,14 @@
  }
  
  - (ConfirmQuitResult)confirmQuitIfNeeded {
-+  // Clair: -terminate: has already asked in ClairUI's dialog, so the
-+  // hold-to-quit panel never shows.
++  // Clair: Cmd+Q asks in ClairUI's dialog, and a click on Quit Clair has
++  // asked in -terminate:, so the hold-to-quit panel never shows.
 +  if (clair::IsNativeLayerRunning()) {
-+    return ConfirmQuitResultNotPrompted;
++    return clair::MaybeConfirmKeyboardQuit() ? ConfirmQuitResultAborted
++                                             : ConfirmQuitResultNotPrompted;
 +  }
 +
    // If there are no windows, quit immediately.
