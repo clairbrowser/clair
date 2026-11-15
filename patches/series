@@ -46,3 +46,4 @@ helium/store-fixups-component.patch
 clair/no-extension-uninstall-page.patch
 clair/always-restore.patch
 clair/pinned-link-peek.patch
+clair/quit-confirmation.patch

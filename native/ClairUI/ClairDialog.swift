@@ -55,6 +55,11 @@ struct ClairDialogPage {
   /// message and the buttons.
   var content: AnyView?
   var buttons: [ClairDialogButton]
+  /// A button alone at the bottom leading corner, such as Dia's "Always
+  /// quit" (native-quit-confirmation; add-link-rules D6). It shows no key,
+  /// neither Esc nor Return chooses it, and it answers only through its
+  /// action. It's styled as Cancel, whatever its role.
+  var leadingButton: ClairDialogButton?
   /// Esc presses the default button when there's no cancelling one, as for
   /// a dialog whose one button is "Done".
   var escapePressesDefault = false
@@ -113,6 +118,12 @@ final class ClairDialog {
     defaultFocusRequests += 1
   }
 
+  /// Runs the leading button's action; it never answers by itself.
+  func pressLeading() {
+    guard let button = page.leadingButton, button.isEnabled else { return }
+    button.action?(self)
+  }
+
   func press(_ button: ClairDialogButton) {
     guard button.isEnabled else { return }
     if let action = button.action {
@@ -156,6 +167,11 @@ final class ClairDialogPresenter {
 
   /// The dialog on the window, if any.
   var showing: ClairDialog? { current?.dialog }
+
+  /// Whether a dialog showing or waiting matches `predicate`.
+  func contains(where predicate: (ClairDialog) -> Bool) -> Bool {
+    ((current.map { [$0] } ?? []) + waiting).contains { predicate($0.dialog) }
+  }
 
   /// Shows `dialog` once the window's other dialogs are answered.
   func show(_ dialog: ClairDialog, completion: @escaping Completion) {
@@ -315,7 +331,8 @@ final class ClairDialogWindow: NSWindow {
 }
 
 /// The card (D1): an optional icon, a title, a message, the page's content
-/// and the button row, the default button last. Its metrics are Arc's,
+/// and the button row, the default button last and the leading button, if
+/// any, alone at the leading edge. Its metrics are Arc's,
 /// measured from its extension dialogs: 450 pt wide, 38 pt in at the top and
 /// leading edge, 28 pt at the trailing edge and 26 pt at the bottom, a 62 pt
 /// icon and an 18 pt title.
@@ -384,7 +401,12 @@ struct ClairDialogView: View {
           .padding(.top, 9)
       }
       HStack(spacing: 8) {
-        Spacer(minLength: 0)
+        if let leading = page.leadingButton {
+          ClairDialogButtonView(button: leading, isLeading: true) { dialog.pressLeading() }
+          Spacer(minLength: 16)
+        } else {
+          Spacer(minLength: 0)
+        }
         ForEach(Array(buttons.enumerated()), id: \.offset) { _, button in
           ClairDialogButtonView(button: button) { dialog.press(button) }
             .focused($focusedButton, equals: button.role)
@@ -408,21 +430,25 @@ struct ClairDialogView: View {
 /// A row button with its key after its title, as in Arc.
 private struct ClairDialogButtonView: View {
   let button: ClairDialogButton
+  /// The page's leading button: no key, no shortcut, styled as Cancel.
+  var isLeading = false
   let press: () -> Void
 
   var body: some View {
     Button(action: press) {
       HStack(spacing: 12) {
         Text(button.title)
-        DialogKeyCap(role: button.role, label: button.keyLabel)
-          .accessibilityHidden(true)
+        if !isLeading {
+          DialogKeyCap(role: button.role, label: button.keyLabel)
+            .accessibilityHidden(true)
+        }
       }
     }
-    .buttonStyle(ClairDialogButtonStyle(role: button.role))
-    .keyboardShortcut(button.shortcut)
+    .buttonStyle(ClairDialogButtonStyle(role: isLeading ? .cancel : button.role))
+    .keyboardShortcut(isLeading ? nil : button.shortcut)
     .disabled(!button.isEnabled)
     .accessibilityLabel(button.title)
-    .accessibilityIdentifier(button.identifier)
+    .accessibilityIdentifier(isLeading ? "clair.dialogLeading" : button.identifier)
   }
 }
 

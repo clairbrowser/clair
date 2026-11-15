@@ -54,6 +54,62 @@ final class ClairDialogTests {
     #expect(remove.shortcut == .defaultAction)
   }
 
+  @Test func leadingButtonAnswersOnlyThroughItsAction() {
+    var pressed = 0
+    let page = ClairDialogPage(
+      title: "A", buttons: [.init(title: "Cancel", role: .cancel)],
+      leadingButton: .init(title: "Always", role: .cancel, action: { _ in pressed += 1 }))
+    let shown = ClairDialog(page)
+    show(shown)
+    shown.pressLeading()
+    #expect(pressed == 1)
+    #expect(answers == [])
+    #expect(presenter.showing === shown)
+    let silent = ClairDialog(ClairDialogPage(title: "B", buttons: [], leadingButton: .init(title: "X", role: .cancel)))
+    silent.pressLeading()
+    #expect(answers == [])
+  }
+
+  @Test func containsFindsShownAndWaitingDialogs() {
+    show(dialog("A"))
+    show(dialog("B"))
+    #expect(presenter.contains { $0.page.title == "A" })
+    #expect(presenter.contains { $0.page.title == "B" })
+    #expect(!presenter.contains { $0.page.title == "C" })
+  }
+
+  // MARK: Quit confirmation (native-quit-confirmation)
+
+  @Test func quitDialogIsWordedAndLaidOutAsDias() {
+    let page = QuitConfirmation.page(icon: nil)
+    #expect(page.title == "Are you sure you want to quit Clair?")
+    #expect(page.message == "You may lose unsaved work in your tabs.")
+    #expect(page.leadingButton?.title == "Always quit")
+    #expect(page.buttons.map(\.title) == ["Cancel", "Quit"])
+    #expect(page.buttons.map(\.role) == [.cancel, .destructive])
+  }
+
+  @Test func quitDialogAnswers() {
+    let host = FakeHost()
+    QuitConfirmation.show(on: presenter, host: host, icon: nil)
+    // A second Cmd+Q while it shows adds nothing.
+    QuitConfirmation.show(on: presenter, host: host, icon: nil)
+    #expect(begun.count == 1)
+    presenter.showing?.answer(.cancelled)
+    #expect(host.quitCount == 0)
+    #expect(host.warnsBeforeQuitting)
+
+    QuitConfirmation.show(on: presenter, host: host, icon: nil)
+    presenter.showing?.answer(.accepted)
+    #expect(host.quitCount == 1)
+    #expect(host.warnsBeforeQuitting)
+
+    QuitConfirmation.show(on: presenter, host: host, icon: nil)
+    presenter.showing?.pressLeading()
+    #expect(host.quitCount == 2)
+    #expect(!host.warnsBeforeQuitting)
+  }
+
   @Test func disabledDefaultHasNoReturn() {
     let ok = ClairDialogButton(title: "OK", role: .default, isEnabled: false)
     #expect(ok.shortcut == nil)

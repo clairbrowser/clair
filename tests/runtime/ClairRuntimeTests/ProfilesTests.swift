@@ -800,6 +800,42 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertEqual(homeAsks as? Bool, true, "Work's folder applied to the default profile")
   }
 
+  /// native-quit-confirmation: Cmd+Q and Clair › Quit Clair ask in Dia's
+  /// dialog; Cancel keeps Clair running, and "Always quit" quits and turns
+  /// the warning off.
+  func testWarnBeforeQuittingAsks() async throws {
+    try Harness.setRestoreWindows(false)
+    let (browser, tab) = try await startWithPage("counter.html?a")
+    tab.close()
+    browser.nativeWindow.click()
+    browser.ui.typeKey("q", modifierFlags: .command)
+    try require(browser.dialog.waitForExistence(timeout: 10), "Cmd+Q didn't ask before quitting")
+    XCTAssertTrue(
+      browser.dialog.staticTexts["Are you sure you want to quit Clair?"].exists, "The dialog isn't the quit dialog")
+    XCTAssertTrue(browser.dialogButton("clair.dialogLeading").exists, "The dialog has no Always quit button")
+    XCTAssertTrue(browser.dialogButton("clair.dialogDefault").exists, "The dialog has no Quit button")
+    browser.dialogButton("clair.dialogCancel").click()
+    try await Task.sleep(for: .seconds(2))
+    XCTAssertNotNil(try browser.runningProcessID(), "Cancel quit Clair")
+    XCTAssertFalse(browser.dialog.exists, "Cancel left the dialog open")
+
+    let clair = browser.ui.menuBars.menuBarItems["Clair"]
+    try require(clair.waitForExistence(timeout: 10), "There's no Clair menu")
+    clair.click()
+    let quitItem = browser.clairMenuItem(titled: "Quit Clair")
+    try require(quitItem.waitForExistence(timeout: 10), "The Clair menu has no Quit Clair item")
+    quitItem.click()
+    try require(browser.dialog.waitForExistence(timeout: 10), "Quit Clair didn't ask before quitting")
+    browser.dialogButton("clair.dialogLeading").click()
+    let quit = await Harness.wait(for: 30) { try browser.runningProcessID() == nil }
+    try require(quit, "Always quit didn't quit")
+
+    let localState = browser.dataDirectory.appending(path: "Local State")
+    let state = try JSONSerialization.jsonObject(with: Data(contentsOf: localState)) as? [String: Any]
+    let warns = (state?["browser"] as? [String: Any])?["confirm_to_quit"] as? Bool
+    XCTAssertEqual(warns, false, "Always quit didn't turn Warn before quitting off")
+  }
+
   func testWarnBeforeQuittingOff() async throws {
     try Harness.setRestoreWindows(false)
     let (browser, tab) = try await startWithPage("counter.html?a")

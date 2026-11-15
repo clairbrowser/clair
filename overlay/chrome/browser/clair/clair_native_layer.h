@@ -33,6 +33,15 @@ bool ShouldStayInBackground();
 // Asks ClairUI for the window of a native browser window. Only valid while
 // IsNativeLayerRunning().
 id<ClairWindow> CreateClairWindow(id<ClairBrowser> browser);
+
+// chrome_browser_application_mac.mm's -terminate: hook
+// (native-quit-confirmation). When the user asked to quit with Cmd+Q or
+// Clair > Quit Clair (`sender` is that menu item) while warn-before-quitting
+// is on, a native window is open and no download is in progress, shows
+// ClairUI's quit dialog and returns true: the quit waits for the user's
+// answer. Returns false otherwise, and the quit goes on. Other quits, such as
+// the Dock's, logging out or -[ClairHost quitWithoutWarning], never ask.
+bool MaybeConfirmQuit(id sender);
 #endif
 
 }  // namespace clair

@@ -72,6 +72,7 @@ final class FakeHost: NSObject, ClairHost {
   /// Each profile's download folder and whether it asks where to save.
   private(set) var downloadSettings: [ProfileID: (directory: URL, asks: Bool)] = [:]
   var warnsBeforeQuitting = true
+  private(set) var quitCount = 0
   private(set) var openedURLsInProfiles: [(url: URL, profileID: ProfileID)] = []
   /// Each Space's tabs, in order, private Spaces of incognito windows
   /// included.
@@ -98,6 +99,10 @@ final class FakeHost: NSObject, ClairHost {
 
   func relaunch() {
     relaunchCount += 1
+  }
+
+  func quitWithoutWarning() {
+    quitCount += 1
   }
 
   func updateWillInstallOnQuit() {

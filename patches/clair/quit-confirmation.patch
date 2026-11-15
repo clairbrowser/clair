@@ -1,0 +1,46 @@
+# Warn before quitting asks in ClairUI's dialog, laid out as Dia's
+# (native-quit-confirmation), instead of Chromium's "Hold ⌘Q to Quit" panel.
+# The logic lives in overlay/chrome/browser/clair/clair_native_layer.mm; this
+# patch only adds the calls. Both do nothing while ClairUI isn't running, so a
+# bare engine behaves as Chromium.
+#
+# - chrome_browser_application_mac.mm: -terminate: from Cmd+Q or the Quit menu
+#   item shows the dialog and waits for the answer.
+# - app_controller_mac.mm: the hold-to-quit panel never shows.
+
+--- a/chrome/browser/chrome_browser_application_mac.mm
++++ b/chrome/browser/chrome_browser_application_mac.mm
+@@ -317,6 +317,10 @@
+ // NSApplication event loop, so final post- MessageLoop::Run() work is done
+ // before exiting.
+ - (void)terminate:(id)sender {
++  // Clair: Cmd+Q and the Quit menu item ask in ClairUI's dialog first.
++  if (clair::MaybeConfirmQuit(sender)) {
++    return;
++  }
+   [AppController.sharedController tryToTerminateApplication];
+   // Return, don't exit. The application is responsible for exiting on its own.
+ }
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -45,6 +45,7 @@
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_platform_part.h"
++#include "chrome/browser/clair/clair_native_layer.h"
+ #include "chrome/browser/command_updater_impl.h"
+ #include "chrome/browser/download/download_core_service.h"
+ #include "chrome/browser/download/download_core_service_factory.h"
+@@ -1007,6 +1008,12 @@
+ }
+ 
+ - (ConfirmQuitResult)confirmQuitIfNeeded {
++  // Clair: -terminate: has already asked in ClairUI's dialog, so the
++  // hold-to-quit panel never shows.
++  if (clair::IsNativeLayerRunning()) {
++    return ConfirmQuitResultNotPrompted;
++  }
++
+   // If there are no windows, quit immediately.
+   if (!GetLastActiveBrowserWindowInterfaceWithAnyProfile() &&
+       !AppWindowRegistryUtil::IsAppWindowVisibleInAnyProfile(0)) {

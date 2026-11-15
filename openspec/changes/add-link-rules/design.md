@@ -140,7 +140,7 @@ typedef NS_ENUM(NSInteger, ClairLinkRuleMatch) {
 
 ### D6. `ClairDialog` options
 
-- **`ClairDialogPage.leadingButton`.** It sits at the bottom leading corner, shows no key, and gets `KeyboardShortcut` nil. Its action never answers the dialog.
+- **`ClairDialogPage.leadingButton`.** It sits at the bottom leading corner, shows no key, and gets `KeyboardShortcut` nil. Its action never answers the dialog. `native-quit-confirmation` (D5) adds it first, for "Always quit"; this change uses it as built.
 - **`ClairDialogButton.isDestructive` for the cancel role.** Today `isDestructive` is derived from `.destructive`, a default role. It becomes a stored flag valid for both `.cancel` and `.default`. A destructive cancel button is red with the ESC capsule and keeps `.cancelAction`. The button row animates its width change with the dialog's existing swap animation.
 - The runtime suite's identifiers stay: `clair.dialogCancel`, `clair.dialogDefault`, and a new `clair.dialogLeading`.
 

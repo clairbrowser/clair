@@ -20,6 +20,7 @@
 #include "base/process/process.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/app/chrome_command_ids.h"
 #import "chrome/browser/app_controller_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/browser_process.h"
@@ -452,6 +453,12 @@ tabs::TabInterface* TabOf(ClairTabID tabID) {
                                                warns);
 }
 
+- (void)quitWithoutWarning {
+  CHECK([NSThread isMainThread]);
+  // No menu item as the sender, so clair::MaybeConfirmQuit lets it through.
+  [NSApp terminate:nil];
+}
+
 @end
 
 namespace clair {
@@ -488,6 +495,27 @@ base::TimeTicks g_stay_in_background_until;
 
 bool IsNativeLayerRunning() {
   return g_entry_point != nil;
+}
+
+bool MaybeConfirmQuit(id sender) {
+  if (!IsNativeLayerRunning() || browser_shutdown::IsTryingToQuit()) {
+    return false;
+  }
+  // Cmd+Q reaches -terminate: through the Quit item's key equivalent, so the
+  // item is the sender either way.
+  NSMenuItem* item = base::apple::ObjCCast<NSMenuItem>(sender);
+  if (!item || item.tag != IDC_EXIT) {
+    return false;
+  }
+  if (!g_browser_process->local_state()->GetBoolean(
+          prefs::kConfirmToQuitEnabled)) {
+    return false;
+  }
+  // Chromium's own warning about downloads asks instead.
+  if (DownloadCoreService::BlockingShutdownCountAllProfiles() > 0) {
+    return false;
+  }
+  return ShowQuitConfirmation();
 }
 
 id<ClairWindow> CreateClairWindow(id<ClairBrowser> browser) {

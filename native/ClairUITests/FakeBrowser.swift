@@ -1225,6 +1225,7 @@ final class RecordingWindow: NSObject, ClairWindow {
   func activeTabDidChange(_ tabID: TabID) { calls.append("active \(tabID)") }
   func stillDidChange() { calls.append("still") }
   func devToolsDidChange() { calls.append("devtools") }
+  func showQuitConfirmation() { calls.append("quit?") }
   func showCommandBar(mode: CommandBarMode) { calls.append("commandBar \(mode.rawValue)") }
   func toggleSidebar() { isSidebarHidden.toggle() }
   func showFind(text: String) { calls.append("find \(text)") }
