@@ -142,7 +142,9 @@ struct LinkRulesList: View {
       }
     }
     .onChange(of: state.focusedRow) { _, row in
-      focusedField = row
+      // The new row's field exists only once this update is drawn, so
+      // focusing it now would be dropped.
+      Task { @MainActor in focusedField = row }
     }
   }
 
