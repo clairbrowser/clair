@@ -37,7 +37,7 @@ Clair SHALL ship ungoogled-chromium's default settings and Google-service remova
 - **THEN** Clair contacts Google's extension servers only to download that extension and to check it for updates, and no other Google service
 
 ### Requirement: Browser behavior as in ungoogled-chromium outside Clair's interface
-Apart from its identity (`app-identity`), native layer (`native-layer`), updater (`software-updates`), native window (`browser-window`, `sidebar`, `command-bar`), Spaces and profiles (`spaces`, `profiles`), extensions (`extensions`) and the password and autofill features it turns off, Clair SHALL behave as its ungoogled-chromium release: page rendering, settings, `chrome://` pages, each profile's data, history, extensions' APIs, and the menus and shortcuts the native window keeps.
+Apart from what Clair's own capabilities specify (`app-identity`, `native-layer`, `software-updates`, `browser-window`, `sidebar`, `command-bar`, `spaces`, `profiles`, `link-rules`, `extensions`) and the password and autofill features it turns off, Clair SHALL behave as its ungoogled-chromium release: page rendering, settings, `chrome://` pages, each profile's data, history, extensions' APIs, and the menus and shortcuts the native window keeps.
 
 #### Scenario: Stock browser UI
 - **WHEN** a user opens a window in a bare engine build
@@ -46,6 +46,10 @@ Apart from its identity (`app-identity`), native layer (`native-layer`), updater
 #### Scenario: Settings unchanged
 - **WHEN** a user opens `chrome://settings` in the native window
 - **THEN** it shows the same settings and defaults as the same ungoogled-chromium release, apart from Clair's identity and versions, and the absent "Autofill and passwords" and "On startup" sections
+
+#### Scenario: Links from other apps without rules
+- **WHEN** Clair has no link rules and a link arrives from another app
+- **THEN** it opens where the same ungoogled-chromium release would open it
 
 ### Requirement: Changes to Chromium limited to hooks and identity
 Clair's patches to existing Chromium source files SHALL be limited to macOS build fixes, identity and branding, versioning, hooks, and restoring the Chrome Web Store installer and extension update checks that ungoogled-chromium removes, including sending those checks through the restored code. Other behaviour Clair adds SHALL live in the native layer or in new source files added to the Chromium tree.
@@ -59,7 +63,7 @@ Clair's patches to existing Chromium source files SHALL be limited to macOS buil
 - **THEN** each hunk puts back code that ungoogled-chromium's patches removed for the store installer or for extension update checks, or sends store update checks through that code, and adds no other behavior
 
 ### Requirement: What Clair's Chromium hooks may do
-Clair's hooks SHALL load the native layer, hand Chromium's browser window and its attached UI to Clair's code, register Clair's component extensions and preferences, tag Clair's tabs in saved sessions and read the tags back, free keyboard shortcuts for Clair's own commands, turn off or hide the password and autofill features, restore the last session's tabs by default, and turn off extensions' uninstall pages. Each hook SHALL only redirect to Clair's code or switch a Chromium feature off.
+Clair's hooks SHALL load the native layer, hand Chromium's browser windows to Clair's code, register Clair's component extensions and preferences, tag Clair's tabs in saved sessions and read them back, free Clair's shortcuts, turn off or hide the password and autofill features and extensions' uninstall pages, restore the last session by default, and offer links from other apps to Clair's link rules first. Each hook SHALL only redirect to Clair's code or switch a Chromium feature off.
 
 #### Scenario: Reviewing a window hook
 - **WHEN** a hunk of the native-window hook patch is read
@@ -68,6 +72,10 @@ Clair's hooks SHALL load the native layer, hand Chromium's browser window and it
 #### Scenario: Reviewing a session hook
 - **WHEN** a hunk of a patch to Chromium's session code is read
 - **THEN** it calls into Clair's overlay files to write or read a tag on a tab, and decides nothing itself
+
+#### Scenario: Reviewing the link rules hook
+- **WHEN** the hunk that hooks links from other apps is read
+- **THEN** it hands each link to Clair's overlay files and opens only the links they leave, as Chromium would, and decides nothing itself
 
 ### Requirement: Engine updates without third-party macOS packaging
 Clair SHALL be able to move to any newer ungoogled-chromium release tag without waiting for a matching `ungoogled-chromium-macos` release. Moving to a new tag SHALL only require changing the pinned engine tag, plus adjusting a macOS or Clair patch where one no longer applies.
