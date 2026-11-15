@@ -70,7 +70,7 @@ The `add-pinned-tabs-and-favorites` change's `design.md` (`openspec/changes/add-
 
 ## Link rules
 
-The `add-link-rules` change's `design.md` (`openspec/changes/add-link-rules/`) has the reasoning (D1–D7). Link rules send links from other apps to a Space, as Arc's Air Traffic Control and Dia's Link Rules do.
+The `add-link-rules` change's `design.md` (`openspec/changes/archive/2026-11-15-add-link-rules/`) has the reasoning (D1–D7). Link rules send links from other apps to a Space, as Arc's Air Traffic Control and Dia's Link Rules do.
 
 - **The store (D1).** `ClairLinkRuleStore` keeps the rules in order in Local State (`clair.link_rules`), each with an ID, a match (`contains`, `exact` or `prefix`), the text as typed, trimmed, and a Space. It keeps only valid rules: a known match, a text that reads as a URL, a Space that exists, and no repeat of an earlier rule's match and text. It observes `ClairSpaceStore` and drops a Space's rules when the Space goes, which also covers a profile removed with its Spaces; reading drops them too, in case Clair stopped in between.
 - **The matcher (D3).** `ReadLinkRuleText` trims a text, rejects one that is empty or holds whitespace, puts `https://` in front when it has no `scheme://`, and requires a valid `http` or `https` URL with a host. `LinkRuleMatches` compares a link's spec without its fragment, and without its scheme when the rule's text had none, so `http` and `https` match alike: "URLs containing" looks for the raw text, ignoring case; "this exact URL" compares with the text read as a URL; "URLs starting with" checks that the link starts with it, so `example.com` becomes `example.com/` and doesn't match `example.com.evil.net`. The first matching rule wins (`FirstMatch`).
