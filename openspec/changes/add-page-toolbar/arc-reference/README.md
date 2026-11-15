@@ -20,6 +20,12 @@ Keep these screenshots. They move with the change when it's archived.
 | toolbar-site-controls-open.jpg | The Site Control Center hangs below its toolbar button, with its arrow pointing up. In the sidebar it opens to the right instead. |
 | settings-advanced.jpg | Arc's Settings › Advanced. "Allow window dragging from the top of webpages" is on. "Show full URL when Toolbar is enabled" is off; it's the setting behind the host menu's Show Full URL. Arc has no toolbar row in Settings. |
 | toolbar-command-bar.jpg | Cmd+L with the toolbar on: the command bar opens centred in the window, as with the toolbar off. It doesn't attach to the toolbar. |
+| toolbar-extensions.jpg | Two pinned extensions, uBlock Origin Lite (with a "1" badge) and Dark Reader, left of the site-controls button, in a 960 pt window. |
+| toolbar-extension-hover.jpg | The pointer on Dark Reader's icon: a rounded grey highlight about 32 × 28 behind it. No tooltip showed within 2 s. |
+| toolbar-extension-popup.jpg | uBlock's popup: a small titled window over the toolbar, its top-trailing corner at the card's top edge, 40 pt in from the card's trailing edge. |
+| toolbar-extension-popup-2.jpg | Dark Reader's popup, from the other icon, opens with its top-trailing corner at exactly the same place. Arc doesn't attach popups to their icon. |
+| toolbar-narrow-620.jpg | The window at 620 pt: uBlock, the extension farther from site controls, is left out, and the host stays centred on the card. |
+| toolbar-narrow-520.jpg | The window at 520 pt: both extensions, reload and the link icon are left out. The host is still centred and whole. |
 
 For split view, where every pane gets this header whatever the setting,
 see change 1's `arc-reference/screenshots/split-view-two-panes.jpg` and
@@ -86,18 +92,37 @@ pane's header keeps back, forward, the host and ×.
 - **Peek:** it covers the toolbar.
 - **Pinned extensions:** they sit to the left of the site-controls button.
   Clair spaces them at the distance between Arc's site-controls and
-  split-view buttons, 36 pt.
+  split-view buttons, 36 pt, which is also Arc's own pitch.
 - **Context menu:** it's on the toolbar while the toolbar shows, and on the
   sidebar's URL field only while the toolbar is hidden.
 - **Tooltip:** "Show sidebar" on the toolbar's toggle while the sidebar is
   hidden.
 
+## Pinned extensions (probed 2026-11-15, two extensions the owner pinned)
+
+From the accessibility tree, in a 960 pt window whose card ends at x = 950:
+
+- **Icons:** each is 16 × 16 pt. Their centres sit 129 pt (uBlock) and 93 pt
+  (Dark Reader) from the card's trailing edge, continuing the trailing
+  buttons' 36 pt pitch: site controls at 57 and split view at 21.
+- **Badge:** a small white badge at the icon's bottom-trailing corner.
+- **Popup:** each opens as a titled window whose frame's top-trailing corner
+  is at (card's trailing edge − 40, card's top), whichever icon opened it:
+  uBlock 637…910 × 40…446, Dark Reader 634…910 × 40…652, in screen points.
+- **Narrow windows:**
+  - At 620 pt wide, the extension farther from site controls goes first.
+  - At 520 pt wide, both extensions, reload and the link icon are gone.
+  - The host stays centred on the card throughout, and isn't truncated at
+    520 pt.
+- **Link icon:** the icon before the host is a button labelled "Copy Current
+  URL".
+- **Sidebar mode:** with the toolbar off, Arc's sidebar shows no row of
+  extension icons, unlike Clair's.
+
 ## Not captured yet
 
 Probe these during implementation:
 
-- **Extension popups:** where a pinned extension's popup opens from the
-  toolbar. Arc's test profile has no extension installed.
 - **Other cases:** Dark Mode colours, a narrow window (host truncation,
   button overflow), and incognito.
 - **Peek screenshot:** a Peek over the toolbar, for comparison.

@@ -70,7 +70,7 @@ While a Peek shows, the toolbar SHALL stay part of the parent page's card: it SH
 - **THEN** the Peek closes, and nothing in the toolbar runs
 
 ### Requirement: Host in the toolbar
-The toolbar SHALL show the active tab's host as the URL field shows it, centred on the card, with a link icon before it that copies the URL and shows "Copied Current URL" as Copy URL does. While the page is not secure, the red not-secure icon SHALL show before the link icon. The host SHALL truncate rather than overlap the controls on either side. Clicking it SHALL open the command bar, centred in the window as usual.
+The toolbar SHALL show the active tab's host as the URL field shows it, centred on the card, with a link icon before it that copies the URL and shows "Copied Current URL" as Copy URL does. While the page is not secure, the red not-secure icon SHALL show before the link icon. Clicking the host SHALL open the command bar, centred in the window as usual.
 
 #### Scenario: Centred host
 - **WHEN** the toolbar is shown on `https://example.com/`
@@ -88,10 +88,6 @@ The toolbar SHALL show the active tab's host as the URL field shows it, centred 
 - **WHEN** the user clicks the link icon before the host
 - **THEN** the tab's URL is on the pasteboard, and the "Copied Current URL" popup shows
 
-#### Scenario: Narrow window
-- **WHEN** the window is too narrow for the whole host between the toolbar's leading and trailing controls
-- **THEN** the host is truncated, and no control is covered
-
 ### Requirement: Toolbar buttons always shown
 The toolbar's buttons, the site-controls button included, SHALL always show, not only while the pointer is over the sidebar.
 
@@ -100,15 +96,30 @@ The toolbar's buttons, the site-controls button included, SHALL always show, not
 - **THEN** the site-controls button shows
 
 ### Requirement: Pinned extensions in the toolbar
-The toolbar SHALL show the pinned extensions as a single row of icon tiles, in their pinned order, before the site-controls button. Pinned extensions that don't fit SHALL be left out of the toolbar, last first, and SHALL still be reachable from the Site Control Center. The toolbar SHALL show no tile while none is pinned.
+The toolbar SHALL show the pinned extensions as a single row of icon tiles, in their pinned order, before the site-controls button, each with its badge and with a rounded highlight under the pointer, as in Arc. The toolbar SHALL show no tile while none is pinned.
+
+#### Scenario: Pinned extension with a badge
+- **WHEN** the toolbar is shown and a pinned extension sets its badge text to "1"
+- **THEN** its tile in the toolbar shows a "1" badge at its bottom-trailing corner
 
 #### Scenario: Pinned extension
 - **WHEN** the toolbar is shown and the user clicks a pinned extension's tile whose action has a popup
-- **THEN** the popup window opens below the tile
+- **THEN** the popup window opens at the card's top-trailing corner, over the toolbar, as `extensions` defines
 
-#### Scenario: Too many to fit
-- **WHEN** the window is too narrow for all the pinned extensions' tiles
-- **THEN** the toolbar shows the first ones that fit, and the others stay in the Site Control Center's grid
+### Requirement: Toolbar in a narrow window
+When the toolbar is too narrow for all its controls with the host centred on the card, it SHALL leave controls out, as Arc does, in this order: the pinned extensions, starting with the one farthest from the site-controls button; then reload and the link icon. The host SHALL stay centred and SHALL be truncated only once those are gone. Left-out extensions SHALL stay reachable from the Site Control Center.
+
+#### Scenario: One extension too many
+- **WHEN** two extensions are pinned and the window is about 620 points wide
+- **THEN** the toolbar leaves out the extension farther from the site-controls button and keeps the other, with the host still centred on the card
+
+#### Scenario: Narrower still
+- **WHEN** two extensions are pinned and the window is about 520 points wide
+- **THEN** the toolbar shows the sidebar toggle, back, forward, the host centred on the card and the site-controls button, without the extensions, reload or the link icon
+
+#### Scenario: Left-out extension
+- **WHEN** the toolbar has left out a pinned extension and the user opens the Site Control Center
+- **THEN** the extension's tile is in its grid and runs its action
 
 ### Requirement: Sidebar toggle leads the toolbar
 While the toolbar shows, the sidebar toggle SHALL be its first control, with the sidebar shown or hidden. The sidebar's top row SHALL then hold only the window controls. The toggle's tooltip SHALL read "Hide sidebar" while the sidebar is shown and "Show sidebar" while it's hidden, with ⌘S.
@@ -193,7 +204,7 @@ While the toolbar shows, views placed at the top of the card, namely find in pag
 - **THEN** the "Copied Current URL" popup shows below the toolbar, at the page's top-trailing corner
 
 ### Requirement: Popups attach to the toolbar
-While the toolbar shows, popups opened from its controls SHALL attach below them, with the sidebar shown, hidden or revealed. These are the Site Control Center, Chromium's permission prompts and page info, extension popups, and the history menus. Chromium's bubbles SHALL fall back to the card's top-leading corner only while a page is in full screen.
+While the toolbar shows, popups opened from its controls SHALL attach below them, with the sidebar shown, hidden or revealed. These are the Site Control Center, Chromium's permission prompts and page info, and the history menus. Extension popups open at the card's top-trailing corner instead (`extensions`). Chromium's bubbles SHALL fall back to the card's top-leading corner only while a page is in full screen.
 
 #### Scenario: Permission prompt
 - **WHEN** the toolbar is shown, the sidebar is hidden, and a page asks for the user's location

@@ -7,8 +7,8 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
 
 ## 1. Arc reference
 
-- [ ] 1.1 Probe Arc with the toolbar on, using a public site, not `localhost`. Capture a Peek covering the toolbar, and find out what a click on the link icon before the host does. Verify: screenshots and findings added to `arc-reference/` and its README, and `design.md`'s Open Questions updated.
-- [ ] 1.2 Install an extension with a popup in Arc's test profile, pin it, and capture where its popup opens from the toolbar. Its icon sits left of the site-controls button, as the owner confirmed. Then remove it, and restore Arc's toolbar setting. Verify: screenshots in `arc-reference/`, and D6 updated if Arc doesn't open it below the tile.
+- [ ] 1.1 Probe Arc with the toolbar on, using a public site, not `localhost`, and capture a Peek covering the toolbar. Verify: the screenshot is added to `arc-reference/` and listed in its README.
+- [x] 1.2 With two extensions the owner pinned in Arc, capture the toolbar's extension tiles, their hover, both popups and two narrow windows. Verify: screenshots and measurements are in `arc-reference/`, and the specs and D4 and D6 follow them.
 
 ## 2. Preference and layout rule
 
@@ -16,7 +16,11 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
 
 ## 3. Toolbar, card and sidebar
 
-- [ ] 3.1 Add `ToolbarLayout` (D4). It centres the host on the card when there's room, otherwise centres it between the leading and trailing groups and truncates it. It places the site controls 21 pt from the trailing edge and the pinned extensions, then the indicators, at a 36 pt pitch to its left, and drops extension tiles last first. Verify with unit tests in CI: a wide card, a narrow card, a long host, the trailing centres with two extensions and an indicator (21, 57, 93, 129 pt), and ten pinned extensions in a narrow window.
+- [ ] 3.1 Add `ToolbarLayout` (D4). It keeps the host centred on the card. It places the site controls 21 pt from the trailing edge, with the pinned extensions and then the indicators to their left at a 36 pt pitch. When room runs out, it leaves out extensions (farthest from site controls first), then reload and the link icon, and only then truncates the host. Verify with unit tests in CI:
+  - the trailing centres with two extensions and an indicator (21, 57, 93, 129 pt);
+  - two extensions at Arc's 620 and 520 pt window widths, matching `toolbar-narrow-620.jpg` and `toolbar-narrow-520.jpg`;
+  - a long host in a narrow window;
+  - ten pinned extensions.
 - [ ] 3.2 Add `PageToolbar` and host it in `PageCardView` (D2, D4). It needs Arc's metrics, the 1 pt line over the page, reused controls with their identifiers plus `clair.toolbar`, and the host's hover background and link icon. The page, still view, infobars, DevTools and drag strip go below it, and it hides in page full screen. Verify in CI that it builds and the existing unit tests pass. By hand: the toolbar matches `arc-reference/screenshots/toolbar-on.jpg` and `toolbar-sidebar-hidden.jpg` within 1 pt, and the page's viewport starts below it.
 - [ ] 3.3 Strip the sidebar while `sidebarShowsControls` is false (D5): `TopRow` keeps only the window controls' room, there's no URL field, no extension row and no "More" menu, and the floating sidebar has no toggle. Verify by hand: the sidebar matches `toolbar-on.jpg` with the window controls at their place, the floating sidebar matches `dia-reference/screenshots/toolbar-sidebar-revealed.jpg`, and with the toolbar off the sidebar is unchanged from `main`.
 - [ ] 3.4 Give the toolbar's background window dragging, `TitleBarArea`'s double-click and activation events, independent of `WindowDragPreference` (D4). Verify by hand, with the owner doing the drags: blank toolbar space moves the window with the preference on and off, a double-click zooms it, a press on reload that wobbles still reloads, and the page-top strip works 20 pt below the toolbar's line but not 70 pt below it.
@@ -27,7 +31,7 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
 ## 4. Popups and prompts
 
 - [ ] 4.1 Report the toolbar's control frames through `AnchorFramesKey` in a separate table, convert them to window coordinates, and give `AnchorResolver` `toolbarShown` with `.bottom` anchors (D6). Verify with `AnchorResolver` unit tests in CI: toolbar shown with the sidebar shown, hidden and revealed; page full screen falls back; and toolbar off keeps today's results.
-- [ ] 4.2 Add a below-the-anchor placement to `ExtensionPopupWindow` for `.bottom` anchors, kept on screen (D6). Verify with a unit test of the placement maths in CI, including a tile near the screen's trailing edge. By hand: a pinned extension's popup opens below its tile, and an unpinned one's below the site-controls button.
+- [ ] 4.2 Add the toolbar placement to `ExtensionPopupWindow`: top-trailing corner at the card's top edge, 40 pt in from its trailing edge, kept on screen, with the tile still closing it (D6). Verify with a unit test of the placement maths in CI, including a window near the screen's edge. By hand: both pinned extensions' popups open at the same place as in `toolbar-extension-popup.jpg` and `toolbar-extension-popup-2.jpg`, and clicking the tile again closes the popup.
 - [ ] 4.3 Verify by hand, with the toolbar on and the sidebar shown, hidden and revealed:
   - a location permission prompt opens below the toolbar's site controls, and Allow grants it;
   - the Site Control Center hangs below its button;

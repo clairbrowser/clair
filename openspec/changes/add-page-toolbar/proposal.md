@@ -23,7 +23,8 @@ Change 1's roadmap decided "URL bar only in the sidebar, with no top toolbar and
   - a context menu, as in Arc: on the toolbar while it shows, with "Hide Toolbar", and on the sidebar's URL field while it's off, with "Show as Toolbar";
   - a "Location bar" row on Settings › General, with two drawn thumbnails, "Toolbar" and "Sidebar". They're one scalable SwiftUI component, so a future first-run screen can reuse it.
 - **Moving the window.** The toolbar's blank areas move the window and zoom it on a double-click, whatever the "Allow window dragging from the top of webpages" setting. The page-top drag strip keeps working, measured from the page's top, which is now below the toolbar. Both behaviours match Arc's, as checked by hand.
-- **Popups and prompts attach to the toolbar's controls.** Chromium's bubbles, the Site Control Center and extension popups open below the toolbar's controls, with the sidebar shown or hidden. Find, the "Copied Current URL" popup and infobars sit below the toolbar.
+- **Popups and prompts attach to the toolbar's controls.** Chromium's bubbles and the Site Control Center open below the toolbar's controls, with the sidebar shown or hidden. Extension popups open where Arc opens them: over the toolbar, at the card's top-trailing corner, whichever tile opened them. Find, the "Copied Current URL" popup and infobars sit below the toolbar.
+- **Narrow windows.** The host stays centred. As room runs out, the toolbar leaves out pinned extensions, then reload and the link icon, as Arc does.
 - **Split view (future):** every pane will show this header whatever the setting, and the sidebar's controls will show only when no pane shows a header. The design keeps that rule in one place; split view itself isn't part of this change.
 
 **Out of scope:** split view; Arc's "Show Full URL"; Arc's split-view button in the toolbar; and a first-run flow, which only gets the reusable picker.
@@ -38,7 +39,7 @@ Change 1's roadmap decided "URL bar only in the sidebar, with no top toolbar and
 
 - `sidebar`: navigation controls, the URL field and its buttons, site controls, the extension row and its wrapping, tooltips and the revealed sidebar now depend on whether the toolbar is shown.
 - `browser-window`: Chromium's bubbles attach to the toolbar's controls while it shows. The top row's layout from the window controls, and its place in window full screen, apply only with the toolbar off.
-- `extensions`: newly installed extensions appear among the toolbar's pinned extensions, and popups open below a toolbar control rather than beside it.
+- `extensions`: newly installed extensions appear among the toolbar's pinned extensions, and their popups open at the card's top-trailing corner while the toolbar shows.
 - `settings-window`: Settings › General gains the "Location bar" picker.
 
 ## Impact
@@ -46,7 +47,7 @@ Change 1's roadmap decided "URL bar only in the sidebar, with no top toolbar and
 - **`ClairUI` only.** The work is a new toolbar view hosted in `PageCardView`, plus:
   - changes to `SidebarView` and `BrowserRootView` (layout, the revealed sidebar);
   - `AnchorResolver` (toolbar anchors, `AnchorEdge.bottom`);
-  - `ExtensionPopupWindow` (placement below a control);
+  - `ExtensionPopupWindow` (Arc's placement at the card's top-trailing corner);
   - `SettingsWindow` (the General row);
   - a new View-menu item added from `ClairUI`, as Edit › Copy URL is;
   - a new preference.

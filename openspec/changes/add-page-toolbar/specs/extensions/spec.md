@@ -14,7 +14,7 @@ An extension the user has just installed through a confirmation SHALL be pinned,
 - **THEN** it stays unpinned
 
 ### Requirement: Extension popups in a window
-An extension's popup SHALL open in a small titled window whose only enabled control is the close button. The window SHALL be movable by its title bar, and SHALL first open attached to the control that opened it: beside it in the sidebar, as `sidebar` defines, or below it in the toolbar (`page-toolbar`). Its page SHALL show whole, at the size the extension asks for, within Chromium's limits of 25×25 to 800×600 points.
+An extension's popup SHALL open in a small titled window whose only enabled control is the close button. The window SHALL be movable by its title bar, and SHALL first open beside the control that opened it, following `sidebar`. While the toolbar shows (`page-toolbar`), it SHALL instead open over the toolbar with its top-trailing corner at the card's top edge, 40 points in from the card's trailing edge, as in Arc. Its page SHALL show whole, at the size the extension asks for, within Chromium's limits of 25×25 to 800×600 points.
 
 #### Scenario: Opening a popup
 - **WHEN** the toolbar is off and the user clicks a pinned extension's button whose action has a popup
@@ -22,7 +22,11 @@ An extension's popup SHALL open in a small titled window whose only enabled cont
 
 #### Scenario: Opening a popup from the toolbar
 - **WHEN** the toolbar is shown and the user clicks a pinned extension's tile whose action has a popup
-- **THEN** a window with a close button opens below the tile, fully on screen, showing the whole popup page
+- **THEN** a window with a close button opens over the toolbar, its top-trailing corner at the card's top edge and 40 points in from the card's trailing edge, showing the whole popup page
+
+#### Scenario: Another extension from the toolbar
+- **WHEN** the toolbar is shown and the user opens a second pinned extension's popup, whose tile is further from the trailing edge
+- **THEN** its window's top-trailing corner is at the same place as the first's
 
 #### Scenario: Moving a popup
 - **WHEN** the user drags the popup window's title bar

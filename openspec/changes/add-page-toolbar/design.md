@@ -78,7 +78,12 @@ In Arc a Peek covers the toolbar, as the owner confirmed. The toolbar is in the 
 Layout, using Arc's metrics:
 - **Leading group:** buttons centred at 21, 57.75, 94.75 and 132 pt from the card's leading edge.
 - **Trailing group:** site controls centred 21 pt from the card's trailing edge, where Arc has its split-view button. To its left come the pinned extensions, then the indicators, each 36 pt further left: the distance between Arc's site-controls and split-view buttons (57.25 − 21.25). The pinned extensions are in pinned order, the first leftmost.
-- **Host:** centred on the card with a custom SwiftUI `Layout`, `ToolbarLayout`. It centres the host text on the card when the room on both sides allows. Otherwise it centres the text in the room between the two groups and truncates it there. The same `Layout` drops the pinned extension tiles that don't fit, last first. It's unit-tested like `PinnedExtensionsGrid`.
+- **Host:** a custom SwiftUI `Layout`, `ToolbarLayout`, always keeps the host text centred on the card. When the controls on either side would come too close to it, the layout leaves controls out in Arc's order (`toolbar-narrow-620.jpg`, `toolbar-narrow-520.jpg`):
+  1. the pinned extensions, starting with the one farthest from site controls;
+  2. then reload and the link icon;
+  3. only then does it truncate the host.
+
+  It's unit-tested like `PinnedExtensionsGrid`.
 
 The background has the same window drag and double-click handling as the sidebar's top row: `WindowDragGesture`, `TitleBarArea` and `.allowsWindowActivationEvents(true)`. It doesn't depend on `WindowDragPreference`. Buttons sit above the background, so they get the clicks.
 
@@ -99,7 +104,9 @@ The toolbar reports its controls' frames with the same `AnchorFramesKey`, in its
 - **Toolbar shown and the page not in full screen:** it resolves a control in the toolbar's table and returns `edge: .bottom`, with the sidebar shown, hidden or revealed.
 - **Otherwise:** today's rule.
 
-`ExtensionPopupWindow` gains a below-the-anchor placement for `.bottom` anchors. The popup's top-leading corner goes 6 pt below the tile's leading edge and is kept on screen, which moves it left near the screen's trailing edge.
+Extension popups don't attach to their tile while the toolbar shows. Arc opens every one at the same place, whichever tile opened it (`arc-reference/screenshots/toolbar-extension-popup.jpg` and `-2.jpg`): the window's top-trailing corner at the card's top edge, 40 pt in from the card's trailing edge, over the toolbar. In this case `showExtensionPopup` gives `ExtensionPopupWindow` two things:
+- that corner, as a new placement next to `placeBesideAnchor`, kept on screen;
+- the tile's rect as its anchor, so a click on the tile still closes the popup.
 
 The Site Control Center is already a popover attached below its button, so nothing changes there.
 
@@ -139,15 +146,9 @@ The component takes its size from its container, so a future first-run screen ca
   - New tests cover ⇧⌘D, the picker and toolbar anchors.
   - The PR runs `quality.yml` on its branch, as `CLAUDE.md` requires for views the suite drives.
 - **[Toolbar frames and sidebar frames both report through `AnchorFramesKey`]** → Separate tables per source (D6), so a hidden sidebar's stale frames can't win over the toolbar's.
-- **[Narrow windows]** → `ToolbarLayout` truncates the host and drops extension tiles before anything overlaps (D4). The Site Control Center still lists every extension.
+- **[Narrow windows]** → `ToolbarLayout` leaves out extensions, then reload and the link icon, before anything overlaps, as Arc does (D4). The Site Control Center still lists every extension, and Cmd+R and Shift+Cmd+C still reload and copy.
 - **[Chromium could bind ⇧⌘D somewhere new on an engine update]** → A runtime test presses ⇧⌘D and checks that the toolbar toggles and no bookmark UI opens.
 
 ## Migration Plan
 
 None. Clair hasn't been released. A missing value reads as on, so existing development profiles get the toolbar.
-
-## Open Questions
-
-These are answered by probing Arc in group 1 of `tasks.md`. They change only placement or a click's effect, not the specs' structure:
-- Where Arc opens a toolbar extension's popup. Below the tile is assumed.
-- What a click on the link icon before the host does. Copying the URL is assumed.
