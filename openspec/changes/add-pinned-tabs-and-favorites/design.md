@@ -59,7 +59,7 @@ Observed in Arc 1.17x on 2026-11-14, sidebar 228 pt. All sizes are in points.
 | Rename field | x=41, 19 tall: 170 wide from Rename…, 144 from a double-click because the × stays |
 | Favorites grid | below the URL field; 8 inset and 8 gaps; tiles 47 tall; height 63, 118 or 173 for 1, 2 or 3 rows |
 | Favorites columns | rows = ceil(n/4), columns = ceil(n/rows): tiles 212, 102, 65.3 or 47 wide (47 is square) |
-| Empty favorites box | dashed, 105.5 tall, with a dismiss × |
+| Empty favorites box | dashed accent border on a light accent tint, 105.5 tall: a star in an accent circle, "Drag to add Favorites" in bold, "Favorites keep your most used sites and apps close", and a dismiss × at the top-trailing corner. The owner reports that Arc never shows it again once it's dismissed or a favorite has been added |
 
 **Colours, against Arc's default Space theme (RGB)**
 
@@ -218,7 +218,7 @@ This is a breaking change to the contract, so the engine key changes.
 - **Colours:** tiles, hover pills and the selected tile are expressed against `SidebarFill`, as the existing pills are. Light uses black overlays; dark uses white ones, at the contrasts Arc's colours give against its background (idle tile about 7%, hover about 11%, selected near-white). Tune them by hand against Arc with the probe in both appearances.
 - **Rename:** the in-place field reuses `SpaceHeaderView`'s editing pattern: one field, a commit on Return, cancel on Esc, and a cancel when focus leaves. A double-click on a row sets the caret from the click; Rename… selects all. The favorite dialog and Edit Pinned URL are `ClairDialog`s with Arc's wording.
 - **Drag and drop:** one drag source for rows and tiles carries the tab or pin ID. Drop targets compute the section and index, show the insertion (tiles making room in the grid, the gap in lists) and call D5.
-- **Persistent preferences:** the collapse state is the user default `ClairCollapsedPinnedSpaces` (Space IDs). The empty-favorites box is `ClairFavoritesHintDismissed` (profile IDs), cleared for a profile when it gets a favorite.
+- **Persistent preferences:** the collapse state is the user default `ClairCollapsedPinnedSpaces` (Space IDs). The empty-favorites box is `ClairFavoritesHintDone` (profile IDs): a profile joins it when its box is dismissed or it gets its first favorite, and never leaves it. Per profile, so a new profile shows the box once; task 3.10 checks whether Arc shows it for a new profile, and if it doesn't, the key becomes one app-wide flag.
 - **Settings › Links** gains the second toggle, bound to `ClairPeekForOtherSites`.
 - **Menus:**
   - The tab, pinned and favorite context menus as the specs list.

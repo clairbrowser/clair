@@ -106,12 +106,16 @@ While a favorite's page has a Peek open, its tile SHALL show the Peek page's fav
 - **THEN** "Mail"'s tile shows the Peek page's favicon as a badge
 
 ### Requirement: No favorites yet
-While a profile has no favorites, the grid's place SHALL show a dashed box reading "Drag to add Favorites" and "Favorites keep your most used sites and apps close", with an × that hides it. Once hidden it SHALL stay hidden until a favorite is added and the profile has none again.
+While a profile has no favorites, the grid's place SHALL show a dashed box with a star, "Drag to add Favorites", "Favorites keep your most used sites and apps close" and an × that hides it. Once the user has dismissed it or added a favorite to the profile, it SHALL never show again for that profile, even after the last favorite is removed.
 
 #### Scenario: A new profile
-- **WHEN** the user opens a Space of a profile with no favorites
+- **WHEN** the user opens a Space of a profile that has never had a favorite and whose box was never dismissed
 - **THEN** the dashed box shows where the grid would be
 
 #### Scenario: Dismissing
 - **WHEN** the user clicks the box's ×
 - **THEN** the box goes and stays gone after a relaunch
+
+#### Scenario: Removing the last favorite
+- **WHEN** the user adds a favorite to a profile and then removes it
+- **THEN** the box doesn't show again

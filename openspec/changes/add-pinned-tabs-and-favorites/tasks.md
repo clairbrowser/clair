@@ -42,7 +42,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 ## 3. ClairUI
 
 - [ ] 3.1 Carry pins and favorites in `SpacesModel` and `BrowserWindowModel` (D11), and partition rows in `TabListLogic`: pinned rows, then Today rows, with favorites apart. Verify with `ClairUI` unit tests in CI for the sections, Cmd+number counting and the came-from rule's inputs.
-- [ ] 3.2 Add `FavoritesLayout.swift` and `FavoritesGrid` (D11): the layout function, tiles with idle, hover and selected states, the ring's colour from the icon, the Peek badge, and the empty box with its dismiss stored in `ClairFavoritesHintDismissed`. Verify with unit tests in CI for the layout of 1 to 9 favorites at the default width against `design.md`'s Arc table, and for the empty box's dismissal and its reset.
+- [ ] 3.2 Add `FavoritesLayout.swift` and `FavoritesGrid` (D11): the layout function, tiles with idle, hover and selected states, the ring's colour from the icon, the Peek badge, and the empty box, recorded as done in `ClairFavoritesHintDone` once dismissed or once the profile gets a favorite. Verify with unit tests in CI for the layout of 1 to 9 favorites at the default width against `design.md`'s Arc table, and that the box never returns after either.
 - [ ] 3.3 Add the pinned section: rows with − or × by selection and their tooltips, the "/" and favicon button with "Back to Pinned URL" when navigated away, the header's chevron and the collapse (keeping the active row) stored in `ClairCollapsedPinnedSpaces`, and the divider with Clear. Verify with unit tests in CI for the button choice, the navigated title, the collapsed rows and when the divider and Clear show.
 - [ ] 3.4 Add the menus (D11): the Today, pinned and favorite context menus as the specs list them, in order; the main menu items' actions and validation on the key `ClairWindow`. Verify with unit tests in CI for each menu's items and each item's enabled state, including incognito.
 - [ ] 3.5 Add renaming (D11): the in-place field for Today and pinned rows (caret on double-click, select-all from Rename…, Return, Esc, focus loss, the title placeholder, an empty name clearing); the "Rename Tab…" dialog for favorites; the tooltips of `tab-names`. Verify with unit tests in CI for commit, cancel and clear, and for the tooltip text with and without a name.
@@ -61,7 +61,8 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   Also check:
   - **Peeks:** whether Arc peeks a link between subdomains of one site (D7);
   - **Back to Pinned URL:** how Arc shows a pinned tab whose URL redirects, or whose page rewrites its path (Risks);
-  - **Rename:** whether clicking elsewhere keeps or discards an edit in progress.
+  - **Rename:** whether clicking elsewhere keeps or discards an edit in progress;
+  - **Empty favorites:** whether Arc shows the "Drag to add Favorites" box for a newly created profile.
 
   Update the specs and design where Arc differs. Verify by the owner accepting the comparison.
 - [ ] 3.11 Update the `ClairUI` docs that describe the sidebar's sections and rows (`docs/native-window.md`'s sidebar part, if 2.12 doesn't cover it). Verify that the views they name exist.
