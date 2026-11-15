@@ -18,7 +18,7 @@ See proposal.md, "Why". What shapes the approach:
 - **Settings already presents Clair dialogs.** `SettingsWindowController` owns a `ClairDialogPresenter` on its window, which the Profiles page uses.
   - `ClairDialogView` is 450 pt wide, with an optional icon and its buttons at the trailing corner.
   - A page can swap its content and update its buttons in place (`add-clair-dialogs` D1).
-- **Dia's dialog was probed on 2026-11-15** with `tests/probe/`. `dia-reference/` holds the screenshots and measurements, and its README indexes them. Arc's Air Traffic Control sheet is there too, for behaviour only.
+- **Dia's dialog was probed on 2026-11-15** with `tests/probe/`. `dia-reference/` holds the screenshots and measurements, and its README indexes them. Arc's Air Traffic Control sheet is there too, for behaviour only, and Arc's Links page, which the Settings row follows (D7).
 
 ## Goals / Non-Goals
 
@@ -146,9 +146,14 @@ typedef NS_ENUM(NSInteger, ClairLinkRuleMatch) {
 
 ### D7. Settings › Links
 
-`LinksSettingsView` gains a second `Section` below the Peek toggles. Its `LabeledContent` row is labelled "Link rules", with the note "Choose which Space opens links from other apps." and a trailing "Link Rules…" button. The button calls `SettingsWindowController.showLinkRules()`, which reads `host.linkRules` and `host.spaces` and shows the dialog. Its accessibility identifier is `clair.linkRulesButton`.
+The entry point follows Arc's Links page (`dia-reference/12-arc-settings-links.jpg`): Air Traffic Control is a card of its own at the bottom of the page, below the Peek card, with one row and no section text.
 
-Dia puts its button alone under a card, on its Profiles page. Clair's Links page already uses rows with trailing buttons, as General's "Make Default".
+- `LinksSettingsView` gains a second `Section` below the Peek toggles, holding one `LabeledContent` row.
+- Its label is "Choose where links open inside Clair.", with Arc's trailing full stop. Arc's ⓘ button after it is left out.
+- Its trailing button is "Link Rules…" in place of "Air Traffic Control…", a standard bordered button as Arc's.
+- The button calls `SettingsWindowController.showLinkRules()`, which reads `host.linkRules` and `host.spaces` and shows the dialog. Its accessibility identifier is `clair.linkRulesButton`.
+
+*Alternative:* Dia's button alone under a card (`01-dia-entry-point.jpg`). Clair's Settings pages follow Arc's.
 
 ## Risks / Trade-offs
 

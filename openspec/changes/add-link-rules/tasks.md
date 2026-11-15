@@ -24,15 +24,15 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 - [ ] 3.1 Add `leadingButton` and an optional `width` to `ClairDialogPage`, and a stored `isDestructive` for cancel buttons, to `ClairDialog.swift` (D6), with the identifier `clair.dialogLeading`. Verify with new cases in `ClairDialogTests` in CI: the leading button takes neither key, a destructive cancel button keeps Esc, and the existing cases pass.
 - [ ] 3.2 Add `LinkRulesLogic.swift` (D5): the rows read from the host, adding and removing, the checks in order with their messages, the comparison for unsaved edits, the Discard Changes flip, Spaces deleted while open, and the one-Space state. Verify with new cases in `SettingsTests` in CI, one for each scenario of `link-rules`' requirements from "Link Rules dialog" to "Discarding edits".
 - [ ] 3.3 Add `LinkRulesDialog.swift` (D5): the rows, popups grouped by profile, the list area and its empty states, and the error line. Check it by hand against `dia-reference/` 02 to 10, in Light and Dark Mode. Verify that the layout matches the README's measurements within a few points, and that the look is Clair's dialogs'.
-- [ ] 3.4 Add the "Link rules" row and `clair.linkRulesButton` to `LinksSettingsView`, and `SettingsWindowController.showLinkRules()` (D7). Verify with a case in `SettingsTests` in CI and by hand against `settings-window`'s "Link Rules button" scenarios.
+- [ ] 3.4 Add the "Choose where links open inside Clair." card and `clair.linkRulesButton` to `LinksSettingsView`, and `SettingsWindowController.showLinkRules()` (D7). Verify with a case in `SettingsTests` in CI, and by hand against `dia-reference/12-arc-settings-links.jpg` and `settings-window`'s "Link Rules button" scenarios.
 - [ ] 3.5 Add `tests/runtime/ClairRuntimeTests/LinkRulesTests.swift`. It drives the dialog through its identifiers, sends links "from another app" with `NSWorkspace.open(_:withApplicationAt:configuration:)` from the test runner, and checks where they open through the accessibility tree and DevTools. Cover the specs' scenarios for routing, matching, saving, discarding, deleting a Space and a relaunch. Verify with a `quality.yml` run on the branch.
 
-## 4. Release notes and cleanup
+## 4. Release notes and integration
 
 - [ ] 4.1 Add a Changie fragment (`changie new`): Added for link rules in Settings › Links, which open links from other apps in a chosen Space. Verify that it's in the PR.
-- [ ] 4.2 Once 3.3 has been checked, delete `openspec/changes/add-link-rules/dia-reference/`, and reword the lines in `proposal.md` and `design.md` that point to it to say the references were removed after implementation. Delete `build/probe/link-rules/` too. Verify that `openspec validate --all --strict` passes and that only this file still names `dia-reference/`.
-- [ ] 4.3 Run the merge gate, and start `quality.yml` on the branch with the last push. Verify that CI and the quality checks pass.
+- [ ] 4.2 Run the merge gate, and start `quality.yml` on the branch with the last push. Verify that CI and the quality checks pass.
 
 ## Workflow follow-up
 
 - After the implementation PR merges, one docs-only PR ticks the tasks its last checks verified, syncs the delta specs and archives the change.
+- After archiving, delete the temporary probe output in `build/probe/link-rules/`. Keep `dia-reference/`, which moves into the archive with the change.

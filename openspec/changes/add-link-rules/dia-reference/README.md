@@ -1,16 +1,16 @@
 # Link Rules: reference screenshots
 
 Probed on 2026-11-15 in Dia 1.57.1 (`company.thebrowser.dia`) and Arc with
-`tests/probe/`, at 2 px per point. Clair copies Dia's **controls and
-layout**. Its look follows Clair's own dialogs, and its behaviour follows
-Arc's Air Traffic Control (`design.md`).
+`tests/probe/`, at 2 px per point. Clair's dialog copies Dia's **controls
+and layout**, and its Settings row follows Arc's Links page. The dialog's
+look follows Clair's own dialogs, and its behaviour follows Arc's Air
+Traffic Control (`design.md`).
 
-These screenshots are temporary: the implementation deletes this folder in
-its last task, once the dialog has been checked against them.
+Keep these screenshots: they stay with the change when it's archived.
 
 | File | Shows |
 |---|---|
-| 01-dia-entry-point.jpg | Dia's "Link Rules…" button, below a card on its Profiles page. Clair puts the entry point on the Links page (D6). |
+| 01-dia-entry-point.jpg | Dia's "Link Rules…" button, below a card on its Profiles page. Clair follows Arc's Links page instead (12, D7). |
 | 02-dia-empty.jpg | The empty dialog: title, a grey rounded list area with "No link rules yet" centred, Add Rule at the bottom leading corner, Cancel (ESC) and Done (↩) at the trailing corner. |
 | 03-dia-new-rule.jpg | Add Rule appends a row and focuses its field: `Open [URLs containing ⌃] [example.com] in ● [Personal ⌃] ×`. |
 | 04-dia-match-menu.jpg | The match popup: URLs containing, this exact URL, URLs starting with. |
@@ -21,6 +21,7 @@ its last task, once the dialog has been checked against them.
 | 09-dia-duplicate-error.jpg | The same value and match option twice: "Each domain or URL and matching option can only appear once." |
 | 10-dia-discard-changes.jpg | Cancel with unsaved edits turns, in place, into a red "Discard Changes ESC" button; pressing it again discards. |
 | 11-arc-air-traffic-control.jpg | Arc's Air Traffic Control, for behaviour only: rules open links in a Space. Clair has no "Default" row and no Little Arc. |
+| 12-arc-settings-links.jpg | Arc's Links page: Air Traffic Control is a one-row card at the bottom, "Choose where links open inside Arc. ⓘ" with an "Air Traffic Control…" button. Clair's row follows it as "Choose where links open inside Clair." with "Link Rules…" and no ⓘ (D7). |
 
 ## Measurements (points, from the accessibility tree)
 

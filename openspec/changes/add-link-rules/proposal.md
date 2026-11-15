@@ -11,7 +11,7 @@ This builds on `add-spaces` and `add-profiles`, both merged, as built.
 - **Link rules route links from other apps to a Space.** A rule matches a link's URL in one of three ways, as Dia's do: URLs containing a text, this exact URL, or URLs starting with a text. It opens a matching link in a new foreground tab of its Space, switching the most recently active window to that Space, or opening a window if none is open. The first matching rule in the list wins. Links that match no rule open as they do today.
 - **Only links from other apps.** These are links macOS hands to Clair: clicked in another app while Clair is the default browser, opened with `open`, or handed off from another device. Links clicked inside Clair, the command bar, extensions and session restore are never routed.
 - **A Link Rules dialog, laid out as Dia's.**
-  - Settings › Links gains a "Link Rules…" button that opens the dialog on the Settings window.
+  - Settings › Links gains a card laid out as Arc's Air Traffic Control row, "Choose where links open inside Clair." with a "Link Rules…" button that opens the dialog on the Settings window. Arc's info button is left out.
   - Each rule is a row: `Open [match ⌃] [text field] in [Space ⌃] ×`.
   - Add Rule appends a row at the bottom leading corner, and Cancel and Done sit at the trailing corner.
   - Done checks every rule, saves them all and closes; an invalid or duplicate rule keeps the dialog open with an error line under the list.
@@ -47,4 +47,4 @@ This builds on `add-spaces` and `add-profiles`, both merged, as built.
 - **Patch:** a hook in `chrome/browser/app_controller_mac.mm`'s `-openStartupTabsReplacingNTP:`, through which links from other apps arrive.
 - **`ClairUI`:** the Links page's button, the Link Rules dialog and its validation, and the two `ClairDialog` options.
 - **Runtime suite:** new coverage for routing and the dialog. The Links page is a view the suite drives, so the quality checks run on the branch before merging.
-- **References:** Dia's dialog was probed on 2026-11-15. The screenshots are in `dia-reference/` with their measurements, for checking the dialog by hand, and the implementation deletes them when it finishes.
+- **References:** Dia's dialog and Arc's Links page were probed on 2026-11-15. The screenshots and measurements are kept in `dia-reference/`, for building and checking the dialog and the row by hand.
