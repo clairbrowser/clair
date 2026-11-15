@@ -162,26 +162,41 @@ struct LinksSettingsView: View {
           .fixedSize(horizontal: false, vertical: true)
           .padding(.bottom, 16)
           .accessibilityIdentifier("clair.peekExplanation")
+      } footer: {
+        // The divider between the cards, as Arc's Links page has. As the
+        // next card's header, it pushed that card's row off centre.
+        // 25 pt from each card, as Arc's: the section spacing below adds to
+        // the bottom.
+        Divider()
+          .padding(.top, 15)
+          .padding(.bottom, -5)
+          .accessibilityIdentifier("clair.linkRulesDivider")
       }
-      // A card of its own below the Peek toggles, after a divider, as
-      // Arc's Links page.
+      // A card of its own below the Peek toggles, as Arc's Links page.
       Section {
         LabeledContent(Self.linkRulesLabel) {
           Button(Self.linkRulesButton, action: showLinkRules)
             .accessibilityIdentifier("clair.linkRulesButton")
         }
-      } header: {
-        // Centred between the cards: the header's own spacing sits above it.
-        Divider()
-          .padding(.top, -6)
-          .padding(.bottom, 9)
-          .accessibilityIdentifier("clair.linkRulesDivider")
+        .labeledContentStyle(CenteredButtonRowStyle())
       }
     }
     .formStyle(.grouped)
     .scrollDisabled(true)
     .frame(width: SettingsWindowController.width)
     .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+/// A row of a label and a button, centred in its card. The grouped form's own
+/// layout sets such a row 1.75 pt above the card's centre.
+struct CenteredButtonRowStyle: LabeledContentStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    HStack(alignment: .center) {
+      configuration.label
+      Spacer(minLength: 8)
+      configuration.content
+    }
   }
 }
 
@@ -209,6 +224,7 @@ struct AdvancedSettingsView: View {
         LabeledContent("Search, privacy and more") {
           Button("More Settings…", action: openMoreSettings)
         }
+        .labeledContentStyle(CenteredButtonRowStyle())
       }
     }
     .formStyle(.grouped)
