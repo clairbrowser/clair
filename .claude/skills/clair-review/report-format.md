@@ -82,3 +82,5 @@ Clair is a browser, so severity follows what an attacker or a failure can reach.
 | Info | Worth knowing, with nothing to fix. |
 
 Rate what you can show. If the worst case depends on something you could not verify, rate the part you can show and say what would raise it.
+
+A weakened mitigation and a slow path for engine fixes have no exploit of their own to show. Rate them by what they turn the next Chromium bug into. High: a layer that contains a compromised renderer is off or can be bypassed (the sandbox, site isolation, the V8 sandbox), or nothing ensures that a published engine fix reaches users. Medium: a mitigation that makes exploitation harder is off, or a source of security data is stale or gone. Low: the build matches stock Chrome but nothing records the decision or would catch a regression.

@@ -16,7 +16,6 @@
 #   review.sh skip <id>             leave a section out of this run
 #   review.sh approve-pilot         let the run continue past the pilot
 #   review.sh set max <n>           reviewers per batch (1 to 8)
-#   review.sh set cost <n>          what the pilot section cost, for the estimates
 #   review.sh rebase-run            accept HEAD as the reviewed commit
 #   review.sh timings               per-test durations from a quality job log on stdin
 #
@@ -325,17 +324,15 @@ run_set() {
   mv "$tmp" "$run/run.md"
 }
 
-# Writes each section's file list and line count for the working tree.
+# Writes each section's file list for the working tree.
 write_run_files() {
   local listing id files i=0
   listing="$(tracked | classify)"
   mkdir -p "$run/files" "$run/verify"
-  : >"$run/sizes.txt"
   while [[ $i -lt ${#sec_ids[@]} ]]; do
     id="${sec_ids[$i]}"
     files="$(paths_of "$id" <<<"$listing")"
     printf '%s\n' "$files" >"$run/files/$id.txt"
-    echo "$id $(count_lines <<<"$files")" >>"$run/sizes.txt"
     i=$((i + 1))
   done
 }
@@ -519,23 +516,20 @@ cmd_next() {
 }
 
 cmd_status() {
-  local id state verify findings estimate cost pilot_lines lines i=0
+  local id state verify findings i=0
   load_sections
   use_run
   echo "run:      $run"
   echo "commit:   $(run_get commit)"
   echo "chromium: $(run_get chromium) (engine key $(run_get engine_key))"
   echo "max:      $(run_get max) reviewers per batch"
-  cost="$(run_get cost)"
-  pilot_lines="$(awk -v id="${sec_ids[0]}" '$1 == id { print $2 }' "$run/sizes.txt")"
   echo
-  printf '%-3s %-18s %-6s %-9s %-9s %-16s %s\n' id section model report verify "C/H/M/L/I" estimate
+  printf '%-3s %-18s %-6s %-9s %-9s %s\n' id section model report verify "C/H/M/L/I"
   while [[ $i -lt ${#sec_ids[@]} ]]; do
     id="${sec_ids[$i]}"
     state="$(section_state "$id")"
     verify="-"
     findings="-"
-    estimate="-"
     if [[ "$state" == complete ]]; then
       findings="$(count_findings "$id" Critical)/$(count_findings "$id" High)/$(count_findings "$id" Medium)/$(count_findings "$id" Low)/$(count_findings "$id" Info)"
       if is_complete "$run/verify/$id.md"; then
@@ -545,17 +539,12 @@ cmd_status() {
       else
         verify="not needed"
       fi
-    elif [[ "$state" != skipped && -n "$cost" && "${pilot_lines:-0}" -gt 0 ]]; then
-      # Opus costs about half of Fable per token, hence the factor.
-      lines="$(awk -v id="$id" '$1 == id { print $2 }' "$run/sizes.txt")"
-      estimate="$(awk -v c="$cost" -v l="${lines:-0}" -v p="$pilot_lines" -v m="${sec_models[$i]}" \
-        'BEGIN { printf "~%.1f", c * l / p * (m == "opus" ? 0.5 : 1) }')"
     fi
     if [[ "$state" != complete && "$state" != skipped ]] && exhausted "$id"; then
       state=blocked
     fi
-    printf '%-3s %-18s %-6s %-9s %-9s %-16s %s\n' "$id" "${sec_slugs[$i]}" "${sec_models[$i]}" \
-      "$state" "$verify" "$findings" "$estimate"
+    printf '%-3s %-18s %-6s %-9s %-9s %s\n' "$id" "${sec_slugs[$i]}" "${sec_models[$i]}" \
+      "$state" "$verify" "$findings"
     i=$((i + 1))
   done
   echo
@@ -616,10 +605,7 @@ cmd_set() {
     max)
       [[ "${2-}" =~ ^[1-8]$ ]] || die "max must be 1 to 8"
       ;;
-    cost)
-      [[ "${2-}" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "cost must be a number"
-      ;;
-    *) die "set takes max or cost" ;;
+    *) die "set takes max" ;;
   esac
   run_set "$1" "$2"
 }

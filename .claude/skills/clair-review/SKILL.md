@@ -1,11 +1,11 @@
 ---
 name: clair-review
 description: Runs Clair's whole-codebase architecture, code quality and security review. With no argument it works out where the current review run stands and runs the next step - preflight, the pilot section, a batch of section reviewers, verification, or the final synthesis. Use only when the owner asks to run or continue the review; it spends a lot of usage.
-argument-hint: "[status | approve-pilot | max <n> | cost <n> | skip <id> | retry <key> | section <id> | rebase-run]"
+argument-hint: "[status | approve-pilot | max <n> | skip <id> | retry <key> | section <id> | rebase-run]"
 disable-model-invocation: true
 model: opus
 effort: medium
-allowed-tools: Bash(./scripts/review.sh *) Bash(git fetch origin main) Bash(gh run list *) Bash(gh run view *)
+allowed-tools: Bash(./scripts/review.sh *) Bash(git fetch origin main) Bash(gh run list *) Bash(gh run view *) Bash(gh api repos/ungoogled-software/*)
 ---
 
 # Clair review orchestrator
@@ -27,7 +27,6 @@ Arguments: `$ARGUMENTS`
 | `status` | Print `./scripts/review.sh status` and stop. |
 | `approve-pilot` | `./scripts/review.sh approve-pilot`, then print the status and stop. |
 | `max <n>` | `./scripts/review.sh set max <n>`: reviewers per batch, 1 to 8. |
-| `cost <n>` | `./scripts/review.sh set cost <n>`: what the pilot cost, in whatever unit the owner uses. Later estimates are scaled from it. |
 | `skip <id>` | `./scripts/review.sh skip <id>`: leave a section out of this run. |
 | `retry <key>` | `./scripts/review.sh retry <key>`: clear a block. The key is what `blocked` printed. |
 | `section <id>` | Dispatch that one section now, as under "sections" below. If its report is already complete, ask before moving it to `stale/` in the run directory. |
@@ -46,11 +45,12 @@ No run exists yet.
 1. `git fetch origin main`, then `./scripts/review.sh preflight`. If anything fails, show the failing lines and stop. Every failure is the owner's to fix; the usual ones are an engine tree built from another commit, or a checkout that is not on `main`. If it prints a note about open OpenSpec changes, pass the note on: the owner decides whether any should be archived first.
 2. `./scripts/review.sh init`. It prints the run directory.
 3. Collect test timings for section 07. Find a recent successful run of `quality.yml` whose jobs include the runtime suite (`gh run list --workflow quality.yml --status success --limit 10 --json databaseId`, then `gh run view <id> --json jobs`; runs that finish in seconds skipped the suite). For each job that ran the suite, run `gh run view --job <job id> --log | ./scripts/review.sh timings` and append the output, under a heading naming the job and the run, to `timings.txt` in the run directory. If no such run can be found, write a line in `timings.txt` saying so and carry on: timings help section 07 but nothing waits on them.
-4. Print the status and stop.
+4. Collect upstream versions for sections 04 and 09, which ask how far the engine lags behind Chromium and have no network. Run `gh api repos/ungoogled-software/ungoogled-chromium/releases --jq '.[] | "\(.published_at) \(.tag_name)"'` and the same for `ungoogled-chromium-macos`, and write both lists, each under a heading naming its repository, to `upstream.txt` in the run directory. A tag is the Chromium version followed by a revision. If a call fails, write a line in `upstream.txt` saying so and carry on.
+5. Print the status and stop.
 
 ### `pilot <id>:<model>`
 
-The first section runs alone so the owner can judge the report's quality and cost before the rest is spent.
+The first section runs alone so the owner can judge the report's quality and what it cost before the rest is spent.
 
 1. Dispatch the section as under "sections".
 2. Run `next` again. If it says `verify <id>`, dispatch the verifier as under "verify" in this same invocation, so the owner sees the pilot complete with its verdicts.
@@ -62,13 +62,13 @@ Tell the owner:
 
 - where the pilot report and its verdicts are;
 - to read the report and check two or three findings against the code;
-- to look at what the pilot cost (`/usage` or `/cost`) and record it with `/clair-review cost <n>`;
-- that the briefs in `sections/`, `report-format.md` and `focus.md` can be adjusted now, before the other sections run;
+- to look at what the pilot cost (`/usage` or `/cost`) before spending the rest;
+- that the briefs in `sections/`, `report-format.md`, `threats.md` and `focus.md` can be adjusted now, before the other sections run;
 - to continue with `/clair-review approve-pilot`.
 
 ### `sections <id>:<model> ...`
 
-1. Print `./scripts/review.sh status` so the owner sees the estimates for what is about to run.
+1. Print `./scripts/review.sh status` so the owner sees what is about to run.
 2. `./scripts/review.sh dispatched <id> ...` with every id in the batch.
 3. For each section print `Handing off: section <id> (<slug>) to <model>`.
 4. Dispatch all of them in **one message**, each as an Agent call with `subagent_type: "clair-reviewer"`, `model` set to the model the script named (`fable` or `opus`), and `run_in_background: false`. Foreground matters: this skill's model and effort apply only to the turn that invoked it, and a background agent would hand the follow-up to whatever model the session is on.
@@ -83,7 +83,7 @@ Tell the owner:
    Write your report to: <run directory>/<id>-<slug>.md
    ```
 
-   For section 07 add the line `Test timings: <run directory>/timings.txt`.
+   For section 07 add the line `Test timings: <run directory>/timings.txt`. For sections 04 and 09 add the line `Upstream versions: <run directory>/upstream.txt`.
 6. When they return, print one line per section with the outcome it reported, then the status, then stop.
 
 ### `verify <id> ...`
@@ -156,4 +156,4 @@ The deny rules matter: the runner's registration credentials sit at the top of t
 
 ## Preparing a later run
 
-The skill is reusable. Before a new run, edit `focus.md` for what is coming next. When files were added since the last run, `./scripts/review.sh check` names any that `scope.txt` does not assign yet, and `./scripts/review.sh sizes` shows whether a section has outgrown one reviewer. `sections.txt` sets the dispatch order and each section's model.
+The skill is reusable. Before a new run, edit `focus.md` for what is coming next. `threats.md` holds the security questions every code section answers, and section 09 compares the engine's hardening with stock Chromium's; both stay as they are between runs unless the threat model changes. When files were added since the last run, `./scripts/review.sh check` names any that `scope.txt` does not assign yet, and `./scripts/review.sh sizes` shows whether a section has outgrown one reviewer. `sections.txt` sets the dispatch order and each section's model.

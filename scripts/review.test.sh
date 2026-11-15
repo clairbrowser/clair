@@ -218,10 +218,10 @@ else
   check "run.md records the Chromium version and engine key" fail
 fi
 if [[ "$(cat "$run/files/01.txt")" == "src/core.c
-src/core.h" ]] && grep -qx "03 4" "$run/sizes.txt"; then
-  check "init writes each section's files and size" pass
+src/core.h" ]]; then
+  check "init writes each section's files" pass
 else
-  check "init writes each section's files and size" fail
+  check "init writes each section's files" fail
 fi
 if [[ -z "$(git -C "$repo" status --porcelain)" ]]; then
   check "the run directory stays out of git" pass
@@ -249,13 +249,7 @@ expect "after approval the sections go out, two at a time" "sections 01:fable 02
 review set max 1
 expect "max limits the batch" "sections 01:fable" next
 refuses "max must be a small number" set max 0
-refuses "cost must be a number" set cost lots
-review set cost 10
-if shows "^01 .* ~7.5$" status && shows "^02 .* ~3.8$" status; then
-  check "status estimates the cost of pending sections from the pilot's" pass
-else
-  check "status estimates the cost of pending sections from the pilot's" fail
-fi
+refuses "set takes only max" set cost 10
 
 report 01 core Low complete
 expect "a finished section leaves the batch" "sections 02:opus" next

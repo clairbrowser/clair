@@ -21,6 +21,11 @@ Start from the files `native-window-hook.patch` and `native-layer-hook.patch` to
 - What happens to each bridge and observer when a window closes, a tab is discarded or moved to another window, a profile is destroyed, or the app quits with work in flight?
 - Is every entry from Swift into Chromium on the UI thread, and does anything re-enter Chromium from inside a Chromium callback in a way the callee does not allow?
 
+**What a compromised renderer can reach**
+- The native window implements `WebContentsDelegate`, `WebContentsObserver` and `BrowserWindow` methods that Chromium calls on a renderer's request: opening and adding contents, resizing and moving, full screen, focus, pointer lock, drag and drop, context menus, title and favicon updates. List the ones Clair implements itself. For each, which arguments does the renderer choose, and what does Clair do with them before Chromium's own checks have run, or in place of them?
+- Follow each such call into Swift. Does a value a renderer chose (a rectangle, a string, a URL, a count) reach AppKit or an array index unchecked? Can a renderer call often enough, or in an order, that the bridge does not expect?
+- The contract's objects (`ClairTab`, `ClairBrowser`, `ClairWindow` and the rest) wrap Chromium objects whose lifetime a renderer can end at a moment of its choosing, by closing a tab, crashing or navigating. What does each wrapper do when Swift calls it afterwards, what does an identifier resolve to once its tab or Space is gone, and can a completion block or a weakly held delegate be called into after the window behind it has closed?
+
 **The contract**
 - Is `ClairHost.h` a coherent interface, or a list of calls that grew one feature at a time? Where does it expose Chromium's shape instead of Clair's concepts?
 - What does each side assume about the other that the header does not state: call order, nullability, which calls are valid before the window exists or after it closes?

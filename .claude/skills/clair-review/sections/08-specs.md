@@ -27,7 +27,7 @@ CI already runs `openspec validate --all --strict`, so the structure is valid. S
 - Requirements that cannot be tested as written: no observable outcome, or wording such as "as in Arc" with nothing saying what Arc does.
 - Scenarios that only restate their requirement, and requirements with no scenario for the failure or edge case that matters.
 - Requirements that describe an implementation rather than behaviour, which will go stale when the code changes.
-- Security-relevant behaviour that no spec states: what a profile isolates, what an update must verify, what the address display must never show.
+- Security-relevant behaviour that no spec states: what a profile isolates, what an update must verify, what the address display must never show, which of Chromium's mitigations the engine must keep (the sandbox, site isolation, the compile-time hardening) and which it gives up on purpose, and how soon a Chromium security fix must reach users.
 
 **Decisions that live only in the archive**
 - `CLAUDE.md` says the archived first change holds the product decisions, the roadmap and the MVP feature list, and it cites design decisions by number. Find the decisions in archived proposals and designs that are still in force and are recorded nowhere else. List each with its source, and say where it should live so a reader of the living documents finds it.
@@ -38,9 +38,9 @@ CI already runs `openspec validate --all --strict`, so the structure is valid. S
 - Does `CLAUDE.md` still describe the repository and the process accurately? Flag instructions that the specs, the docs or each other contradict.
 - Are the open changes consistent with the living specs they modify, or have the specs moved since they were written?
 
-**Readiness for the next two features**
+**Readiness for what comes next**
 
-Answer the questions in `focus.md` from the specification side. For link rules and for pinned favourites and tabs, list the questions their proposals will have to settle because the current specs are silent or ambiguous, naming the capability and requirement each one touches. `spaces`, `profiles`, `sidebar` and `command-bar` are the likely places.
+Answer the questions in `focus.md` from the specification side. For each feature it names, list the questions its proposal will have to settle because the current specs are silent or ambiguous, naming the capability and requirement each one touches. `spaces`, `profiles`, `sidebar`, `command-bar` and the pinned-tab specs are the likely places.
 
 ## Reporting
 
