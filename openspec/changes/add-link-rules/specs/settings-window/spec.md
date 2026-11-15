@@ -20,6 +20,13 @@ The Links page's toolbar item SHALL show the `interface.window.on.rectangle` sym
 - **WHEN** the user opens the Settings window
 - **THEN** the Links item shows a window over a window
 
+### Requirement: Peek explanation
+The Links page SHALL start with Arc's explanation of Peek, in plain text above the Peek toggles' card: "Peek is a way to preview a link without opening a new tab. It's perfect for quickly looking at a link from an email or news article."
+
+#### Scenario: Opening the Links page
+- **WHEN** the user opens the Links page
+- **THEN** the explanation shows above the Peek toggles
+
 ## MODIFIED Requirements
 
 ### Requirement: Peek on links to other sites toggle

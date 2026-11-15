@@ -131,6 +131,9 @@ struct LinksSettingsView: View {
   @AppStorage(PeekPreference.key) private var peekOnShiftClick = true
   @AppStorage(PeekPreference.otherSitesKey) private var peekForOtherSites = true
 
+  /// Arc's explanation above the Peek toggles.
+  static let peekExplanation =
+    "Peek is a way to preview a link without opening a new tab. It's perfect for quickly looking at a link from an email or news article."
   static let otherSitesLabel = "Open a Peek window when clicking on links to other sites"
   static let otherSitesNote = "Note: This only affects Favorites and Pinned tabs"
   /// Arc's Air Traffic Control row, with Clair's name, no full stop and no
@@ -150,6 +153,15 @@ struct LinksSettingsView: View {
           Text(Self.otherSitesNote).italic()
         }
         .accessibilityIdentifier("clair.peekOtherSitesToggle")
+      } header: {
+        // Above the card in plain text, as Arc's.
+        Text(Self.peekExplanation)
+          .font(.body)
+          .fontWeight(.regular)
+          .foregroundStyle(.primary)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(.bottom, 16)
+          .accessibilityIdentifier("clair.peekExplanation")
       }
       // A card of its own below the Peek toggles, after a divider, as
       // Arc's Links page.

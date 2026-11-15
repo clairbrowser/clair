@@ -12,7 +12,7 @@ This builds on `add-spaces` and `add-profiles`, both merged, as built.
 - **Only links from other apps.** These are links macOS hands to Clair: clicked in another app while Clair is the default browser, opened with `open`, or handed off from another device. Links clicked inside Clair, the command bar, extensions and session restore are never routed.
 - **A Link Rules dialog, laid out as Dia's.**
   - Settings › Links gains a card laid out as Arc's Air Traffic Control row, "Choose where links open inside Clair" with a "Link Rules…" button that opens the dialog on the Settings window, after a divider below the Peek card. Arc's info button and the label's full stop are left out.
-  - The Links page also takes `interface.window.on.rectangle` as its toolbar icon, and the Peek note loses its parentheses for italics.
+  - The Links page also takes `interface.window.on.rectangle` as its toolbar icon, starts with Arc's explanation of Peek, and the Peek note loses its parentheses for italics.
   - Each rule is a row: `Open [match ⌃] [text field] in [Space ⌃] ×`.
   - Add Rule appends a row at the bottom leading corner, and Cancel and Done sit at the trailing corner.
   - Done checks every rule, saves them all and closes; an invalid or duplicate rule keeps the dialog open with an error line under the list.
