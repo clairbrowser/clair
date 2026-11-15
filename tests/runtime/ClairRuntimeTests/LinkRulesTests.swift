@@ -370,11 +370,15 @@ final class LinkRulesTests: NativeWindowTestCase {
     try browser.deleteShownSpace()
     let deleted = await Harness.wait(for: 15) { browser.spaceName != "Personal" && !browser.spaceName.isEmpty }
     try require(deleted, "Personal wasn't deleted")
+    // Settings… brings the Settings window, under the browser window now,
+    // back to the front with its dialog.
+    browser.ui.typeKey(",", modifierFlags: .command)
+    try require(browser.dialog.waitForExistence(timeout: 10), "The Link Rules dialog is gone")
     browser.dialogElement("clair.dialogDefault").click()
     let error = browser.dialogElement("clair.linkRulesError")
     try require(error.waitForExistence(timeout: 5), "Done with a deleted Space showed no error")
     XCTAssertEqual(browser.text("clair.linkRulesError"), "Choose a Space for each rule.")
-    browser.ui.windows["Links"].typeKey(.escape, modifierFlags: [])
+    browser.ui.typeKey(.escape, modifierFlags: [])
     let closed = await Harness.wait(for: 10) { !browser.dialog.exists }
     try require(closed, "Cancel didn't close the dialog")
     try browser.openLinkRules()
