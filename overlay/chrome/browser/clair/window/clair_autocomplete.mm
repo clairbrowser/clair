@@ -5,18 +5,22 @@
 #import "chrome/browser/clair/window/clair_autocomplete.h"
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <optional>
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/strcat.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
+#include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/top_sites_factory.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
@@ -42,6 +46,7 @@
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/autocomplete_result.h"
+#include "components/omnibox/browser/favicon_cache.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/url_formatter/url_formatter.h"
@@ -86,6 +91,23 @@ struct Destination {
 @end
 
 @implementation ClairChromiumSuggestion
+
+// The same suggestion, with the same ID, showing `icon`.
+- (ClairChromiumSuggestion*)suggestionWithIcon:(NSImage*)icon {
+  ClairChromiumSuggestion* suggestion = [[ClairChromiumSuggestion alloc] init];
+  suggestion.suggestionID = _suggestionID;
+  suggestion.kind = _kind;
+  suggestion.contents = _contents;
+  suggestion.descriptionText = _descriptionText;
+  suggestion.destination = _destination;
+  suggestion.icon = icon;
+  suggestion.hasTabMatch = _hasTabMatch;
+  suggestion.keyword = _keyword;
+  suggestion.keywordName = _keywordName;
+  suggestion.canDelete = _canDelete;
+  return suggestion;
+}
+
 @end
 
 @interface ClairChromiumAutocomplete ()
@@ -137,6 +159,13 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
   NSString* _keyword;
   NSString* _keywordName;
   NSArray<id<ClairSuggestion>>* _lastSuggestions;
+  BOOL _lastFinished;
+  // The rows' favicons, as the omnibox keeps them: cached ones come back at
+  // once, so rows don't flicker as the user types.
+  std::unique_ptr<FaviconCache> _favicons;
+  // Favicons that arrived since the rows were last published, by page URL.
+  std::map<GURL, gfx::Image> _arrivedFavicons;
+  BOOL _faviconsPending;
 }
 
 - (instancetype)initWithBrowserWindow:(ClairBrowserWindow*)browserWindow
@@ -157,6 +186,13 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
           std::make_unique<ChromeAutocompleteProviderClient>(profile), config);
       _observer = std::make_unique<ControllerObserver>(self);
       _controller->AddObserver(_observer.get());
+      // Read-only, so an incognito window shows the favicons its regular
+      // profile has, as the omnibox does, and records nothing.
+      _favicons = std::make_unique<FaviconCache>(
+          FaviconServiceFactory::GetForProfile(
+              profile, ServiceAccessType::EXPLICIT_ACCESS),
+          HistoryServiceFactory::GetForProfile(
+              profile, ServiceAccessType::EXPLICIT_ACCESS));
     }
   }
   return self;
@@ -180,6 +216,75 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
 
 - (NSImage*)keywordIcon {
   return nil;
+}
+
+- (const Destination*)destinationOf:(NSInteger)suggestionID {
+  auto found = std::ranges::find_if(
+      _destinations, [&](const auto& entry) { return entry.first == suggestionID; });
+  return found == _destinations.end() ? nullptr : &found->second;
+}
+
+// Republishes the rows with the favicons that arrived, keeping their IDs,
+// which tells ClairUI that only icons changed.
+- (void)showArrivedFavicons {
+  _faviconsPending = NO;
+  std::map<GURL, gfx::Image> arrived;
+  arrived.swap(_arrivedFavicons);
+  if (_stopped) {
+    return;
+  }
+  NSMutableArray<id<ClairSuggestion>>* suggestions = [NSMutableArray array];
+  BOOL changed = NO;
+  for (id<ClairSuggestion> item in _lastSuggestions) {
+    ClairChromiumSuggestion* suggestion = (ClairChromiumSuggestion*)item;
+    const Destination* destination = [self destinationOf:suggestion.suggestionID];
+    auto found = suggestion.icon || suggestion.kind == ClairSuggestionKindSearch ||
+                         !destination
+                     ? arrived.end()
+                     : arrived.find(destination->url);
+    if (found == arrived.end()) {
+      [suggestions addObject:suggestion];
+      continue;
+    }
+    [suggestions addObject:[suggestion suggestionWithIcon:found->second.AsNSImage()]];
+    changed = YES;
+  }
+  if (changed) {
+    [self publish:suggestions finished:_lastFinished];
+  }
+}
+
+// Collects the favicons that arrive in one turn of the run loop, and then
+// shows them in a single update.
+- (void)favicon:(const gfx::Image&)favicon arrivedForPageURL:(const GURL&)url {
+  if (_stopped || favicon.IsEmpty()) {
+    return;
+  }
+  _arrivedFavicons[url] = favicon;
+  if (_faviconsPending) {
+    return;
+  }
+  _faviconsPending = YES;
+  ClairChromiumAutocomplete* __weak weakSelf = self;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(^{
+        [weakSelf showArrivedFavicons];
+      }));
+}
+
+// The page's favicon from the profile's favicon database, or nil. One not
+// cached yet is fetched, and shows when it arrives.
+- (NSImage*)faviconForPageURL:(const GURL&)url {
+  if (!_favicons) {
+    return nil;
+  }
+  const GURL pageURL = url;
+  ClairChromiumAutocomplete* __weak weakSelf = self;
+  const gfx::Image cached = _favicons->GetFaviconForPageUrl(
+      url, base::BindOnce(^(const gfx::Image& favicon) {
+        [weakSelf favicon:favicon arrivedForPageURL:pageURL];
+      }));
+  return cached.AsNSImage();
 }
 
 - (NSInteger)rememberDestination:(Destination)destination {
@@ -334,6 +439,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
     suggestion.descriptionText =
         base::SysUTF16ToNSString(url_formatter::FormatUrl(site.url));
     suggestion.destination = net::NSURLWithGURL(site.url);
+    suggestion.icon = [self faviconForPageURL:site.url];
     suggestion.suggestionID = [self
         rememberDestination:Destination{site.url, ui::PAGE_TRANSITION_AUTO_BOOKMARK,
                                         nullptr}];
@@ -364,6 +470,10 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
     suggestion.descriptionText = base::SysUTF16ToNSString(match.description);
     suggestion.destination = net::NSURLWithGURL(match.destination_url);
     suggestion.hasTabMatch = match.has_tab_match.value_or(false);
+    // Searches keep the magnifier, as in Arc.
+    if (!AutocompleteMatch::IsSearchType(match.type)) {
+      suggestion.icon = [self faviconForPageURL:match.destination_url];
+    }
     if (!match.associated_keyword.empty()) {
       suggestion.keyword = base::SysUTF16ToNSString(match.associated_keyword);
       TemplateURL* engine =
@@ -415,6 +525,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
 
 - (void)publish:(NSArray<id<ClairSuggestion>>*)suggestions finished:(BOOL)finished {
   _lastSuggestions = [suggestions copy];
+  _lastFinished = finished;
   [_delegate autocomplete:self
       didUpdateSuggestions:_lastSuggestions
                   finished:finished];
@@ -506,6 +617,8 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
   }
   _observer.reset();
   _controller.reset();
+  _favicons.reset();
+  _arrivedFavicons.clear();
   _delegate = nil;
 }
 

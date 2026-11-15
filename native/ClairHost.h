@@ -782,7 +782,9 @@ NS_SWIFT_UI_ACTOR
 NS_SWIFT_NAME(ClairAutocompleteDelegate)
 @protocol ClairAutocompleteDelegate <NSObject>
 // The suggestions changed, best first. Results arrive over time; `finished`
-// says that no more will come for the current query.
+// says that no more will come for the current query. A list with the same
+// suggestion IDs in the same order as the last one only adds icons, such as
+// favicons fetched after the rows were first sent.
 - (void)autocomplete:(id<ClairAutocomplete>)session
     didUpdateSuggestions:(NSArray<id<ClairSuggestion>> *)suggestions
                 finished:(BOOL)finished

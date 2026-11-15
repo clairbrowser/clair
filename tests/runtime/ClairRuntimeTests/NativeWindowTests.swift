@@ -833,4 +833,46 @@ final class CommandBarTests: NativeWindowTestCase {
     let after = try await browser.pageTargets().count
     XCTAssertEqual(after, before, "Switch to Tab created a tab")
   }
+
+  /// A visited page's row shows its favicon (command-bar spec, "Favicon").
+  /// The page's favicon is a magenta square, which no kind's icon or row
+  /// background is.
+  func testRowsShowFavicons() async throws {
+    let (browser, tab) = try await startWithPage("favicon.html")
+    defer { tab.close() }
+    // The favicon reaches the database some time after the page loads, so
+    // reopen the bar until the row shows it.
+    let shown = await Harness.wait(for: 30) {
+      let field = try self.openCommandBar(browser, "t")
+      defer { browser.ui.typeKey(.escape, modifierFlags: []) }
+      field.typeText("favicon.html")
+      let row = browser.ui.descendants(matching: .any).matching(
+        NSPredicate(format: "identifier == 'clair.suggestion' AND label CONTAINS 'Clair favicon test page'")
+      ).firstMatch
+      guard row.waitForExistence(timeout: 10) else { return false }
+      return await Harness.wait(for: 3) { Self.showsMagenta(row.screenshot().image, within: 40) }
+    }
+    XCTAssertTrue(shown, "The row doesn't show the page's favicon")
+  }
+
+  /// Whether the leading `width` points of `image` have a patch of magenta.
+  private static func showsMagenta(_ image: NSImage, within width: CGFloat) -> Bool {
+    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+      let bitmap = NSBitmapImageRep(cgImage: cgImage).converting(to: .sRGB, renderingIntent: .default)
+    else {
+      return false
+    }
+    let scale = CGFloat(bitmap.pixelsWide) / image.size.width
+    var count = 0
+    for x in 0..<min(bitmap.pixelsWide, Int(width * scale)) {
+      for y in 0..<bitmap.pixelsHigh {
+        guard let color = bitmap.colorAt(x: x, y: y) else { continue }
+        if color.redComponent > 0.8, color.blueComponent > 0.8, color.greenComponent < 0.25 {
+          count += 1
+        }
+      }
+    }
+    // At least a 6 pt square's worth, so stray antialiasing doesn't count.
+    return CGFloat(count) >= 36 * scale * scale
+  }
 }

@@ -169,7 +169,12 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
 
   func autocomplete(_ session: any ClairAutocomplete, didUpdate suggestions: [any ClairSuggestion], finished: Bool) {
     guard !isClosed else { return }
+    // The same rows with their favicons: the selection stays where it is.
+    let onlyIcons = suggestions.map(\.suggestionID) == self.suggestions.map(\.suggestionID)
     self.suggestions = suggestions
+    if onlyIcons, selectionAfterDeletion == nil {
+      return
+    }
     selection = min(selectionAfterDeletion ?? 0, max(suggestions.count - 1, 0))
     selectionAfterDeletion = nil
   }
