@@ -8,7 +8,7 @@ This is the newest and fastest-changing code in the app, it holds the two data f
 
 ## Specs to judge against
 
-`openspec/specs/spaces`, `profiles`, `sidebar`, `browser-window` (the parts on restoring windows) and `app-identity` (data paths and the keychain item), and `pinned-tabs`, `favorites` and `tab-names`. While the change `add-pinned-tabs-and-favorites` is open, those three exist only as its delta specs under `openspec/changes/`, with the decisions in its `design.md`.
+`openspec/specs/spaces`, `profiles`, `sidebar`, `browser-window` (the parts on restoring windows) and `app-identity` (data paths and the keychain item), and `pinned-tabs`, `favorites` and `tab-names`, with the decisions behind those three in the archived change `add-pinned-tabs-and-favorites`.
 
 ## Where to look in the engine tree
 

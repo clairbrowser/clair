@@ -18,6 +18,9 @@
 #   review.sh set max <n>           reviewers per batch (1 to 8)
 #   review.sh rebase-run            accept HEAD as the reviewed commit
 #   review.sh timings               per-test durations from a quality job log on stdin
+#   review.sh work                  the final report's work items and what became of each
+#   review.sh work next             the next work item for the clair-fix skill
+#   review.sh work set <id> <state> [detail]   record an item's state
 #
 # "next" prints one line: preflight, drift <why>, blocked <key>,
 # pilot <id>:<model>, await-pilot-approval, sections <id>:<model>...,
@@ -26,8 +29,10 @@
 # A run lives in build/review/<date>-<commit>/, which git ignores: the
 # repository is public and the reports hold unfixed security findings. The
 # run's state is the files in it, so there is no state file to fall out of
-# step. CLAIR_ENGINE_WORKSPACE names the engine build's workspace when it is
-# not at the default path.
+# step. The one exception is work.txt, where the clair-fix skill records what
+# became of each work item of the final report, since that happens in pull
+# requests and not in the run directory. CLAIR_ENGINE_WORKSPACE names the
+# engine build's workspace when it is not at the default path.
 
 set -euo pipefail
 
@@ -645,6 +650,208 @@ cmd_rebase_run() {
   write_run_files
 }
 
+# --- work items -------------------------------------------------------------
+
+# The final report ends with work items (synthesize.md gives the format) and
+# the clair-fix skill takes them one at a time. What became of each is in
+# work.txt in the run directory, "<id>\t<state>\t<detail>", with no line for an
+# item nobody has started. A fix is made in a linked worktree, whose build/ is
+# empty, so these commands read the run in the main checkout.
+
+# Sets run. Fails with 1 when there is no run and 2 when it has no final report.
+find_work_run() {
+  local main
+  main="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
+  review_root="${main:-$repo}/build/review"
+  run="$(current_run)" || return 1
+  is_complete "$run/REPORT.md" || return 2
+}
+
+use_work_run() {
+  local code=0
+  find_work_run || code=$?
+  case $code in
+    1) die "no review run yet" ;;
+    2) die "the review run has no finished REPORT.md" ;;
+  esac
+}
+
+# Prints "<id>\t<route>\t<private>\t<after>\t<findings>\t<title>" for each
+# item: the route is direct or change, private is private or public, and either
+# is "?" when the item lacks that line.
+work_items() {
+  awk -v OFS="$tab" '
+    function flush() {
+      if (id != "") print id, route, visibility, after, findings, title
+    }
+    /^### W[0-9]+ / {
+      flush()
+      id = $2
+      title = $0
+      sub(/^### W[0-9]+ +/, "", title)
+      gsub(/\t/, " ", title)
+      route = "?"
+      visibility = "?"
+      after = "none"
+      findings = "-"
+      next
+    }
+    /^#/ {
+      flush()
+      id = ""
+      next
+    }
+    id == "" { next }
+    /^- Route:/ {
+      if ($0 ~ /OpenSpec/) route = "change"
+      else if ($0 ~ /direct/) route = "direct"
+    }
+    /^- Private:/ {
+      if ($0 ~ /yes/) visibility = "private"
+      else if ($0 ~ /no/) visibility = "public"
+    }
+    /^- After:/ {
+      value = $0
+      sub(/^- After: */, "", value)
+      if (match(value, /^W[0-9]+/)) after = substr(value, 1, RLENGTH)
+    }
+    /^- Findings:/ {
+      value = $0
+      sub(/^- Findings: */, "", value)
+      gsub(/\t/, " ", value)
+      if (value != "") findings = value
+    }
+    END { flush() }
+  ' "$run/REPORT.md"
+}
+
+# Prints "<state>\t<detail>" for an item, "open" when work.txt has no line.
+work_state() {
+  local line=""
+  if [[ -f "$run/work.txt" ]]; then
+    line="$(awk -F "$tab" -v id="$1" '$1 == id { line = $2 "\t" $3 } END { print line }' "$run/work.txt")"
+  fi
+  if [[ -n "$line" ]]; then
+    echo "$line"
+  else
+    echo "open"
+  fi
+}
+
+work_list() {
+  local items id route visibility after findings title state detail
+  use_work_run
+  echo "run:    $run"
+  echo "commit: $(run_get commit)"
+  echo
+  items="$(work_items)"
+  if [[ -z "$items" ]]; then
+    echo "REPORT.md has no work items"
+    return 0
+  fi
+  printf '%-4s %-9s %-22s %-7s %-8s %-5s %s\n' id state detail route private after title
+  while IFS="$tab" read -r id route visibility after findings title; do
+    IFS="$tab" read -r state detail <<<"$(work_state "$id")"
+    printf '%-4s %-9s %-22s %-7s %-8s %-5s %s (%s)\n' "$id" "$state" "${detail:--}" "$route" \
+      "$visibility" "$after" "$title" "$findings"
+  done <<<"$items"
+  echo
+  echo "next: $(work_next)"
+}
+
+# Prints one line: no-run, no-report, no-work-items, resume <id> <state>
+# <detail>, fix <id> <route> <private>, malformed <id>, waiting <id> on <id>
+# or done.
+work_next() {
+  local code=0 items id route visibility after title state detail after_state waiting=""
+  find_work_run || code=$?
+  case $code in
+    1)
+      echo no-run
+      return 0
+      ;;
+    2)
+      echo no-report
+      return 0
+      ;;
+  esac
+  items="$(work_items)"
+  if [[ -z "$items" ]]; then
+    echo no-work-items
+    return 0
+  fi
+
+  # Work that is under way comes before anything new, so branches do not pile up.
+  while IFS="$tab" read -r id route visibility after _ title; do
+    IFS="$tab" read -r state detail <<<"$(work_state "$id")"
+    case "$state" in
+      started | pr | change)
+        echo "resume $id $state $detail"
+        return 0
+        ;;
+    esac
+  done <<<"$items"
+
+  while IFS="$tab" read -r id route visibility after _ title; do
+    IFS="$tab" read -r state detail <<<"$(work_state "$id")"
+    [[ "$state" == open ]] || continue
+    if [[ "$after" != none ]]; then
+      IFS="$tab" read -r after_state detail <<<"$(work_state "$after")"
+      case "$after_state" in
+        merged | dropped) ;;
+        *)
+          [[ -n "$waiting" ]] || waiting="waiting $id on $after"
+          continue
+          ;;
+      esac
+    fi
+    if [[ "$route" == "?" || "$visibility" == "?" ]]; then
+      echo "malformed $id"
+    else
+      echo "fix $id $route $visibility"
+    fi
+    return 0
+  done <<<"$items"
+  echo "${waiting:-done}"
+}
+
+work_set() {
+  local id="${1-}" state="${2-}" detail tmp
+  use_work_run
+  [[ $# -ge 2 ]] || die "work set needs an id and a state"
+  shift 2
+  detail="$*"
+  work_items | cut -f 1 | grep -qx -- "$id" || die "no work item $id in REPORT.md"
+  case "$state" in
+    open) [[ -z "$detail" ]] || die "open takes no detail" ;;
+    pr | merged) [[ "$detail" =~ ^[0-9]+$ ]] || die "$state needs a pull request number" ;;
+    started | change | dropped | deferred | owner)
+      [[ -n "$detail" ]] || die "$state needs a detail: a branch, a change name or a reason"
+      ;;
+    *) die "unknown state: $state (open, started, pr, change, merged, dropped, deferred or owner)" ;;
+  esac
+  case "$detail" in *"$tab"* | *$'\n'*) die "the detail must be one line without tabs" ;; esac
+  tmp="$(mktemp)"
+  if [[ -f "$run/work.txt" ]]; then
+    awk -F "$tab" -v id="$id" '$1 != id' "$run/work.txt" >"$tmp"
+  fi
+  if [[ "$state" != open ]]; then
+    printf '%s\t%s\t%s\n' "$id" "$state" "$detail" >>"$tmp"
+  fi
+  mv "$tmp" "$run/work.txt"
+}
+
+cmd_work() {
+  local action="${1-list}"
+  [[ $# -gt 0 ]] && shift
+  case "$action" in
+    list) work_list ;;
+    next) work_next ;;
+    set) work_set "$@" ;;
+    *) die "usage: review.sh work [list|next|set <id> <state> [detail]]" ;;
+  esac
+}
+
 # --- test timings -----------------------------------------------------------
 
 # Reads an xcodebuild log on stdin: lines such as
@@ -699,5 +906,6 @@ case "$action" in
   set) cmd_set "$@" ;;
   rebase-run) cmd_rebase_run ;;
   timings) cmd_timings ;;
-  *) die "usage: review.sh check|files|sizes|preflight|init|next|status|dispatched|retry|skip|approve-pilot|set|rebase-run|timings" ;;
+  work) cmd_work "$@" ;;
+  *) die "usage: review.sh check|files|sizes|preflight|init|next|status|dispatched|retry|skip|approve-pilot|set|rebase-run|timings|work" ;;
 esac
