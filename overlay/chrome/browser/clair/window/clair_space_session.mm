@@ -8,6 +8,7 @@
 #include <optional>
 
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/uuid.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/common/webui_url_constants.h"
@@ -44,6 +45,24 @@ void ReadSpaceExtraData(content::WebContents* contents,
   }
   if (contents && extra_data.contains(kNewTabWasSelectedKey)) {
     ClairSpaceTabs::SetRestoredNewTabWasSelected(contents);
+  }
+  // add-pinned-tabs-and-favorites D3: the tab binds to its pin once it joins
+  // a strip, if the pin has no tab; and it keeps its name.
+  if (contents) {
+    std::string pin;
+    if (auto found = extra_data.find(kPinSessionKey);
+        found != extra_data.end() &&
+        base::Uuid::ParseLowercase(found->second).is_valid()) {
+      pin = found->second;
+    }
+    std::string name;
+    if (auto found = extra_data.find(kNameSessionKey);
+        found != extra_data.end() && base::IsStringUTF8(found->second)) {
+      base::TruncateUTF8ToByteSize(found->second, 200, &name);
+    }
+    if (!pin.empty() || !name.empty()) {
+      ClairSpaceTabs::SetRestoredPinTag(contents, pin, name);
+    }
   }
   auto space = extra_data.find(kSpaceSessionKey);
   // Only a Space's UUID: anything else is left to the window's Space (D2).

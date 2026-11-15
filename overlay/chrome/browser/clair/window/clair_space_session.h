@@ -25,8 +25,9 @@ class TabInterface;
 }  // namespace tabs
 
 // add-spaces design D6: each tab's Space and its index in the Space's list
-// ride in the tab's session extra data, and add-profiles design D6 adds its
-// window's group. ClairSpaceTabs writes them through
+// ride in the tab's session extra data, add-profiles design D6 adds its
+// window's group, and add-pinned-tabs-and-favorites design D2 its pin and its
+// custom name. ClairSpaceTabs writes them through
 // SessionService::AddTabExtraData when they change;
 // patches/clair/space-session.patch writes them again in the session file's
 // rebuild, adds them for Reopen Closed Tab and Window, and reads them back in
@@ -37,6 +38,10 @@ inline constexpr char kSpaceSessionKey[] = "clair_space";
 inline constexpr char kOrderSessionKey[] = "clair_order";
 // add-profiles D6: the UUID of the window group the tab's window belongs to.
 inline constexpr char kWindowSessionKey[] = "clair_window";
+// add-pinned-tabs-and-favorites D2: the UUID of the pin the tab is bound to,
+// or empty, and the tab's custom name, or empty.
+inline constexpr char kPinSessionKey[] = "clair_pin";
+inline constexpr char kNameSessionKey[] = "clair_name";
 // add-profiles D6: set at restore, never saved, on the tab a window selects
 // in place of a new tab page DropNewTabPages() dropped.
 inline constexpr char kNewTabWasSelectedKey[] = "clair_new_tab_was_selected";

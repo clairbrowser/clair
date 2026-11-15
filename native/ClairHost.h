@@ -78,6 +78,11 @@ typedef NSString *ClairSpaceID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(SpaceID);
 // as "Default" or "Profile 1", which never changes (add-profiles design D1).
 typedef NSString *ClairProfileID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(ProfileID);
 
+// A pin's ID: the UUID string of a pinned tab or favorite, which never changes
+// (add-pinned-tabs-and-favorites design D1).
+typedef NSString *ClairPinID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(PinID);
+
+@protocol ClairPin;
 @protocol ClairProfile;
 @protocol ClairSpace;
 @protocol ClairSpacesObserver;
@@ -121,12 +126,14 @@ NS_SWIFT_NAME(ClairHost)
 // Every Space, in the user's order.
 @property(nonatomic, readonly, copy) NSArray<id<ClairSpace>> *spaces;
 
-// The tabs of a Space, in its order, across every browser window of the
+// The Today tabs of a Space, in its order, across every browser window of the
 // profile: every window showing the Space lists all of them, whichever window
 // holds each (share-tabs-across-windows design D1). A Peek directly follows its
-// parent. An incognito or guest window's Space (-[ClairBrowser shownSpaceID])
-// lists that window's tabs alone, whose `browserID` is its own. Empty for an
-// unknown Space.
+// parent. The tabs of pinned tabs and favorites aren't among them: they reach
+// ClairUI through their pins (-pinsInSpace:, -favoritesOfProfile:). An
+// incognito or guest window's Space (-[ClairBrowser shownSpaceID]) lists that
+// window's tabs alone, whose `browserID` is its own. Empty for an unknown
+// Space.
 - (NSArray<id<ClairTab>> *)tabsInSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(tabs(inSpace:));
 
 // Starts telling `observer` what changes. Chromium keeps it weakly.
@@ -148,17 +155,76 @@ NS_SWIFT_NAME(ClairHost)
 - (void)moveSpace:(ClairSpaceID)spaceID toIndex:(NSInteger)index NS_SWIFT_NAME(moveSpace(_:to:));
 // Deletes a Space: each window showing it shows the Space before it, or the
 // one after when it was first, then its tabs close in every window, each with
-// its leave-page confirmation. Ignored for the only Space. ClairUI asks the
-// user first.
+// its leave-page confirmation, and its pinned tabs are removed
+// (add-pinned-tabs-and-favorites design D9). Ignored for the only Space.
+// ClairUI asks the user first.
 - (void)deleteSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(deleteSpace(_:));
-// Moves a tab, with its Peek, to the top of another Space's list. Within a
-// profile it keeps its page and its window. To a Space of another profile it
+// Moves a tab, with its Peek, to the top of another Space's list, or a pinned
+// tab's bound tab, with its pin, to the end of that Space's pinned section
+// (add-pinned-tabs-and-favorites design D5). Within a profile it keeps its
+// page and its window. To a Space of another profile it
 // reopens at its URL in that profile, without its Peek and without asking
 // before leaving the page (add-profiles design D9). A window whose active tab
 // it was shows the destination Space with the tab, or the tab reopened from
 // it, active; another window showing a still of it picks its next tab as if
 // it had closed there.
 - (void)moveTab:(ClairTabID)tabID toSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(move(tab:toSpace:));
+
+// --- Pinned tabs and favorites (add-pinned-tabs-and-favorites design D1 to
+// D6, D10) ---
+// A pin is a saved item, kept in Chromium's Local State whether or not a page
+// is open: a pinned tab belongs to a Space, a favorite to a profile. While its
+// page is open, one tab is bound to it. Changes reach every observer through
+// -[ClairSpacesObserver pinsDidChange:inSpace:] and
+// -favoritesDidChange:ofProfile:. Indices count pins in their section; an
+// index past the end means the end. Every call naming a pin, tab, Space or
+// profile that doesn't exist, or a tab of an incognito or guest window, does
+// nothing.
+
+// A Space's pinned tabs, in its order. Empty for an unknown Space.
+- (NSArray<id<ClairPin>> *)pinsInSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(pins(inSpace:));
+// A profile's favorites, in its order. Empty for an unknown profile.
+- (NSArray<id<ClairPin>> *)favoritesOfProfile:(ClairProfileID)profileID
+    NS_SWIFT_NAME(favorites(ofProfile:));
+
+// Pins a Today tab at `index` in its Space's pinned section (D5): the pin
+// takes the tab's URL as its pinned URL, its title, icon and custom name, and
+// the tab, with its Peek, stays open and bound to it.
+- (void)pinTab:(ClairTabID)tabID atIndex:(NSInteger)index NS_SWIFT_NAME(pin(tab:at:));
+// Makes a Today tab a favorite of its profile at `index`, as -pinTab:atIndex:
+// does.
+- (void)favoriteTab:(ClairTabID)tabID atIndex:(NSInteger)index NS_SWIFT_NAME(favorite(tab:at:));
+// Moves a pinned tab or favorite to `index` in `spaceID`'s pinned section,
+// with its bound tab: within a Space it reorders, and a favorite becomes a
+// pinned tab. To a Space of another profile, the bound tab reopens at its URL
+// in that profile, bound to the pin (add-profiles design D9).
+- (void)movePin:(ClairPinID)pinID toSpace:(ClairSpaceID)spaceID atIndex:(NSInteger)index
+    NS_SWIFT_NAME(movePin(_:toSpace:at:));
+// Moves a pinned tab or favorite to `index` among the favorites of its
+// profile (a pinned tab's is its Space's), with its bound tab.
+- (void)movePin:(ClairPinID)pinID toFavoritesAtIndex:(NSInteger)index
+    NS_SWIFT_NAME(movePin(_:toFavoritesAt:));
+// Removes a pinned tab or favorite and closes its bound tab, if any, with its
+// leave-page confirmation. Restore Last Closed Tab brings it back in place
+// (D3).
+- (void)removePin:(ClairPinID)pinID NS_SWIFT_NAME(removePin(_:));
+// Loads the pinned URL in the bound tab as a new navigation, so Back returns
+// (D6).
+- (void)returnToPinnedURL:(ClairPinID)pinID NS_SWIFT_NAME(returnToPinnedURL(_:));
+// Makes the bound tab's current URL, title and icon the pin's.
+- (void)replacePinnedURLWithCurrent:(ClairPinID)pinID NS_SWIFT_NAME(replacePinnedURLWithCurrent(_:));
+// Sets the pinned URL. Ignored unless it is an http, https, file or chrome
+// URL; ClairUI fixes up what the user typed first.
+- (void)setPinnedURL:(NSURL *)url forPin:(ClairPinID)pinID NS_SWIFT_NAME(setPinnedURL(_:forPin:));
+// Gives a tab, pinned tab or favorite a custom name, which the sidebar and the
+// window's title show in place of its page's title (design D8). Nil, or a
+// name that is empty once trimmed, clears it. A bound tab's name is its pin's.
+- (void)setName:(nullable NSString *)name forTab:(ClairTabID)tabID NS_SWIFT_NAME(setName(_:forTab:));
+- (void)setName:(nullable NSString *)name forPin:(ClairPinID)pinID NS_SWIFT_NAME(setName(_:forPin:));
+// Closes every Today tab of the Space in every window, each with its
+// leave-page confirmation, as Close Tabs Below does. Pinned tabs and favorites
+// stay as they are (D4).
+- (void)clearTodayInSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(clearToday(inSpace:));
 
 // --- Profiles (add-profiles design D1, D7, D9 and D11) ---
 // A profile is a Chromium profile: its own cookies, history, logins,
@@ -177,15 +243,16 @@ NS_SWIFT_NAME(ClairHost)
     NS_SWIFT_NAME(createProfile(named:completion:));
 // Renames a profile. An empty name is ignored. Its Spaces keep their names.
 - (void)renameProfile:(ClairProfileID)profileID to:(NSString *)name NS_SWIFT_NAME(renameProfile(_:to:));
-// Deletes a profile and its data folder. Ignored for a profile a Space uses,
-// and so for the last one. ClairUI asks the user first.
+// Deletes a profile, its data folder and its favorites. Ignored for a profile
+// a Space uses, and so for the last one. ClairUI asks the user first.
 - (void)deleteProfile:(ClairProfileID)profileID NS_SWIFT_NAME(deleteProfile(_:));
 
 // Makes a Space use another profile. Its tabs, in their order, reopen at their
 // URLs in that profile, without their Peeks and without asking before leaving
 // their pages; in each window showing the Space, the tab reopened from its
-// active one becomes active (add-profiles design D9). ClairUI asks the user
-// first when the Space has tabs. Ignored for an unknown Space or profile, and
+// active one becomes active (add-profiles design D9). Its pinned tabs stay, and
+// those with an open page reopen bound to them (add-pinned-tabs-and-favorites
+// design D5). ClairUI asks the user first when the Space has open tabs. Ignored for an unknown Space or profile, and
 // for the profile the Space uses.
 - (void)setProfile:(ClairProfileID)profileID forSpace:(ClairSpaceID)spaceID
     NS_SWIFT_NAME(setProfile(_:forSpace:));
@@ -448,10 +515,52 @@ NS_SWIFT_NAME(ClairTab)
 // The tab's Peek, or ClairTabIDNone.
 @property(nonatomic, readonly) ClairTabID peekID;
 // The Space the tab belongs to (add-spaces design D2). A Peek's is its
-// parent's. An incognito or guest tab's is its window's own Space.
+// parent's, and a pinned tab's its pin's. An incognito or guest tab's is its
+// window's own Space. Empty for a favorite's tab, which belongs to its profile
+// (add-pinned-tabs-and-favorites design D2).
 @property(nonatomic, readonly, copy) ClairSpaceID spaceID;
 // The browser window that holds the tab.
 @property(nonatomic, readonly) ClairBrowserID browserID;
+// The pin the tab is bound to, or nil for a Today tab, a Peek and an incognito
+// or guest tab (add-pinned-tabs-and-favorites design D2).
+@property(nonatomic, readonly, copy, nullable) ClairPinID pinID;
+// The tab's custom name, which rows and the window's title show in place of
+// `title`, or nil (design D8). A bound tab's is its pin's.
+@property(nonatomic, readonly, copy, nullable) NSString *name;
+@end
+
+// A pinned tab or favorite, as a snapshot (add-pinned-tabs-and-favorites design
+// D10). Chromium implements it.
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairPin)
+@protocol ClairPin <NSObject>
+@property(nonatomic, readonly, copy) ClairPinID pinID;
+// Whether it is a favorite rather than a pinned tab.
+@property(nonatomic, readonly) BOOL isFavorite;
+// A pinned tab's Space, or nil for a favorite.
+@property(nonatomic, readonly, copy, nullable) ClairSpaceID spaceID;
+// A favorite's profile, or for a pinned tab its Space's.
+@property(nonatomic, readonly, copy) ClairProfileID profileID;
+// The pinned URL: what opens when the pin is selected without a page, and
+// what Back to Pinned URL loads.
+@property(nonatomic, readonly, copy) NSURL *url;
+// The page's title when the bound tab was last at the pinned URL, or the URL
+// formatted for people when there has never been one. Never empty.
+@property(nonatomic, readonly, copy) NSString *title;
+// The custom name, or nil (design D8).
+@property(nonatomic, readonly, copy, nullable) NSString *name;
+// The page's icon when the bound tab was last at the pinned URL, or nil.
+@property(nonatomic, readonly, nullable) NSImage *icon;
+// The bound tab, or ClairTabIDNone while the pin's page isn't open.
+@property(nonatomic, readonly) ClairTabID tabID;
+// The bound tab's snapshot and then its Peek's, if it has one; empty while
+// unbound. Later changes reach ClairUI through -[ClairSpacesObserver
+// tabDidChange:].
+@property(nonatomic, readonly, copy) NSArray<id<ClairTab>> *tabs;
+// Whether the bound tab is at the pinned URL: its committed URL, or the URL
+// first requested before redirects, is the pinned URL, ignoring the fragment
+// (design D2). YES while unbound.
+@property(nonatomic, readonly) BOOL isAtPinnedURL;
 @end
 
 // A Space, as a snapshot (add-spaces design D9). Chromium implements it.
@@ -496,6 +605,15 @@ NS_SWIFT_NAME(ClairSpacesObserver)
 // `profiles` is the new list, as -[ClairHost profiles] returns it. A change
 // of a Space's profile arrives through -spacesDidChange:.
 - (void)profilesDidChange:(NSArray<id<ClairProfile>> *)profiles NS_SWIFT_NAME(profilesDidChange(_:));
+// A Space's pinned tabs were added, removed, moved, renamed, edited, bound or
+// unbound, or one's title, icon or place against its pinned URL changed
+// (add-pinned-tabs-and-favorites design D10). `pins` is the new list, as
+// -[ClairHost pinsInSpace:] returns it.
+- (void)pinsDidChange:(NSArray<id<ClairPin>> *)pins inSpace:(ClairSpaceID)spaceID
+    NS_SWIFT_NAME(pinsDidChange(_:inSpace:));
+// The same for a profile's favorites.
+- (void)favoritesDidChange:(NSArray<id<ClairPin>> *)favorites ofProfile:(ClairProfileID)profileID
+    NS_SWIFT_NAME(favoritesDidChange(_:ofProfile:));
 @end
 
 // A suggestion in the command bar. Chromium implements it as a snapshot of an
@@ -817,7 +935,8 @@ NS_SWIFT_NAME(ClairBrowser)
 // Closes the tab, in whichever window holds it, with its leave-page
 // confirmation. Closing the active tab first shows, in order, the tab the user
 // selected it from, the row above or the row below in the window's Space
-// (add-spaces design D4), taking it from another window if need be.
+// (add-spaces design D4), taking it from another window if need be. A bound
+// tab's pin stays, unbound (add-pinned-tabs-and-favorites design D2, D4).
 - (void)closeTab:(ClairTabID)tabID NS_SWIFT_NAME(close(tab:));
 // Closes every row below it in its Space, in whichever window holds each, each
 // with its leave-page confirmation.
@@ -830,6 +949,17 @@ NS_SWIFT_NAME(ClairBrowser)
 - (void)duplicateTab:(ClairTabID)tabID NS_SWIFT_NAME(duplicate(tab:));
 // Mutes or unmutes the tab.
 - (void)setMuted:(BOOL)muted forTab:(ClairTabID)tabID NS_SWIFT_NAME(setMuted(_:tab:));
+
+// --- Pins (add-pinned-tabs-and-favorites design D4, D5) ---
+// Selects a pinned tab or favorite of the window's profile: activates its
+// bound tab as -activateTab: does, or opens its pinned URL in a new tab bound
+// to it. A pinned tab of another Space shows that Space. Ignored in incognito
+// and guest windows.
+- (void)openPin:(ClairPinID)pinID NS_SWIFT_NAME(openPin(_:));
+// Unpins a pinned tab or favorite: the pin goes, and its bound tab, or a new
+// one opened at its pinned URL in this window, joins the Today tabs of its
+// Space (the shown Space for a favorite) at `index`, keeping the custom name.
+- (void)unpin:(ClairPinID)pinID toIndex:(NSInteger)index NS_SWIFT_NAME(unpin(_:to:));
 
 // --- Peek (add-peek design D3); `tabID` names the parent or its Peek ---
 // Closes the tab's Peek, with its leave-page confirmation, and makes the
@@ -940,6 +1070,11 @@ NS_SWIFT_NAME(ClairWindow)
 // Whether Shift+clicking a link opens it in a Peek rather than a new window
 // (add-peek design D10). Read each time a link opens.
 @property(nonatomic, readonly) BOOL opensPeekOnShiftClick;
+
+// Whether a link to another site clicked in a pinned tab's or favorite's page
+// opens in a Peek rather than navigating it (add-pinned-tabs-and-favorites
+// design D7). Read each time such a link opens.
+@property(nonatomic, readonly) BOOL opensPeekForOtherSites;
 
 // --- Peek ---
 // The active Peek's page kept an Esc for itself. For `duration` seconds,

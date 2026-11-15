@@ -16,6 +16,7 @@
 #include "chrome/common/pref_names.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/clair/clair_native_layer.h"
+#import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
@@ -299,19 +300,18 @@ void RegisterProfilePrefOverrides(user_prefs::PrefRegistrySyncable* registry) {
   for (const char* pref : kOffPrefs) {
     registry->SetDefaultPrefValue(pref, base::Value(false));
   }
-  // add-spaces D11: tabs come back at launch, as in Arc. Not in headless
-  // mode, which has no windows to come back to: with a restore, Chromium
-  // opens the command line's URL through session restore, which never hands
-  // it to --dump-dom and the other headless commands, so they never finish.
-  if (!headless::IsHeadlessMode()) {
-    registry->SetDefaultPrefValue(
-        prefs::kRestoreOnStartup,
-        base::Value(static_cast<int>(SessionStartupPref::kPrefValueLast)));
+}
+
+void ApplyStartupPref(SessionStartupPref* pref) {
+  if (pref && !headless::IsHeadlessMode()) {
+    pref->type = SessionStartupPref::LAST;
   }
 }
 
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   ClairSpaceStore::RegisterPrefs(registry);
+  // add-pinned-tabs-and-favorites D1: the pins, beside the Spaces.
+  ClairPinStore::RegisterPrefs(registry);
   // add-profiles D1: Chromium's profile picker never shows at launch, however
   // many profiles exist (ProfilePicker::AvailabilityOnStartup::kDisabled).
   registry->SetDefaultPrefValue(prefs::kBrowserProfilePickerAvailabilityOnStartup,

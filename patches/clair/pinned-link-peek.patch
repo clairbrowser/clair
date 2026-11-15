@@ -1,0 +1,28 @@
+# A link to another site clicked in a pinned tab's or favorite's page opens in
+# a Peek, as in Arc (add-pinned-tabs-and-favorites design D7). A plain link
+# click that navigates in place never reaches the WebContentsDelegate calls
+# where Shift+click's Peek is decided, so Clair adds a navigation throttle,
+# overlay/chrome/browser/clair/window/clair_pinned_link_throttle, to primary
+# main frame navigations. It does nothing outside a native window's bound tabs.
+
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -11,6 +11,7 @@
+ #include "chrome/browser/actor/actor_navigation_throttle.h"
+ #include "chrome/browser/autocomplete/aim_eligibility_refresh_navigation_throttle.h"
+ #include "chrome/browser/browser_process.h"
++#include "chrome/browser/clair/window/clair_pinned_link_throttle.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_navigation_throttle.h"
+ #include "chrome/browser/contextual_tasks/guest_opener_user_data.h"
+ #include "chrome/browser/custom_handlers/chrome_protocol_handler_navigation_throttle.h"
+@@ -298,6 +299,10 @@
+     // NavigationThrottleRegistry::AddThrottle().
+     page_load_metrics::MetricsNavigationThrottle::CreateAndAdd(registry);
+ 
++    // Clair: a link to another site clicked in a pinned tab or favorite opens
++    // in a Peek (add-pinned-tabs-and-favorites design D7).
++    clair::ClairPinnedLinkThrottle::MaybeCreateAndAdd(registry);
++
+     // Appends the X-Geo header to the navigation request if needed.
+     if (auto throttle =
+             GeolocationNavigationThrottle::MaybeCreateThrottleFor(registry)) {

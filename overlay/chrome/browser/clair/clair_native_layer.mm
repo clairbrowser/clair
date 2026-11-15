@@ -23,6 +23,7 @@
 #import "chrome/browser/app_controller_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/browser_process.h"
+#import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_profiles.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
@@ -76,6 +77,24 @@ void OpenURLInProfile(const GURL& url, Profile* profile) {
 // Chromium's side of the contract: what ClairUI may ask of the browser.
 @interface ClairChromiumHost : NSObject <ClairHost>
 @end
+
+namespace {
+
+std::string PinIDOf(ClairPinID pinID) {
+  return base::SysNSStringToUTF8(pinID ?: @"");
+}
+
+size_t PinIndexOf(NSInteger index) {
+  return index < 0 ? 0 : static_cast<size_t>(index);
+}
+
+tabs::TabInterface* TabOf(ClairTabID tabID) {
+  return tabID == ClairTabIDNone
+             ? nullptr
+             : tabs::TabHandle(static_cast<int32_t>(tabID)).Get();
+}
+
+}  // namespace
 
 @implementation ClairChromiumHost
 
@@ -217,6 +236,94 @@ void OpenURLInProfile(const GURL& url, Profile* profile) {
   }
   tabs::TabInterface* tab = tabs::TabHandle(static_cast<int32_t>(tabID)).Get();
   clair::MoveTabToSpace(tab, base::SysNSStringToUTF8(spaceID));
+}
+
+// --- Pins (add-pinned-tabs-and-favorites design D1 to D6, D10) ---
+
+- (NSArray<id<ClairPin>>*)pinsInSpace:(ClairSpaceID)spaceID {
+  CHECK([NSThread isMainThread]);
+  return clair::PinSnapshots(
+      clair::PinContainer::OfSpace(base::SysNSStringToUTF8(spaceID ?: @"")));
+}
+
+- (NSArray<id<ClairPin>>*)favoritesOfProfile:(ClairProfileID)profileID {
+  CHECK([NSThread isMainThread]);
+  return clair::PinSnapshots(clair::PinContainer::OfProfile(
+      base::SysNSStringToUTF8(profileID ?: @"")));
+}
+
+- (void)pinTab:(ClairTabID)tabID atIndex:(NSInteger)index {
+  CHECK([NSThread isMainThread]);
+  clair::PinTab(TabOf(tabID), PinIndexOf(index), /*favorite=*/false);
+}
+
+- (void)favoriteTab:(ClairTabID)tabID atIndex:(NSInteger)index {
+  CHECK([NSThread isMainThread]);
+  clair::PinTab(TabOf(tabID), PinIndexOf(index), /*favorite=*/true);
+}
+
+- (void)movePin:(ClairPinID)pinID
+        toSpace:(ClairSpaceID)spaceID
+        atIndex:(NSInteger)index {
+  CHECK([NSThread isMainThread]);
+  clair::MovePin(PinIDOf(pinID),
+                 clair::PinContainer::OfSpace(
+                     base::SysNSStringToUTF8(spaceID ?: @"")),
+                 PinIndexOf(index));
+}
+
+- (void)movePin:(ClairPinID)pinID toFavoritesAtIndex:(NSInteger)index {
+  CHECK([NSThread isMainThread]);
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  const clair::Pin* pin = store->Find(PinIDOf(pinID));
+  if (!pin) {
+    return;
+  }
+  clair::MovePin(pin->id,
+                 clair::PinContainer::OfProfile(store->ProfileOf(*pin)),
+                 PinIndexOf(index));
+}
+
+- (void)removePin:(ClairPinID)pinID {
+  CHECK([NSThread isMainThread]);
+  clair::RemovePin(PinIDOf(pinID));
+}
+
+- (void)returnToPinnedURL:(ClairPinID)pinID {
+  CHECK([NSThread isMainThread]);
+  clair::ReturnToPinnedURL(PinIDOf(pinID));
+}
+
+- (void)replacePinnedURLWithCurrent:(ClairPinID)pinID {
+  CHECK([NSThread isMainThread]);
+  clair::ReplacePinnedURLWithCurrent(PinIDOf(pinID));
+}
+
+- (void)setPinnedURL:(NSURL*)url forPin:(ClairPinID)pinID {
+  CHECK([NSThread isMainThread]);
+  clair::SetPinnedURL(PinIDOf(pinID),
+                      GURL(base::SysNSStringToUTF8(url.absoluteString ?: @"")));
+}
+
+- (void)setName:(NSString*)name forTab:(ClairTabID)tabID {
+  CHECK([NSThread isMainThread]);
+  tabs::TabInterface* tab = TabOf(tabID);
+  ClairSpaceTabs* lists =
+      tab ? ClairSpaceTabs::ForWebContents(tab->GetContents()) : nullptr;
+  if (lists) {
+    lists->SetName(tab, base::SysNSStringToUTF8(name ?: @""));
+    clair::UpdateWindowTitles();
+  }
+}
+
+- (void)setName:(NSString*)name forPin:(ClairPinID)pinID {
+  CHECK([NSThread isMainThread]);
+  clair::SetPinName(PinIDOf(pinID), base::SysNSStringToUTF8(name ?: @""));
+}
+
+- (void)clearTodayInSpace:(ClairSpaceID)spaceID {
+  CHECK([NSThread isMainThread]);
+  clair::ClearToday(base::SysNSStringToUTF8(spaceID ?: @""));
 }
 
 // --- Profiles (add-profiles design D1, D7, D9, D11) ---

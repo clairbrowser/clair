@@ -18,6 +18,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/supports_user_data.h"
+#include "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/infobars/core/infobar_manager.h"
@@ -31,6 +32,7 @@
 
 class Browser;
 class ClairBrowserWindow;
+class SessionService;
 class Profile;
 class TabStripModel;
 
@@ -51,9 +53,17 @@ class WebContents;
 //
 // An off-the-record profile (incognito, guest) has no Spaces: all its tabs
 // belong to one Space of its own, which isn't in ClairSpaceStore.
+//
+// add-pinned-tabs-and-favorites D2: a tab showing a pin's page is bound to the
+// pin. It carries the pin's ID in its tag and in the session, and is in no
+// Space's list: a pinned tab is listed with its pin, in the pin's order, and a
+// favorite's tab belongs to the profile. A bound tab's Peek is in no list
+// either; it follows its parent. A tab's custom name rides in its tag, or in
+// its pin's record while bound.
 class ClairSpaceTabs : public base::SupportsUserData::Data,
                        public TabStripModelObserver,
-                       public infobars::InfoBarManager::Observer {
+                       public infobars::InfoBarManager::Observer,
+                       public clair::ClairPinStore::Observer {
  public:
   // The lists of `profile`'s tabs, created on first use.
   static ClairSpaceTabs* ForProfile(Profile* profile);
@@ -73,14 +83,22 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   // add-profiles D6: the window group a restored tab's window belonged to.
   static void SetRestoredWindowTag(content::WebContents* contents,
                                    const std::string& group);
+  // add-pinned-tabs-and-favorites D3: the pin a restored tab was bound to and
+  // its custom name, read from the session before the tab joins a strip. A
+  // new tab opened for a pin carries the pin the same way.
+  static void SetRestoredPinTag(content::WebContents* contents,
+                                const std::string& pin,
+                                const std::string& name);
+  static void SetPendingPin(content::WebContents* contents,
+                            const std::string& pin);
   static std::string WindowTag(content::WebContents* contents);
   // add-profiles D6: the restored tab a window selected in place of the new
   // tab page session restore dropped. Taking it forgets it.
   static void SetRestoredNewTabWasSelected(content::WebContents* contents);
   static bool TakeRestoredNewTabWasSelected(content::WebContents* contents);
   // The tags session restore and Reopen Closed Tab need to put `contents`
-  // back: its Space, its index in the Space's list and its window's group.
-  // Empty for a tab with no Space, as an incognito one.
+  // back: its Space, its index in the Space's list, its window's group, its
+  // pin and its name. Empty for a tab with no Space, as an incognito one.
   static std::map<std::string, std::string> SessionTags(
       content::WebContents* contents);
 
@@ -105,9 +123,48 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   void AddBrowser(ClairBrowserWindow* window);
   void RemoveBrowser(ClairBrowserWindow* window);
 
-  // The Space `contents` belongs to, or empty while it isn't listed.
+  // The Space `contents` belongs to, or empty while it isn't listed: a Today
+  // tab's, a bound pinned tab's pin's, or a Peek's parent's. A favorite's
+  // tab, and its Peek, have none.
   std::string SpaceOf(content::WebContents* contents) const;
   std::string SpaceOf(const tabs::TabInterface* tab) const;
+  // Whether `tab` has a row or follows one: a Today tab, a bound tab, or the
+  // Peek of either.
+  bool IsListed(const tabs::TabInterface* tab) const;
+
+  // --- Pins (add-pinned-tabs-and-favorites D2 to D5) ---
+  // The pin `tab` is bound to, or empty.
+  std::string PinOf(const tabs::TabInterface* tab) const;
+  // The tab bound to `pin` among the profile's, or null.
+  tabs::TabInterface* BoundTab(std::string_view pin) const;
+  // Whether `tab` is bound to a favorite.
+  bool IsFavoriteTab(const tabs::TabInterface* tab) const;
+  // The bound tabs of a Space's pinned tabs, in the pins' order.
+  std::vector<tabs::TabInterface*> PinnedTabsIn(const std::string& space) const;
+  // The bound tabs of the profile's favorites, in their order.
+  std::vector<tabs::TabInterface*> FavoriteTabs() const;
+  // The tab's custom name: its pin's while bound, or its own.
+  std::string NameOf(const tabs::TabInterface* tab) const;
+  // Sets a Today tab's name, or its pin's while bound.
+  void SetName(tabs::TabInterface* tab, const std::string& name);
+  // D5: makes the Today row `tab` a pin at `index` in `container`, keeping
+  // its page, its Peek and its name. Returns the pin's ID, or empty.
+  std::string PinTab(tabs::TabInterface* tab,
+                     const clair::PinContainer& container,
+                     size_t index);
+  // D5: the pin bound to `tab` is going: `tab`, with its Peek, joins
+  // `space`'s Today list at `index`, keeping its name.
+  void UnbindToToday(tabs::TabInterface* tab,
+                     const std::string& space,
+                     int index);
+  // D2: whether `tab`'s page is at its pin's pinned URL.
+  bool IsAtPinnedURL(const tabs::TabInterface* tab) const;
+  // D7: the Peek of the bound `parent` was expanded into a tab: it joins the
+  // top of the Today list of `space`.
+  void PeekExpanded(tabs::TabInterface* peek, const std::string& space);
+  // D5: `tab` is about to close as it reopens in another profile, bound to
+  // its pin there: it lets go of the pin, and stays in no list.
+  void UnbindForReopen(tabs::TabInterface* tab);
   // The Space `tab` belongs to, or will once it's listed: a tab restored from
   // a session or moved from another window carries its Space before the
   // lists hear of it, and Chromium may make it active first. Empty for a new
@@ -124,6 +181,8 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   // A tab's snapshot for ClairUI.
   id<ClairTab> Snapshot(content::WebContents* contents) const;
   NSArray<id<ClairTab>>* Snapshots(const std::string& space) const;
+  // A pin's snapshot, with its bound tab and Peek if they're this profile's.
+  id<ClairPin> PinSnapshot(const clair::Pin& pin) const;
 
   // D2: moves `tab`, with its Peek, to `index` in its Space's list: the tab
   // ends at `index` and its Peek right after it. Touches no strip.
@@ -167,6 +226,9 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
                       TabChangeType change_type) override;
   void OnTabStripModelDestroyed(TabStripModel* model) override;
 
+  // clair::ClairPinStore::Observer:
+  void OnPinsChanged(const clair::PinContainer& container) override;
+
   // infobars::InfoBarManager::Observer:
   void OnInfoBarAdded(infobars::InfoBar* infobar) override;
   void OnInfoBarRemoved(infobars::InfoBar* infobar, bool animate) override;
@@ -179,8 +241,31 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
 
   // Lists `tab`, just inserted at `index` in `model`, by D2's rules.
   void Insert(TabStripModel* model, tabs::TabInterface* tab, int index);
-  // Takes `tab` out of its list; returns its Space, or empty.
+  // Takes `tab` out of its list, and unbinds it; returns its Space, or empty.
   std::string Remove(const tabs::TabInterface* tab);
+  // add-pinned-tabs-and-favorites D2, D3: binds `tab`, with its Peek, to
+  // `pin`, taking them out of any list. Returns whether it did: a pin that
+  // isn't this profile's, or has a tab, stays as it is.
+  bool Bind(tabs::TabInterface* tab, const std::string& pin);
+  // The bound tab's pin changed: its row and snapshot are pushed again, and
+  // its title and icon follow its page while it's at the pinned URL.
+  void BoundTabUpdated(content::WebContents* contents);
+  void BoundFaviconUpdated(content::WebContents* contents, NSImage* icon);
+  // Pushes the pins of `tab`'s container.
+  void BoundChanged(const tabs::TabInterface* tab);
+  // D3: the pin the session records for `tab`: the one it's bound to, or the
+  // one it was bound to before Remove Pin while that can come back.
+  std::string SessionPinOf(const tabs::TabInterface* tab) const;
+  // Takes `tab` out of its Space's list, leaving it bound; returns the Space.
+  std::string RemoveFromLists(const tabs::TabInterface* tab);
+  // Forgets `tab`'s binding. `keep_tag` keeps the pin in its tag, for
+  // Restore Last Closed Tab.
+  void Unbind(const tabs::TabInterface* tab, bool keep_tag);
+  // Puts `tab`, with its Peek, in `space`'s Today list at `index`.
+  void ListInToday(tabs::TabInterface* tab, const std::string& space, int index);
+  // The Space a tab whose pin went joins: its own if it still exists, its
+  // window's, or the last one shown.
+  std::string FallbackSpaceFor(tabs::TabInterface* tab) const;
   // `tab` and its Peek, if it has one in the same window.
   std::vector<tabs::TabInterface*> FamilyOf(tabs::TabInterface* tab) const;
   // Takes `tab`'s family out of `list` and returns its handles, in order.
@@ -196,11 +281,21 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
 
   // D6: records each tab's Space and index in the session where they changed.
   void WriteSessionTags(const std::string& space);
+  // Records `tab`'s tags in the session if they changed; `rank` is its index
+  // in its Today list, or -1 for a bound tab.
+  void WriteTabTags(tabs::TabInterface* tab,
+                    SessionService* service,
+                    const std::string& space,
+                    int rank);
   void PostFlush();
 
   const raw_ptr<Profile> profile_;
   std::string private_space_;
   std::map<std::string, std::vector<tabs::TabHandle>> lists_;
+  // add-pinned-tabs-and-favorites D2: each bound pin's tab.
+  std::map<std::string, tabs::TabHandle> bound_;
+  // Bound tabs whose session tags may have changed.
+  std::set<tabs::TabHandle> changed_bound_;
   std::vector<raw_ptr<ClairBrowserWindow>> windows_;
   // Tabs moving between windows (BeginMove).
   std::set<tabs::TabHandle> moving_;
@@ -251,6 +346,41 @@ void SetSpaceProfile(const std::string& space, const std::string& profile);
 // add-profiles D8: when the last-used profile has no Space, the profile of
 // clair.last_space becomes the last-used one.
 void KeepLastUsedProfileOnASpace();
+
+// --- Pins (add-pinned-tabs-and-favorites design D2 to D6, D9, D10) ---
+// The tab bound to `pin`, in any profile, or null.
+tabs::TabInterface* BoundTabOf(std::string_view pin);
+// A container's pins, as snapshots, in order.
+NSArray<id<ClairPin>>* PinSnapshots(const PinContainer& container);
+// Pushes a container's pins to the observers at the end of this run-loop
+// turn, or with the next FlushAll().
+void PinsChanged(const PinContainer& container);
+// The host's pin calls.
+void PinTab(tabs::TabInterface* tab, size_t index, bool favorite);
+void MovePin(const std::string& pin, const PinContainer& to, size_t index);
+void RemovePin(const std::string& pin);
+void ReturnToPinnedURL(const std::string& pin);
+void ReplacePinnedURLWithCurrent(const std::string& pin);
+void SetPinnedURL(const std::string& pin, const GURL& url);
+void SetPinName(const std::string& pin, const std::string& name);
+void ClearToday(const std::string& space);
+// The browser's pin calls, for `window`.
+void OpenPin(ClairBrowserWindow* window, const std::string& pin);
+void Unpin(ClairBrowserWindow* window, const std::string& pin, int index);
+// D3: Restore Last Closed Tab in `window`: puts back the pin removed last, if
+// that's newer than the newest entry Chromium would restore. Returns whether
+// it did.
+bool RestoreRemovedPin(ClairBrowserWindow* window);
+// Whether `window` has a removed pin to put back.
+bool HasRemovedPin(ClairBrowserWindow* window);
+// D7: whether `url` is on another site than `current`.
+bool IsOtherSite(const GURL& url, const GURL& current);
+// D7: whether a URL the user enters to open in `window`'s current tab opens
+// in a new Today tab instead: the tab is a favorite's, and `url` is on
+// another site.
+bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url);
+// D8: every window's title follows its active tab's name.
+void UpdateWindowTitles();
 
 }  // namespace clair
 

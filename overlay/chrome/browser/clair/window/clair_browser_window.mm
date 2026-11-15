@@ -32,6 +32,7 @@
 #include "base/strings/utf_string_conversions.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/clair/clair_native_layer.h"
+#import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
 #import "chrome/browser/clair/window/clair_browser_bridge.h"
@@ -968,9 +969,11 @@ void GiveBackToStill(tabs::TabHandle handle) {
         }
         return true;
       });
-  // Only into the Space the window shows, which the still belongs to.
+  // Only into the Space the window shows, which the still belongs to, or a
+  // favorite's tab of its profile (add-pinned-tabs-and-favorites D2).
   if (!target || target == holder || !target->space_tabs() ||
-      target->space_tabs()->SpaceOf(row) != target->shown_space()) {
+      (target->space_tabs()->SpaceOf(row) != target->shown_space() &&
+       !target->space_tabs()->IsFavoriteTab(row))) {
     return;
   }
   target->ActivateRow(row);
@@ -1000,6 +1003,19 @@ std::vector<tabs::TabInterface*> ClairBrowserWindow::SpaceTabs() const {
 }
 
 std::vector<tabs::TabInterface*> ClairBrowserWindow::Rows() const {
+  // add-pinned-tabs-and-favorites D4: the open pinned tabs, then the Today
+  // tabs. Favorites are never rows.
+  std::vector<tabs::TabInterface*> rows;
+  if (space_tabs_ && space_tabs_->is_regular()) {
+    rows = space_tabs_->PinnedTabsIn(shown_space_);
+  }
+  for (tabs::TabInterface* tab : TodayRows()) {
+    rows.push_back(tab);
+  }
+  return rows;
+}
+
+std::vector<tabs::TabInterface*> ClairBrowserWindow::TodayRows() const {
   std::vector<tabs::TabInterface*> rows = SpaceTabs();
   std::erase_if(rows,
                 [](tabs::TabInterface* tab) { return RowOf(tab) != tab; });
@@ -1091,7 +1107,10 @@ bool ClairBrowserWindow::ShowNextRow(tabs::TabInterface* row,
                                      base::OnceClosure* then) {
   const std::vector<tabs::TabInterface*> rows = Rows();
   auto it = std::ranges::find(rows, row);
-  if (it == rows.end()) {
+  // add-pinned-tabs-and-favorites D4: a favorite's tab is no row, but its
+  // close shows the tab it was selected from, or else the first row.
+  const bool favorite = space_tabs_ && space_tabs_->IsFavoriteTab(row);
+  if (it == rows.end() && !favorite) {
     return false;
   }
   // share-tabs-across-windows D3: from every row, a row another window shows
@@ -1103,9 +1122,19 @@ bool ClairBrowserWindow::ShowNextRow(tabs::TabInterface* row,
   };
   tabs::TabInterface* next = nullptr;
   tabs::TabInterface* came_from = came_from_.Get();
-  if (came_from && std::ranges::find(rows, came_from) != rows.end() &&
-      usable(came_from)) {
+  // A favorite counts as the tab the user came from, though it's no row.
+  const bool came_from_listed =
+      came_from && (std::ranges::find(rows, came_from) != rows.end() ||
+                    (space_tabs_ && space_tabs_->IsFavoriteTab(came_from)));
+  if (came_from_listed && usable(came_from)) {
     next = came_from;
+  } else if (favorite) {
+    for (tabs::TabInterface* candidate : rows) {
+      if (usable(candidate)) {
+        next = candidate;
+        break;
+      }
+    }
   } else {
     for (auto above = it; !next && above != rows.begin();) {
       --above;
@@ -1248,10 +1277,21 @@ void ClairBrowserWindow::CloseTabsBelow(tabs::TabInterface* tab) {
   ClairPeeks* peeks = holder ? holder->peeks() : nullptr;
   tabs::TabInterface* last = peeks ? peeks->LastOfFamily(tab) : tab;
   const std::string space = space_tabs_->SpaceOf(tab);
-  const std::vector<tabs::TabInterface*> tabs =
-      space_tabs_->is_regular() ? space_tabs_->TabsIn(space)
-                                : space_tabs_->TabsIn(space, browser_);
+  // add-pinned-tabs-and-favorites D4: from a pinned tab, the open pinned tabs
+  // below it and every Today tab; from a Today tab, the Today tabs below it.
+  std::vector<tabs::TabInterface*> tabs;
+  if (space_tabs_->is_regular()) {
+    tabs = space_tabs_->PinnedTabsIn(space);
+    for (tabs::TabInterface* today : space_tabs_->TabsIn(space)) {
+      tabs.push_back(today);
+    }
+  } else {
+    tabs = space_tabs_->TabsIn(space, browser_);
+  }
   auto it = std::ranges::find(tabs, last);
+  if (it == tabs.end()) {
+    it = std::ranges::find(tabs, tab);
+  }
   if (it == tabs.end()) {
     return;
   }
@@ -1438,8 +1478,11 @@ void ClairBrowserWindow::ShowRestoredSpace(const std::string& space) {
   const bool new_tab_was_selected =
       active &&
       ClairSpaceTabs::TakeRestoredNewTabWasSelected(active->GetContents());
+  // A favorite's tab belongs to no Space, and shows in any of its profile's
+  // (add-pinned-tabs-and-favorites D2).
   if (active && !new_tab_was_selected &&
-      space_tabs_->IntendedSpaceOf(active) == space) {
+      (space_tabs_->IntendedSpaceOf(active) == space ||
+       space_tabs_->IsFavoriteTab(active))) {
     SetShownSpace(space);
     return;
   }
@@ -1530,14 +1573,21 @@ void ClairBrowserWindow::ShowSpace(const std::string& space, bool again) {
   // share-tabs-across-windows D3: the tab last active in the Space here,
   // unless another window shows it; else the Space's most recently active row
   // that no window shows, from any window.
-  std::vector<tabs::TabInterface*> rows = space_tabs_->TabsIn(space);
-  std::erase_if(rows,
-                [](tabs::TabInterface* tab) { return RowOf(tab) != tab; });
+  // add-pinned-tabs-and-favorites D2: its open pinned tabs are rows too, and
+  // the favorite last shown in it may show again.
+  std::vector<tabs::TabInterface*> rows = space_tabs_->PinnedTabsIn(space);
+  for (tabs::TabInterface* tab : space_tabs_->TabsIn(space)) {
+    if (RowOf(tab) == tab) {
+      rows.push_back(tab);
+    }
+  }
   tabs::TabInterface* target = nullptr;
   if (auto last = last_active_.find(space); last != last_active_.end()) {
     tabs::TabInterface* tab = last->second.Get();
     tabs::TabInterface* row = tab ? RowOf(tab) : nullptr;
-    if (row && std::ranges::find(rows, row) != rows.end() &&
+    if (row &&
+        (std::ranges::find(rows, row) != rows.end() ||
+         space_tabs_->IsFavoriteTab(row)) &&
         !IsShownElsewhere(row)) {
       target = tab;
     }
@@ -1578,48 +1628,96 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
   if (select_index || step || command == IDC_SELECT_LAST_TAB) {
     // Over the rows the sidebar lists, where a tab and its Peek are one
     // stop, and never into another Space. A row another window holds is
-    // taken from it (share-tabs-across-windows D3).
-    const std::vector<tabs::TabInterface*> rows = Rows();
-    if (rows.empty()) {
+    // taken from it (share-tabs-across-windows D3). Every pinned tab is a
+    // row, open or not, and landing on one that isn't opens it; favorites
+    // are none (add-pinned-tabs-and-favorites D4).
+    struct Slot {
+      raw_ptr<tabs::TabInterface> tab;
+      std::string pin;
+    };
+    std::vector<Slot> slots;
+    if (space_tabs_ && space_tabs_->is_regular()) {
+      for (const clair::Pin* pin : clair::ClairPinStore::Get()->PinsIn(
+               clair::PinContainer::OfSpace(shown_space_))) {
+        slots.push_back({space_tabs_->BoundTab(pin->id), pin->id});
+      }
+    }
+    for (tabs::TabInterface* row : TodayRows()) {
+      slots.push_back({row, std::string()});
+    }
+    if (slots.empty()) {
       return true;
     }
-    const int count = static_cast<int>(rows.size());
+    auto activate = [this](const Slot& slot) {
+      if (slot.tab) {
+        ActivateRow(slot.tab);
+      } else {
+        clair::OpenPin(this, slot.pin);
+      }
+    };
+    const int count = static_cast<int>(slots.size());
     if (select_index) {
       const int index = command - IDC_SELECT_TAB_0;
       if (index < count) {
-        ActivateRow(rows[index]);
+        activate(slots[index]);
       }
       return true;
     }
     if (command == IDC_SELECT_LAST_TAB) {
-      ActivateRow(rows.back());
+      activate(slots.back());
       return true;
     }
-    auto it = std::ranges::find(rows, active_row);
-    const int position =
-        it == rows.end() ? 0 : static_cast<int>(it - rows.begin());
+    auto it = std::ranges::find_if(slots, [&](const Slot& slot) {
+      return slot.tab && slot.tab == active_row;
+    });
     const bool forward = command == IDC_SELECT_NEXT_TAB ||
                          command == IDC_CYCLE_TO_NEXT_TAB;
-    ActivateRow(rows[(position + (forward ? 1 : -1) + count) % count]);
+    // From a favorite, the first or last row.
+    const int position = it == slots.end()
+                             ? (forward ? -1 : count)
+                             : static_cast<int>(it - slots.begin());
+    activate(slots[(position + (forward ? 1 : -1) + count) % count]);
     return true;
   }
   switch (command) {
     case IDC_MOVE_TAB_NEXT:
     case IDC_MOVE_TAB_PREVIOUS: {
-      // One row down or up, stopping at the ends as Chromium does. The strip
-      // keeps its order, which means nothing to the user (D2).
-      const std::vector<tabs::TabInterface*> rows = Rows();
-      auto it = std::ranges::find(rows, active_row);
-      if (!space_tabs_ || it == rows.end()) {
+      // One row down or up within its section, stopping at the ends as
+      // Chromium does (add-pinned-tabs-and-favorites D4). The strip keeps
+      // its order, which means nothing to the user (D2).
+      if (!space_tabs_) {
         return true;
       }
       const bool down = command == IDC_MOVE_TAB_NEXT;
+      if (const std::string pin = space_tabs_->PinOf(active_row);
+          !pin.empty()) {
+        clair::ClairPinStore* store = clair::ClairPinStore::Get();
+        const clair::Pin* record = store->Find(pin);
+        std::optional<size_t> index = store->IndexOf(pin);
+        if (!record || !index || record->container.is_favorites()) {
+          return true;
+        }
+        const size_t count = store->PinsIn(record->container).size();
+        if (down ? *index + 1 < count : *index > 0) {
+          store->Move(pin, record->container, down ? *index + 1 : *index - 1);
+        }
+        return true;
+      }
+      const std::vector<tabs::TabInterface*> rows = TodayRows();
+      auto it = std::ranges::find(rows, active_row);
+      if (it == rows.end()) {
+        return true;
+      }
       if (down ? it + 1 != rows.end() : it != rows.begin()) {
         space_tabs_->MoveTabBeside(active_row, down ? *(it + 1) : *(it - 1),
                                    /*after=*/down);
       }
       return true;
     }
+    case IDC_RESTORE_TAB:
+      // add-pinned-tabs-and-favorites D3: a pin removed after the last tab
+      // Chromium would reopen comes back first.
+      return clair::RestoreRemovedPin(this);
     case IDC_CLOSE_WINDOW:
       // The user closes the window: its tabs may move to another
       // (share-tabs-across-windows D4).
@@ -2406,6 +2504,14 @@ void ClairBrowserWindow::SetStatusURL(const GURL& url) {
 
 void ClairBrowserWindow::UpdateTitleBar() {
   // The title isn't drawn, but the Window menu and Mission Control show it.
+  // add-pinned-tabs-and-favorites D8: the active row's custom name, if it has
+  // one.
+  if (tabs::TabInterface* row = HighlightedRow(); row && space_tabs_) {
+    if (const std::string name = space_tabs_->NameOf(row); !name.empty()) {
+      ns_window_.title = base::SysUTF8ToNSString(name);
+      return;
+    }
+  }
   if (auto* metadata = WindowMetadataController::From(browser_)) {
     ns_window_.title = base::SysUTF16ToNSString(
         metadata->GetWindowTitleForCurrentTab(/*include_app_name=*/false));
