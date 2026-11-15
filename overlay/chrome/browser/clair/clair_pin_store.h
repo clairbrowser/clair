@@ -201,7 +201,7 @@ class ClairPinStore {
   base::WeakPtrFactory<ClairPinStore> weak_factory_{this};
 };
 
-// D2: whether `url` is `pinned` once both lose their fragment.
+// D2: whether `url` is `pinned` once both lose their query and fragment.
 bool SamePinnedURL(const GURL& url, const GURL& pinned);
 
 }  // namespace clair

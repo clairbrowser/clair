@@ -123,7 +123,7 @@ clair.pins  { "version": 1,
   - `ClairSpaceTabs` keeps a bound pinned tab out of the Space's Today list and lists it with its pin, in the pin's order.
   - A bound favorite's tab is in no Space: `ClairSpaceTabs` holds it in a per-profile favorites list.
   - `add-spaces` D3's invariant becomes: a browser's active tab belongs to its shown Space, or is a favorite's tab of its profile.
-- **Title and icon:** the pin's `title` and icon follow the bound tab only while it is at its pinned URL. A tab is at its pinned URL when its last committed entry's URL, or the entry's original request URL (so a redirect counts), equals the pinned URL, ignoring the fragment.
+- **Title and icon:** the pin's `title` and icon follow the bound tab only while it is at its pinned URL. A tab is at its pinned URL when its last committed entry's URL, or the entry's original request URL (so a redirect counts), equals the pinned URL, ignoring the query and fragment: Arc shows a pin navigated away only for another scheme, host, port or path (checked in task 3.10, a page rewriting its path with `pushState` included).
 - **Names:** a pinned tab's or favorite's custom name is the record's `name`. A Today tab's is a fourth session tag, `clair_name`. Pinning moves the name into the record; unpinning or dragging out moves it back to the tag.
 
 ### D3. Restoring pins
@@ -169,12 +169,12 @@ A new `ClairPinnedLinkThrottle` (`overlay/chrome/browser/clair/window/clair_pinn
 - its page transition's core type is `PAGE_TRANSITION_LINK`;
 - its tab is bound to a pin (D2);
 - the tab's native window reports `opensPeekForOtherSites` (D10);
-- the destination's scheme differs from the current page's, or `net::registry_controlled_domains::SameDomainOrHost` with private registries is false for the two.
+- the destination's scheme or host differs from the current page's (ports aside).
 
 A link opening a new tab or window never reaches it as a navigation of this tab, so Cmd-click and Shift+click keep their behaviour.
 
 - **Why a throttle:** a plain link click that stays in the tab goes straight to the renderer's navigation and never reaches `OpenURLFromTab`, where `MaybeOpenPeek` sits.
-- **Why "site" and not host:** an app that spans subdomains (mail and docs of one service) should stay in its pin, and Chromium's site is the standard boundary for that. Whether Arc compares sites or hosts is checked in task 3.10; if Arc uses hosts, the spec and this decision change before merging.
+- **Why the host and not Chromium's site:** Arc compares hosts. Checked in task 3.10 with a pinned tab: a link from `www.wikipedia.org` to `en.wikipedia.org`, and from `localhost` to `www.localhost`, opened a Peek; one to another port on the same host navigated the pin. An app that spans subdomains opens its other subdomains in a Peek, as in Arc.
 
 **Leaving a favorite's site:** when the command bar or URL field opens a URL in the current tab and that tab is a favorite's, the engine opens it as a new foreground Today tab instead if it is on another site, by the same test.
 
@@ -240,7 +240,7 @@ Clair restores tabs at every launch, as Arc does:
 
 ## Risks / Trade-offs
 
-- **[A redirecting pin looks navigated away]** A pinned URL that redirects (to a sign-in, or to `/u/0/`) would show "/" at once. → D2 counts the entry's original request URL. Task 3.10 checks Arc on a redirecting pin and a single-page app that rewrites its path; if Arc ignores path changes within the site, `isAtPinnedURL` follows it.
+- **[A redirecting pin looks navigated away]** A pinned URL that redirects (to a sign-in, or to `/u/0/`) would show "/" at once. → D2 counts the entry's original request URL. Arc, checked in task 3.10, shows "/" when a page rewrites its path but not for another query, so `isAtPinnedURL` ignores the query and fragment and nothing more.
 - **[Peek on every link out of an app]** Sign-in and payment flows hop sites with real link clicks. → Only renderer-initiated link clicks with a gesture peek; redirects, form posts and scripts without a gesture don't. The toggle turns it off.
 - **[Local State grows with pins]** A few hundred bytes per record, written through Chromium's pref writer with its batching. → Icons are files, not prefs.
 - **[Icon files outlive a crash mid-delete]** → At start-up, `ClairPinStore` deletes icon files whose pin isn't in the store.

@@ -2,9 +2,12 @@
 <meta charset="utf-8">
 <title>Clair pins page</title>
 <style>a { display: inline-block; padding: 12px; font-size: 20px; }</style>
-<!-- add-pinned-tabs-and-favorites runtime tests: a link within the site
-     (localhost) and one to another site (127.0.0.1). -->
+<!-- add-pinned-tabs-and-favorites runtime tests: links within the site
+     (localhost), to another site (127.0.0.1) and to a subdomain, which is
+     another site as in Arc. -->
 <p><a id="same" href="http://localhost:8123/pages/pins-same.html">A page on the same site</a></p>
+<p><a id="query" href="http://localhost:8123/pages/pins.html?query">The same page with a query</a></p>
+<p><a id="sub" href="http://sub.localhost:8123/pages/peek-target.html?sub">A page on a subdomain</a></p>
 <p><a id="other" href="http://127.0.0.1:8123/pages/peek-target.html?other">A page on another site</a></p>
 <p><a id="script" href="#" onclick="return false">Nothing</a></p>
 <script>

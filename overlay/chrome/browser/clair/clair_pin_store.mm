@@ -174,9 +174,22 @@ ClairPinStore::Removal& ClairPinStore::Removal::operator=(const Removal&) =
     default;
 ClairPinStore::Removal::~Removal() = default;
 
+namespace {
+
+// A URL without its query and fragment.
+GURL WithoutQueryAndRef(const GURL& url) {
+  GURL::Replacements replacements;
+  replacements.ClearQuery();
+  replacements.ClearRef();
+  return url.ReplaceComponents(replacements);
+}
+
+}  // namespace
+
 bool SamePinnedURL(const GURL& url, const GURL& pinned) {
+  // As in Arc: another query or fragment is still the pinned URL.
   return url.is_valid() && pinned.is_valid() &&
-         url.GetWithoutRef() == pinned.GetWithoutRef();
+         WithoutQueryAndRef(url) == WithoutQueryAndRef(pinned);
 }
 
 // static

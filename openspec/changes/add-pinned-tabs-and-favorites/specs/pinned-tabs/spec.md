@@ -81,7 +81,7 @@ On a pinned tab that isn't selected, hovering its row SHALL show an × button wi
 - **THEN** "Docs" is pinned second again, with its pinned URL
 
 ### Requirement: Navigated away from the pinned URL
-While a pinned tab's page is at another URL than its pinned URL, its row SHALL show its icon, a grey "/" and the current page's title, or its custom name. Hovering the icon SHALL turn it into a button and show "Back to Pinned URL" under the title. Clicking it, or Tabs › Back to Pinned URL, SHALL load the pinned URL as a new navigation.
+While a pinned tab's page is at another URL than its pinned URL, its row SHALL show its icon, a grey "/" and the current page's title, or its custom name. Hovering the icon SHALL turn it into a button and show "Back to Pinned URL" under the title. Clicking it, or Tabs › Back to Pinned URL, SHALL load the pinned URL as a new navigation. As in Arc, another query or fragment, or a redirect from the pinned URL, is still at it.
 
 #### Scenario: Following a link
 - **WHEN** the pinned tab "Docs" at `https://docs.example.com/` follows a link to `https://docs.example.com/guide` titled "Guide"
@@ -90,6 +90,10 @@ While a pinned tab's page is at another URL than its pinned URL, its row SHALL s
 #### Scenario: Back to Pinned URL
 - **WHEN** the user then clicks the row's icon
 - **THEN** the tab loads `https://docs.example.com/`, the row shows its plain title again, and Back returns to "Guide"
+
+#### Scenario: Another query
+- **WHEN** the pinned tab at `https://docs.example.com/search?q=a` follows a link to `https://docs.example.com/search?q=b`
+- **THEN** its row shows its plain title, with no "/"
 
 #### Scenario: At the pinned URL
 - **WHEN** the pinned tab is at its pinned URL

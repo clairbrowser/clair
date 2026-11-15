@@ -61,7 +61,6 @@
 #include "content/public/common/referrer.h"
 #include "content/public/common/url_constants.h"
 #include "net/base/apple/url_conversions.h"
-#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/gfx/image/image.h"
 #include "url/gurl.h"
@@ -2537,10 +2536,10 @@ bool IsOtherSite(const GURL& url, const GURL& current) {
   if (!url.is_valid() || !current.is_valid()) {
     return false;
   }
+  // As in Arc: another host is another site, subdomains and "www." included;
+  // another port isn't.
   return url.scheme() != current.scheme() ||
-         !net::registry_controlled_domains::SameDomainOrHost(
-             url, current,
-             net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+         url.host_piece() != current.host_piece();
 }
 
 bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url) {

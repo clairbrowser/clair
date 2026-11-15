@@ -373,7 +373,8 @@ void Unpin(ClairBrowserWindow* window, const std::string& pin, int index);
 bool RestoreRemovedPin(ClairBrowserWindow* window);
 // Whether `window` has a removed pin to put back.
 bool HasRemovedPin(ClairBrowserWindow* window);
-// D7: whether `url` is on another site than `current`.
+// D7: whether `url` is on another site than `current`: another scheme or
+// host.
 bool IsOtherSite(const GURL& url, const GURL& current);
 // D7: whether a URL the user enters to open in `window`'s current tab opens
 // in a new Today tab instead: the tab is a favorite's, and `url` is on

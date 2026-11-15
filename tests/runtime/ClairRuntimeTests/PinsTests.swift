@@ -182,6 +182,15 @@ final class PinsTests: NativeWindowTestCase {
   func testBackToPinnedURLAndEditingIt() async throws {
     let (browser, tab) = try await startPinned()
     defer { tab.close() }
+    // Another query is still the pinned URL, as in Arc.
+    try await tab.click("query")
+    let queried = await Harness.wait(for: 15) {
+      try await tab.evaluate("location.search") as? String == "?query"
+    }
+    try require(queried, "A link to another query didn't navigate the pinned tab")
+    XCTAssertFalse(
+      browser.element("clair.backToPinnedURL").waitForExistence(timeout: 3),
+      "Another query shows the pinned tab navigated away")
     // A same-site link navigates the pinned tab.
     try await tab.click("same")
     let navigated = await Harness.wait(for: 15) {
@@ -236,6 +245,12 @@ final class PinsTests: NativeWindowTestCase {
   func testLinksToOtherSitesPeek() async throws {
     let (browser, tab) = try await startPinned()
     defer { tab.close() }
+    // Another subdomain is another site, as in Arc.
+    try await tab.click("sub")
+    XCTAssertTrue(browser.peek.waitForExistence(timeout: 15), "A link to a subdomain opened no Peek")
+    browser.peekClose.click()
+    let closed = await Harness.wait(for: 10) { !browser.peek.exists }
+    try require(closed, "The subdomain's Peek didn't close")
     // From the pinned tab: another site opens in a Peek, and the tab stays.
     try await tab.click("other")
     XCTAssertTrue(browser.peek.waitForExistence(timeout: 15), "A link to another site opened no Peek")

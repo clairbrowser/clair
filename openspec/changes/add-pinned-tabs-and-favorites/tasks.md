@@ -74,9 +74,9 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
     - × removes the pin, and Restore Last Closed Tab brings it back, for a pin with and without a page;
     - Clear Today closes Today tabs only, and Restore Last Closed Tab brings the last one back.
   - **Rows and commands:** Cmd+number over pinned and Today rows opening an unbound pin; the next tab after a close passing over unbound pins.
-  - **Back to Pinned URL:** after a same-site link it loads the pinned URL, and Back returns; Replace with Current; Edit Pinned URL.
+  - **Back to Pinned URL:** a link to another query leaves the row plain; after a same-site link it loads the pinned URL, and Back returns; Replace with Current; Edit Pinned URL.
   - **Peek:**
-    - a cross-site link from a favorite and from a pinned tab opens a Peek;
+    - a cross-site link from a favorite and from a pinned tab opens a Peek, and so does a link to a subdomain;
     - a same-site link, a Today tab's link, a Cmd-click and the toggle off don't;
     - expanding a pinned tab's Peek puts the tab at the top of Today.
   - **Favorites:** the same favorite tab across two Spaces of a profile; another profile's Space shows its own; a URL to another site entered from a favorite opens a Today tab.
