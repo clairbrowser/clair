@@ -106,11 +106,11 @@ typedef NS_ENUM(NSInteger, ClairLinkRuleMatch) {
 
 // in ClairHost
 @property(nonatomic, readonly, copy) NSArray<id<ClairLinkRule>> *linkRules;
-- (void)setLinkRules:(NSArray<id<ClairLinkRule>> *)rules;   // replaces all
+- (void)replaceLinkRules:(NSArray<id<ClairLinkRule>> *)rules;   // replaces all
 - (BOOL)isValidLinkRuleText:(NSString *)text;               // D3's reading
 ```
 
-- `setLinkRules:` copies each rule's properties, keeps the order and drops invalid ones (D1). `ClairUI` passes its own value type conforming to the protocol.
+- `replaceLinkRules:` copies each rule's properties, keeps the order and drops invalid ones (D1). `ClairUI` passes its own immutable class conforming to the protocol, `LinkRuleValue`: a protocol that refines `NSObject` takes only classes. It isn't named `setLinkRules:`, which Swift would take for the read-only property's setter and not import.
 - `isValidLinkRuleText:` lets the dialog ask the engine itself, so D3's "mirror" is only a fallback for `FakeHost`. With it, D5's error matches what the store keeps.
 - No observer: only the dialog reads the rules, when it opens. A Space deleted while it's open is seen through the existing `spacesDidChange:` (D5).
 

@@ -15,6 +15,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/common/pref_names.h"
 #import "chrome/browser/clair/ClairHost.h"
+#include "chrome/browser/clair/clair_link_rule_store.h"
 #include "chrome/browser/clair/clair_native_layer.h"
 #import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
@@ -333,6 +334,8 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   ClairSpaceStore::RegisterPrefs(registry);
   // add-pinned-tabs-and-favorites D1: the pins, beside the Spaces.
   ClairPinStore::RegisterPrefs(registry);
+  // add-link-rules D1: the link rules, beside them.
+  ClairLinkRuleStore::RegisterPrefs(registry);
   // add-profiles D1: Chromium's profile picker never shows at launch, however
   // many profiles exist (ProfilePicker::AvailabilityOnStartup::kDisabled).
   registry->SetDefaultPrefValue(prefs::kBrowserProfilePickerAvailabilityOnStartup,

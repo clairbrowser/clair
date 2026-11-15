@@ -54,6 +54,44 @@ final class ClairDialogTests {
     #expect(remove.shortcut == .defaultAction)
   }
 
+  /// add-link-rules D6: a page's leading button takes neither Esc nor
+  /// Return, whatever its role.
+  @Test func leadingButtonTakesNeitherKey() {
+    var pressed = 0
+    let leading = ClairDialogButton(title: "Add Rule", role: .default, action: { _ in pressed += 1 })
+    #expect(leading.shortcut(isLeading: true) == nil)
+    #expect(ClairDialogButton(title: "Always", role: .cancel).shortcut(isLeading: true) == nil)
+    #expect(leading.shortcut(isLeading: false) == .defaultAction)
+    let shown = ClairDialog(ClairDialogPage(title: "A", buttons: [.init(title: "Done", role: .default)], leadingButton: leading))
+    show(shown)
+    ClairDialogWindow(dialog: shown).cancelOperation(nil)
+    #expect(pressed == 0)
+    #expect(answers == [])
+  }
+
+  /// add-link-rules D6: Cancel turned into "Discard Changes" is red, keeps
+  /// Esc and its place, and answers `.cancelled`.
+  @Test func destructiveCancelKeepsEsc() {
+    let discard = ClairDialogButton(title: "Discard Changes", role: .cancel, isDestructive: true)
+    #expect(discard.isDestructive)
+    #expect(!discard.isDefault)
+    #expect(discard.shortcut == .cancelAction)
+    #expect(discard.keyLabel == "ESC")
+    #expect(discard.identifier == "clair.dialogCancel")
+    let shown = dialog("Rules", buttons: [discard, .init(title: "Done", role: .default)])
+    show(shown)
+    ClairDialogWindow(dialog: shown).cancelOperation(nil)
+    #expect(answers == ["Rules cancelled"])
+  }
+
+  @Test func pageWidthDefaultsToTheCards() {
+    #expect(ClairDialogPage(title: "A", buttons: []).width == nil)
+    #expect(ClairDialogView.contentWidth(forCardWidth: ClairDialogView.width) == ClairDialogView.contentWidth)
+    let wide = ClairDialog(ClairDialogPage(title: "Link Rules", buttons: [], width: 640))
+    let window = ClairDialogWindow(dialog: wide)
+    #expect(window.frame.width == 640)
+  }
+
   @Test func leadingButtonAnswersOnlyThroughItsAction() {
     var pressed = 0
     let page = ClairDialogPage(

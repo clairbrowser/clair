@@ -1,0 +1,29 @@
+# Links that macOS hands Clair from other apps, through Launch Services or
+# Handoff, reach -openStartupTabsReplacingNTP: once start-up has completed.
+# Clair's link rules open the ones they match in their Spaces first, and
+# Chromium opens the rest as it would (add-link-rules design D2).
+
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -45,6 +45,7 @@
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_platform_part.h"
++#include "chrome/browser/clair/clair_link_rules.h"  // nogncheck
+ #include "chrome/browser/clair/clair_native_layer.h"
+ #include "chrome/browser/command_updater_impl.h"
+ #include "chrome/browser/download/download_core_service.h"
+@@ -1270,6 +1271,13 @@
+     for (auto& tab : tabs) {
+       _startupTabs.push_back(std::move(tab));
+     }
++    return;
++  }
++
++  // Clair: links from other apps go to Clair's link rules first, which open
++  // those they match and leave the rest (add-link-rules design D2).
++  clair::RouteLinksFromOtherApps(tabs);
++  if (tabs.empty()) {
+     return;
+   }
+ 

@@ -8,8 +8,8 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 
 ## 1. Contract and fakes
 
-- [ ] 1.1 Add `ClairLinkRuleMatch`, `ClairLinkRule`, `linkRules`, `setLinkRules:` and `isValidLinkRuleText:` to `native/ClairHost.h` (D4), documented as the header documents the rest. Verify that the header compiles in `ClairHostObjCxxTests.mm` in CI.
-- [ ] 1.2 Give `FakeHost` a rule list that `setLinkRules:` replaces, dropping rules for unknown Spaces, a Swift `isValidLinkRuleText:` that follows D3's "reading a text", and the pruning of a deleted Space's rules. Verify with new cases in `SettingsTests` in CI.
+- [ ] 1.1 Add `ClairLinkRuleMatch`, `ClairLinkRule`, `linkRules`, `replaceLinkRules:` and `isValidLinkRuleText:` to `native/ClairHost.h` (D4), documented as the header documents the rest. Verify that the header compiles in `ClairHostObjCxxTests.mm` in CI.
+- [ ] 1.2 Give `FakeHost` a rule list that `replaceLinkRules:` replaces, dropping rules for unknown Spaces, a Swift `isValidLinkRuleText:` that follows D3's "reading a text", and the pruning of a deleted Space's rules. Verify with new cases in `SettingsTests` in CI.
 
 ## 2. Engine
 

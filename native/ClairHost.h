@@ -82,6 +82,7 @@ typedef NSString *ClairProfileID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(ProfileI
 // (add-pinned-tabs-and-favorites design D1).
 typedef NSString *ClairPinID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(PinID);
 
+@protocol ClairLinkRule;
 @protocol ClairPin;
 @protocol ClairProfile;
 @protocol ClairSpace;
@@ -276,6 +277,26 @@ NS_SWIFT_NAME(ClairHost)
 // the Space of that profile it showed most recently, or else the profile's
 // first Space. Ignored for a profile no Space uses.
 - (void)openURL:(NSURL *)url inProfile:(ClairProfileID)profileID NS_SWIFT_NAME(open(_:inProfile:));
+
+// --- Link rules (add-link-rules design D1, D3 and D4) ---
+// The rules that send links from other apps to a Space, app-wide and kept in
+// Chromium's Local State. Chromium matches every http or https link that
+// macOS hands it from outside against them, in order, and opens a matching
+// link in the first matching rule's Space. A rule whose Space is deleted goes
+// with it. Only the Link Rules dialog reads them, when it opens, so there is
+// no observer.
+
+// Every rule, in order.
+@property(nonatomic, readonly, copy) NSArray<id<ClairLinkRule>> *linkRules;
+// Replaces every rule with `rules`, in their order, copying each one's
+// properties. A rule with an unknown match, a text that -isValidLinkRuleText:
+// rejects or an unknown Space is dropped, as is one repeating an earlier
+// rule's match and text.
+- (void)replaceLinkRules:(NSArray<id<ClairLinkRule>> *)rules NS_SWIFT_NAME(replaceLinkRules(_:));
+// Whether `text` can be a rule's text (D3): once trimmed, it is not empty,
+// holds no whitespace, and reads, with "https://" in front when it has no
+// scheme, as a valid http or https URL with a host.
+- (BOOL)isValidLinkRuleText:(NSString *)text NS_SWIFT_NAME(isValidLinkRuleText(_:));
 
 // --- App settings ---
 
@@ -588,6 +609,29 @@ NS_SWIFT_NAME(ClairProfile)
 @property(nonatomic, readonly, copy) ClairProfileID profileID;
 // The name Chromium shows for it. Never empty.
 @property(nonatomic, readonly, copy) NSString *name;
+@end
+
+// How a link rule matches a link's URL, ignoring its fragment
+// (add-link-rules design D3).
+typedef NS_ENUM(NSInteger, ClairLinkRuleMatch) {
+  // "URLs containing": the URL contains the text, ignoring case.
+  ClairLinkRuleMatchContains = 0,
+  // "this exact URL": the URL is the text, read as a URL.
+  ClairLinkRuleMatchExact = 1,
+  // "URLs starting with": the URL starts with the text, read as a URL.
+  ClairLinkRuleMatchPrefix = 2,
+} NS_SWIFT_NAME(LinkRuleMatch);
+
+// A link rule (add-link-rules design D4): links from other apps that match
+// `text` as `match` says open in `spaceID`. Chromium implements it as a
+// snapshot, and ClairUI as the rules it hands to -[ClairHost replaceLinkRules:].
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairLinkRule)
+@protocol ClairLinkRule <NSObject>
+@property(nonatomic, readonly) ClairLinkRuleMatch match;
+// As the user typed it, trimmed: a domain or URL, with or without a scheme.
+@property(nonatomic, readonly, copy) NSString *text;
+@property(nonatomic, readonly, copy) ClairSpaceID spaceID;
 @end
 
 // What ClairUI implements to hear about Spaces and their tabs, app-wide

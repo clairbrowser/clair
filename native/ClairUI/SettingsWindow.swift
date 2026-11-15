@@ -123,13 +123,19 @@ struct GeneralSettingsView: View {
   }
 }
 
-/// How links open (add-peek design D10).
+/// How links open (add-peek design D10), and the link rules
+/// (add-link-rules design D7).
 struct LinksSettingsView: View {
+  /// Opens the Link Rules dialog on the Settings window.
+  let showLinkRules: () -> Void
   @AppStorage(PeekPreference.key) private var peekOnShiftClick = true
   @AppStorage(PeekPreference.otherSitesKey) private var peekForOtherSites = true
 
   static let otherSitesLabel = "Open a Peek window when clicking on links to other sites"
   static let otherSitesNote = "(Note: This only affects Favorites and Pinned tabs)"
+  /// Arc's Air Traffic Control row, with Clair's name and no info button.
+  static let linkRulesLabel = "Choose where links open inside Clair."
+  static let linkRulesButton = "Link Rules…"
 
   var body: some View {
     Form {
@@ -143,6 +149,13 @@ struct LinksSettingsView: View {
           Text(Self.otherSitesNote)
         }
         .accessibilityIdentifier("clair.peekOtherSitesToggle")
+      }
+      // A card of its own below the Peek toggles, as Arc's Links page.
+      Section {
+        LabeledContent(Self.linkRulesLabel) {
+          Button(Self.linkRulesButton, action: showLinkRules)
+            .accessibilityIdentifier("clair.linkRulesButton")
+        }
       }
     }
     .formStyle(.grouped)
@@ -204,7 +217,7 @@ final class SettingsWindowController: NSObject {
   private let defaultBrowser = DefaultBrowser()
   let profiles: ProfilesPageState
   private let warnBeforeQuitting: WarnBeforeQuitting
-  /// The window's dialogs: the profile dialogs.
+  /// The window's dialogs: the profile dialogs and Link Rules.
   private(set) var dialogs: ClairDialogPresenter?
 
   /// The one Settings window, once it has been opened. Closing only hides it.
@@ -259,12 +272,22 @@ final class SettingsWindowController: NSObject {
     show()
   }
 
+  /// "Link Rules…": the rules and Spaces as they are now, in a dialog on the
+  /// Settings window (add-link-rules D7). Ignored while it's already open.
+  @discardableResult
+  func showLinkRules() -> ClairDialog? {
+    guard let dialogs,
+      !dialogs.contains(where: { $0.page.title == LinkRulesState.title })
+    else { return nil }
+    return LinkRulesDialog.show(on: dialogs, host: host, spaces: profiles.spaces).0
+  }
+
   private func page(_ page: SettingsPage) -> NSViewController {
     let view: AnyView =
       switch page {
       case .general: AnyView(GeneralSettingsView(defaultBrowser: defaultBrowser))
       case .profiles: AnyView(ProfilesSettingsView(state: profiles, actions: self))
-      case .links: AnyView(LinksSettingsView())
+      case .links: AnyView(LinksSettingsView { [weak self] in self?.showLinkRules() })
       case .advanced:
         AnyView(
           AdvancedSettingsView(warnBeforeQuitting: warnBeforeQuitting) { [weak self] in self?.openMoreSettings() })

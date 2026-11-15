@@ -39,6 +39,20 @@ final class FakeProfile: NSObject, ClairProfile {
   }
 }
 
+/// A link rule as the engine keeps it: a copy of what ClairUI handed over
+/// (add-link-rules design D4).
+final class FakeLinkRule: NSObject, ClairLinkRule {
+  let match: LinkRuleMatch
+  let text: String
+  let spaceID: SpaceID
+
+  init(_ match: LinkRuleMatch, _ text: String, in spaceID: SpaceID) {
+    self.match = match
+    self.text = text
+    self.spaceID = spaceID
+  }
+}
+
 /// A stand-in for Chromium's implementation of `ClairHost`. It keeps the
 /// Spaces and each Space's tab list, as `ClairSpaceStore` and `ClairSpaceTabs`
 /// do (add-spaces design D1, D2), and the profiles, as `ClairProfiles` does
@@ -84,6 +98,11 @@ final class FakeHost: NSObject, ClairHost {
   var lastShownSpaceID: SpaceID = FakeHost.homeID
   /// Every Space command ClairUI sent, in order, such as "rename work Work".
   private(set) var commands: [String] = []
+  /// The link rules, in order, as `ClairLinkRuleStore` keeps them
+  /// (add-link-rules design D1).
+  private var rules: [FakeLinkRule] = []
+  /// How many times ClairUI replaced the rules.
+  private(set) var linkRuleSaves = 0
 
   /// The model ClairUI keeps for this host, as `NativeLayer` keeps one.
   private(set) lazy var spacesModel = SpacesModel(host: self)
@@ -705,6 +724,8 @@ final class FakeHost: NSObject, ClairHost {
       bound[pinID] = nil
     }
     pinOrder[spaceID] = nil
+    // add-link-rules D1: its link rules go with it.
+    rules.removeAll { $0.spaceID == spaceID }
     spaces.remove(at: index)
     lists[spaceID] = nil
     if lastShownSpaceID == spaceID {
@@ -865,5 +886,44 @@ final class FakeHost: NSObject, ClairHost {
 
   func open(_ url: URL, inProfile profileID: ProfileID) {
     openedURLsInProfiles.append((url, profileID))
+  }
+
+  // MARK: ClairHost: Link rules (add-link-rules design D1, D3, D4)
+
+  var linkRules: [any ClairLinkRule] { rules }
+
+  /// Replaces the rules with copies, keeping their order and dropping those
+  /// the store wouldn't keep: an invalid text, an unknown Space, or a repeat
+  /// of an earlier rule's match and text.
+  func replaceLinkRules(_ newRules: [any ClairLinkRule]) {
+    linkRuleSaves += 1
+    var kept: [FakeLinkRule] = []
+    for rule in newRules {
+      let text = rule.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard isValidLinkRuleText(text), isSpace(rule.spaceID),
+        !kept.contains(where: { $0.match == rule.match && $0.text == text })
+      else { continue }
+      kept.append(FakeLinkRule(rule.match, text, in: rule.spaceID))
+    }
+    rules = kept
+  }
+
+  /// D3's "reading a text", with `URLComponents` in place of `GURL`: trimmed,
+  /// not empty and without whitespace, then, with `https://` in front when it
+  /// has no scheme, an http or https URL with a host.
+  func isValidLinkRuleText(_ text: String) -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return false }
+    let hasScheme = trimmed.range(of: "^[A-Za-z][A-Za-z0-9+.-]*://", options: .regularExpression) != nil
+    guard let url = URLComponents(string: hasScheme ? trimmed : "https://" + trimmed),
+      let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+      let host = url.host, !host.isEmpty
+    else { return false }
+    return true
+  }
+
+  /// Sets the rules directly, as rules stored by an earlier launch.
+  func storeLinkRules(_ stored: [FakeLinkRule]) {
+    rules = stored
   }
 }
