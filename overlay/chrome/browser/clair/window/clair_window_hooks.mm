@@ -132,6 +132,27 @@ void RemoveUnavailableContextMenuItems(ui::SimpleMenuModel* model) {
   }
 }
 
+bool ShowQuitConfirmation() {
+  ClairBrowserWindow* window = KeyNativeWindow();
+  if (!window) {
+    ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+        [&](BrowserWindowInterface* browser) {
+          window = ClairBrowserWindow::FromBrowser(browser);
+          return window == nullptr;
+        });
+    if (!window) {
+      return false;
+    }
+    window->Activate();
+  }
+  id<ClairWindow> clair_window = window->clair_window();
+  if (!clair_window) {
+    return false;
+  }
+  [clair_window showQuitConfirmation];
+  return true;
+}
+
 bool IsNativeWindow(const BrowserWindowInterface* browser) {
   return browser && ClairBrowserWindow::FromBrowser(browser);
 }

@@ -1,0 +1,3 @@
+kind: Changed
+body: '"Warn before quitting" asks in a dialog, as Dia does, instead of making you hold ⌘Q, and "Always quit" stops it asking'
+time: 2026-11-15T10:45:00-05:00

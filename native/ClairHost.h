@@ -279,9 +279,14 @@ NS_SWIFT_NAME(ClairHost)
 
 // --- App settings ---
 
-// Whether Cmd+Q quits only when held: Chromium's warn-before-quitting
+// Whether Cmd+Q and Clair > Quit Clair ask first, in a dialog on the window
+// (-[ClairWindow showQuitConfirmation]): Chromium's warn-before-quitting
 // setting, on unless the user turned it off. Setting it applies at once.
 @property(nonatomic) BOOL warnsBeforeQuitting;
+
+// Quits as Clair > Quit Clair does, without the warn-before-quitting dialog.
+// Chromium still asks about downloads in progress.
+- (void)quitWithoutWarning;
 
 @end
 
@@ -1098,6 +1103,15 @@ NS_SWIFT_NAME(ClairWindow)
 - (void)activeTabDidChange:(ClairTabID)tabID NS_SWIFT_NAME(activeTabDidChange(_:));
 // The active tab's docked DevTools view or layout changed.
 - (void)devToolsDidChange;
+
+// --- Quitting ---
+// The user pressed Cmd+Q or chose Clair > Quit Clair while warnsBeforeQuitting
+// is on, no download is in progress and this is the key browser window, or
+// the most recently active one, which Chromium then activates. ClairUI asks in
+// a dialog on the window and, if the user confirms, calls -[ClairHost
+// quitWithoutWarning]. Another call while that dialog shows or waits does
+// nothing.
+- (void)showQuitConfirmation;
 
 // --- Commands ---
 // Opens the command bar.

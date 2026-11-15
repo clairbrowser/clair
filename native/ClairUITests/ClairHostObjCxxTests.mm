@@ -104,6 +104,8 @@
 - (void)clearTodayInSpace:(ClairSpaceID)spaceID {
 }
 @synthesize warnsBeforeQuitting = _warnsBeforeQuitting;
+- (void)quitWithoutWarning {
+}
 @end
 
 @interface ClairHostObjCxxTests : XCTestCase
@@ -139,6 +141,7 @@
   XCTAssertEqual(folder, "/Users/test/Downloads");
   host.warnsBeforeQuitting = YES;
   XCTAssertTrue(host.warnsBeforeQuitting);
+  [host quitWithoutWarning];
   XCTAssertEqual([host tabsInSpace:space].count, 0u);
   // The pin calls (add-pinned-tabs-and-favorites design D10).
   XCTAssertEqual([host pinsInSpace:space].count, 0u);

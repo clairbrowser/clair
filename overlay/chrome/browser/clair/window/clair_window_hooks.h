@@ -185,6 +185,12 @@ void RemoveUnavailableContextMenuItems(ui::SimpleMenuModel* model);
 // Sidebar on Cmd+S and Save Page As on Shift+Cmd+S.
 void InstallNativeWindowMenus();
 
+// Not a hook: for the native layer's quit hook (native-quit-confirmation).
+// Asks the key native window, or else the most recently active one, which it
+// activates, to show the warn-before-quitting dialog. False when no native
+// window is open.
+bool ShowQuitConfirmation();
+
 // Not a hook: called by the overlay when the first native window of
 // `profile` opens. Clears values the user set for D17's prefs before Clair
 // turned them off, once per profile.

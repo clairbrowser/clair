@@ -20,7 +20,9 @@
 #include "base/process/process.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/app/chrome_command_ids.h"
 #import "chrome/browser/app_controller_mac.h"
+#include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/browser_process.h"
 #import "chrome/browser/clair/clair_pin_store.h"
@@ -452,6 +454,12 @@ tabs::TabInterface* TabOf(ClairTabID tabID) {
                                                warns);
 }
 
+- (void)quitWithoutWarning {
+  CHECK([NSThread isMainThread]);
+  // No menu item as the sender, so clair::MaybeConfirmQuit lets it through.
+  [NSApp terminate:nil];
+}
+
 @end
 
 namespace clair {
@@ -488,6 +496,41 @@ base::TimeTicks g_stay_in_background_until;
 
 bool IsNativeLayerRunning() {
   return g_entry_point != nil;
+}
+
+namespace {
+
+// native-quit-confirmation D2, once the quit is known to come from the user:
+// shows ClairUI's quit dialog when warn-before-quitting is on and no download
+// is in progress. Chromium's own download warning asks otherwise.
+bool AskBeforeQuitting() {
+  if (!IsNativeLayerRunning() || browser_shutdown::IsTryingToQuit()) {
+    return false;
+  }
+  if (!g_browser_process->local_state()->GetBoolean(
+          prefs::kConfirmToQuitEnabled)) {
+    return false;
+  }
+  if (DownloadCoreService::BlockingShutdownCountAllProfiles() > 0) {
+    return false;
+  }
+  return ShowQuitConfirmation();
+}
+
+}  // namespace
+
+bool MaybeConfirmQuit(id sender) {
+  // A click on Clair > Quit Clair sends the item itself.
+  NSMenuItem* item = base::apple::ObjCCast<NSMenuItem>(sender);
+  return item && item.tag == IDC_EXIT && AskBeforeQuitting();
+}
+
+bool MaybeConfirmKeyboardQuit() {
+  // Cmd+Q runs IDC_EXIT through the window's command dispatcher, and
+  // chrome::Exit() reaches -confirmQuitIfNeeded with the key still current.
+  NSEvent* event = NSApp.currentEvent;
+  return event && CommandForKeyEvent(event).chrome_command == IDC_EXIT &&
+         AskBeforeQuitting();
 }
 
 id<ClairWindow> CreateClairWindow(id<ClairBrowser> browser) {

@@ -639,6 +639,11 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     preferences.remember(model.sidebar)
   }
 
+  func showQuitConfirmation() {
+    guard let host = NativeLayer.current?.host else { return }
+    QuitConfirmation.show(on: dialogs, host: host)
+  }
+
   /// Does what System Settings says a title bar double-click does.
   func titleBarDoubleClicked() {
     guard !isWindowFullscreen, !model.isPageFullscreen else { return }
