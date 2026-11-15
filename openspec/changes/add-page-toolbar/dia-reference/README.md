@@ -28,6 +28,34 @@ insets are **not** Clair's. The toolbar's look and metrics are Arc's
 back, forward and reload at a 37 pt pitch. Clair uses that layout with the
 sidebar shown too.
 
+## Toolbar colour (probed 2026-11-15)
+
+These are for comparison: whether Clair follows them is the owner's
+decision, recorded in `design.md`. Each screenshot is the top 300 px of a
+960 × 976 pt window.
+
+| File | Page | Toolbar | Line below it | Page's top row |
+|---|---|---|---|---|
+| — | example.com | 238 238 238 | 230 230 230 | 238 238 238 |
+| toolbar-colour-iana.jpg | iana.org | 235 239 241 | 226 232 235 | 235 239 241 |
+| toolbar-colour-white.jpg | github.com (also apple.com, wikipedia.org, news.ycombinator.com) | 255 255 255 | 242 242 242 | 255 255 255 |
+| toolbar-colour-black.jpg | spacex.com | 0 0 0 | 25 25 25 | 0 0 0 |
+| toolbar-colour-dark-header.jpg | arstechnica.com, at the top | 35 36 40 | 42 43 48 | 35 36 40 |
+| toolbar-colour-scrolled.jpg | arstechnica.com, scrolled down | 233 234 237 | — | photos |
+
+- **Colour:** Dia's toolbar always takes the colour at the top of the page.
+  None of these pages declares a `theme-color`.
+- **Scrolling:** the toolbar follows the page as it scrolls. Scrolled past
+  Ars Technica's dark header, it turned to the page's light background
+  (233, 234, 237), not the colour of the photo under it. It looks like the
+  page's background colour rather than a pixel sample.
+- **Glyphs and buttons** switch to light on dark colours (white glyphs on
+  SpaceX's black), so they stay legible.
+- **The line** below the toolbar contrasts slightly with the colour:
+  darker on light pages, lighter on black.
+- **Arc** (`../arc-reference/README.md`) keeps a fixed grey on the same
+  pages, except iana.org.
+
 ## Not checked
 
 - **Docking the floating sidebar:** Cmd+S or the View menu presumably still

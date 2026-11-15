@@ -173,6 +173,10 @@ These come from the add-peek change (its design.md has the numbers):
   pages, so `serve.sh`'s, show Arc's striped Developer Mode toolbar, with
   the full URL and developer tools, in place of the normal one. To compare
   with Arc's normal toolbar, use a public site.
+- **Cmd+T in Dia**: the new tab doesn't take Cmd+L, so a following
+  `key l cmd` and `type` load the URL in the tab that was showing, which
+  may be the owner's. Then a closing Cmd+W closes that tab, not yours.
+  Check which tab is selected in a screenshot before navigating or closing.
 - **Drags in Clair**: on the owner's Mac the probe's `drag` reaches Clair
   with no events at all, though `click` and `hover` do, so it moves nothing
   there. Drag with the mouse's own events instead:
