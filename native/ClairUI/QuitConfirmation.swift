@@ -7,7 +7,7 @@ import ClairHost
 
 /// "Warn before quitting" (settings-window spec): the dialog Cmd+Q and
 /// Clair › Quit Clair show while the setting is on, worded and laid out as
-/// Dia's (`dia-reference/quit-dialog.md` of the native-quit-confirmation
+/// Dia's (`dia-reference/README.md` of the native-quit-confirmation
 /// change): "Always quit" alone at the leading edge, Cancel and Quit at the
 /// trailing one.
 @MainActor
