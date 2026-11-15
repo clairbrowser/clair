@@ -13,7 +13,7 @@ Change 1's roadmap decided "URL bar only in the sidebar, with no top toolbar and
   - centred on the card: the host, with its copy-link icon;
   - trailing: the site-controls button at the far end, where Arc has its split-view button, with the pinned extensions and then the permission indicators to its left, at the 36 pt spacing between Arc's two trailing buttons.
 
-  While a Peek shows, it covers the toolbar, which shrinks and washes out with the page behind it, as in Arc.
+  While a Peek shows, it covers the toolbar, which shrinks and washes out with the page behind it, and the Peek has a toolbar of its own with back, forward, reload and its host, as in Arc.
 
   The page view moves below the toolbar, and the card's own frame doesn't change.
 - **On by default** for every native window, incognito and guest included. With it on, the sidebar's top row keeps only the window controls, and the sidebar has no URL field and no row of pinned extensions. With it off, the sidebar is exactly as it is today.

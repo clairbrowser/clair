@@ -26,6 +26,9 @@ Keep these screenshots. They move with the change when it's archived.
 | toolbar-extension-popup-2.jpg | Dark Reader's popup, from the other icon, opens with its top-trailing corner at exactly the same place. Arc doesn't attach popups to their icon. |
 | toolbar-narrow-620.jpg | The window at 620 pt: uBlock, the extension farther from site controls, is left out, and the host stays centred on the card. |
 | toolbar-narrow-520.jpg | The window at 520 pt: both extensions, reload and the link icon are left out. The host is still centred and whole. |
+| toolbar-peek.jpg | A Peek of iana.org (Shift+click on example.com's "Learn more"). The tab's toolbar is washed out behind it. The Peek has its own toolbar: back, forward and reload centred 21, 58 and 95 pt from the Peek's leading edge, and the link icon and `iana.org` centred on the Peek. It has no toggle, extensions or site controls; the Peek's own buttons stay beside its top-trailing corner. |
+| toolbar-page-tint-iana.jpg | The same iana.org page in the tab: the toolbar takes the header's light blue-grey, the one page where it did. |
+| toolbar-on-dark-page.jpg | SpaceX's black page: the toolbar stays grey, and the 1 pt line falls on black. |
 
 For split view, where every pane gets this header whatever the setting,
 see change 1's `arc-reference/screenshots/split-view-two-panes.jpg` and
@@ -55,9 +58,12 @@ pane's header keeps back, forward, the host and ×.
 - **Card:** the same frame as with the toolbar off: 10 pt in from the top,
   trailing and bottom edges, touching the sidebar. The toolbar is inside
   the card, at its top.
-- **Toolbar:** 32 pt tall, from the card's top. Its background is a fixed
-  light grey (239, 239, 239 in Light Mode on both pages) that doesn't follow
-  the page.
+- **Toolbar:** 32 pt tall, from the card's top. Its background is a light
+  grey, 238–239 in Light Mode. Arc kept it on white (GitHub, Apple,
+  Wikipedia), black (SpaceX) and orange (Hacker News) page tops. On iana.org
+  alone, the toolbar took the page header's light blue-grey (235, 239, 242),
+  though that page declares no `theme-color`; the rule is unknown
+  (`toolbar-page-tint-iana.jpg`, `toolbar-on-dark-page.jpg`).
 - **Line:** 1 pt below the toolbar, about 5% black, drawn over the page's
   top row. It reads 242 over white, 226 over #eee, and HN's orange × 0.95.
 - **Glyph centres:** all sit on one line, 16 pt below the card's top.
@@ -89,7 +95,7 @@ pane's header keeps back, forward, the host and ×.
 
 ## Confirmed by the owner (2026-11-15)
 
-- **Peek:** it covers the toolbar.
+- **Peek:** it covers the toolbar. Arc gives the Peek a toolbar of its own (captured afterwards).
 - **Pinned extensions:** they sit to the left of the site-controls button.
   Clair spaces them at the distance between Arc's site-controls and
   split-view buttons, 36 pt, which is also Arc's own pitch.
@@ -125,7 +131,6 @@ Probe these during implementation:
 
 - **Other cases:** Dark Mode colours, a narrow window (host truncation,
   button overflow), and incognito.
-- **Peek screenshot:** a Peek over the toolbar, for comparison.
 - **Show Full URL:** what it shows.
 
 ## Probe traps

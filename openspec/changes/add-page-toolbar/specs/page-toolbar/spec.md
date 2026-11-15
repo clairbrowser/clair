@@ -22,7 +22,7 @@ A preference, kept for the user across launches, SHALL choose between showing th
 - **THEN** the windows open without the toolbar
 
 ### Requirement: Toolbar placement
-The toolbar SHALL sit inside the card, across its top, 32 points tall, with a 1-point line of about 5% black below it, as in Arc. The page SHALL fill the rest of the card below it. The card's own frame SHALL be the same with the toolbar shown or not. The toolbar's background SHALL be the window's own light grey, not a colour taken from the page. It SHALL show in window full screen and hide while a page is in full screen.
+The toolbar SHALL sit inside the card, across its top, 32 points tall, with a 1-point line of about 5% black below it, as in Arc. The page SHALL fill the rest of the card below it. The card's own frame SHALL be the same with the toolbar shown or not. The toolbar's background SHALL be a fixed light grey, Arc's on most pages, not a colour taken from the page. It SHALL show in window full screen and hide while a page is in full screen.
 
 #### Scenario: Toolbar shown
 - **WHEN** a window shows the toolbar with the sidebar shown
@@ -68,6 +68,21 @@ While a Peek shows, the toolbar SHALL stay part of the parent page's card: it SH
 #### Scenario: Clicking the washed toolbar
 - **WHEN** a Peek shows and the user clicks the washed toolbar
 - **THEN** the Peek closes, and nothing in the toolbar runs
+
+### Requirement: The Peek's own toolbar
+While the toolbar preference is on, a Peek SHALL have its own toolbar across the top of its card, as in Arc. It SHALL hold back, forward and reload at the same places relative to the Peek's leading edge as the tab's toolbar, and the link icon and host centred on the Peek, all acting on the Peek's page. It SHALL have no sidebar toggle, extensions, indicators or site-controls button.
+
+#### Scenario: Peek with the toolbar on
+- **WHEN** the toolbar is shown and the user Shift+clicks a link to `iana.org`
+- **THEN** the Peek's card starts with a toolbar showing back, forward, reload and `iana.org` centred on the Peek, and the Peek's page is below it
+
+#### Scenario: Going back in a Peek
+- **WHEN** the user follows a link inside a Peek and clicks the Peek toolbar's back button
+- **THEN** the Peek's page goes back, and the tab's page stays as it was
+
+#### Scenario: Peek with the toolbar off
+- **WHEN** the toolbar preference is off and a Peek opens
+- **THEN** the Peek has no toolbar, and the sidebar's controls act on the Peek's page
 
 ### Requirement: Host in the toolbar
 The toolbar SHALL show the active tab's host as the URL field shows it, centred on the card, with a link icon before it that copies the URL and shows "Copied Current URL" as Copy URL does. While the page is not secure, the red not-secure icon SHALL show before the link icon. Clicking the host SHALL open the command bar, centred in the window as usual.

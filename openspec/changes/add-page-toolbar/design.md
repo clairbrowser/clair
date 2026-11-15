@@ -71,9 +71,19 @@ In Arc a Peek covers the toolbar, as the owner confirmed. The toolbar is in the 
 
 *Alternative:* keep the toolbar above the wash, acting on the Peek. Rejected: Arc doesn't, and it would split the card's chrome from the card.
 
+The Peek gets its own header instead (`arc-reference/screenshots/toolbar-peek.jpg`). It's a second `PageToolbar` at the top of `peekContainer`, with the Peek's page and surface below it, built only while `showsPageHeader` is true. In Arc it holds back, forward and reload, at the same offsets from the Peek's leading edge (21, 58, 95 pt), and the link icon and host centred on the Peek. It has no toggle, extensions, indicators or site controls: the Peek's own buttons stay beside its top-trailing corner. Its controls act on the Peek's page, as the sidebar's do today. `PeekLayout`'s frame doesn't change; the Peek's page just starts below its header.
+
 ### D4. The toolbar's content
 
-`PageToolbar` reuses the sidebar's existing controls: `IconButton`, the history menus, `ReloadStopMode`, `URLDisplay` for the host, the not-secure icon, the indicators and `PinnedExtensionTile`. They keep their runtime identifiers (`clair.hideSidebar`, `clair.back`, `clair.forward`, `clair.reload`, `clair.urlField`, `clair.copyURL`, `clair.siteControls`), and the toolbar itself is `clair.toolbar`.
+`PageToolbar` reuses the sidebar's existing controls: `IconButton`, the history menus, `ReloadStopMode`, `URLDisplay` for the host, the not-secure icon, the indicators and `PinnedExtensionTile`. They keep their runtime identifiers (`clair.hideSidebar`, `clair.back`, `clair.forward`, `clair.reload`, `clair.urlField`, `clair.copyURL`, `clair.siteControls`), and the toolbar itself is `clair.toolbar`. The Peek's header is `clair.peekToolbar`, so tests can tell the two apart.
+
+`PageToolbar` takes a `PageHeaderContent` that says which groups it shows:
+- `.tab`: everything;
+- `.peek`: back, forward, reload, the link icon and the host.
+
+Split view will add its pane variants here: a focused pane with site controls, split and close, and an inactive pane with back, forward, the host and close.
+
+The background is a fixed grey: 238 in Light Mode, which Arc shows on white, black and orange page tops alike. On iana.org, Arc's toolbar and its Peek's took the page's light blue-grey header colour (`toolbar-page-tint-iana.jpg`). That page declares no `theme-color`, and the rule behind it is unknown, so Clair doesn't copy it.
 
 Layout, using Arc's metrics:
 - **Leading group:** buttons centred at 21, 57.75, 94.75 and 132 pt from the card's leading edge.

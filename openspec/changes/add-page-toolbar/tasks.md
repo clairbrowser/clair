@@ -7,7 +7,7 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
 
 ## 1. Arc reference
 
-- [ ] 1.1 Probe Arc with the toolbar on, using a public site, not `localhost`, and capture a Peek covering the toolbar. Verify: the screenshot is added to `arc-reference/` and listed in its README.
+- [x] 1.1 Probe Arc with the toolbar on, using a public site, not `localhost`, and capture a Peek covering the toolbar, with the Peek's own toolbar. Verify: the screenshot is added to `arc-reference/` and listed in its README.
 - [x] 1.2 With two extensions the owner pinned in Arc, capture the toolbar's extension tiles, their hover, both popups and two narrow windows. Verify: screenshots and measurements are in `arc-reference/`, and the specs and D4 and D6 follow them.
 
 ## 2. Preference and layout rule
@@ -24,9 +24,10 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
 - [ ] 3.2 Add `PageToolbar` and host it in `PageCardView` (D2, D4). It needs Arc's metrics, the 1 pt line over the page, reused controls with their identifiers plus `clair.toolbar`, and the host's hover background and link icon. The page, still view, infobars, DevTools and drag strip go below it, and it hides in page full screen. Verify in CI that it builds and the existing unit tests pass. By hand: the toolbar matches `arc-reference/screenshots/toolbar-on.jpg` and `toolbar-sidebar-hidden.jpg` within 1 pt, and the page's viewport starts below it.
 - [ ] 3.3 Strip the sidebar while `sidebarShowsControls` is false (D5): `TopRow` keeps only the window controls' room, there's no URL field, no extension row and no "More" menu, and the floating sidebar has no toggle. Verify by hand: the sidebar matches `toolbar-on.jpg` with the window controls at their place, the floating sidebar matches `dia-reference/screenshots/toolbar-sidebar-revealed.jpg`, and with the toolbar off the sidebar is unchanged from `main`.
 - [ ] 3.4 Give the toolbar's background window dragging, `TitleBarArea`'s double-click and activation events, independent of `WindowDragPreference` (D4). Verify by hand, with the owner doing the drags: blank toolbar space moves the window with the preference on and off, a double-click zooms it, a press on reload that wobbles still reloads, and the page-top strip works 20 pt below the toolbar's line but not 70 pt below it.
-- [ ] 3.5 Lay out find and the notice popup from `PageCardView.contentTop` (D7), and keep the toolbar inside `cardScaler`, so a Peek covers it (D3). Verify by hand: Cmd+F and Shift+Cmd+C show below the toolbar, a Peek covers the shrunk, washed toolbar as in 1.1's screenshot, and a click on the washed toolbar closes the Peek.
-- [ ] 3.6 Update the runtime suite for the new default layout. `testWindowLayout` and `testWindowControlsStayInPlace` check the toolbar layout. A Harness helper writes `ClairShowsToolbar` before launch, as `ClairRestoreWindows` does, for toolbar-off variants of both tests. Verify by running those tests locally, which is allowed on this Mac, and they pass.
-- [ ] 3.7 Describe the toolbar, `PageHeaderPolicy` and where its files live in `docs/native-window.md`. Verify that the doc names files that exist.
+- [ ] 3.5 Lay out find and the notice popup from `PageCardView.contentTop` (D7), and keep the toolbar inside `cardScaler`, so a Peek covers it (D3). Verify by hand: Cmd+F and Shift+Cmd+C show below the toolbar, a Peek covers the shrunk, washed toolbar, and a click on the washed toolbar closes the Peek.
+- [ ] 3.6 Give the Peek its own `PageToolbar` with `.peek` content (`clair.peekToolbar`) at the top of its card, with its page below it, only while the toolbar preference is on (D3, D4). Verify with a unit test in CI that `.peek` content leaves out the toggle, extensions, indicators and site controls. By hand: a Peek matches `arc-reference/screenshots/toolbar-peek.jpg`, its back acts on the Peek's page only, and with the toolbar off the Peek has no toolbar.
+- [ ] 3.7 Update the runtime suite for the new default layout. `testWindowLayout` and `testWindowControlsStayInPlace` check the toolbar layout. A Harness helper writes `ClairShowsToolbar` before launch, as `ClairRestoreWindows` does, for toolbar-off variants of both tests. Verify by running those tests locally, which is allowed on this Mac, and they pass.
+- [ ] 3.8 Describe the toolbar, `PageHeaderPolicy` and where its files live in `docs/native-window.md`. Verify that the doc names files that exist.
 
 ## 4. Popups and prompts
 
