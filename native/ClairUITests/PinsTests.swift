@@ -272,7 +272,7 @@ struct PinsPreferencesTests {
 
   @Test func theLinksPageSaysWhatTheToggleDoes() {
     #expect(LinksSettingsView.otherSitesLabel == "Open a Peek window when clicking on links to other sites")
-    #expect(LinksSettingsView.otherSitesNote == "(Note: This only affects Favorites and Pinned tabs)")
+    #expect(LinksSettingsView.otherSitesNote == "Note: This only affects Favorites and Pinned tabs")
   }
 }
 

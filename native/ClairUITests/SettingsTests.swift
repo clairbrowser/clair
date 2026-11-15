@@ -88,6 +88,12 @@ struct SettingsWindowTests {
     #expect(SettingsPage.links.label == "Links")
   }
 
+  /// add-link-rules D7: a window over a window, as Arc's Links icon.
+  @Test func linksTakesArcsIcon() {
+    #expect(SettingsPage.links.symbol == "interface.window.on.rectangle")
+    #expect(NSImage(systemSymbolName: SettingsPage.links.symbol, accessibilityDescription: nil) != nil)
+  }
+
   @Test func peekOnShiftClickIsOnUntilTurnedOff() {
     #expect(PeekPreference(defaults: defaults).isEnabled)
     defaults.set(false, forKey: PeekPreference.key)
@@ -473,7 +479,7 @@ struct LinkRulesButtonTests {
     let tabs = try #require(window.contentViewController as? NSTabViewController)
     tabs.selectedTabViewItemIndex = 2
     #expect(window.title == "Links")
-    #expect(LinksSettingsView.linkRulesLabel == "Choose where links open inside Clair.")
+    #expect(LinksSettingsView.linkRulesLabel == "Choose where links open inside Clair")
     #expect(LinksSettingsView.linkRulesButton == "Link Rules…")
     let dialog = try #require(settings.showLinkRules())
     #expect(settings.dialogs?.showing === dialog)

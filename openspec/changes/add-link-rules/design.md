@@ -148,8 +148,9 @@ typedef NS_ENUM(NSInteger, ClairLinkRuleMatch) {
 
 The entry point follows Arc's Links page (`dia-reference/12-arc-settings-links.jpg`): Air Traffic Control is a card of its own at the bottom of the page, below the Peek card, with one row and no section text.
 
-- `LinksSettingsView` gains a second `Section` below the Peek toggles, holding one `LabeledContent` row.
-- Its label is "Choose where links open inside Clair.", with Arc's trailing full stop. Arc's ⓘ button after it is left out.
+- `LinksSettingsView` gains a second `Section` below the Peek toggles, holding one `LabeledContent` row, with a `Divider` as its header between the two cards, as Arc's page has between its groups.
+- Its label is "Choose where links open inside Clair", without Arc's trailing full stop. Arc's ⓘ button after it is left out.
+- The page's toolbar icon becomes `interface.window.on.rectangle`, a window over a window as Arc's Links icon, and the Peek toggle's note becomes "Note: This only affects Favorites and Pinned tabs" in italics, as Arc's, without the parentheses.
 - Its trailing button is "Link Rules…" in place of "Air Traffic Control…", a standard bordered button as Arc's.
 - The button calls `SettingsWindowController.showLinkRules()`, which reads `host.linkRules` and `host.spaces` and shows the dialog. Its accessibility identifier is `clair.linkRulesButton`.
 

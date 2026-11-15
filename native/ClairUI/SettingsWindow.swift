@@ -28,7 +28,7 @@ enum SettingsPage: String, CaseIterable {
     switch self {
     case .general: "gearshape"
     case .profiles: "person.2"
-    case .links: "link"
+    case .links: "interface.window.on.rectangle"
     case .advanced: "slider.horizontal.3"
     }
   }
@@ -132,9 +132,10 @@ struct LinksSettingsView: View {
   @AppStorage(PeekPreference.otherSitesKey) private var peekForOtherSites = true
 
   static let otherSitesLabel = "Open a Peek window when clicking on links to other sites"
-  static let otherSitesNote = "(Note: This only affects Favorites and Pinned tabs)"
-  /// Arc's Air Traffic Control row, with Clair's name and no info button.
-  static let linkRulesLabel = "Choose where links open inside Clair."
+  static let otherSitesNote = "Note: This only affects Favorites and Pinned tabs"
+  /// Arc's Air Traffic Control row, with Clair's name, no full stop and no
+  /// info button.
+  static let linkRulesLabel = "Choose where links open inside Clair"
   static let linkRulesButton = "Link Rules…"
 
   var body: some View {
@@ -146,16 +147,23 @@ struct LinksSettingsView: View {
         // add-pinned-tabs-and-favorites D10.
         Toggle(isOn: $peekForOtherSites) {
           Text(Self.otherSitesLabel)
-          Text(Self.otherSitesNote)
+          Text(Self.otherSitesNote).italic()
         }
         .accessibilityIdentifier("clair.peekOtherSitesToggle")
       }
-      // A card of its own below the Peek toggles, as Arc's Links page.
+      // A card of its own below the Peek toggles, after a divider, as
+      // Arc's Links page.
       Section {
         LabeledContent(Self.linkRulesLabel) {
           Button(Self.linkRulesButton, action: showLinkRules)
             .accessibilityIdentifier("clair.linkRulesButton")
         }
+      } header: {
+        // Centred between the cards: the header's own spacing sits above it.
+        Divider()
+          .padding(.top, -2)
+          .padding(.bottom, 18)
+          .accessibilityIdentifier("clair.linkRulesDivider")
       }
     }
     .formStyle(.grouped)
