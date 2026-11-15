@@ -33,7 +33,7 @@
  #include "chrome/browser/command_updater_impl.h"
  #include "chrome/browser/download/download_core_service.h"
  #include "chrome/browser/download/download_core_service_factory.h"
-@@ -1007,6 +1008,14 @@
+@@ -1007,6 +1008,13 @@
  }
  
  - (ConfirmQuitResult)confirmQuitIfNeeded {
