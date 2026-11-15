@@ -8,7 +8,7 @@ Chromium's own versions of these surfaces carry years of anti-spoofing work. Cla
 
 ## Specs to judge against
 
-`openspec/specs/command-bar`, `peek`, `site-control-center` and `dialogs`. For links in pinned tabs, `pinned-tabs` and `peek`; while the change `add-pinned-tabs-and-favorites` is open, its delta specs and `design.md` (decision D7) under `openspec/changes/` are the reference.
+`openspec/specs/command-bar`, `peek`, `site-control-center` and `dialogs`. For links in pinned tabs, `pinned-tabs` and `peek`, with decision D7 in the archived change `add-pinned-tabs-and-favorites`.
 
 ## Where to look in the engine tree
 

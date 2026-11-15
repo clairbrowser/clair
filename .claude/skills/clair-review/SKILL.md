@@ -115,7 +115,7 @@ When it returns, read only the Summary part of `REPORT.md`, relay it to the owne
 
 ### `done`
 
-Say that the review is complete and where `REPORT.md` is.
+Say that the review is complete and where `REPORT.md` is, and that `/clair-fix` takes the report's work items one at a time once the owner has read it.
 
 ### `blocked <key>`
 
@@ -128,7 +128,7 @@ The checkout no longer matches the commit the run is reviewing, so later section
 ## Rules that hold throughout
 
 - **Reports are private.** The repository is public and the reports describe unfixed security problems. They live in `build/review/`, which git ignores. Never commit them, quote them in a commit message, pull request or issue, or copy them anywhere else.
-- **The review changes nothing.** Do not fix what the reports find and do not open issues. When the run is done, the owner decides what becomes an OpenSpec change and what gets fixed directly. Anything touching release secrets or the CI runner is fixed first and privately.
+- **The review changes nothing.** Do not fix what the reports find and do not open issues. When the run is done, the owner decides what gets done, and the separate `/clair-fix` skill carries out the report's work items one at a time. Anything touching release secrets or the CI runner is fixed first and privately.
 - **Do not start an engine build during a run.** It would change the Chromium tree under the reviewers. `preflight` checks that the tree matches the commit; nothing re-checks it mid-run.
 
 ## Setting up a machine

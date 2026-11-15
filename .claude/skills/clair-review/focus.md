@@ -6,7 +6,7 @@ Edit this file before each review run. It holds what is specific to the moment; 
 
 - Clair has not been released. Nobody has data to migrate, so stored formats and the `ClairHost.h` contract may change freely. Do not recommend migrations or compatibility shims.
 - Profiles landed recently. Each Space uses one Chromium profile and several Spaces can share one. A window switches between Spaces of different profiles in place, by holding one hidden Chromium browser window for each extra profile.
-- Pinned tabs and favourites have just landed, and no review has seen them. A pin is a saved item in Local State (`clair.pins`) that stays whether or not a page is open: a pinned tab belongs to a Space, a favourite to a profile and shows in every Space of it. A link to another site clicked in a pinned tab opens in a peek, through a navigation throttle. Session restore now always runs. The change `add-pinned-tabs-and-favorites` is still open, so its specs are delta specs under `openspec/changes/`.
+- Pinned tabs and favourites have just landed, and no review has seen them. A pin is a saved item in Local State (`clair.pins`) that stays whether or not a page is open: a pinned tab belongs to a Space, a favourite to a profile and shows in every Space of it. A link to another site clicked in a pinned tab opens in a peek, through a navigation throttle. Session restore now always runs. The decisions are in the archived change `add-pinned-tabs-and-favorites`.
 - Arc stops working on 2026-12-22, which is why the remaining features are being built quickly.
 
 ## One feature comes next

@@ -269,8 +269,89 @@ else
   check "status counts findings by severity" fail
 fi
 
+expect "work items wait for the final report" "no-report" work next
+refuses "work set refuses before the final report" work set W01 started fix/one
+
 printf 'final\n\nStatus: complete\n' >"$run/REPORT.md"
 expect "a complete final report ends the run" "done" next
+
+# --- work items -------------------------------------------------------------
+
+expect "a report without work items has nothing to fix" "no-work-items" work next
+
+cat >"$run/REPORT.md" <<'EOF'
+# Review
+
+## Recommended order of work
+
+### W01 Lock the feed down
+- Findings: S03-01
+- Route: direct fix
+- Private: yes
+- After: none
+
+### W02 Change the store format
+- Findings: S01-01, S02-01
+- Route: OpenSpec change
+- Private: no
+- After: W01
+
+### W03 Tidy the names
+- Findings: S02-01
+- Route: direct fix
+- Private: no
+- After: none
+
+### W04 An item without its lines
+
+## Limits
+
+### W99 Not under this heading's rules, but still an item
+- Route: direct fix
+- Private: no
+
+Status: complete
+EOF
+
+expect "the first work item is next, with its route and privacy" "fix W01 direct private" work next
+review work set W01 started fix/feed
+expect "work under way is resumed before anything new" "resume W01 started fix/feed" work next
+review work set W01 pr 12
+expect "an open pull request is resumed too" "resume W01 pr 12" work next
+review work set W01 deferred "waits for the owner"
+expect "an item waits for the one it comes after" "fix W03 direct public" work next
+review work set W03 dropped "already fixed"
+expect "an item without route or privacy is malformed" "malformed W04" work next
+review work set W04 dropped "not a real item"
+review work set W99 merged 14
+expect "only items that wait on another are left" "waiting W02 on W01" work next
+review work set W01 merged 12
+expect "a merged item releases the one after it" "fix W02 change public" work next
+review work set W02 change add-store-format
+review work set W02 merged 15
+expect "with every item closed the work is done" "done" work next
+review work set W03 open
+expect "open puts an item back" "fix W03 direct public" work next
+if shows "^W02  *merged  *15  *change  *public  *W01  *Change the store format (S01-01, S02-01)$" work &&
+  shows "^next: fix W03 direct public$" work; then
+  check "work lists every item with its state" pass
+else
+  check "work lists every item with its state" fail
+fi
+refuses "work set refuses an unknown item" work set W50 merged 1
+refuses "work set refuses an unknown state" work set W03 finished
+refuses "work set refuses a pull request that is not a number" work set W03 pr soon
+refuses "work set refuses a state without its detail" work set W03 deferred
+
+git -C "$repo" worktree add -q "$workdir/linked" -b fix/names
+if [[ "$("$workdir/linked/scripts/review.sh" work next 2>&1)" == "fix W03 direct public" ]]; then
+  check "a linked worktree reads the main checkout's run" pass
+else
+  check "a linked worktree reads the main checkout's run" fail
+fi
+git -C "$repo" worktree remove --force "$workdir/linked"
+git -C "$repo" branch -q -D fix/names
+printf 'final\n\nStatus: complete\n' >"$run/REPORT.md"
 
 # --- drift ------------------------------------------------------------------
 
