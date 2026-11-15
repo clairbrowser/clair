@@ -1,0 +1,153 @@
+# Design
+
+## Context
+
+- **The card** (`PageCardView`) holds a `container` with the `pageHolder`, in which `layoutSurface` stacks:
+  - infobars at the top;
+  - then the page, DevTools or the crashed view;
+  - the drag strip, which is the top 59 pt of `pageView.frame`, so it follows the page wherever the page is laid out.
+
+  Behind a Peek, `cardScaler` shrinks the whole card with a layer transform and a wash covers it.
+- **The sidebar** (`SidebarView`) is one SwiftUI view hosted in `BrowserRootView`. It holds:
+  - the top row (`TopRow`), with the window controls' room, the hide-sidebar button, back, forward and reload;
+  - the `URLField` with its hover buttons;
+  - the `ToolsRow` of pinned extensions.
+
+  Its controls report their frames through `AnchorFramesKey`, in the `clair.sidebar` coordinate space. `BrowserWindowController.controlFramesChanged` stores them, and `AnchorResolver` turns them into a `BubbleAnchor` (`.trailing` for a sidebar control, or `.bottom` at the card's top-leading corner as the fallback).
+- **`ClairHost.h`** already has `AnchorEdge.bottom`, and Chromium places a bubble below any rect with that edge.
+- **`ExtensionPopupWindow`** only places a popup beside its anchor (`placeBesideAnchor`).
+- **Overlays:** `BrowserRootView.layoutOverlays` puts find and the notice popup relative to the card's top edge.
+- **Menus:**
+  - View › Hide Sidebar is added by the engine (`clair_window_hooks.mm`, tag `kClairHideSidebarTag`), which also flips its title.
+  - Edit › Copy URL is added from `ClairUI` (`MainMenuTitles.addCopyURL`), so `ClairUI` can add a menu item without the engine.
+  - ⇧⌘D was Chromium's Bookmark All Tabs key. `ClairIsRemovedCommand` hides that item and clears its key, and `global_keyboard_shortcuts_mac.mm` doesn't bind ⇧⌘D, so the key is free.
+- **Preferences** are `UserDefaults` keys with registered defaults (`WindowDragPreference`, `PeekPreference`). Settings binds them with `@AppStorage`, and windows read them live.
+- **Reference:** Arc's toolbar metrics are in `arc-reference/README.md`, and the toggle's placement is in `dia-reference/README.md`.
+
+## Goals / Non-Goals
+
+**Goals:**
+- One page-header view that split view can reuse per pane.
+- One function that decides where the browser controls show.
+- No engine change.
+- The same runtime identifiers in both layouts.
+
+**Non-Goals:**
+- Split view.
+- Arc's Developer Mode toolbar for `localhost`.
+- Show Full URL.
+- Animating the switch between layouts. It's instant, and whether Arc animates it is unverified.
+
+## Decisions
+
+### D1. Where the controls show: one rule, ready for split view
+
+`PageHeaderPolicy` is a pure function that takes the toolbar preference and the window's pane count (always 1 for now). It returns three things:
+- whether each pane shows a header: `preference || paneCount > 1`;
+- whether the sidebar shows its browser controls: not if any pane shows a header;
+- which pane's header gets the sidebar toggle: the leading one.
+
+`BrowserWindowModel` exposes the result as `showsPageHeader` and `sidebarShowsControls`. Every view reads only these two values. Split view will then change the pane count and nothing else.
+
+*Alternative:* views read the preference directly. That's simpler today, but split view would have to find and change every one of those reads.
+
+### D2. The toolbar is a page header inside the card
+
+`PageToolbar` is a SwiftUI view hosted in an `NSHostingView`, placed in `PageCardView` above the `pageHolder`. While `showsPageHeader` is true:
+- the toolbar takes the card's top 32 pt;
+- `pageHolder`, `stillView` and everything `layoutSurface` lays out start below it;
+- a 1 pt `DynamicFillView`, which ignores clicks (`hitTest` returns nil), draws the line over the page's top row, as Arc's does;
+- the card's frame in `WindowLayout` doesn't change.
+
+Because the drag strip is derived from `pageView.frame`, it moves below the toolbar with no change of its own.
+
+`isBare` (page full screen) hides the toolbar. Window full screen keeps it.
+
+*Alternative:* the toolbar as a separate view in `BrowserRootView` above the card. Rejected: the toolbar is inside the card's rounded mask in Arc, and a pane header must belong to its pane.
+
+### D3. Peek and the toolbar
+
+In Arc a Peek covers the toolbar, as the owner confirmed. The toolbar is in the card's `container`, inside `cardScaler`, so behind a Peek it shrinks and washes out with the parent page. The click catcher covers it, so a click on it closes the Peek like a click anywhere else on the washed card. `PeekLayout` is unchanged: the Peek's frame is still measured from the card.
+
+*Alternative:* keep the toolbar above the wash, acting on the Peek. Rejected: Arc doesn't, and it would split the card's chrome from the card.
+
+### D4. The toolbar's content
+
+`PageToolbar` reuses the sidebar's existing controls: `IconButton`, the history menus, `ReloadStopMode`, `URLDisplay` for the host, the not-secure icon, the indicators and `PinnedExtensionTile`. They keep their runtime identifiers (`clair.hideSidebar`, `clair.back`, `clair.forward`, `clair.reload`, `clair.urlField`, `clair.copyURL`, `clair.siteControls`), and the toolbar itself is `clair.toolbar`.
+
+Layout, using Arc's metrics:
+- **Leading group:** buttons centred at 21, 57.75, 94.75 and 132 pt from the card's leading edge.
+- **Trailing group:** site controls centred 21 pt from the card's trailing edge, where Arc has its split-view button. To its left come the pinned extensions, then the indicators, each 36 pt further left: the distance between Arc's site-controls and split-view buttons (57.25 − 21.25). The pinned extensions are in pinned order, the first leftmost.
+- **Host:** centred on the card with a custom SwiftUI `Layout`, `ToolbarLayout`. It centres the host text on the card when the room on both sides allows. Otherwise it centres the text in the room between the two groups and truncates it there. The same `Layout` drops the pinned extension tiles that don't fit, last first. It's unit-tested like `PinnedExtensionsGrid`.
+
+The background has the same window drag and double-click handling as the sidebar's top row: `WindowDragGesture`, `TitleBarArea` and `.allowsWindowActivationEvents(true)`. It doesn't depend on `WindowDragPreference`. Buttons sit above the background, so they get the clicks.
+
+### D5. The sidebar with the toolbar shown
+
+While `sidebarShowsControls` is false:
+- `TopRow` renders only the window controls' room, keeping its height so the window controls stay at Arc's place;
+- the `URLField`, its `ToolsRow` and the compact "More" menu aren't built;
+- everything below moves up, with favorites directly under the top row.
+
+The revealed sidebar uses the same `SidebarView` in the floating panel, so it also has no toggle, which matches Dia. While revealed, it covers the toolbar's leading end.
+
+### D6. Anchors for popups
+
+The toolbar reports its controls' frames with the same `AnchorFramesKey`, in its own coordinate space. The controller converts each source's frames to window coordinates and keeps them in separate tables.
+
+`AnchorResolver` gains `toolbarShown`:
+- **Toolbar shown and the page not in full screen:** it resolves a control in the toolbar's table and returns `edge: .bottom`, with the sidebar shown, hidden or revealed.
+- **Otherwise:** today's rule.
+
+`ExtensionPopupWindow` gains a below-the-anchor placement for `.bottom` anchors. The popup's top-leading corner goes 6 pt below the tile's leading edge and is kept on screen, which moves it left near the screen's trailing edge.
+
+The Site Control Center is already a popover attached below its button, so nothing changes there.
+
+### D7. Overlays below the toolbar
+
+`PageCardView` exposes `contentTop`, which is 32 pt with the toolbar and 0 without. `layoutOverlays` uses it to place find and the notice popup. Infobars already sit inside the surface below the toolbar.
+
+### D8. The preference and the three ways to change it
+
+`ToolbarPreference` follows `WindowDragPreference`: the key is `ClairShowsToolbar`, its registered default is `true`, and it's read through `UserDefaults`. Windows observe `UserDefaults.didChangeNotification` and update `BrowserWindowModel`, so every way of changing it reaches every window at once. The three ways:
+
+- **View menu:** `MainMenuTitles.addToolbarItem(to:)` adds "Hide Toolbar" (⇧⌘D) after the engine's Hide Sidebar. It finds the View menu by the item whose action is `toggleSidebar:`. Its target is a `ClairUI` object whose `validateMenuItem` flips the title to "Show Toolbar". It's added when `NativeLayer` starts, as Copy URL is.
+- **Context menu:** while the toolbar shows, right-clicking the toolbar (its host or its blank areas) opens the menu with Copy URL and "Hide Toolbar". While it's off, the menu is the sidebar URL field's, with Copy URL and "Show as Toolbar". The toolbar's buttons keep their own menus: the history menus and the extension menu.
+- **Settings › General:** `LocationBarPicker` binds the key with `@AppStorage`.
+
+*Alternative:* an engine-side menu item, next to Hide Sidebar. Rejected: it changes the engine key and costs an engine build, for no gain.
+
+### D9. The "Location bar" picker
+
+The row is called "Location bar", matching File › Open Location Bar (`MainMenuTitles.focusLocationTitle`). `LocationBarPicker` shows two `LayoutThumbnail`s. Each thumbnail is drawn with SwiftUI shapes in a unit space, so it's sharp at any size, and its proportions come from Clair's own constants:
+- sidebar width over the default window width (`SidebarState.defaultWidth`);
+- `WindowLayout.shownInset`;
+- the toolbar's height.
+
+Colours are semantic: the window tint (`SidebarTint`), the card in the window background colour, and controls in `secondary`. Dark Mode and the system accent therefore just work.
+
+Each thumbnail is a button with its label. The pair is an accessibility group labelled "Location bar", with the chosen one marked selected and both reachable by keyboard. Selection draws an accent ring and a bold label.
+
+The component takes its size from its container, so a future first-run screen can embed it larger. Settings shows it at about 110 × 70 pt per thumbnail, in a `LabeledContent` row after Default browser.
+
+*Alternative:* bitmap or PDF assets. Rejected: they don't follow the accent colour or appearance, and they drift from the real layout.
+
+## Risks / Trade-offs
+
+- **[The runtime suite assumes the sidebar layout]** → Identifiers are kept (D4), so most tests pass in the new default.
+  - `testWindowLayout` and `testWindowControlsStayInPlace` check the toolbar layout by default, and a toolbar-off case sets the preference with `defaults write` before launch, as `ClairRestoreWindows` does.
+  - New tests cover ⇧⌘D, the picker and toolbar anchors.
+  - The PR runs `quality.yml` on its branch, as `CLAUDE.md` requires for views the suite drives.
+- **[Toolbar frames and sidebar frames both report through `AnchorFramesKey`]** → Separate tables per source (D6), so a hidden sidebar's stale frames can't win over the toolbar's.
+- **[Narrow windows]** → `ToolbarLayout` truncates the host and drops extension tiles before anything overlaps (D4). The Site Control Center still lists every extension.
+- **[Chromium could bind ⇧⌘D somewhere new on an engine update]** → A runtime test presses ⇧⌘D and checks that the toolbar toggles and no bookmark UI opens.
+
+## Migration Plan
+
+None. Clair hasn't been released. A missing value reads as on, so existing development profiles get the toolbar.
+
+## Open Questions
+
+These are answered by probing Arc in group 1 of `tasks.md`. They change only placement or a click's effect, not the specs' structure:
+- Where Arc opens a toolbar extension's popup. Below the tile is assumed.
+- What a click on the link icon before the host does. Copying the URL is assumed.

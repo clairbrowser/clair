@@ -169,6 +169,10 @@ These come from the add-peek change (its design.md has the numbers):
   a tab in the owner's main window (their Personal space): close it there
   afterwards. Cmd+W on a blank window's last tab closes the window. A drag
   that misses Arc's sidebar edge moves the window.
+- **Arc's Developer Mode**: with Arc's toolbar on (⇧⌘D), `localhost`
+  pages, so `serve.sh`'s, show Arc's striped Developer Mode toolbar, with
+  the full URL and developer tools, in place of the normal one. To compare
+  with Arc's normal toolbar, use a public site.
 - **Drags in Clair**: on the owner's Mac the probe's `drag` reaches Clair
   with no events at all, though `click` and `hover` do, so it moves nothing
   there. Drag with the mouse's own events instead:
