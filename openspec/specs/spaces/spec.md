@@ -133,7 +133,7 @@ The user SHALL be able to reorder Spaces by dragging a Space's item in the foote
 - **THEN** the Spaces are in the new order
 
 ### Requirement: Deleting a Space
-Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs SHALL happen at once. For a Space with tabs, Clair SHALL first ask for confirmation in a dialog, saying that its tabs will close; on confirmation its tabs SHALL close in every window. Each window that showed the Space SHALL then show the Space before it, or the one after when it was first.
+Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs and no pinned tabs SHALL happen at once. Otherwise Clair SHALL first ask for confirmation in a dialog, saying that its tabs will close; on confirmation its tabs SHALL close in every window and its pinned tabs SHALL be removed. Each window that showed the Space SHALL then show the Space before it, or the one after when it was first.
 
 #### Scenario: The only Space
 - **WHEN** there is one Space and the user opens its header's menu
@@ -146,6 +146,10 @@ Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs
 #### Scenario: Cancelled
 - **WHEN** the user cancels the confirmation
 - **THEN** the Space and its tabs are untouched
+
+#### Scenario: Space with pinned tabs only
+- **WHEN** the user deletes a Space whose only tabs are two pinned tabs, none open, and confirms
+- **THEN** the pinned tabs are removed with the Space, and the profile's favorites stay
 
 ### Requirement: Manage Spaces dialog
 Manage Spaces…, in the Spaces menu and the Space header's menu, SHALL open a dialog on the window, with every Space in order on the left, each with its icon, name and number of tabs, and the selected Space's name, icon and profile popup (`profiles`) on the right. It SHALL open with the window's Space selected, and "Done" or Esc SHALL close it.
@@ -182,7 +186,7 @@ In the Manage Spaces dialog the user SHALL be able to add a Space, remove the se
 - **THEN** Remove is disabled
 
 ### Requirement: Tabs belong to a Space
-Every tab outside incognito and guest windows SHALL belong to exactly one Space. A new tab SHALL join the Space its window shows, whether it comes from Cmd+T, a link, an extension or another app.
+Every tab outside incognito and guest windows SHALL belong to exactly one Space, except a favorite's tab, which belongs to its profile (`favorites`). A new tab SHALL join the Space its window shows, whether it comes from Cmd+T, a link, an extension or another app.
 
 #### Scenario: New tab
 - **WHEN** a window shows "Work" and the user opens a tab with Cmd+T
@@ -192,8 +196,12 @@ Every tab outside incognito and guest windows SHALL belong to exactly one Space.
 - **WHEN** the user Cmd-clicks a link in a tab of "Work"
 - **THEN** the new tab is listed in "Work"
 
+#### Scenario: A favorite's tab
+- **WHEN** the user opens the favorite "Mail" in "Work" and switches to "Home", which uses the same profile
+- **THEN** "Mail" is in neither Space's list, and its tile shows in both
+
 ### Requirement: Moving a tab to another Space
-With more than one Space, a tab row's context menu SHALL offer "Move to Space" with every other Space, which puts the tab at the top of that Space's list. Moving the active tab SHALL switch the window to that Space, showing the tab; moving another tab SHALL leave the window as it is and show "Tab was moved to" and the Space's name, in the popup Copy URL uses. Within a profile the tab SHALL keep its page; across profiles, `profiles` applies.
+With more than one Space, a tab row's context menu SHALL offer "Move to Space" with every other Space, which puts a Today tab at the top of that Space's list and a pinned tab at the end of its pinned section. Moving the active tab SHALL switch the window to that Space, showing the tab; moving another tab SHALL leave the window as it is and show "Tab was moved to" and the Space's name, in the popup Copy URL uses. Within a profile the tab SHALL keep its page; across profiles, `profiles` applies.
 
 #### Scenario: Moving the active tab
 - **WHEN** a window shows "Home" on a tab, and the user moves that tab to "Research"
@@ -206,6 +214,10 @@ With more than one Space, a tab row's context menu SHALL offer "Move to Space" w
 #### Scenario: One Space
 - **WHEN** there is one Space
 - **THEN** the tab's menu has no "Move to Space"
+
+#### Scenario: Moving a pinned tab
+- **WHEN** "Research" has two pinned tabs, and the user moves the pinned tab "Mail" from "Home" to "Research"
+- **THEN** "Mail" is the third pinned tab of "Research", with its pinned URL and name, and "Home" no longer lists it
 
 ### Requirement: Tab chosen after a close
 When the user closes the active tab, the window SHALL show the tab it was selected from, if the Space still lists it; else the row above; else the row below, among every row the sidebar lists, one another window shows included (that window then shows its still). With no other tab, the window SHALL stay on the Space, on a new tab page with the command bar, never on another Space's tab. Closing a new tab page that is the Space's only tab SHALL close the window.
@@ -254,7 +266,7 @@ When the user closes a tab that another window shows, that window SHALL show its
 - **THEN** B shows "Other", and A keeps showing "Notes"
 
 ### Requirement: Tab commands follow the Space
-Tabs › Next Tab (Opt+Cmd+Down), Previous Tab (Opt+Cmd+Up), Ctrl+Tab, Cmd+1 to Cmd+9 and Close Tabs Below SHALL act on the rows the sidebar lists, in its order, whichever window holds them, and never on a tab of another Space. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move the active row one row down or up in the list, stopping at its ends.
+Tabs › Next Tab (Opt+Cmd+Down), Previous Tab (Opt+Cmd+Up), Ctrl+Tab, Cmd+1 to Cmd+9 and Close Tabs Below SHALL act on the rows the sidebar lists, pinned tabs first and then Today tabs, in its order, whichever window holds them, and never on a tab of another Space or on favorites. Selecting a pinned tab whose page isn't open SHALL open it. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move the active row one row down or up within its section, stopping at its ends.
 
 #### Scenario: Moving a row with the keyboard
 - **WHEN** a window shows "Work", whose rows are X, Y and Z, Z is active, and the user presses Ctrl+Shift+PageUp
@@ -271,6 +283,14 @@ Tabs › Next Tab (Opt+Cmd+Down), Previous Tab (Opt+Cmd+Up), Ctrl+Tab, Cmd+1 to 
 #### Scenario: Cmd+number on a tab from another window
 - **WHEN** a window shows "Work", whose rows are X, Y and Z, Y was opened in another window, and the user presses Cmd+2
 - **THEN** this window shows Y
+
+#### Scenario: Cmd+number with pinned tabs and favorites
+- **WHEN** the profile has three favorites, "Work" has the pinned tabs P and Q, Q isn't open, and the Today tabs X and Y, and the user presses Cmd+2
+- **THEN** Q opens at its pinned URL and is active
+
+#### Scenario: Moving a row stops at its section
+- **WHEN** the first Today tab is active and the user presses Ctrl+Shift+PageUp
+- **THEN** nothing moves, and the tab stays unpinned
 
 ### Requirement: Spaces restored after a relaunch
 After Clair quits and relaunches, each restored tab SHALL return to its Space at its place in the Space's order, whichever windows come back (`browser-window`, "Windows restored at launch"). A tab whose Space no longer exists SHALL join the Space its window shows.
@@ -375,3 +395,18 @@ After a relaunch with session restore, no window SHALL show a still, and no tab 
 #### Scenario: Relaunch with a still showing
 - **WHEN** the user quits while a window shows a still of a tab, and relaunches
 - **THEN** that window shows a new tab page, and the tab is listed once
+
+### Requirement: The next tab among pinned tabs and favorites
+For the tab chosen after a close, a favorite the user came from SHALL count as the tab it was selected from, and pinned tabs whose page isn't open SHALL be passed over as rows. Closing the Space's only open tab, pinned or not, SHALL leave the window on a new tab page in the Space.
+
+#### Scenario: A closed pinned tab above
+- **WHEN** the rows are the pinned tab M, whose page isn't open, then the Today tabs T and U, U wasn't selected from another tab, and the user closes T
+- **THEN** U is active, and M stays closed
+
+#### Scenario: Back to a favorite
+- **WHEN** the user selects the Today tab T from the open favorite "Mail", then closes T
+- **THEN** "Mail" shows
+
+#### Scenario: The Space's only open tab is a pinned tab
+- **WHEN** the pinned tab "Mail" is the Space's only open tab, the Space has no Today tabs, and the user chooses Close and Keep Pinned
+- **THEN** the window stays on the Space, on a new tab page with the command bar, and "Mail" keeps its row

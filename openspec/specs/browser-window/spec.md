@@ -186,15 +186,15 @@ Tab-modal dialogs SHALL show over the card of the tab they belong to, including 
 - **THEN** its "Ask before HTTP" dialog shows over that tab's card, and Clair keeps running
 
 ### Requirement: No bookmarks in the interface
-Clair SHALL NOT show bookmarks in its interface: there SHALL be no Bookmarks menu, bookmarks bar, bookmark star or bookmark bubble, and their shortcuts (Cmd+D, Shift+Cmd+B, Opt+Cmd+B) SHALL do nothing. Bookmarks already in the profile SHALL be kept, and `chrome://bookmarks` SHALL still open when typed in the command bar.
+Clair SHALL NOT show bookmarks in its interface: there SHALL be no Bookmarks menu, bookmarks bar, bookmark star or bookmark bubble, and their shortcuts Shift+Cmd+B and Opt+Cmd+B SHALL do nothing. Cmd+D SHALL pin or unpin the tab (`pinned-tabs`), as in Arc. Bookmarks already in the profile SHALL be kept, and `chrome://bookmarks` SHALL still open when typed in the command bar.
 
 #### Scenario: Menu bar
 - **WHEN** the user looks through the menu bar
 - **THEN** there is no Bookmarks menu, and the View menu has no "Always Show Bookmarks Bar" item
 
 #### Scenario: Bookmark shortcut
-- **WHEN** the user presses Cmd+D on a page
-- **THEN** nothing happens, and no bookmark is created
+- **WHEN** the user presses Cmd+D on a Today tab
+- **THEN** the tab is pinned, and no bookmark is created
 
 ### Requirement: Features the native window doesn't host
 Chromium features with no place in the native window SHALL be unavailable rather than broken. Their menu items SHALL be hidden, and invoking them by shortcut, page API or extension API SHALL neither crash Clair nor leave UI behind. These include side panels, tab search, Chrome Labs, the EyeDropper, tab group UI, the app menu and the profile menu.
@@ -391,21 +391,6 @@ The loading indicator SHALL NOT show for frames loading on their own, same-docum
 - **WHEN** the user switches to a tab that is still loading
 - **THEN** the indicator shows straight away
 
-### Requirement: Tabs restored at launch
-When Clair launches, it SHALL reopen the tabs that were open when it quit, as Arc does, unless the user chose otherwise in Chromium's "On startup" setting. This SHALL hold for a new profile without any setting being changed. Incognito tabs SHALL NOT come back.
-
-#### Scenario: Quit and relaunch
-- **WHEN** a user who never changed a setting quits Clair with several tabs open and launches it again
-- **THEN** those tabs are open again
-
-#### Scenario: The user chose a new tab page
-- **WHEN** the user set "On startup" to "Open the New Tab page" in `chrome://settings`, quits and relaunches
-- **THEN** Clair opens one window on a new tab page
-
-#### Scenario: After a crash
-- **WHEN** Clair crashes with tabs open and is launched again
-- **THEN** the tabs reopen
-
 ### Requirement: Windows restored at launch
 With "When opening Clair, restore windows from previous session" (`settings-window`) off, as it is by default and in Arc, Clair SHALL launch with one window, showing the Space last shown, on a new tab page with the command bar open. With it on, Clair SHALL reopen each window that was open, showing the Space and the tab it showed. Either way the tabs come back in their Spaces, and incognito and guest windows SHALL NOT come back.
 
@@ -435,3 +420,26 @@ A tab showing the new tab page when Clair quits SHALL NOT come back at the next 
 #### Scenario: A restored window on a new tab page
 - **WHEN** restoring windows is on, and the user quits with a window showing a new tab page in "Work", which also lists "Docs", and relaunches
 - **THEN** the window comes back showing "Work" on a new tab page, and "Work" lists that page and "Docs"
+
+### Requirement: Tabs always restored at launch
+When Clair launches, it SHALL reopen the tabs that were open when it quit, as Arc does: Today tabs, and pinned tabs and favorites whose pages were open (`pinned-tabs`). They SHALL come back until the user closes them, with no setting to start without them: `chrome://settings` SHALL NOT show Chromium's "On startup" section, and a startup choice an extension or a stored preference makes SHALL be ignored. Incognito tabs SHALL NOT come back.
+
+#### Scenario: Quit and relaunch
+- **WHEN** a user who never changed a setting quits Clair with several tabs open and launches it again
+- **THEN** those tabs are open again
+
+#### Scenario: No "On startup" section
+- **WHEN** the user opens `chrome://settings`
+- **THEN** it has no "On startup" section
+
+#### Scenario: A startup choice made elsewhere
+- **WHEN** Chromium's startup preference is stored as "Open the New Tab page", or an extension sets startup pages, and the user quits with tabs open and relaunches
+- **THEN** those tabs are open again, and no startup page opens
+
+#### Scenario: After a crash
+- **WHEN** Clair crashes with tabs open and is launched again
+- **THEN** the tabs reopen
+
+#### Scenario: Open pins
+- **WHEN** the user quits with a pinned tab and a favorite open, and relaunches
+- **THEN** both are open again, and the pinned tabs and favorites that weren't open are listed, still not open
