@@ -22,12 +22,26 @@ struct ClairDialogButton {
   var title: String
   var role: Role
   var isEnabled = true
+  /// Filled with red: a `.destructive` default button, or a cancelling one
+  /// that discards something, such as "Discard Changes" (add-link-rules D6).
+  /// A destructive cancelling button keeps Esc and answers `.cancelled`.
+  var isDestructive: Bool
   /// Runs instead of answering and closing, as a swapped card's buttons do
   /// to go back. Nil answers with the role.
   var action: (@MainActor (ClairDialog) -> Void)?
 
+  init(
+    title: String, role: Role, isEnabled: Bool = true, isDestructive: Bool = false,
+    action: (@MainActor (ClairDialog) -> Void)? = nil
+  ) {
+    self.title = title
+    self.role = role
+    self.isEnabled = isEnabled
+    self.isDestructive = isDestructive || role == .destructive
+    self.action = action
+  }
+
   var isDefault: Bool { role != .cancel }
-  var isDestructive: Bool { role == .destructive }
 
   /// Esc for the cancelling button and Return for the default one, unless
   /// it's disabled (D2).
@@ -36,6 +50,11 @@ struct ClairDialogButton {
     case .cancel: .cancelAction
     case .default, .destructive: isEnabled ? .defaultAction : nil
     }
+  }
+
+  /// The key that chooses it as a page's leading button: none (D6).
+  func shortcut(isLeading: Bool) -> KeyboardShortcut? {
+    isLeading ? nil : shortcut
   }
 
   /// The key shown in the button's capsule, as Arc's buttons do.
@@ -60,6 +79,10 @@ struct ClairDialogPage {
   /// neither Esc nor Return chooses it, and it answers only through its
   /// action. It's styled as Cancel, whatever its role.
   var leadingButton: ClairDialogButton?
+  /// The card's width, when it isn't `ClairDialogView.width`, as the Link
+  /// Rules dialog's 640 pt (add-link-rules D5). The content slot widens with
+  /// it.
+  var width: CGFloat?
   /// Esc presses the default button when there's no cancelling one, as for
   /// a dialog whose one button is "Done".
   var escapePressesDefault = false
@@ -350,6 +373,11 @@ struct ClairDialogView: View {
   /// The width the content slot gets.
   static let contentWidth = width - insets.leading - insets.trailing
 
+  /// The content slot's width on a card `width` wide.
+  static func contentWidth(forCardWidth width: CGFloat) -> CGFloat {
+    width - insets.leading - insets.trailing
+  }
+
   /// Arc tints its dialogs with the Space's colour: a near-white card in
   /// Light Mode, a deep navy one in Dark Mode. Clair tints with the accent
   /// colour.
@@ -357,6 +385,14 @@ struct ClairDialogView: View {
     scheme == .dark
       ? Color(white: 0.07).mix(with: .accentColor, by: 0.14)
       : Color.white.mix(with: .accentColor, by: 0.02)
+  }
+
+  /// A list area on the card, such as the Link Rules dialog's: the card's
+  /// background a little darker, or lighter in Dark Mode (add-link-rules D5).
+  static func listBackground(_ scheme: ColorScheme) -> Color {
+    scheme == .dark
+      ? background(scheme).mix(with: .white, by: 0.06)
+      : background(scheme).mix(with: .black, by: 0.045)
   }
 
   /// The message's and the list's slate grey, a little tinted in Light Mode.
@@ -416,7 +452,7 @@ struct ClairDialogView: View {
       .padding(.top, page.message == nil && page.content == nil ? 44 : 15)
     }
     .padding(Self.insets)
-    .frame(width: Self.width, alignment: .leading)
+    .frame(width: page.width ?? Self.width, alignment: .leading)
     .background(shape.fill(Self.background(colorScheme)))
     .overlay(shape.strokeBorder(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.1), lineWidth: 1))
     .clipShape(shape)
@@ -439,13 +475,13 @@ private struct ClairDialogButtonView: View {
       HStack(spacing: 12) {
         Text(button.title)
         if !isLeading {
-          DialogKeyCap(role: button.role, label: button.keyLabel)
+          DialogKeyCap(role: button.role, isFilled: button.isDestructive, label: button.keyLabel)
             .accessibilityHidden(true)
         }
       }
     }
-    .buttonStyle(ClairDialogButtonStyle(role: isLeading ? .cancel : button.role))
-    .keyboardShortcut(isLeading ? nil : button.shortcut)
+    .buttonStyle(ClairDialogButtonStyle(role: isLeading ? .cancel : button.role, isDestructive: button.isDestructive))
+    .keyboardShortcut(button.shortcut(isLeading: isLeading))
     .disabled(!button.isEnabled)
     .accessibilityLabel(button.title)
     .accessibilityIdentifier(isLeading ? "clair.dialogLeading" : button.identifier)
@@ -453,15 +489,25 @@ private struct ClairDialogButtonView: View {
 }
 
 /// The key on a button: a grey "ESC" on the cancelling button, an outlined
-/// return arrow on the filled one. 20 pt high with 5 pt corners, as Arc's.
+/// return arrow on the filled one. 20 pt high with 5 pt corners, as Arc's. A
+/// red cancelling button's "ESC" is outlined in white, as the arrow is.
 private struct DialogKeyCap: View {
   let role: ClairDialogButton.Role
+  var isFilled = false
   let label: String
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
-    if role == .cancel {
+    if role == .cancel, isFilled {
+      Text(label)
+        .font(.system(size: 12, weight: .bold))
+        .foregroundStyle(Color.white)
+        .padding(.horizontal, 6)
+        .frame(height: 20)
+        .background(shape.fill(Color.white.opacity(0.15)))
+        .overlay(shape.strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+    } else if role == .cancel {
       Text(label)
         .font(.system(size: 12, weight: .bold))
         .foregroundStyle(
@@ -483,12 +529,14 @@ private struct DialogKeyCap: View {
 }
 
 /// Arc's buttons: 38 pt high with 6 pt corners and a darker edge under them
-/// for depth. Cancel is white with a hairline border; the default is filled.
+/// for depth. Cancel is white with a hairline border; the default is filled,
+/// as is a destructive button of either role, in red.
 private struct ClairDialogButtonStyle: ButtonStyle {
   let role: ClairDialogButton.Role
+  var isDestructive = false
 
   func makeBody(configuration: Configuration) -> some View {
-    StyledLabel(role: role, configuration: configuration)
+    StyledLabel(role: isDestructive ? .destructive : role, configuration: configuration)
   }
 
   private struct StyledLabel: View {

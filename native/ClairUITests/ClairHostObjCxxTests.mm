@@ -103,8 +103,35 @@
 }
 - (void)clearTodayInSpace:(ClairSpaceID)spaceID {
 }
+- (NSArray<id<ClairLinkRule>>*)linkRules {
+  return @[];
+}
+- (void)replaceLinkRules:(NSArray<id<ClairLinkRule>>*)rules {
+  for (id<ClairLinkRule> rule in rules) {
+    (void)std::string(rule.text.UTF8String);
+  }
+}
+- (BOOL)isValidLinkRuleText:(NSString*)text {
+  return text.length > 0;
+}
 @synthesize warnsBeforeQuitting = _warnsBeforeQuitting;
 - (void)quitWithoutWarning {
+}
+@end
+
+// A rule as ClairUI hands it over (add-link-rules design D4).
+@interface ObjCxxLinkRule : NSObject <ClairLinkRule>
+@end
+
+@implementation ObjCxxLinkRule
+- (ClairLinkRuleMatch)match {
+  return ClairLinkRuleMatchPrefix;
+}
+- (NSString*)text {
+  return @"github.com/acme";
+}
+- (ClairSpaceID)spaceID {
+  return @"6f1c0d1e-0000-4000-8000-000000000001";
 }
 @end
 
@@ -151,6 +178,12 @@
   ClairPinID pin = @(std::string("6f1c0d1e-0000-4000-8000-000000000000").c_str());
   [host movePin:pin toSpace:space atIndex:NSIntegerMax];
   [host setPinnedURL:[NSURL URLWithString:@"https://example.com/"] forPin:pin];
+  // The link rule calls (add-link-rules design D4).
+  XCTAssertEqual(host.linkRules.count, 0u);
+  [host replaceLinkRules:@[ [[ObjCxxLinkRule alloc] init] ]];
+  XCTAssertTrue([host isValidLinkRuleText:@"example.com"]);
+  std::string matches[] = {"contains", "exact", "prefix"};
+  XCTAssertEqual(matches[ClairLinkRuleMatchExact], "exact");
   ClairBrowserID browser = 7;
   XCTAssertEqual(browser, 7);
 }
@@ -177,7 +210,7 @@
          @protocol(ClairExtensionAction), @protocol(ClairExtensionPrompt), @protocol(ClairInfobar),
          @protocol(ClairHistoryMenu), @protocol(ClairHistoryMenuDelegate), @protocol(ClairHistoryItem),
          @protocol(ClairSpace), @protocol(ClairSpacesObserver), @protocol(ClairProfile),
-         @protocol(ClairPin)
+         @protocol(ClairPin), @protocol(ClairLinkRule)
        ]) {
     XCTAssertTrue(protocol_conformsToProtocol(protocol, @protocol(NSObject)));
   }

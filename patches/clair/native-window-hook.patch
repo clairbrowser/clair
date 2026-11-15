@@ -467,14 +467,19 @@
      return;  // IN-TEST
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -3340,6 +3340,49 @@
+@@ -3340,6 +3340,54 @@
    }
  
    if (is_mac) {
 +    # Clair's native browser window (replace-browser-window design D1), its
 +    # Spaces (add-spaces design D1, D2, D6), profiles (add-profiles design
-+    # D1, D3) and pins (add-pinned-tabs-and-favorites design D1, D7).
++    # D1, D3), pins (add-pinned-tabs-and-favorites design D1, D7) and link
++    # rules (add-link-rules design D1, D2).
 +    sources += [
++      "//chrome/browser/clair/clair_link_rule_store.h",
++      "//chrome/browser/clair/clair_link_rule_store.mm",
++      "//chrome/browser/clair/clair_link_rules.h",
++      "//chrome/browser/clair/clair_link_rules.mm",
 +      "//chrome/browser/clair/clair_pin_store.h",
 +      "//chrome/browser/clair/clair_pin_store.mm",
 +      "//chrome/browser/clair/clair_profiles.h",

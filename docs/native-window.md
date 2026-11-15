@@ -68,6 +68,16 @@ The `add-pinned-tabs-and-favorites` change's `design.md` (`openspec/changes/add-
 - **The title (D8).** `ClairBrowserWindow::UpdateTitleBar` uses the active row's custom name when it has one.
 - **`ClairUI` (D11).** `SpacesModel` caches each Space's pins and each profile's favorites; `BrowserWindowModel` copies the shown Space's and the profile's, and its `allTabs` adds their tabs to the Today tabs. The sidebar shows the favorites grid (`FavoritesGrid`, laid out by `FavoritesLayout`) above the Space pager, and one list of pinned rows (`PinRow`), the divider with Clear (`TodayDivider`), "New Tab" and the Today rows, which drag between sections (`TabList`'s `onMove` and `onInsert`, `SidebarDragItem`). Renaming is in place (`RenameField`) or, for favorites, a dialog (`PinDialogs`). `PinsMenu` adds Pin Tab (Cmd+D), Back to Pinned URL, Close and Keep Pinned and Clear Today (Shift+Cmd+K) to Chromium's Tab menu, hiding Chromium's own Pin Tab, and Collapse Pinned Tabs to the View menu. The collapse and the empty favorites box are user defaults (`PinsPreferences`), and the Links toggle is `ClairPeekForOtherSites`.
 
+## Link rules
+
+The `add-link-rules` change's `design.md` (`openspec/changes/add-link-rules/`) has the reasoning (D1–D7). Link rules send links from other apps to a Space, as Arc's Air Traffic Control and Dia's Link Rules do.
+
+- **The store (D1).** `ClairLinkRuleStore` keeps the rules in order in Local State (`clair.link_rules`), each with an ID, a match (`contains`, `exact` or `prefix`), the text as typed, trimmed, and a Space. It keeps only valid rules: a known match, a text that reads as a URL, a Space that exists, and no repeat of an earlier rule's match and text. It observes `ClairSpaceStore` and drops a Space's rules when the Space goes, which also covers a profile removed with its Spaces; reading drops them too, in case Clair stopped in between.
+- **The matcher (D3).** `ReadLinkRuleText` trims a text, rejects one that is empty or holds whitespace, puts `https://` in front when it has no `scheme://`, and requires a valid `http` or `https` URL with a host. `LinkRuleMatches` compares a link's spec without its fragment, and without its scheme when the rule's text had none, so `http` and `https` match alike: "URLs containing" looks for the raw text, ignoring case; "this exact URL" compares with the text read as a URL; "URLs starting with" checks that the link starts with it, so `example.com` becomes `example.com/` and doesn't match `example.com.evil.net`. The first matching rule wins (`FirstMatch`).
+- **The hook (D2).** Launch Services (`-application:openURLs:`) and Handoff (`-application:continueUserActivity:restorationHandler:`) both send links through `-[AppController openStartupTabsReplacingNTP:]`, which queues them until start-up completes. `patches/clair/link-rules.patch` calls `clair::RouteLinksFromOtherApps` there, just before `OpenStartupTabsInBrowser`: each link a rule matches opens through `ClairWindowGroup::OpenInSpace` and leaves the list, and Chromium opens the rest as it would. Links opened inside Clair never pass through it.
+- **The contract (D4).** `-[ClairHost linkRules]` returns snapshots (`ClairChromiumLinkRule`), `-replaceLinkRules:` replaces them all through the store, and `-isValidLinkRuleText:` asks `ReadLinkRuleText`, so the dialog's error matches what the store keeps. There is no observer: only the dialog reads the rules, when it opens.
+- **The dialog (D5–D7).** Settings › Links ends with a card, "Choose where links open inside Clair", after a divider, whose "Link Rules…" button (`SettingsWindowController.showLinkRules()`) shows `LinkRulesDialog` on the Settings window's `ClairDialogPresenter`: a 640 pt `ClairDialog` page (`ClairDialogPage.width`) with the rows as its content, "Add Rule" as its leading button, and Cancel and Done. `LinkRulesState` holds the rows until Done, which drops empty rows and checks the rest in order (valid text, an existing Space, no repeats) before `replaceLinkRules:`. Cancel with unsaved edits turns into a red "Discard Changes" (`ClairDialogButton.isDestructive` on a cancelling button), which closes on a second press. The rows' Space popups read `SpacesModel`, so a Space deleted while the dialog is open shows "Choose a Space".
+
 ## Where each piece lives
 
 | Piece | File |
@@ -88,6 +98,8 @@ The `add-pinned-tabs-and-favorites` change's `design.md` (`openspec/changes/add-
 | Tabs' Spaces, windows' groups, pins and names in saved sessions, new tab pages left out | `overlay/chrome/browser/clair/window/clair_space_session.{h,mm}`, `patches/clair/space-session.patch` |
 | The pin store and icons | `overlay/chrome/browser/clair/clair_pin_store.{h,mm}` |
 | Binding tabs to pins, pin snapshots, the host's pin calls, Restore Last Closed Tab for pins | `overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
+| The link rule store and the matcher | `overlay/chrome/browser/clair/clair_link_rule_store.{h,mm}` |
+| Routing links from other apps | `overlay/chrome/browser/clair/clair_link_rules.{h,mm}`, `patches/clair/link-rules.patch` |
 | Peeks for links to other sites | `overlay/chrome/browser/clair/window/clair_pinned_link_throttle.{h,mm}`, `patches/clair/pinned-link-peek.patch` |
 | Tabs always restored at launch | `overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` (`ApplyStartupPref`), `patches/clair/always-restore.patch` |
 | Opt+Cmd+arrows freed for Spaces and Next and Previous Tab | `patches/clair/space-shortcuts.patch` |
@@ -104,9 +116,10 @@ The `add-pinned-tabs-and-favorites` change's `design.md` (`openspec/changes/add-
 | Pinned rows, favorites, the divider, renaming, the pin menus and dialogs | `native/ClairUI/PinsViews.swift`, `PinsLogic.swift`, `FavoritesLayout.swift`, `PinsMenu.swift`, `PinDialogs.swift`, `PinsPreferences.swift`, `BrowserWindowController+Pins.swift` |
 | Spaces: the model, header, switcher, New Space form, icon field, Spaces menu and Manage Spaces | `native/ClairUI/SpacesModel.swift`, `SpacesLogic.swift`, `SpaceHeaderView.swift`, `SpaceSwitcher.swift`, `NewSpaceForm.swift`, `SpaceIconField.swift`, `SpacesMenu.swift`, `ManageSpacesDialog.swift` |
 | Profiles: the dialogs, Settings › Profiles, the Advanced toggles | `native/ClairUI/ProfileDialogs.swift`, `ProfilesSettingsView.swift`, `SettingsWindow.swift` |
+| Link rules: Settings › Links' card, the dialog and its checks | `native/ClairUI/SettingsWindow.swift`, `LinkRulesDialog.swift`, `LinkRulesLogic.swift` |
 | Command bar | `native/ClairUI/CommandBarModel.swift`, `OverlayViews.swift` |
 | Unit tests against a fake Chromium | `native/ClairUITests/` (`FakeBrowser.swift`, `FakeHost.swift`) |
-| Runtime tests on a packaged Clair | `tests/runtime/ClairRuntimeTests/NativeWindowTests.swift`, `SpacesTests.swift`, `SharedTabsTests.swift`, `ProfilesTests.swift`, `PinsTests.swift` |
+| Runtime tests on a packaged Clair | `tests/runtime/ClairRuntimeTests/NativeWindowTests.swift`, `SpacesTests.swift`, `SharedTabsTests.swift`, `ProfilesTests.swift`, `PinsTests.swift`, `LinkRulesTests.swift` |
 
 ## Working on it
 

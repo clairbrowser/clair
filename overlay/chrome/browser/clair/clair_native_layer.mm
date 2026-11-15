@@ -8,7 +8,9 @@
 
 #include <algorithm>
 #include <climits>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "base/apple/bundle_locations.h"
 #include "base/apple/foundation_util.h"
@@ -26,6 +28,7 @@
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/browser_process.h"
 #import "chrome/browser/clair/clair_pin_store.h"
+#include "chrome/browser/clair/clair_link_rule_store.h"
 #include "chrome/browser/clair/clair_profiles.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
@@ -96,7 +99,52 @@ tabs::TabInterface* TabOf(ClairTabID tabID) {
              : tabs::TabHandle(static_cast<int32_t>(tabID)).Get();
 }
 
+// add-link-rules D4: the contract's match, or nullopt for an unknown one.
+std::optional<clair::LinkRuleMatch> LinkRuleMatchOf(ClairLinkRuleMatch match) {
+  switch (match) {
+    case ClairLinkRuleMatchContains:
+      return clair::LinkRuleMatch::kContains;
+    case ClairLinkRuleMatchExact:
+      return clair::LinkRuleMatch::kExact;
+    case ClairLinkRuleMatchPrefix:
+      return clair::LinkRuleMatch::kPrefix;
+  }
+  return std::nullopt;
+}
+
+ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
+  switch (match) {
+    case clair::LinkRuleMatch::kContains:
+      return ClairLinkRuleMatchContains;
+    case clair::LinkRuleMatch::kExact:
+      return ClairLinkRuleMatchExact;
+    case clair::LinkRuleMatch::kPrefix:
+      return ClairLinkRuleMatchPrefix;
+  }
+  return ClairLinkRuleMatchContains;
+}
+
 }  // namespace
+
+// A link rule, as a snapshot (add-link-rules design D4).
+@interface ClairChromiumLinkRule : NSObject <ClairLinkRule>
+- (instancetype)initWithRule:(const clair::LinkRule&)rule;
+@end
+
+@implementation ClairChromiumLinkRule
+@synthesize match = _match;
+@synthesize text = _text;
+@synthesize spaceID = _spaceID;
+
+- (instancetype)initWithRule:(const clair::LinkRule&)rule {
+  if ((self = [super init])) {
+    _match = ContractMatchOf(rule.match);
+    _text = base::SysUTF8ToNSString(rule.text);
+    _spaceID = base::SysUTF8ToNSString(rule.space);
+  }
+  return self;
+}
+@end
 
 @implementation ClairChromiumHost
 
@@ -438,6 +486,39 @@ tabs::TabInterface* TabOf(ClairTabID tabID) {
     return;
   }
   ClairWindowGroup::OpenInSpace(space, gurl);
+}
+
+// --- Link rules (add-link-rules design D1, D3, D4) ---
+
+- (NSArray<id<ClairLinkRule>>*)linkRules {
+  CHECK([NSThread isMainThread]);
+  NSMutableArray<id<ClairLinkRule>>* rules = [NSMutableArray array];
+  for (const clair::LinkRule& rule : clair::ClairLinkRuleStore::Get()->rules()) {
+    [rules addObject:[[ClairChromiumLinkRule alloc] initWithRule:rule]];
+  }
+  return rules;
+}
+
+- (void)replaceLinkRules:(NSArray<id<ClairLinkRule>>*)rules {
+  CHECK([NSThread isMainThread]);
+  std::vector<clair::LinkRule> copies;
+  for (id<ClairLinkRule> rule in rules) {
+    std::optional<clair::LinkRuleMatch> match = LinkRuleMatchOf(rule.match);
+    if (!match) {
+      continue;
+    }
+    copies.push_back({std::string(), *match,
+                      base::SysNSStringToUTF8(rule.text ?: @""),
+                      base::SysNSStringToUTF8(rule.spaceID ?: @"")});
+  }
+  // The store drops invalid rules and repeats (D1).
+  clair::ClairLinkRuleStore::Get()->Replace(std::move(copies));
+}
+
+- (BOOL)isValidLinkRuleText:(NSString*)text {
+  CHECK([NSThread isMainThread]);
+  return clair::ReadLinkRuleText(base::SysNSStringToUTF8(text ?: @""))
+      .has_value();
 }
 
 // --- App settings ---
