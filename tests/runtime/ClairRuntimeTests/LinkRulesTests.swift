@@ -35,6 +35,25 @@ extension Browser {
     dialog.descendants(matching: .any).matching(identifier: "clair.linkRule").allElementsBoundByIndex
   }
 
+  /// A SwiftUI text's string, which XCUITest reads as its value.
+  func text(_ identifier: String) -> String {
+    let element = dialogElement(identifier)
+    return element.exists ? element.value as? String ?? element.label : ""
+  }
+
+  /// The enabled item titled `title` in the open menu: a popup grouped by
+  /// profile also has a disabled header of a profile's name.
+  func chooseEnabledMenuItem(_ title: String) async throws {
+    var found: XCUIElement?
+    let shown = await Harness.wait(for: 5) {
+      found = self.ui.menuItems.matching(NSPredicate(format: "title == %@", title)).allElementsBoundByIndex
+        .first { $0.isHittable && $0.isEnabled }
+      return found != nil
+    }
+    try require(shown, "No open menu has an enabled \(title)")
+    found!.click()
+  }
+
   func linkRulePart(_ identifier: String, of row: XCUIElement) -> XCUIElement {
     row.descendants(matching: .any).matching(identifier: identifier).firstMatch
   }
@@ -52,12 +71,12 @@ extension Browser {
     field.typeText(text)
     if match != "URLs containing" {
       linkRulePart("clair.linkRuleMatch", of: row).click()
-      try await openMenuItem(match).click()
+      try await chooseEnabledMenuItem(match)
     }
     let popup = linkRulePart("clair.linkRuleSpace", of: row)
     if popup.value as? String != space {
       popup.click()
-      try await openMenuItem(space).click()
+      try await chooseEnabledMenuItem(space)
     }
   }
 
@@ -65,8 +84,8 @@ extension Browser {
   func saveLinkRules() async throws {
     dialogElement("clair.dialogDefault").click()
     let closed = await Harness.wait(for: 10) { !self.dialog.exists }
-    let error = dialogElement("clair.linkRulesError")
-    try require(closed, "Done didn't close the dialog: \(error.exists ? error.label : "no error")")
+    let error = text("clair.linkRulesError")
+    try require(closed, "Done didn't close the dialog: \(error.isEmpty ? "no error" : error)")
   }
 
   /// Hands `link` to Clair as another app does, through Launch Services: to
@@ -84,12 +103,18 @@ extension Browser {
     try require(failure == nil, "Launch Services didn't open \(link): \(failure ?? "")")
   }
 
-  /// Deletes the Space the window shows, which has no tabs, from its header.
+  /// Deletes the Space the window shows from its header, confirming in the
+  /// window's own dialog when its tabs make it ask.
   func deleteShownSpace() throws {
     element("clair.spaceHeader").rightClick()
     let delete = ui.menuItems["Delete Space"]
     try require(delete.waitForExistence(timeout: 5), "The header menu has no Delete Space")
     delete.click()
+    let confirm = nativeWindow.descendants(matching: .any).matching(identifier: "clair.dialog").firstMatch
+      .descendants(matching: .any).matching(identifier: "clair.dialogDefault").firstMatch
+    if confirm.waitForExistence(timeout: 3) {
+      confirm.click()
+    }
   }
 }
 
@@ -99,6 +124,13 @@ extension Browser {
 /// Space and tabs and over DevTools.
 @MainActor
 final class LinkRulesTests: NativeWindowTestCase {
+  override func setUp() async throws {
+    // Each test drives the dialog and sends several links, some across a
+    // relaunch, past run.sh's default allowance.
+    executionTimeAllowance = 300
+    try await super.setUp()
+  }
+
   func counter(_ name: String) -> String { url("counter.html?\(name)") }
   func cookie(_ name: String) -> String { url("cookie.html?\(name)") }
 
@@ -150,14 +182,14 @@ final class LinkRulesTests: NativeWindowTestCase {
     defer { home.close() }
     try browser.openLinksPage()
     try browser.openLinkRules()
-    XCTAssertEqual(
-      browser.dialogElement("clair.linkRulesEmpty").label, "No link rules yet", "The empty list doesn't say so")
+    XCTAssertEqual(browser.text("clair.linkRulesEmpty"), "No link rules yet", "The empty list doesn't say so")
     try await browser.addLinkRule("URLs containing", "Counter.HTML?Meet", in: "Work")
     try await browser.addLinkRule("this exact URL", "\(fixture.baseURL)/pages/counter.html?inbox", in: "Work")
     try await browser.addLinkRule("this exact URL", "\(hostAndPort)/pages/counter.html?either", in: "Personal")
     try await browser.addLinkRule("URLs starting with", "\(hostAndPort)/pages/counter.html?acme", in: "Personal")
     try await browser.addLinkRule("URLs containing", "counter.html?docs", in: "Work")
-    try await browser.addLinkRule("URLs containing", "?docs", in: "Personal")
+    // Matches the same links: the first rule wins.
+    try await browser.addLinkRule("URLs containing", "html?docs", in: "Personal")
     XCTAssertEqual(browser.linkRuleRows.count, 6, "The dialog doesn't list six rules")
     try await browser.saveLinkRules()
     browser.closeLinksPage()
@@ -215,7 +247,7 @@ final class LinkRulesTests: NativeWindowTestCase {
     try browser.openLinksPage()
     try browser.openLinkRules()
     XCTAssertTrue(
-      browser.dialogElement("clair.linkRulesEmpty").label.contains("more than one Space"),
+      browser.text("clair.linkRulesEmpty").contains("more than one Space"),
       "The list doesn't say rules need another Space")
     XCTAssertFalse(browser.dialogElement("clair.dialogLeading").isEnabled, "Add Rule is on with one Space")
     browser.ui.typeKey(.escape, modifierFlags: [])
@@ -227,7 +259,7 @@ final class LinkRulesTests: NativeWindowTestCase {
 
     try browser.openLinksPage()
     try browser.openLinkRules()
-    XCTAssertEqual(browser.dialogElement("clair.linkRulesEmpty").label, "No link rules yet")
+    XCTAssertEqual(browser.text("clair.linkRulesEmpty"), "No link rules yet")
     XCTAssertTrue(browser.dialogElement("clair.dialogLeading").isEnabled, "Add Rule is off with two Spaces")
     // Add Rule: "URLs containing", an empty focused field, the first Space.
     browser.dialogElement("clair.dialogLeading").click()
@@ -246,7 +278,7 @@ final class LinkRulesTests: NativeWindowTestCase {
     browser.dialogElement("clair.dialogDefault").click()
     let error = browser.dialogElement("clair.linkRulesError")
     try require(error.waitForExistence(timeout: 5), "Done with an invalid text showed no error")
-    XCTAssertEqual(error.label, "Enter a valid domain or URL.")
+    XCTAssertEqual(browser.text("clair.linkRulesError"), "Enter a valid domain or URL.")
     XCTAssertTrue(browser.dialog.exists, "Done with an invalid text closed the dialog")
     field.typeKey("a", modifierFlags: .command)
     field.typeText("example.com")
@@ -257,7 +289,7 @@ final class LinkRulesTests: NativeWindowTestCase {
     try await browser.addLinkRule("URLs containing", "example.com", in: "Work")
     browser.dialogElement("clair.dialogDefault").click()
     try require(error.waitForExistence(timeout: 5), "Done with a duplicate showed no error")
-    XCTAssertEqual(error.label, "Each domain or URL and matching option can only appear once.")
+    XCTAssertEqual(browser.text("clair.linkRulesError"), "Each domain or URL and matching option can only appear once.")
     browser.linkRulePart("clair.linkRuleRemove", of: browser.linkRuleRows[1]).click()
     let removed = await Harness.wait(for: 5) { browser.linkRuleRows.count == 1 }
     XCTAssertTrue(removed, "The × button didn't remove the row")
@@ -341,7 +373,7 @@ final class LinkRulesTests: NativeWindowTestCase {
     browser.dialogElement("clair.dialogDefault").click()
     let error = browser.dialogElement("clair.linkRulesError")
     try require(error.waitForExistence(timeout: 5), "Done with a deleted Space showed no error")
-    XCTAssertEqual(error.label, "Choose a Space for each rule.")
+    XCTAssertEqual(browser.text("clair.linkRulesError"), "Choose a Space for each rule.")
     browser.ui.windows["Links"].typeKey(.escape, modifierFlags: [])
     let closed = await Harness.wait(for: 10) { !browser.dialog.exists }
     try require(closed, "Cancel didn't close the dialog")
@@ -362,10 +394,10 @@ final class LinkRulesTests: NativeWindowTestCase {
     try Harness.setRestoreWindows(false)
     let (browser, home) = try await startWithPage("counter.html?home")
     try browser.openProfilesPage()
-    try await browser.addProfile("Work")
+    try await browser.addProfile("Client")
     browser.ui.windows["Profiles"].typeKey("w", modifierFlags: .command)
     browser.nativeWindow.click()
-    try await browser.createSpace("Work", profile: "Work")
+    try await browser.createSpace("Work", profile: "Client")
     let setter = try await browser.open(cookie("set"))
     let set = await Harness.wait(for: 15) { try await browser.hasCookie(setter) }
     try require(set, "The cookie page didn't set its cookie in Work")
