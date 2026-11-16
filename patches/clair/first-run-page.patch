@@ -49,7 +49,7 @@
 -   support page</a> if you wish to report problems.<p>
 +  Privacy and security information, motivation and philosophy, rationale for changes, and more can be found in
 +  <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/README.md">ungoogled-chromium's README</a>.<p>
-+  Report problems with Clair on <a href="https://github.com/itsjoshpark/Clair/issues">its issues page</a>.<p>
++  Report problems with Clair on <a href="https://github.com/clairbrowser/clair/issues">its issues page</a>.<p>
    Are you a developer? Consider
    <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/docs/contributing.md">
     contributing</a> to ungoogled-chromium!

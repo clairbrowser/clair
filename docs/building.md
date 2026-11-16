@@ -32,7 +32,7 @@ GitHub's `macos-26` runner image has Xcode 26.6 at most, so CI jobs that build `
 Then:
 
 ```sh
-git clone --recurse-submodules https://github.com/itsjoshpark/Clair.git
+git clone --recurse-submodules https://github.com/clairbrowser/clair.git
 cd Clair
 ./build.sh -s /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk   # fetch, prepare, configure and compile
 ```

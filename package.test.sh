@@ -184,7 +184,7 @@ else
   check "writes the Clair version and build number" fail
 fi
 
-if [[ "$(plist_value "$info" SUFeedURL)" == "https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml" \
+if [[ "$(plist_value "$info" SUFeedURL)" == "https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml" \
     && "$(plist_value "$info" SUEnableAutomaticChecks)" == true \
     && "$(plist_value "$info" SUAutomaticallyUpdate)" == true \
     && "$(plist_value "$info" SUScheduledCheckInterval)" == 86400 \

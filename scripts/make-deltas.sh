@@ -29,7 +29,7 @@ die() {
   exit 1
 }
 
-app="" dmg="" version="" build="" out="" sparkle="" repo="itsjoshpark/Clair"
+app="" dmg="" version="" build="" out="" sparkle="" repo="clairbrowser/clair"
 while (( $# > 0 )); do
   case "$1" in
     --app) app="${2-}"; shift 2 ;;

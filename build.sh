@@ -254,7 +254,27 @@ stage_update() {
   rm -rf "$_next_dir"
 }
 
+# retrieve_and_unpack_resource.py links the unpacked toolchains with absolute
+# paths. When the workspace moves (the runner's folder is renamed or moved),
+# those links dangle: point each one at the same file in this workspace.
+relink_toolchains() {
+  local link target rel
+  while IFS= read -r link; do
+    target="$(readlink "$link")"
+    if [[ "$target" != /* || -e "$link" || "$target" != */build/src/* ]]; then
+      continue
+    fi
+    rel="${target#*/build/src/}"
+    if [[ -e "$_src_dir/$rel" ]]; then
+      echo "Relinking $link to $_src_dir/$rel (was $target)"
+      ln -sfn "$_src_dir/$rel" "$link"
+    fi
+  done < <(find "$_src_dir/third_party/rust-toolchain" "$_src_dir/third_party/llvm-build" \
+    -type l 2>/dev/null || true)
+}
+
 stage_configure() {
+  relink_toolchains
   # mac_sdk_path is a symlink with a fixed name, so ninja doesn't see an SDK
   # change. Objects compiled with another SDK are deleted instead of mixed in.
   local sdk_link="$_out_dir/sdk/selected_macos_sdk"
@@ -315,6 +335,7 @@ stage_configure() {
 }
 
 stage_compile() {
+  relink_toolchains
   cd "$_src_dir"
   echo running > "$_status_file"
 

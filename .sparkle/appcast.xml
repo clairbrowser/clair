@@ -7,26 +7,26 @@
 
     <item>
       <title>New Version Available</title>
-      <link>https://github.com/itsjoshpark/Clair</link>
+      <link>https://github.com/clairbrowser/clair</link>
       <sparkle:version>77</sparkle:version>
       <sparkle:shortVersionString>0.1.2 (77)</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-      <sparkle:fullReleaseNotesLink>https://github.com/itsjoshpark/Clair/releases/tag/v0.1.2</sparkle:fullReleaseNotesLink>
+      <sparkle:fullReleaseNotesLink>https://github.com/clairbrowser/clair/releases/tag/v0.1.2</sparkle:fullReleaseNotesLink>
       <pubDate>Fri, 06 Nov 2026 04:26:27 +0000</pubDate>
       <enclosure
-        url="https://github.com/itsjoshpark/Clair/releases/download/v0.1.2/Clair-0.1.2-arm64.dmg"
+        url="https://github.com/clairbrowser/clair/releases/download/v0.1.2/Clair-0.1.2-arm64.dmg"
         sparkle:edSignature="vshJBLMQTgO45SuJRKkufQVf7bgrSxvSdMkoUMBZy0oerhIFzrw9jkbh+vDMdWvrkvHIpllT/XaG4zkZxjxFDg=="
         length="170496561"
         type="application/octet-stream" />
       <sparkle:deltas>
         <enclosure
-          url="https://github.com/itsjoshpark/Clair/releases/download/v0.1.2/Clair-74-77.delta"
+          url="https://github.com/clairbrowser/clair/releases/download/v0.1.2/Clair-74-77.delta"
           sparkle:deltaFrom="74"
           sparkle:edSignature="Vd/WkyHgJAWNoA6ltXTr1sG+me8Qg2TTlFxir5uF531DMloB9LKpx0aCXJQNFWRCCOoTXqQiIsTMXR0X8X1JBw=="
           length="62418"
           type="application/octet-stream" />
         <enclosure
-          url="https://github.com/itsjoshpark/Clair/releases/download/v0.1.2/Clair-69-77.delta"
+          url="https://github.com/clairbrowser/clair/releases/download/v0.1.2/Clair-69-77.delta"
           sparkle:deltaFrom="69"
           sparkle:edSignature="/SVhjZvcqxEqJtAj0GyEpe/XojFO9b63FSG/9jSmXnbHq2B80HLVdjG6yrJJpWrduv0QGW9SxsyKbqlYWDzqDQ=="
           length="61274"
@@ -42,20 +42,20 @@
 
     <item>
       <title>New Version Available</title>
-      <link>https://github.com/itsjoshpark/Clair</link>
+      <link>https://github.com/clairbrowser/clair</link>
       <sparkle:version>74</sparkle:version>
       <sparkle:shortVersionString>0.1.1 (74)</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-      <sparkle:fullReleaseNotesLink>https://github.com/itsjoshpark/Clair/releases/tag/v0.1.1</sparkle:fullReleaseNotesLink>
+      <sparkle:fullReleaseNotesLink>https://github.com/clairbrowser/clair/releases/tag/v0.1.1</sparkle:fullReleaseNotesLink>
       <pubDate>Fri, 06 Nov 2026 01:15:30 +0000</pubDate>
       <enclosure
-        url="https://github.com/itsjoshpark/Clair/releases/download/v0.1.1/Clair-0.1.1-arm64.dmg"
+        url="https://github.com/clairbrowser/clair/releases/download/v0.1.1/Clair-0.1.1-arm64.dmg"
         sparkle:edSignature="S1vwZgTjd6hgKDtURO2YPdqrynAaG7OaEBwY5XoX1ZT+ltq9FAjnzRHmCghDQw26EOGH2XHuQJmHpcYC0LO6AA=="
         length="171700553"
         type="application/octet-stream" />
       <sparkle:deltas>
         <enclosure
-          url="https://github.com/itsjoshpark/Clair/releases/download/v0.1.1/Clair-69-74.delta"
+          url="https://github.com/clairbrowser/clair/releases/download/v0.1.1/Clair-69-74.delta"
           sparkle:deltaFrom="69"
           sparkle:edSignature="Yis816o/S8oWn/rA4j2Tt+DER09gBP4YQXUc0ubrgCckZOc3Tg3vEYbPpRwb80zRTDtW5RuOmH92/O3WoY29Ag=="
           length="62662"
@@ -71,14 +71,14 @@
 
     <item>
       <title>New Version Available</title>
-      <link>https://github.com/itsjoshpark/Clair</link>
+      <link>https://github.com/clairbrowser/clair</link>
       <sparkle:version>69</sparkle:version>
       <sparkle:shortVersionString>0.1.0 (69)</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-      <sparkle:fullReleaseNotesLink>https://github.com/itsjoshpark/Clair/releases/tag/v0.1.0</sparkle:fullReleaseNotesLink>
+      <sparkle:fullReleaseNotesLink>https://github.com/clairbrowser/clair/releases/tag/v0.1.0</sparkle:fullReleaseNotesLink>
       <pubDate>Fri, 06 Nov 2026 00:12:31 +0000</pubDate>
       <enclosure
-        url="https://github.com/itsjoshpark/Clair/releases/download/v0.1.0/Clair-0.1.0-arm64.dmg"
+        url="https://github.com/clairbrowser/clair/releases/download/v0.1.0/Clair-0.1.0-arm64.dmg"
         sparkle:edSignature="9BZu3U0biYGYfgthBOPKadKzyXKuKOE0C4OGZVw2s5TyPXe33WDwsSMKF+fes0P/AoS45sTsguvXM4Grio67Dw=="
         length="171701119"
         type="application/octet-stream" />

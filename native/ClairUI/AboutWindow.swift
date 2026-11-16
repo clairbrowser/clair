@@ -65,7 +65,7 @@ enum AboutLink: CaseIterable {
     switch self {
     case .chromium: URL(string: "https://www.chromium.org/")!
     case .chromiumCredits: URL(string: "chrome://credits/")!
-    case .otherCredits: URL(string: "https://github.com/itsjoshpark/Clair/blob/main/CREDITS.md")!
+    case .otherCredits: URL(string: "https://github.com/clairbrowser/clair/blob/main/CREDITS.md")!
     case .license: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
     }
   }

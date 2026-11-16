@@ -36,7 +36,7 @@ code_md="$(commit "code md" native/README.md)"
 # A branch commit with code_1's tree, as a squash merge has its branch's tree.
 branch_1="$(git -C "$repo" commit-tree "$(git -C "$repo" rev-parse "$code_1^{tree}")" -m branch)"
 
-url() { echo "https://github.com/itsjoshpark/Clair/actions/runs/$1"; }
+url() { echo "https://github.com/clairbrowser/clair/actions/runs/$1"; }
 
 mkdir "$work/bin"
 cat >"$work/bin/gh" <<'FAKE'

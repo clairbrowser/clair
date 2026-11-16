@@ -4,7 +4,7 @@ Clair updates itself with Sparkle 2, from `ClairUI`. It shows no Sparkle windows
 
 ## How an update reaches a user
 
-1. Sparkle checks `https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml` soon after the first launch, then every 24 hours. It asks no permission, because `package.sh` sets `SUEnableAutomaticChecks`, `SUAutomaticallyUpdate` and `SUScheduledCheckInterval` in `Info.plist`.
+1. Sparkle checks `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml` soon after the first launch, then every 24 hours. It asks no permission, because `package.sh` sets `SUEnableAutomaticChecks`, `SUAutomaticallyUpdate` and `SUScheduledCheckInterval` in `Info.plist`.
 2. It downloads the delta for the running build if the appcast has one, and otherwise the full DMG, with no window. If a delta fails to apply, it downloads the full DMG.
 3. Sparkle's `Autoupdate` tool checks the update's EdDSA signature against `SUPublicEDKey`, unpacks it, and waits for Clair to quit. An update that fails the check is dropped, and the menu doesn't change.
 4. The Clair menu's "Check for Updates…" item now reads "Update Available…" with a "1 update" badge.

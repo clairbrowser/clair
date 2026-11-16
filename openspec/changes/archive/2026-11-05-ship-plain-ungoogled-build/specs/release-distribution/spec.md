@@ -18,7 +18,7 @@ Each release SHALL be distributed as a DMG containing `Clair.app` and a shortcut
 - **THEN** all checks pass and identify Clair's Developer ID team
 
 ### Requirement: GitHub release per version
-Each release SHALL be published as a GitHub Release on `itsjoshpark/Clair`, tagged `v<version>` (for example `v0.1.0`). The release SHALL include:
+Each release SHALL be published as a GitHub Release on `clairbrowser/clair`, tagged `v<version>` (for example `v0.1.0`). The release SHALL include:
 - the DMG
 - the delta update files
 - SHA-256 checksums for every asset
