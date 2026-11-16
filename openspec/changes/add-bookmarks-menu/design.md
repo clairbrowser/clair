@@ -87,14 +87,14 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
   - `bookmarkFolders`: the user-editable folders in the popup's order. That's Other Bookmarks, then its folders depth-first. The Bookmarks Bar is left out, since D6 keeps it empty. Managed and Mobile Bookmarks are left out too: managed bookmarks can't be edited, and ungoogled-chromium has no sync to fill Mobile.
   - `-updateBookmark:title:folder:`: renames and moves the bookmark. An empty title becomes the page's title. An ID that no longer exists, because the bookmark was removed meanwhile, does nothing.
   - `-removeBookmark:(ClairBookmarkID)`: the dialog's Remove.
-  - `-addBookmarkFolder:(NSString *)title`: adds the folder at the top of Other Bookmarks and returns its ID.
+  - `-addBookmarkFolder:(NSString *)title`: adds the folder to Other Bookmarks and returns its ID.
 - **`-[ClairWindow showBookmarkDialog:(id<ClairBookmark>)]`**, for the ⇧⌘B path.
 
 All of it is additive. `ClairUI` and the engine ship together in one app, so there's no version skew to handle.
 
 ### D4. One way in: ⇧⌘B and the menu item
 
-⇧⌘B and the menu item run `IDC_BOOKMARK_THIS_TAB`. The native window's `ExecuteCommand` (`clair_native_window.mm`) handles it before Chromium does, as it already handles `IDC_NEW_TAB`. For the active tab's last committed URL, it adds a bookmark under the page's title at index 0 of Other Bookmarks, with `isNew` true, unless the page is already bookmarked, in which case it takes the URL's most recently added bookmark. It then calls `showBookmarkDialog:` with that snapshot. Chromium's `BookmarkCurrentTab` would add to `GetParentForNewNodes`, the most recently modified folder, which can be the Bookmarks Bar. `ClairBrowserWindow::ShowBookmarkBubble` keeps logging, since nothing calls it any more.
+⇧⌘B and the menu item run `IDC_BOOKMARK_THIS_TAB`. The native window's `ExecuteCommand` (`clair_native_window.mm`) handles it before Chromium does, as it already handles `IDC_NEW_TAB`. For the active tab's last committed URL, it adds a bookmark under the page's title to Other Bookmarks, with `isNew` true, unless the page is already bookmarked, in which case it takes the URL's most recently added bookmark. It then calls `showBookmarkDialog:` with that snapshot. Chromium's `BookmarkCurrentTab` would add to `GetParentForNewNodes`, the most recently modified folder, which can be the Bookmarks Bar. `ClairBrowserWindow::ShowBookmarkBubble` keeps logging, since nothing calls it any more.
 
 `BrowserWindowController.showBookmarkDialog(_:)` presents a `BookmarkDialog` through the window's `ClairDialogPresenter`, so it queues behind any other dialog on that window.
 
@@ -121,14 +121,14 @@ The card keeps `ClairDialogView`'s width and insets, so it matches Clair's other
 Clair's interface shows one bookmark list. Chromium's model always has a Bookmarks Bar and an Other Bookmarks folder, both permanent, and Clair uses Other Bookmarks:
 - the menu lists its contents directly (D7);
 - the dialog's folder popup starts with it, titled "Bookmarks" (D5);
-- new bookmarks and new folders go to its top (D4, D3).
+- new bookmarks and new folders are added to it (D4, D3).
 
 **Keeping the Bookmarks Bar empty.** `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` is a `BaseBookmarkModelObserver`, one for each original profile, started where `ApplyPasswordAndAutofillOverrides` runs. It drains the bar when:
 - the model loads;
 - `BookmarkNodeAdded` or `BookmarkNodeMoved` puts a node directly in the bar;
 - `ExtensiveBookmarkChangesEnded` runs, which is when an import finishes. While `IsDoingExtensiveChanges()` is true, it waits.
 
-Draining posts a task, so it never moves nodes inside an observer callback. It moves the bar's children, in order, to indices 0, 1, 2… of Other Bookmarks with `BookmarkModel::Move`. A folder moves whole. A managed (policy) node is never in the bar, and the account-storage bar, which only sync fills, is drained the same way if it exists.
+Draining posts a task, so it never moves nodes inside an observer callback. It moves the bar's children to Other Bookmarks with `BookmarkModel::Move`. A folder moves whole. A managed (policy) node is never in the bar, and the account-storage bar, which only sync fills, is drained the same way if it exists.
 
 *Alternative:* show the bar's contents and Other Bookmarks' together, moving nothing. Rejected: the dialog would still have to show two roots, and an extension's or import's bookmarks would sit apart from the user's.
 
@@ -156,7 +156,7 @@ The `command-bar` delta modifies #164's "Row icons" requirement to add the bookm
 
 ### D9. Tests seed bookmarks through the profile's `Bookmarks` file
 
-The runtime harness already launches with `--user-data-dir`. A helper writes `Default/Bookmarks` before launch. It holds two bookmarks in the Bookmarks Bar, to check that they're drained in order, and in Other Bookmarks a bookmark and a "Reading" folder with one bookmark, pointing at the suite's page server, at paths the test never visits. Chromium's decoder doesn't check a checksum, so the file can leave it out.
+The runtime harness already launches with `--user-data-dir`. A helper writes `Default/Bookmarks` before launch. It holds two bookmarks in the Bookmarks Bar, to check that they're drained, and in Other Bookmarks a bookmark and a "Reading" folder with one bookmark, pointing at the suite's page server, at paths the test never visits. Chromium's decoder doesn't check a checksum, so the file can leave it out.
 
 ## Risks / Trade-offs
 
@@ -172,4 +172,4 @@ The runtime harness already launches with `--user-data-dir`. A helper writes `De
 
 ## Migration Plan
 
-On the first launch after the update, D6 moves the Bookmarks Bar's contents to the top of Other Bookmarks, and every bookmark shows in the menu and the command bar. Rolling back hides them from the interface again. Bookmarks stay where D6 moved them, and nothing is lost.
+On the first launch after the update, D6 moves the Bookmarks Bar's contents to Other Bookmarks, and every bookmark shows in the menu and the command bar. Rolling back hides them from the interface again. Bookmarks stay where D6 moved them, and nothing is lost.

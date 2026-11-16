@@ -15,7 +15,7 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - the bookmarks and folders of Chromium's Other Bookmarks, directly in the menu, with favicons, each folder as a submenu.
 
   Choosing a bookmark opens it in the active tab, and ⌘-choosing it opens it in a new tab, as Chromium's menu does.
-- **One bookmark list, "Bookmarks".** Clair uses only Chromium's Other Bookmarks folder and calls it "Bookmarks". The Bookmarks Bar has no place in Clair's interface, so Clair keeps it empty. Whatever is there at launch, or lands there later from an import, Manage Bookmarks or an extension, moves to the top of Other Bookmarks in its order, so it shows first in the menu. New bookmarks and new folders also go to the top. `chrome://bookmarks` still shows the empty Bookmarks Bar: hiding it would mean patching Chromium's page for little gain.
+- **One bookmark list, "Bookmarks".** Clair uses only Chromium's Other Bookmarks folder and calls it "Bookmarks". The Bookmarks Bar has no place in Clair's interface, so Clair keeps it empty. Whatever is there at launch, or lands there later from an import, Manage Bookmarks or an extension, moves to Other Bookmarks. `chrome://bookmarks` still shows the empty Bookmarks Bar: hiding it would mean patching Chromium's page for little gain.
 - **A bookmark dialog**, one of Clair's own dialogs, with Dia's controls (`dia-reference/`). It's the same dialog for adding and editing:
   - **Title:** "Bookmark Added" or "Edit Bookmark". Dia's small favicon at the end of the title row is left out, so the dialog needs nothing new from `ClairDialog`.
   - **Name:** a field holding the bookmark's name, focused with its text selected.
@@ -43,8 +43,8 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
 
 - **Engine** (the engine key changes):
   - `clair_window_hooks.mm`: the Bookmarks menu is shown, and its first item is moved to the top and given ⇧⌘B.
-  - `clair_native_window.mm`: `ClairIsRemovedCommand` no longer removes `IDC_BOOKMARK_THIS_TAB`. The window's menu validation titles it Bookmark This Page… or Edit Bookmark…, and the window runs it itself, adding to the top of Other Bookmarks and asking `ClairUI` for the bookmark dialog.
-  - A new `clair_bookmark_bar_drain.{h,mm}` keeps each profile's Bookmarks Bar empty, moving what lands there to the top of Other Bookmarks.
+  - `clair_native_window.mm`: `ClairIsRemovedCommand` no longer removes `IDC_BOOKMARK_THIS_TAB`. The window's menu validation titles it Bookmark This Page… or Edit Bookmark…, and the window runs it itself, adding to Other Bookmarks and asking `ClairUI` for the bookmark dialog.
+  - A new `clair_bookmark_bar_drain.{h,mm}` keeps each profile's Bookmarks Bar empty, moving what lands there to Other Bookmarks.
   - The browser bridge lists the profile's bookmark folders, edits and removes bookmarks, and adds folders.
   - `clair_autocomplete.mm`: stops removing `kBookmark` from the providers, and marks bookmarked rows with the new kind instead of fetching their favicon.
   - A new `patches/clair/bookmarks-menu-root.patch` makes Chromium's `BookmarkMenuBridge` list Other Bookmarks' contents directly in the menu, where it lists the Bookmarks Bar's, with no Bookmarks Bar or Other Bookmarks submenu. No other Chromium file changes.
@@ -57,5 +57,5 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - a `BookmarkDialog` built on `ClairDialog` as it is;
   - Manage Bookmarks' title in `MainMenuTitles`.
 - **Runtime suite:** new tests cover the menu and its titles, ⇧⌘B and the dialog, and bookmark suggestions, using a seeded `Bookmarks` file in the test profile. The PR runs `quality.yml` on its branch.
-- **Users:** bookmarks already in the profile appear in the menu right away. Bookmarks in the Bookmarks Bar move to the top of Other Bookmarks on the first launch. They stay there if Clair is rolled back, but nothing is lost.
+- **Users:** bookmarks already in the profile appear in the menu right away. Bookmarks in the Bookmarks Bar move to Other Bookmarks on the first launch. They stay there if Clair is rolled back, but nothing is lost.
 - **Docs:** `docs/native-window.md` (the menu, the dialog and the bridge calls), and a Changie fragment.
