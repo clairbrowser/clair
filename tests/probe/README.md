@@ -148,11 +148,6 @@ These come from the add-peek change (its design.md has the numbers):
 - **Load timing.** `/slow-links` links to pages the server sends after 200 ms
   to 3 s. Record the toolbar while Shift+clicking one, and `measure match`
   each frame between a reload frame and a stop frame to time the button.
-- **A page stuck in dialogs.** `dialog-loop.html` shows alerts in a loop
-  once its button is clicked (`?confirm` or `?prompt` for those,
-  `?beforeunload` to ask before leaving too), to check that its tab can still
-  be closed or left. See the trap below about a dialog taking the probe's
-  coordinates.
 - **Esc cases.** `esc-links.html` opens `esc.html?<case>` (a field, a
   dialog, a cross-origin frame…) from `127.0.0.1`, so its `localhost` frames
   are cross-origin.
