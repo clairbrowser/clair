@@ -115,7 +115,8 @@ build/probe/bin/measure track build/probe/rec/peek/frames white 0 0 2400 2012 80
 - `tools/` holds small Swift tools, compiled into `build/probe/bin/` on first
   use (or by `tools/build.sh`); each describes its arguments at the top:
   `windows` (window IDs and frames, by app name or process ID), `drag` (a drag
-  with real mouse events, in screen points), `cdp` (DevTools
+  with real mouse events, in screen points), `mouse` (a real pointer move or
+  click, in screen points), `cdp` (DevTools
   protocol commands for the test copy), `frames` (a movie's frames), `sheet` (a
   labelled contact sheet), `crop` (a pixel rectangle; `sips --cropOffset`
   centres instead), and `measure`:
@@ -147,6 +148,11 @@ These come from the add-peek change (its design.md has the numbers):
 - **Load timing.** `/slow-links` links to pages the server sends after 200 ms
   to 3 s. Record the toolbar while Shift+clicking one, and `measure match`
   each frame between a reload frame and a stop frame to time the button.
+- **A page stuck in dialogs.** `dialog-loop.html` shows alerts in a loop
+  once its button is clicked (`?confirm` or `?prompt` for those,
+  `?beforeunload` to ask before leaving too), to check that its tab can still
+  be closed or left. See the trap below about a dialog taking the probe's
+  coordinates.
 - **Esc cases.** `esc-links.html` opens `esc.html?<case>` (a field, a
   dialog, a cross-origin frame…) from `127.0.0.1`, so its `localhost` frames
   are cross-origin.
@@ -192,6 +198,11 @@ These come from the add-peek change (its design.md has the numbers):
   real `CGEvent` mouse moves instead.
 - **Clair's green button** is `XCUIIdentifierFullScreenWindow` in the tree,
   not `ZoomWindow`.
+- **A dialog becomes the main window.** While a page's alert or another
+  Views dialog shows, `app.windows.firstMatch` is that dialog, so the probe's
+  coordinates (and `click-element.sh`'s) start at its corner, and its `hover`
+  doesn't bring up a sidebar row's close button. Use `build/probe/bin/mouse
+  move|click x y` in screen points instead.
 - **Read a frame before clicking**: a button can disappear after the click,
   failing a later query.
 - **The emoji picker takes typing.** A field that opens macOS's emoji picker,

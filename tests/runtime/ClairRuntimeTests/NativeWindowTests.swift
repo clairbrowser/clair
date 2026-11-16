@@ -354,6 +354,32 @@ final class ToastTests: NativeWindowTestCase {
   }
 }
 
+/// Chromium's tab-modal JavaScript dialogs (task 4.7).
+@MainActor
+final class JavaScriptDialogTests: NativeWindowTestCase {
+  /// A page that alerts in a loop, and asks before leaving, can't keep its
+  /// tab open: Cmd+W reaches the window while the alert has focus.
+  func testCmdWClosesATabThatAlertsInALoop() async throws {
+    let (browser, tab) = try await startWithPage("beforeunload.html")
+    defer { tab.close() }
+    let listed = await browser.waitForTabs { $0.contains("Clair leave page") }
+    try require(listed, "The sidebar doesn't list the page: \(browser.tabTitles)")
+    // After the reply, so the evaluation returns.
+    _ = try await tab.evaluate("setTimeout(() => { for (;;) alert('loop'); }); 1")
+    let alert = browser.ui.windows.matching(NSPredicate(format: "title ENDSWITH ' says'")).firstMatch
+    try require(alert.waitForExistence(timeout: 15), "The page's alert didn't show")
+    // Detached, as for a user: an attached debugger turns off the timeout that
+    // closes a page which doesn't answer beforeunload.
+    tab.close()
+    try await Task.sleep(for: .seconds(1))
+
+    browser.ui.typeKey("w", modifierFlags: .command)
+    let closed = await browser.waitForTabs { !$0.contains("Clair leave page") }
+    XCTAssertTrue(closed, "Cmd+W didn't close the tab behind its alert: \(browser.tabTitles)")
+    XCTAssertFalse(alert.exists, "The alert outlived its tab")
+  }
+}
+
 /// The top row and the URL field (task 5.1).
 @MainActor
 final class NavigationTests: NativeWindowTestCase {

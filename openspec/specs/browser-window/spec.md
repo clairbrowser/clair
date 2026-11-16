@@ -175,11 +175,15 @@ Chromium bubbles that remain, including permission prompts and page info, SHALL 
 - **THEN** the popup window opens at the card's top-leading corner, fully on screen
 
 ### Requirement: Dialogs and windows Chromium keeps
-Tab-modal dialogs SHALL show over the card of the tab they belong to, including JavaScript alerts and confirms, HTTP authentication and print preview. File pickers SHALL open as sheets or panels of the native window. The task manager and profile picker SHALL open in Chromium's own windows.
+Tab-modal dialogs SHALL show over the card of the tab they belong to, including JavaScript alerts and confirms, HTTP authentication and print preview. While one has focus, the window's menu commands and their shortcuts, such as Close Tab, SHALL still reach the window, so a page that shows dialogs in a loop can't keep its tab open. File pickers SHALL open as sheets or panels of the native window. The task manager and profile picker SHALL open in Chromium's own windows.
 
 #### Scenario: JavaScript alert
 - **WHEN** a page calls `alert("hi")`
 - **THEN** the alert shows over that tab's card, and dismissing it returns control to the page
+
+#### Scenario: Closing a tab that alerts in a loop
+- **WHEN** a page that asks before leaving shows alerts in a loop, and the user presses Cmd+W while an alert has focus
+- **THEN** the tab closes without asking
 
 #### Scenario: Tab-scoped dialog
 - **WHEN** HTTPS-first can't upgrade a site the user opens and falls back to HTTP, asking first
