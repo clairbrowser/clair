@@ -115,7 +115,8 @@ build/probe/bin/measure track build/probe/rec/peek/frames white 0 0 2400 2012 80
 - `tools/` holds small Swift tools, compiled into `build/probe/bin/` on first
   use (or by `tools/build.sh`); each describes its arguments at the top:
   `windows` (window IDs and frames, by app name or process ID), `drag` (a drag
-  with real mouse events, in screen points), `cdp` (DevTools
+  with real mouse events, in screen points), `mouse` (a real pointer move or
+  click, in screen points), `cdp` (DevTools
   protocol commands for the test copy), `frames` (a movie's frames), `sheet` (a
   labelled contact sheet), `crop` (a pixel rectangle; `sips --cropOffset`
   centres instead), and `measure`:
@@ -192,6 +193,11 @@ These come from the add-peek change (its design.md has the numbers):
   real `CGEvent` mouse moves instead.
 - **Clair's green button** is `XCUIIdentifierFullScreenWindow` in the tree,
   not `ZoomWindow`.
+- **A dialog becomes the main window.** While a page's alert or another
+  Views dialog shows, `app.windows.firstMatch` is that dialog, so the probe's
+  coordinates (and `click-element.sh`'s) start at its corner, and its `hover`
+  doesn't bring up a sidebar row's close button. Use `build/probe/bin/mouse
+  move|click x y` in screen points instead.
 - **Read a frame before clicking**: a button can disappear after the click,
   failing a later query.
 - **The emoji picker takes typing.** A field that opens macOS's emoji picker,

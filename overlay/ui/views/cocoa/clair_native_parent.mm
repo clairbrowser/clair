@@ -6,6 +6,9 @@
 
 #import <AppKit/AppKit.h>
 
+#include "base/apple/foundation_util.h"
+#import "components/remote_cocoa/app_shim/native_widget_mac_nswindow.h"
+#import "ui/base/cocoa/command_dispatcher.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 
@@ -26,7 +29,24 @@ class NativeParentAttacher : public WidgetObserver {
   void Attach(Widget* widget) {
     NSWindow* child = widget->GetNativeWindow().GetNativeNSWindow();
     NSWindow* parent = parent_;
-    if (!child || !parent || !child.visible || child.parentWindow == parent) {
+    if (!child || !parent || !child.visible) {
+      return;
+    }
+    // Menu commands and their shortcuts, such as Close Tab, pass from a Views
+    // window to its parent only while the parent looks key
+    // (commandDispatchParent, native_widget_mac_nswindow.mm). A Views parent
+    // keeps looking key while its child has focus; the native window doesn't,
+    // so a page's alert would take Cmd+W and the File menu's tab commands away
+    // from the window, and a page that alerts in a loop could only be closed
+    // from the sidebar.
+    NativeWidgetMacNSWindow* views_child =
+        base::apple::ObjCCast<NativeWidgetMacNSWindow>(child);
+    if (views_child &&
+        [parent conformsToProtocol:@protocol(CommandDispatchingWindow)]) {
+      views_child.commandDispatchParentOverride =
+          static_cast<NSWindow<CommandDispatchingWindow>*>(parent);
+    }
+    if (child.parentWindow == parent) {
       return;
     }
     // A parentless window-modal dialog floats at the modal panel level, above
