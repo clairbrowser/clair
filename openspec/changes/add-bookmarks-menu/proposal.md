@@ -26,7 +26,7 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - **Add to Bookmarks…**, with ⇧⌘B shown, while the tab's page isn't bookmarked. It adds the bookmark and opens the dialog for that tab, without switching tabs.
   - **Remove Bookmark**, with no shortcut, while it is. It removes the page's bookmarks at once.
 
-  The item is disabled while a pinned tab or favorite has no open page. Guest windows, and profiles whose policy forbids editing bookmarks, don't show it.
+  A pinned tab or favorite acts on the page it shows. While it has no open page, it acts on its pinned URL under its name, as Copy Link does. Guest windows, and profiles whose policy forbids editing bookmarks, don't show the item.
 - **The command bar suggests bookmarks.** Chromium's bookmark source joins the command bar's suggestions, so a bookmark the user has never visited shows up by its title or URL. The row looks like a history row. Chromium already lists a page once, even when it's both visited and bookmarked.
 - **Shortcuts that stay:** ⌘D pins or unpins the tab (`pinned-tabs`), and ⇧⌘D stays free for `add-page-toolbar`'s toolbar toggle. Chromium's ⇧⌘B (Always Show Bookmarks Bar) becomes Bookmark This Page….
 - **What stays out:** the bookmarks bar, View › Always Show Bookmarks Bar, the bookmark star, Chromium's bookmark bubble, Bookmark All Tabs, the bookmarks side panel, and Dia's Recent Bookmarks section.
@@ -56,8 +56,8 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - A new `patches/clair/bookmarks-menu-folders.patch` makes Chromium's `BookmarkMenuBridge` list the Bookmarks Bar as a submenu, as it does Other Bookmarks. No other Chromium file changes.
 - **`ClairHost.h`:** additive:
   - a bookmark snapshot (`ClairBookmark`) and a folder snapshot (`ClairBookmarkFolder`);
-  - `ClairTab.isBookmarked`;
-  - `ClairBrowser.canEditBookmarks`, `bookmarkFolders`, `-bookmarkTab:`, `-updateBookmark:…`, `-removeBookmark:`, `-removeBookmarkForTab:` and `-addBookmarkFolder:`;
+  - `ClairTab.isBookmarked` and `ClairPin.isBookmarked`;
+  - `ClairBrowser.canEditBookmarks`, `bookmarkFolders`, `-bookmarkTab:`, `-bookmarkPin:`, `-updateBookmark:…`, `-removeBookmark:`, `-removeBookmarkForTab:`, `-removeBookmarkForPin:` and `-addBookmarkFolder:`;
   - `-[ClairWindow showBookmarkDialog:]`.
 - **`ClairUI`:**
   - a `BookmarkDialog` built on `ClairDialog`, which gains a small trailing title icon;

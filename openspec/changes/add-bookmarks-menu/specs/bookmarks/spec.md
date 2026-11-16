@@ -106,7 +106,7 @@ New Folder… SHALL turn the Folder popup into a field with the placeholder "New
 - **THEN** the popup shows the previous folder again, and no folder is created
 
 ### Requirement: Bookmark item in tab menus
-A tab's context menu SHALL offer Add to Bookmarks…, showing ⇧⌘B, while the tab's page isn't bookmarked, and Remove Bookmark, with no shortcut, while it is. Add to Bookmarks… SHALL bookmark that tab's page and open the bookmark dialog for it, without activating the tab. Remove Bookmark SHALL remove every bookmark of the page.
+A tab's context menu SHALL offer Add to Bookmarks…, showing ⇧⌘B, while the tab's page isn't bookmarked, and Remove Bookmark, with no shortcut, while it is. Add to Bookmarks… SHALL bookmark that tab's page and open the bookmark dialog for it, without activating the tab. Remove Bookmark SHALL remove every bookmark of the page. A pinned tab or favorite with no open page SHALL act on its pinned URL, under its name, as Copy Link does.
 
 #### Scenario: Adding from a background tab
 - **WHEN** the user right-clicks a Today tab that isn't active, whose page isn't bookmarked, and chooses Add to Bookmarks…
@@ -117,8 +117,8 @@ A tab's context menu SHALL offer Add to Bookmarks…, showing ⇧⌘B, while the
 - **THEN** the menu offers Remove Bookmark with no shortcut, and choosing it removes the bookmark with no dialog
 
 #### Scenario: Closed pinned tab
-- **WHEN** the user right-clicks a pinned tab that has no open page
-- **THEN** Add to Bookmarks… is shown and disabled
+- **WHEN** the pinned tab "Mail" has no open page, its pinned URL isn't bookmarked, and the user chooses Add to Bookmarks… in its menu
+- **THEN** its pinned URL is bookmarked under its name, the bookmark dialog opens titled "Bookmark Added", and no page opens
 
 #### Scenario: Guest window
 - **WHEN** the user right-clicks a tab in a guest window

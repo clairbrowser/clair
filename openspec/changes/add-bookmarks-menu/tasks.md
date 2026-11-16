@@ -16,12 +16,12 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 - [ ] 1.1 Add D3 to `native/ClairHost.h`, documented as the header documents the rest:
   - `ClairBookmarkID` and `ClairBookmarkFolderID`;
   - `ClairBookmark` and `ClairBookmarkFolder`;
-  - `ClairTab.isBookmarked`;
-  - `ClairBrowser`'s `canEditBookmarks`, `bookmarkFolders` and five calls;
+  - `ClairTab.isBookmarked` and `ClairPin.isBookmarked`;
+  - `ClairBrowser`'s `canEditBookmarks`, `bookmarkFolders` and seven calls;
   - `-[ClairWindow showBookmarkDialog:]`.
 
   Verify that the header compiles in `ClairHostObjCxxTests.mm` in CI.
-- [ ] 1.2 Give `FakeHost` a bookmark store that behaves as D3 describes: adding (with `isNew`), updating with an empty title, removing by ID and by tab, folders in the popup's order, and a new folder at the end of Bookmarks Bar. Verify with new cases in `FakeBrowserTests` in CI.
+- [ ] 1.2 Give `FakeHost` a bookmark store that behaves as D3 describes: adding (with `isNew`), adding for an open and a closed pin, updating with an empty title, removing by ID, by tab and by pin, folders in the popup's order, and a new folder at the end of Bookmarks Bar. Verify with new cases in `FakeBrowserTests` in CI.
 
 ## 2. Engine
 
@@ -29,9 +29,9 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 - [ ] 2.2 Title `IDC_BOOKMARK_THIS_TAB` "Bookmark This Page…" or "Edit Bookmark…" in `ClairWindowCommandHandler -validateUserInterfaceItem:window:` (D2). Verify with the runtime tests in 3.5 and 3.6.
 - [ ] 2.3 Implement D3 in the browser bridge, and in tab snapshots:
   - the bookmark and folder snapshots;
-  - `isBookmarked`, re-snapshotting on `BookmarkModel` changes;
+  - `isBookmarked` on tabs and pins, re-snapshotting on `BookmarkModel` changes;
   - `canEditBookmarks` and `bookmarkFolders`;
-  - the five calls.
+  - the seven calls.
 
   Verify with the runtime tests in 3.6 and 3.7.
 - [ ] 2.4 Make `ClairBrowserWindow::ShowBookmarkBubble` build the `ClairBookmark` and call `showBookmarkDialog:` (D4). Verify with the runtime tests in 3.6.
@@ -47,10 +47,10 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - with `BookmarkDialog` cases in CI against `FakeHost`, one for each scenario of `bookmarks`' requirements from "Bookmark dialog" to "New folder in the bookmark dialog";
   - by hand against `dia-reference/screenshots/edit.jpg`, `folder-popup.jpg` and `new-folder.jpg`, in Light and Dark Mode: the controls' order, alignment and sizes match the README's measurements within a few points, and the card is Clair's.
 - [ ] 3.3 Retitle `IDC_SHOW_BOOKMARK_MANAGER` to "Manage Bookmarks" in `MainMenuTitles.apply` (D1). Verify with a `MainMenuTitles` unit test in CI that the item is retitled by tag and other items keep their titles.
-- [ ] 3.4 Add the bookmark item to `PinsLogic.todayMenu`, `pinnedMenu` and `favoriteMenu`, after the last pin item. Add `MenuItem.shortcut` and carry it through `RowClickCatcher.Item` to the menu item's key equivalent, and wire the item in `TabRow` and the pinned and favorite views to `bookmarkTab:` with the dialog, and to `removeBookmarkForTab:` (D4, D6). Verify with new `PinsTests` cases in CI:
+- [ ] 3.4 Add the bookmark item to `PinsLogic.todayMenu`, `pinnedMenu` and `favoriteMenu`, after the last pin item. Add `MenuItem.shortcut` and carry it through `RowClickCatcher.Item` to the menu item's key equivalent, and wire the item in `TabRow` and the pinned and favorite views to `bookmarkTab:` or `bookmarkPin:` with the dialog, and to `removeBookmarkForTab:` or `removeBookmarkForPin:` (D4, D6). Verify with new `PinsTests` cases in CI:
   - each menu's order when bookmarked and when not;
   - ⇧⌘B only on Add to Bookmarks…;
-  - the item disabled for a closed pin;
+  - a closed pin's item following the pin's `isBookmarked`, and an open one's its tab's;
   - no item when `canEditBookmarks` is false;
   - the incognito Today menu.
 - [ ] 3.5 Add a Harness helper that writes `Default/Bookmarks` before launch (D9), and `tests/runtime/ClairRuntimeTests/BookmarksTests.swift`, with tests for the menu:
@@ -75,7 +75,9 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 - [ ] 3.7 Add tests for the tab menus:
   - Add to Bookmarks… on a background Today tab bookmarks it and opens the dialog with its title, leaving the active tab active;
   - Remove Bookmark then removes it with no dialog;
-  - a pinned tab's and a favorite's menus have the item after Remove Pin and Remove Favorite.
+  - a pinned tab's and a favorite's menus have the item after Remove Pin and Remove Favorite;
+  - Add to Bookmarks… on a closed pinned tab bookmarks its pinned URL under its name and opens no page, and its menu then offers Remove Bookmark;
+  - on an open pinned tab navigated away from its pinned URL, it bookmarks the page shown.
 
   Verify by running them locally, and they pass.
 - [ ] 3.8 Add a test for suggestions: a seeded, never-visited bookmark with a unique title is listed when its title is typed in the command bar, and choosing the row opens it. Verify by running it locally, and it passes.

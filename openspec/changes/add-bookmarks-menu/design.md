@@ -49,7 +49,6 @@
 - Dia's Recent Bookmarks section and its tab menus' Move Bookmark ›.
 - Bookmarks in the sidebar, or any link between bookmarks and pins or Favorites.
 - A bookmark-specific icon or label in command bar rows.
-- Bookmarking a closed pinned tab's or favorite's pinned URL.
 - Editing a bookmark's URL in the dialog (Dia doesn't, and Manage Bookmarks can).
 
 ## Decisions
@@ -76,7 +75,7 @@ The command stays `IDC_BOOKMARK_THIS_TAB`, so ⇧⌘B does what the title says: 
 
 The title lives in the engine, not in `MainMenuTitles`, because only the engine knows the bookmark state at validation time, without a round trip through snapshots.
 
-### D3. The contract: bookmark and folder snapshots, and five browser calls
+### D3. The contract: bookmark and folder snapshots, and seven browser calls
 
 `ClairHost.h` gains:
 - `typedef int64_t ClairBookmarkID` and `ClairBookmarkFolderID`, Chromium's node IDs.
@@ -92,8 +91,10 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
   - `-updateBookmark:title:folder:`: renames and moves the bookmark. An empty title becomes the page's title. An ID that no longer exists, because the bookmark was removed meanwhile, does nothing.
   - `-removeBookmark:(ClairBookmarkID)`: the dialog's Remove.
   - `-removeBookmarkForTab:(ClairTabID)`: `bookmarks::RemoveAllBookmarks` for the tab's URL, for the tab menu's Remove Bookmark.
+  - `-bookmarkPin:(ClairPinID)` and `-removeBookmarkForPin:(ClairPinID)`: the same for a pinned tab or favorite. While the pin's tab is open, they act on that tab's page, as `bookmarkTab:` does, even when it has moved away from the pinned URL, as Copy Link does. While it's closed, they act on the pinned URL. A new bookmark is titled with the pin's `name`, or its `title` when it has none, and `favicon` is the pin's `icon`. The bookmark goes into the pin's profile.
   - `-addBookmarkFolder:(NSString *)title`: adds the folder at the end of Bookmarks Bar, as Dia does, and returns its ID.
 - **`ClairTab.isBookmarked`**: whether the profile has a user bookmark for the tab's last committed URL. The browser bridge observes the profile's `BookmarkModel` (`BaseBookmarkModelObserver`) and re-snapshots tabs whose URL a change touches, coalesced as other snapshot changes are.
+- **`ClairPin.isBookmarked`**: whether the pinned URL has a user bookmark. Pins whose URL a change touches are re-snapshotted the same way. A pin row reads its open tab's `isBookmarked`, or this one while it's closed.
 - **`-[ClairWindow showBookmarkDialog:(id<ClairBookmark>)]`**, for the ⇧⌘B path.
 
 All of it is additive. `ClairUI` and the engine ship together in one app, so there's no version skew to handle.
@@ -101,7 +102,7 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 ### D4. Two ways in, one dialog
 
 - **⇧⌘B and the menu item** run `IDC_BOOKMARK_THIS_TAB`. Chromium adds the bookmark, or doesn't, and calls `ClairBrowserWindow::ShowBookmarkBubble(url, already_bookmarked)`. That builds a `ClairBookmark` for `GetMostRecentlyAddedUserNodeForURL(url)` with `isNew = !already_bookmarked`, and calls `showBookmarkDialog:`.
-- **Add to Bookmarks…** in a tab menu calls `bookmarkTab:` for that tab and shows the dialog with the result. The tab isn't activated, and Chromium's command isn't involved, because it acts only on the active tab.
+- **Add to Bookmarks…** in a tab menu calls `bookmarkTab:` for a Today tab, or `bookmarkPin:` for a pinned tab or favorite, and shows the dialog with the result. The tab isn't activated, and Chromium's command isn't involved, because it acts only on the active tab.
 
 `BrowserWindowController.showBookmarkDialog(_:)` presents a `BookmarkDialog` through the window's `ClairDialogPresenter`, so it queues behind any other dialog on that window.
 
@@ -127,9 +128,9 @@ The card keeps `ClairDialogView`'s width and insets, so it matches Clair's other
 
 `PinsLogic`'s three menus take `bookmark: BookmarkItem?`:
 - `nil` hides the item (when `canEditBookmarks` is false);
-- otherwise the item is `.add(isEnabled:)` or `.remove`, from the row's tab's `isBookmarked`.
+- otherwise the item is `.add` or `.remove`, from the row's open tab's `isBookmarked`, or a closed pin's `isBookmarked`.
 
-The item goes right after the last pin item: after Pin to Favorites in `todayMenu` (or where those items would be when `canPin` is false), after Remove Pin in `pinnedMenu`, and after Remove Favorite in `favoriteMenu`. A pinned or favorite row without an open tab gets `.add(isEnabled: false)`.
+The item goes right after the last pin item: after Pin to Favorites in `todayMenu` (or where those items would be when `canPin` is false), after Remove Pin in `pinnedMenu`, and after Remove Favorite in `favoriteMenu`.
 
 `MenuItem` gains an optional `shortcut`, set to ⇧⌘B only on Add to Bookmarks…, and `RowClickCatcher.Item.action` carries it to the `NSMenuItem`'s key equivalent. It only shows the key: a context menu's key equivalents don't fire once it closes, and the main menu's item handles ⇧⌘B.
 
