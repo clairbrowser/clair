@@ -97,15 +97,15 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 
 ⇧⌘B and the menu item run `IDC_BOOKMARK_THIS_TAB`. The native window's `ExecuteCommand` (`clair_native_window.mm`) handles it before Chromium does, as it already handles `IDC_NEW_TAB`. For the active tab's last committed URL, it adds a bookmark under the page's title to Other Bookmarks, with `isNew` true, unless the page is already bookmarked, in which case it takes the URL's most recently added bookmark. It then calls `showBookmarkDialog:` with that snapshot. Chromium's `BookmarkCurrentTab` would add to `GetParentForNewNodes`, the most recently modified folder, which can be the Bookmarks Bar. `ClairBrowserWindow::ShowBookmarkBubble` keeps logging, since nothing calls it any more.
 
-`BrowserWindowController.showBookmarkDialog(_:)` presents a `BookmarkDialog` through the window's `ClairDialogPresenter`, so it queues behind any other dialog on that window.
+`BrowserWindowController.showBookmarkDialog(_:)` presents the bookmark dialog (D5) through the window's `ClairDialogPresenter`, so it queues behind any other dialog on that window.
 
 *Alternative:* Chromium's `BookmarkBubbleView`, attached to the site controls (the previous plan). Rejected: it needed a hook in Chromium's bubble code, and a fix for its folder editor crashing without an anchor view. A dialog centred on the window needs none of them, and it's Clair's own look.
 
 *Alternative:* add the bookmark only on Done, so Cancel leaves nothing. Rejected: Dia adds first and offers Remove, and the owner asked for Dia's behaviour.
 
-### D5. `BookmarkDialog`: Dia's controls in Clair's card
+### D5. The bookmark dialog: Dia's controls in Clair's card
 
-`BookmarkDialog.swift` builds a `ClairDialogPage`:
+`BookmarkDialogs.swift` builds its `ClairDialogPage`, as `PinDialogs.swift` builds the Rename Tab… and Edit Pinned URL pages:
 - **Title:** "Bookmark Added" (`isNew`) or "Edit Bookmark". These are Dia's words in the Title Case of Clair's other dialogs.
 - **No icon.** Dia shows the favicon at the title row's trailing end (`dia-reference/screenshots/edit.jpg`). Clair leaves it out: it would be the only thing `ClairDialog` lacks, and the dialog's title and Name already say which page it is. `ClairDialogPage.icon`, the 62 pt icon above the title, stays unused.
 - **Content:** two rows, each a label in a 68 pt column, in secondary grey, then a control filling the rest of the content width, 36 pt tall, with 12 pt between the rows (Dia's measurements):
@@ -133,7 +133,7 @@ Draining posts a task, so it never moves nodes inside an observer callback. It m
 
 **The notice.** It shows once for the whole app, so its flag is a local-state pref, `clair.bookmarks_bar_notice_shown`, false by default, registered in `clair::RegisterLocalStatePrefs` (`clair_window_hooks.mm`) with Clair's other local-state prefs. That hook is already called from `browser_prefs.cc`, so no Chromium file changes for it. When a drain moves at least one node and the pref is false, it calls `showBookmarksBarNotice` on the profile's most recently active normal window and sets the pref. When the profile has no window yet, as on a launch whose drain runs before the first window opens, it observes `BrowserList` and shows the notice in the first normal window that opens for the profile, setting the pref then. Incognito and guest windows never show it: the drain only runs for original profiles.
 
-`ClairUI` shows it through the window's `ClairDialogPresenter`: a `ClairDialogPage` titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.", one default OK button, and `escapePressesDefault` true. It queues behind any other dialog on that window.
+`ClairUI` shows it through the window's `ClairDialogPresenter`: a `ClairDialogPage`, built in `BookmarkDialogs.swift` beside the bookmark dialog's, titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.", one default OK button, and `escapePressesDefault` true. It queues behind any other dialog on that window.
 
 *Alternative:* show it on every drain. Rejected: after the first, the user knows, and an extension that writes to the bar would show it again and again.
 

@@ -42,10 +42,10 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 
 ## 3. ClairUI and runtime tests
 
-- [ ] 3.1 Add `BookmarkDialog.swift` and `BrowserWindowController.showBookmarkDialog(_:)` (D4, D5): the title, the Name and Folder rows, the indented folder popup with its checkmark, New Folder…'s field and ×, Manage Bookmarks, Remove, and Done on Return and Esc. Verify:
-  - with `BookmarkDialog` cases in CI against `FakeHost`, one for each scenario of `bookmarks`' requirements from "Bookmark dialog" to "New folder in the bookmark dialog";
+- [ ] 3.1 Add `BookmarkDialogs.swift` with the bookmark dialog's page, and `BrowserWindowController.showBookmarkDialog(_:)` (D4, D5): the title, the Name and Folder rows, the indented folder popup with its checkmark, New Folder…'s field and ×, Manage Bookmarks, Remove, and Done on Return and Esc. Verify:
+  - with `BookmarkDialogs` cases in CI against `FakeHost`, one for each scenario of `bookmarks`' requirements from "Bookmark dialog" to "New folder in the bookmark dialog";
   - by hand against `dia-reference/screenshots/edit.jpg`, `folder-popup.jpg` and `new-folder.jpg`, in Light and Dark Mode: the controls' order, alignment and sizes match the README's measurements within a few points, and the card is Clair's.
-- [ ] 3.2 Add `showBookmarksBarNotice` to `BrowserWindowController`, presenting the Heads Up dialog (D6). Verify with a unit test in CI against `FakeHost` that it has the title, the message and one OK button chosen by Return and Esc.
+- [ ] 3.2 Add the Heads Up page to `BookmarkDialogs`, and `showBookmarksBarNotice` to `BrowserWindowController`, presenting it (D6). Verify with a unit test in CI against `FakeHost` that it has the title, the message and one OK button chosen by Return and Esc.
 - [ ] 3.3 Retitle `IDC_SHOW_BOOKMARK_MANAGER` to "Manage Bookmarks" in `MainMenuTitles.apply` (D1). Verify with a `MainMenuTitles` unit test in CI that the item is retitled by tag and other items keep their titles.
 - [ ] 3.4 Add a Harness helper that writes `Default/Bookmarks` before launch (D9), and `tests/runtime/ClairRuntimeTests/BookmarksTests.swift`, with tests for the menu:
   - with the seeded bookmarks, the Heads Up dialog shows at launch, and Return closes it;

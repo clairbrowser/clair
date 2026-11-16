@@ -59,7 +59,7 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - `ClairBrowser.bookmarkFolders`, `-updateBookmark:…`, `-removeBookmark:` and `-addBookmarkFolder:`;
   - `-[ClairWindow showBookmarkDialog:]` and `-[ClairWindow showBookmarksBarNotice]`.
 - **`ClairUI`:**
-  - a `BookmarkDialog` built on `ClairDialog` as it is, and the Bookmarks Bar notice;
+  - `BookmarkDialogs`, building the bookmark dialog's and the Bookmarks Bar notice's pages on `ClairDialog`, as `PinDialogs` builds the pin dialogs';
   - Manage Bookmarks' title in `MainMenuTitles`.
 - **Runtime suite:** new tests cover the menu and its titles, ⇧⌘B and the dialog, and bookmark suggestions, using a seeded `Bookmarks` file in the test profile. The PR runs `quality.yml` on its branch.
 - **Users:** bookmarks already in the profile appear in the menu right away. Bookmarks in the Bookmarks Bar move to Other Bookmarks on the first launch, and the Heads Up dialog says so. They stay there if Clair is rolled back, but nothing is lost.
