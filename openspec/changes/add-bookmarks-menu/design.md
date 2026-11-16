@@ -105,7 +105,7 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 
 ### D5. The bookmark dialog: Dia's controls in Clair's card
 
-`BookmarkDialogs.swift` builds its `ClairDialogPage`, as `PinDialogs.swift` builds the Rename Tab… and Edit Pinned URL pages:
+`BookmarkDialog.swift` builds its `ClairDialogPage`, as `LinkRulesDialog.swift` builds the Link Rules dialog's:
 - **Title:** "Bookmark Added" (`isNew`) or "Edit Bookmark". These are Dia's words in the Title Case of Clair's other dialogs.
 - **No icon.** Dia shows the favicon at the title row's trailing end (`dia-reference/screenshots/edit.jpg`). Clair leaves it out: it would be the only thing `ClairDialog` lacks, and the dialog's title and Name already say which page it is. `ClairDialogPage.icon`, the 62 pt icon above the title, stays unused.
 - **Content:** two rows, each a label in a 68 pt column, in secondary grey, then a control filling the rest of the content width, 36 pt tall, with 12 pt between the rows (Dia's measurements):
@@ -133,7 +133,7 @@ Draining posts a task, so it never moves nodes inside an observer callback. It m
 
 **The notice.** It shows once for the whole app, so its flag is a local-state pref, `clair.bookmarks_bar_notice_shown`, false by default, registered in `clair::RegisterLocalStatePrefs` (`clair_window_hooks.mm`) with Clair's other local-state prefs. That hook is already called from `browser_prefs.cc`, so no Chromium file changes for it. When a drain moves at least one node and the pref is false, it calls `showBookmarksBarNotice` on the profile's most recently active normal window and sets the pref. When the profile has no window yet, as on a launch whose drain runs before the first window opens, it observes `BrowserList` and shows the notice in the first normal window that opens for the profile, setting the pref then. Incognito and guest windows never show it: the drain only runs for original profiles.
 
-`ClairUI` shows it through the window's `ClairDialogPresenter`: a `ClairDialogPage`, built in `BookmarkDialogs.swift` beside the bookmark dialog's, titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.", one default OK button, and `escapePressesDefault` true. It queues behind any other dialog on that window.
+`ClairUI` shows it through the window's `ClairDialogPresenter`: a `ClairDialogPage`, built in its own `BookmarksBarNotice.swift`, titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.", one default OK button, and `escapePressesDefault` true. It queues behind any other dialog on that window.
 
 *Alternative:* show it on every drain. Rejected: after the first, the user knows, and an extension that writes to the bar would show it again and again.
 
