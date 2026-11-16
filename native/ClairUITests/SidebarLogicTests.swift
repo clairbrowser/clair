@@ -189,6 +189,32 @@ struct CommandBarTests {
     #expect(model.selection == 0)
   }
 
+  /// A favicon that arrives later doesn't move the selection (command-bar
+  /// spec, "Suggestions from Chromium's autocomplete").
+  @Test func lateFaviconsKeepTheSelection() {
+    let (browser, model, _) = open(.newTab)
+    browser.autocomplete?.post(suggestions)
+    model.moveSelection(by: 1)
+    let withIcons = suggestions.map { suggestion in
+      let copy = FakeSuggestion(
+        id: suggestion.suggestionID, kind: suggestion.kind, contents: suggestion.contents,
+        destination: suggestion.destination?.absoluteString)
+      copy.icon = NSImage(size: NSSize(width: 16, height: 16))
+      return copy
+    }
+    browser.autocomplete?.post(withIcons)
+    #expect(model.selection == 1)
+    #expect(model.selectedSuggestion?.icon != nil)
+  }
+
+  @Test func newResultsSelectTheFirstRow() {
+    let (browser, model, _) = open(.newTab)
+    browser.autocomplete?.post(suggestions)
+    model.moveSelection(by: 1)
+    browser.autocomplete?.post([FakeSuggestion(id: 9, contents: "Other"), FakeSuggestion(id: 10, contents: "More")])
+    #expect(model.selection == 0)
+  }
+
   @Test func returnInNewTabModeOpensANewTab() {
     let (browser, model, closed) = open(.newTab)
     browser.autocomplete?.post(suggestions)

@@ -68,6 +68,17 @@ As the user types, the command bar SHALL list suggestions from Chromium's autoco
 - **WHEN** the command bar is used in an incognito window
 - **THEN** it suggests from the incognito profile's autocomplete, and what is typed isn't added to the regular profile's history
 
+### Requirement: Row icons
+A suggestion's icon SHALL be the page's favicon when the profile's favicon database has one, and otherwise an icon for the suggestion's kind. Searches SHALL always show the kind's icon. A favicon that arrives after its row is shown SHALL NOT change the selection.
+
+#### Scenario: Favicon
+- **WHEN** the user has visited a page that has a favicon and types part of its address
+- **THEN** that page's row shows its favicon instead of the kind's icon
+
+#### Scenario: Late favicon
+- **WHEN** the user moves the selection to the second row and that row's favicon arrives afterwards
+- **THEN** the second row stays selected
+
 ### Requirement: Switching to an open tab
 A suggestion for a page that is already open in a tab of the same profile SHALL show "Switch to Tab", and choosing it SHALL activate that tab, in its window, instead of opening the page again.
 
