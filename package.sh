@@ -39,7 +39,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bundle_id="dev.joshuapark.Clair"
-feed_url="https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml"
+feed_url="https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml"
 product="Clair"
 
 die() {

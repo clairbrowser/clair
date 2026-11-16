@@ -164,7 +164,7 @@ for from in 13 12 11; do
   line="$(sed -n "s/^delta=$from,//p" <<<"$output")"
   IFS=, read -r url signature length <<<"$line"
   file="$workdir/out/Clair-$from-14.delta"
-  if [[ "$url" == "https://github.com/itsjoshpark/Clair/releases/download/v0.2.0/Clair-$from-14.delta" ]]; then
+  if [[ "$url" == "https://github.com/clairbrowser/clair/releases/download/v0.2.0/Clair-$from-14.delta" ]]; then
     check "delta from $from has its release URL" pass
   else
     check "delta from $from has its release URL" fail

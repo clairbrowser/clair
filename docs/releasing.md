@@ -57,7 +57,7 @@ Then start the real release from the same commit.
 - [ ] `main` ends with `chore: release <version> (<build>) [skip ci]`, tagged `v<version>`, and its appcast entry's links resolve:
 
   ```sh
-  curl -fsL https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml |
+  curl -fsL https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml |
     grep -o 'url="[^"]*"' | cut -d'"' -f2 | xargs -n1 curl -fsIL -o /dev/null -w '%{http_code} %{url_effective}\n'
   ```
 
@@ -82,7 +82,7 @@ If `main` is still the release commit's parent, fast-forward it with the deploy 
 ```sh
 key="$(mktemp)" && op read "op://Private/qcm7ew5s3zeapoxwfuaa34t4nq/clair-release-deploy-key" >"$key"
 GIT_SSH_COMMAND="ssh -F /dev/null -o IdentitiesOnly=yes -o IdentityAgent=none -i $key" \
-  git push git@github.com:itsjoshpark/Clair.git "$(git rev-parse v<version>^{commit}):refs/heads/main"
+  git push git@github.com:clairbrowser/clair.git "$(git rev-parse v<version>^{commit}):refs/heads/main"
 rm -f "$key"
 ```
 

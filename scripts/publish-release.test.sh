@@ -87,7 +87,7 @@ XML
   {
     echo "dmg_signature=c2lnbmF0dXJl"
     echo "dmg_length=7"
-    echo "delta=4,https://github.com/itsjoshpark/Clair/releases/download/v0.1.0/Clair-4-6.delta,ZGVsdGE=,7"
+    echo "delta=4,https://github.com/clairbrowser/clair/releases/download/v0.1.0/Clair-4-6.delta,ZGVsdGE=,7"
   } >"$workdir/dist/assets.txt"
 }
 

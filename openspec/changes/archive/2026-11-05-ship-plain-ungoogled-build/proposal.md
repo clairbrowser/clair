@@ -42,7 +42,7 @@ This change also adds a minimal native layer: a Swift framework that Chromium lo
   - a **patch check** on pull requests that change the engine key: fetch the Chromium source and apply every patch on a hosted runner (about 40 minutes), with no compile. These pull requests also need a published engine for their key before they merge
   - **quality checks** after merge: package the app against the prebuilt engine and run automated runtime tests. A failure is reported so an agent can be sent to fix it. No release ships unless the quality checks for its commit have passed
 - Publish updates the same way as Front Row (`itsjoshpark/FrontRow`):
-  - The appcast is committed at `.sparkle/appcast.xml`, and `SUFeedURL` points to `https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml`.
+  - The appcast is committed at `.sparkle/appcast.xml`, and `SUFeedURL` points to `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml`.
   - DMGs are hosted on GitHub Releases.
   - A manually triggered release workflow takes an auto, patch, minor or major choice. The build number is the commit count.
   - Release notes are Changie fragments in `.changes/unreleased/`, added with the pull request that makes the change. A release batches them into `.changes/<version>.md` and `CHANGELOG.md`, and `auto` picks the bump from their kinds.

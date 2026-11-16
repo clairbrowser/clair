@@ -121,7 +121,7 @@ else
 fi
 
 # --- version and updates ------------------------------------------------------------
-feed="https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml"
+feed="https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml"
 real_key="$(tr -d '[:space:]' <"$script_dir/../.sparkle/public-ed-key.txt")"
 current_version="$(cat "$script_dir/../version.txt")"
 

@@ -89,8 +89,8 @@ assert_contains "$result" 'length="1234567"' "writes the length"
 assert_contains "$result" "<li>New: A thing</li>" "embeds the notes body"
 assert_contains "$result" "<sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>" "writes the minimum system version"
 assert_contains "$result" "<li>Old news</li>" "preserves the existing entry's notes"
-assert_contains "$result" "<link>https://github.com/itsjoshpark/Clair</link>" "links to the Clair repository"
-assert_contains "$result" "<sparkle:fullReleaseNotesLink>https://github.com/itsjoshpark/Clair/releases/tag/v2.11.0</sparkle:fullReleaseNotesLink>" "links to the release's notes"
+assert_contains "$result" "<link>https://github.com/clairbrowser/clair</link>" "links to the Clair repository"
+assert_contains "$result" "<sparkle:fullReleaseNotesLink>https://github.com/clairbrowser/clair/releases/tag/v2.11.0</sparkle:fullReleaseNotesLink>" "links to the release's notes"
 if [[ "$result" != *"<sparkle:deltas>"* ]]; then
   check "omits <sparkle:deltas> when no delta is given" pass
 else

@@ -8,7 +8,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 failures=0
 sha="0123456789abcdef0123456789abcdef01234567"
-url="https://github.com/itsjoshpark/Clair/actions/runs/1"
+url="https://github.com/clairbrowser/clair/actions/runs/1"
 
 mkdir "$work/bin"
 cat >"$work/bin/gh" <<'FAKE'

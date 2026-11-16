@@ -24,7 +24,7 @@ die() {
   exit 1
 }
 
-version="" build="" base="" dist="" ungoogled="" engine_key="" repo="itsjoshpark/Clair"
+version="" build="" base="" dist="" ungoogled="" engine_key="" repo="clairbrowser/clair"
 while (( $# > 0 )); do
   case "$1" in
     --version) version="${2-}"; shift 2 ;;

@@ -7,11 +7,11 @@ Defines how an installed copy of Clair finds, verifies, downloads and installs n
 ## Requirements
 
 ### Requirement: Update feed location
-Clair SHALL check for updates against the appcast at `https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml`, and against no other update source.
+Clair SHALL check for updates against the appcast at `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml`, and against no other update source.
 
 #### Scenario: Update check request
 - **WHEN** Clair checks for updates
-- **THEN** it fetches the appcast from `https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml` and makes no request to Google's or Chromium's update services
+- **THEN** it fetches the appcast from `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml` and makes no request to Google's or Chromium's update services
 
 ### Requirement: Automatic background updates
 Clair SHALL check for updates automatically at least once every 24 hours while running, without asking permission first. When an update is found, Clair SHALL download it in the background without showing any window. Clair SHALL provide no settings UI for update behavior.

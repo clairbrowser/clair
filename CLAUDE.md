@@ -28,7 +28,7 @@ Never fetch Chromium or build it by hand on the development machine; only `engin
 - **Patch check** (the `Patch check` job in `ci.yml`): runs only when a PR changes the engine key and `chromium-engine-<key>` isn't published yet. No hosted workflow compiles Chromium.
 - The self-hosted Mac never runs pull request jobs, especially not fork PRs. Release secrets live in the `release` environment, and engine builds and quality checks never see them. Never run `.github/scripts/prepare-runner.sh` on the self-hosted runner: it deletes Xcode versions and simulators.
 - Every macOS job and the self-hosted Mac use Xcode 27 (hosted runner label `xcode-27`).
-- Read job logs with `gh run view --job <id> --log`, or with `gh api --allow-escape-sequences repos/itsjoshpark/Clair/actions/jobs/<id>/logs`. Fix what they show, then push.
+- Read job logs with `gh run view --job <id> --log`, or with `gh api --allow-escape-sequences repos/clairbrowser/clair/actions/jobs/<id>/logs`. Fix what they show, then push.
 
 To run the current `ClairUI` against the published engine for the checkout, use `scripts/run-local.sh` (see `docs/building.md`). It launches Clair with a throwaway profile and the mock keychain. The runtime suite (`tests/runtime/run.sh`) may also run locally, but it deletes the current user's Clair data, keychain item and preferences; hosted runners remain the default. The owner prefers few external packages on the development machine: ask before adding one.
 
@@ -79,7 +79,7 @@ To compare Clair with Arc, or check a UI change by hand, use the probe tooling i
 - Bundle ID: `dev.joshuapark.Clair`
 - Data folder: `~/Library/Application Support/Clair`
 - Keychain item: "Clair Safe Storage"
-- Sparkle feed: `https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml`
+- Sparkle feed: `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml`
 - Version scheme: `0.y.z` until the MVP, which becomes `1.0.0`. The build number is the commit count. The Chromium version stays what websites and extensions see.
 
 ## Scripts

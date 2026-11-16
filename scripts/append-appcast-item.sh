@@ -113,11 +113,11 @@ item="$(
 
     <item>
       <title>New Version Available</title>
-      <link>https://github.com/itsjoshpark/Clair</link>
+      <link>https://github.com/clairbrowser/clair</link>
       <sparkle:version>$build</sparkle:version>
       <sparkle:shortVersionString>$version ($build)</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>$minimum_system_version</sparkle:minimumSystemVersion>
-      <sparkle:fullReleaseNotesLink>https://github.com/itsjoshpark/Clair/releases/tag/v$version</sparkle:fullReleaseNotesLink>
+      <sparkle:fullReleaseNotesLink>https://github.com/clairbrowser/clair/releases/tag/v$version</sparkle:fullReleaseNotesLink>
       <pubDate>$pub_date</pubDate>
       <enclosure
         url="$url"

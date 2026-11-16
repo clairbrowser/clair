@@ -563,7 +563,7 @@ Class<ClairUIEntryPoint> g_entry_point = nil;
   alert.messageText = @"Clair couldn’t start its interface.";
   alert.informativeText =
       @"Clair can’t open windows without it. Download Clair again from "
-      @"github.com/itsjoshpark/Clair to fix it.";
+      @"github.com/clairbrowser/clair to fix it.";
   [alert addButtonWithTitle:@"Quit"];
   [NSApp activateIgnoringOtherApps:YES];
   [alert runModal];

@@ -145,7 +145,7 @@ Chromium starts the native layer through `ClairHost.h`: it loads `ClairUI.framew
 - `Sparkle.framework` 2.10.0 comes from the Sparkle release tarball, checked against its sha512: the same tarball that supplies `sign_update`, `BinaryDelta` and `generate_keys`. `package.sh` embeds it in `Clair.app/Contents/Frameworks`. Sparkle is not part of the engine.
 - `ClairUI` starts an `SPUUpdater` with its own `SPUUserDriver` implementation that never shows Sparkle's windows.
 - `package.sh` writes into `Info.plist`:
-  - `SUFeedURL` = `https://github.com/itsjoshpark/Clair/raw/main/.sparkle/appcast.xml`
+  - `SUFeedURL` = `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml`
   - `SUPublicEDKey`, committed in the repository
     - `SUEnableAutomaticChecks` and `SUAutomaticallyUpdate` = YES and `SUScheduledCheckInterval` = 86400, for automatic checks and downloads with no user-facing settings. A downloaded update installs on quit.
 - `ClairUI` adds one update item to the Clair application menu with AppKit, after Chromium has built the main menu, as Arc does. No Chromium patch is needed for the menu.
@@ -160,7 +160,7 @@ Chromium starts the native layer through `ClairHost.h`: it loads `ClairUI.framew
 - A non-official package reads a feed-URL override and an idle-time override from the environment for testing. `package.sh` marks a package non-official (`ClairNonOfficialPackage` in `Info.plist`) only when it signs ad hoc, so a release package has no mark, and its signature keeps one from being added.
 - **The sidebar update banners** belong to the MVP change and follow Arc's (`arc-reference/look-and-behaviour.md`, Software updates):
   - while an update waits, a "New Clair Version Available" pill at the bottom of the sidebar, which grows on hover into a card with a **Restart and Update** button. It has no "Automatic Updates" checkbox, because Clair has no update settings
-  - after an update, an "Update Complete!" banner with **See What's New**, which opens the release's page, `https://github.com/itsjoshpark/Clair/releases/tag/v<version>`, the appcast's `fullReleaseNotesLink`
+  - after an update, an "Update Complete!" banner with **See What's New**, which opens the release's page, `https://github.com/clairbrowser/clair/releases/tag/v<version>`, the appcast's `fullReleaseNotesLink`
   - `ClairUI` keeps the "update ready" state and the version it last ran, where the banners can observe them later.
 
 **Alternatives considered:**
