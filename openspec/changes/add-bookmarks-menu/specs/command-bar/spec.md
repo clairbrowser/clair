@@ -21,10 +21,16 @@ As the user types, the command bar SHALL list suggestions from Chromium's autoco
 - **WHEN** the command bar is used in an incognito window
 - **THEN** it suggests from the incognito profile's autocomplete, which includes the regular profile's bookmarks, and what is typed isn't added to the regular profile's history
 
-## ADDED Requirements
+### Requirement: Row icons
+A suggestion's icon SHALL be the page's favicon when the profile's favicon database has one, and otherwise an icon for the suggestion's kind. Searches SHALL always show the kind's icon. A suggestion for a bookmarked page that isn't a "Switch to Tab" row SHALL show the bookmark icon instead, whether the bookmark or history suggested it, and SHALL NOT need the favicon database. A favicon that arrives after its row is shown SHALL NOT change the selection.
 
-### Requirement: Bookmark row icon
-A suggestion for a bookmarked page SHALL show a bookmark icon in place of the page's favicon, whether the bookmark or history suggested it. Searches SHALL keep the search icon, and "Switch to Tab" rows SHALL keep their own icon.
+#### Scenario: Favicon
+- **WHEN** the user has visited a page that has a favicon and isn't bookmarked, and types part of its address
+- **THEN** that page's row shows its favicon instead of the kind's icon
+
+#### Scenario: Late favicon
+- **WHEN** the user moves the selection to the second row and that row's favicon arrives afterwards
+- **THEN** the second row stays selected
 
 #### Scenario: Never-visited bookmark
 - **WHEN** the profile has a bookmark titled "Clair Reading List" for a page never visited, and the user types `reading list`

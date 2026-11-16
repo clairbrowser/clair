@@ -33,7 +33,7 @@
 
   `ClairDialogPresenter` queues one dialog per window over the dimmed window. The Rename and Link Rules dialogs put their fields in `content`.
 - **Tab menus.** `PinsLogic.todayMenu`, `pinnedMenu` and `favoriteMenu` return `[MenuItem?]` (title, command, enabled). `TabRow.menuItems` and the pinned and favorite views map them to `RowClickCatcher.Item`s, which have no shortcut.
-- **Autocomplete.** `ClairChromiumAutocomplete` builds its `AutocompleteController` with `DefaultOmniboxProviders() & ~kBookmark`, and `KindOf` maps every match that isn't a search, a typed URL or an open tab to `ClairSuggestionKindHistory`. `SuggestionRow` (`OverlayViews.swift`) draws a symbol per kind (`magnifyingglass`, `globe`, `clock`, `square.on.square`) when a suggestion has no `icon`. The open PR #164 fetches history, typed-URL and most-visited rows' favicons from the profile's favicon database and republishes the rows when they arrive.
+- **Autocomplete.** `ClairChromiumAutocomplete` builds its `AutocompleteController` with `DefaultOmniboxProviders() & ~kBookmark`, and `KindOf` maps every match that isn't a search, a typed URL or an open tab to `ClairSuggestionKindHistory`. `SuggestionRow` (`OverlayViews.swift`) draws a symbol per kind (`magnifyingglass`, `globe`, `clock`, `square.on.square`) when a suggestion has no `icon`. Since #164, `clair_autocomplete.mm` fetches history, typed-URL and most-visited rows' favicons from the profile's favicon database and republishes the rows when they arrive.
 - **Dia** (`dia-reference/README.md`) uses one popover for adding and editing. Only its title changes. It adds the bookmark before showing the popover, Esc keeps the edits, and New Folder… creates the folder in Bookmarks Bar from an inline field. Clair departs from Dia on folders: it has one list, Other Bookmarks, called "Bookmarks" (D7).
 
 ## Goals / Non-Goals
@@ -165,13 +165,13 @@ The patch is about ten lines and keeps Chromium's structure. Like `copy-url-shor
 
 `clair_autocomplete.mm` uses `DefaultOmniboxProviders()` unmasked. `AutocompleteResult` already removes duplicates by destination URL. In incognito, `BookmarkModelFactory` hands the provider the original profile's bookmarks, as Chromium's omnibox does.
 
-**A bookmark kind and icon.** `ClairHost.h` adds `ClairSuggestionKindBookmark = 4`. `KindOf` returns it for any match that isn't a search or an open tab and whose `destination_url` passes `bookmarks::IsBookmarkedByUser`, so a `BOOKMARK_TITLE` match and a history match for a bookmarked page look the same. For those rows, `clair_autocomplete.mm` skips the favicon lookup that the open favicon fix (#164) adds for history rows, and sends `icon` as nil. `SuggestionRow` then draws the kind's SF Symbol, `bookmark`: the same shape as the bookmark button in Dia's URL bar (`dia-reference/screenshots/edit.jpg`).
+**A bookmark kind and icon.** `ClairHost.h` adds `ClairSuggestionKindBookmark = 4`. `KindOf` returns it for any match that isn't a search or an open tab and whose `destination_url` passes `bookmarks::IsBookmarkedByUser`, so a `BOOKMARK_TITLE` match and a history match for a bookmarked page look the same. For those rows, `clair_autocomplete.mm` skips the favicon lookup that #164 added for history rows, and sends `icon` as nil. `SuggestionRow` then draws the kind's SF Symbol, `bookmark`: the same shape as the bookmark button in Dia's URL bar (`dia-reference/screenshots/edit.jpg`).
 
 Bookmark rows, which are the ones most likely to have no entry in Chromium's favicon database, never wait on it or show a late icon. Open-tab rows keep their icon (the tab's favicon in the empty-query list, `square.on.square` otherwise), because "Switch to Tab" is about the tab. Searches keep the magnifying glass.
 
 *Alternative:* the favicon with a small bookmark badge. Rejected: the owner chose the plain bookmark icon, and a badge would still need the favicon store.
 
-`#164` adds a "Row icons" requirement to `command-bar` directly. Until it merges, this change adds its own "Bookmark row icon" requirement beside it. If #164 merges first, the delta stays an ADDED requirement that narrows "Row icons", and the archive keeps both.
+The `command-bar` delta modifies #164's "Row icons" requirement to add the bookmark icon, so the spec has one rule for row icons.
 
 ### D10. Tests seed bookmarks through the profile's `Bookmarks` file
 

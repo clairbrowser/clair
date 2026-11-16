@@ -42,7 +42,7 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
 ### Modified Capabilities
 
 - `browser-window`: "No bookmarks in the interface" is removed. What it still ruled out (the bar, the star, Cmd+D as a bookmark key) moves to `bookmarks`.
-- `command-bar`: "Suggestions from Chromium's autocomplete" now includes bookmarks.
+- `command-bar`: "Suggestions from Chromium's autocomplete" now includes bookmarks, and "Row icons" shows a bookmark icon for bookmarked pages.
 - `sidebar`: "Today tab menu" gains Add to Bookmarks… or Remove Bookmark.
 - `pinned-tabs`: "Pinned tab menu" gains the same item.
 - `favorites`: "Favorite menu" gains the same item.
