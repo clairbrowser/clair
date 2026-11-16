@@ -73,11 +73,11 @@ While the active tab's page is bookmarked, the Bookmarks menu's first item SHALL
 - **THEN** the bookmark dialog opens titled "Edit Bookmark", and no second bookmark is added
 
 ### Requirement: Bookmark dialog
-The bookmark dialog SHALL be one of Clair's dialogs (`dialogs`), with Dia's controls in Dia's layout: the title with the page's favicon at its trailing end, a Name field, a Folder popup, Remove at the bottom leading corner and Done at the bottom trailing corner. It SHALL be the same dialog for adding and editing, apart from its title. It SHALL open with the Name field focused and its text selected.
+The bookmark dialog SHALL be one of Clair's dialogs (`dialogs`), with Dia's controls in Dia's layout: the title, a Name field, a Folder popup, Remove at the bottom leading corner and Done at the bottom trailing corner. It SHALL be the same dialog for adding and editing, apart from its title. It SHALL open with the Name field focused and its text selected.
 
 #### Scenario: Layout
 - **WHEN** the bookmark dialog opens
-- **THEN** it shows the title and favicon, then "Name" beside its field, "Folder" beside its popup, Remove at the leading edge and Done ↵ at the trailing edge, as in `dia-reference/screenshots/edit.jpg`
+- **THEN** it shows the title, then "Name" beside its field, "Folder" beside its popup, Remove at the leading edge and Done ↵ at the trailing edge, as in `dia-reference/screenshots/edit.jpg`
 
 #### Scenario: Name selected
 - **WHEN** the dialog opens and the user types "Reading"

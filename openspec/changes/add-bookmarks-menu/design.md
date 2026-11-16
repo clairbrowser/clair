@@ -83,7 +83,6 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
 - **`@protocol ClairBookmark`**, a snapshot with:
   - `bookmarkID`, `title`, `url`, `folderID`;
   - `isNew`: true when this action added it, which picks the dialog's title;
-  - `favicon`: the tab's favicon, or nil.
 - **`@protocol ClairBookmarkFolder`**, with `folderID`, `title` and `depth` (0 for Other Bookmarks itself, which the popup calls "Bookmarks").
 - **`ClairBrowser`**:
   - `canEditBookmarks`: false for guest profiles, and when `bookmarks::prefs::kEditBookmarksEnabled` is off.
@@ -92,7 +91,7 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
   - `-updateBookmark:title:folder:`: renames and moves the bookmark. An empty title becomes the page's title. An ID that no longer exists, because the bookmark was removed meanwhile, does nothing.
   - `-removeBookmark:(ClairBookmarkID)`: the dialog's Remove.
   - `-removeBookmarkForTab:(ClairTabID)`: `bookmarks::RemoveAllBookmarks` for the tab's URL, for the tab menu's Remove Bookmark.
-  - `-bookmarkPin:(ClairPinID)` and `-removeBookmarkForPin:(ClairPinID)`: the same for a pinned tab or favorite. While the pin's tab is open, they act on that tab's page, as `bookmarkTab:` does, even when it has moved away from the pinned URL, as Copy Link does. While it's closed, they act on the pinned URL. A new bookmark is titled with the pin's `name`, or its `title` when it has none, and `favicon` is the pin's `icon`. The bookmark goes into the pin's profile.
+  - `-bookmarkPin:(ClairPinID)` and `-removeBookmarkForPin:(ClairPinID)`: the same for a pinned tab or favorite. While the pin's tab is open, they act on that tab's page, as `bookmarkTab:` does, even when it has moved away from the pinned URL, as Copy Link does. While it's closed, they act on the pinned URL. A new bookmark is titled with the pin's `name`, or its `title` when it has none. The bookmark goes into the pin's profile.
   - `-addBookmarkFolder:(NSString *)title`: adds the folder at the top of Other Bookmarks and returns its ID.
 - **`ClairTab.isBookmarked`**: whether the profile has a user bookmark for the tab's last committed URL. The browser bridge observes the profile's `BookmarkModel` (`BaseBookmarkModelObserver`) and re-snapshots tabs whose URL a change touches, coalesced as other snapshot changes are.
 - **`ClairPin.isBookmarked`**: whether the pinned URL has a user bookmark. Pins whose URL a change touches are re-snapshotted the same way. A pin row reads its open tab's `isBookmarked`, or this one while it's closed.
@@ -115,7 +114,7 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 
 `BookmarkDialog.swift` builds a `ClairDialogPage`:
 - **Title:** "Bookmark Added" (`isNew`) or "Edit Bookmark". These are Dia's words in the Title Case of Clair's other dialogs.
-- **Icon:** a new `ClairDialogPage.titleAccessory: NSImage?` draws the favicon at 16 pt at the title row's trailing end, where Dia has it (`dia-reference/screenshots/edit.jpg`). The 62 pt `icon` stays unused here. With no favicon, it shows a globe, as Dia does.
+- **No icon.** Dia shows the favicon at the title row's trailing end (`dia-reference/screenshots/edit.jpg`). Clair leaves it out: it would be the only thing `ClairDialog` lacks, and the dialog's title and Name already say which page it is. `ClairDialogPage.icon`, the 62 pt icon above the title, stays unused.
 - **Content:** two rows, each a label in a 68 pt column, in secondary grey, then a control filling the rest of the content width, 36 pt tall, with 12 pt between the rows (Dia's measurements):
   - Name: a `TextField`, focused with its text selected when the dialog opens;
   - Folder: a popup button. It lists `bookmarkFolders` indented 16 pt per `depth`, the first titled "Bookmarks", with a checkmark on the current folder. New Folder… comes after the folders, then a divider and Manage Bookmarks.

@@ -17,7 +17,7 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   Choosing a bookmark opens it in the active tab, and ⌘-choosing it opens it in a new tab, as Chromium's menu does.
 - **One bookmark list, "Bookmarks".** Clair uses only Chromium's Other Bookmarks folder and calls it "Bookmarks". The Bookmarks Bar has no place in Clair's interface, so Clair keeps it empty. Whatever is there at launch, or lands there later from an import, Manage Bookmarks or an extension, moves to the top of Other Bookmarks in its order, so it shows first in the menu. New bookmarks and new folders also go to the top. `chrome://bookmarks` still shows the empty Bookmarks Bar: hiding it would mean patching Chromium's page for little gain.
 - **A bookmark dialog**, one of Clair's own dialogs, with Dia's controls (`dia-reference/`). It's the same dialog for adding and editing:
-  - **Title:** "Bookmark Added" or "Edit Bookmark", with the page's favicon at the trailing end of the title row.
+  - **Title:** "Bookmark Added" or "Edit Bookmark". Dia's small favicon at the end of the title row is left out, so the dialog needs nothing new from `ClairDialog`.
   - **Name:** a field holding the bookmark's name, focused with its text selected.
   - **Folder:** a popup listing "Bookmarks" with its folders indented beneath it, plus New Folder… and Manage Bookmarks. New Folder… turns the popup into a "New folder name…" field.
   - **Buttons:** Remove at the bottom leading corner, and Done ↵ at the bottom trailing corner.
@@ -63,7 +63,7 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - `ClairBrowser.canEditBookmarks`, `bookmarkFolders`, `-bookmarkTab:`, `-bookmarkPin:`, `-updateBookmark:…`, `-removeBookmark:`, `-removeBookmarkForTab:`, `-removeBookmarkForPin:` and `-addBookmarkFolder:`;
   - `-[ClairWindow showBookmarkDialog:]`.
 - **`ClairUI`:**
-  - a `BookmarkDialog` built on `ClairDialog`, which gains a small trailing title icon;
+  - a `BookmarkDialog` built on `ClairDialog` as it is;
   - the three tab menus in `PinsLogic` and their views, with a shortcut shown on a context-menu item;
   - Manage Bookmarks' title in `MainMenuTitles`.
 - **Runtime suite:** new tests cover the menu and its titles, ⇧⌘B and the dialog, the tab menus' items, and bookmark suggestions, using a seeded `Bookmarks` file in the test profile. The PR runs `quality.yml` on its branch.
