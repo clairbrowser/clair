@@ -49,7 +49,7 @@
 - A native bookmark manager: `chrome://bookmarks` stays the manager.
 - Dia's Recent Bookmarks section and its tab menus' Move Bookmark ›.
 - Bookmarks in the sidebar, or any link between bookmarks and pins or Favorites.
-- A bookmark-specific icon or label in command bar rows.
+- A text label or a badge for bookmarks in command bar rows. The bookmark icon in place of the favicon is their only mark (D9).
 - Editing a bookmark's URL in the dialog (Dia doesn't, and Manage Bookmarks can).
 
 ## Decisions
