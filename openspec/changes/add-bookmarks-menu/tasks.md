@@ -17,6 +17,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - `ClairBookmarkID` and `ClairBookmarkFolderID`;
   - `ClairBookmark` and `ClairBookmarkFolder`;
   - `ClairTab.isBookmarked` and `ClairPin.isBookmarked`;
+  - `ClairSuggestionKindBookmark`;
   - `ClairBrowser`'s `canEditBookmarks`, `bookmarkFolders` and seven calls;
   - `-[ClairWindow showBookmarkDialog:]`.
 
@@ -36,7 +37,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   Verify with the runtime tests in 3.6 and 3.7.
 - [ ] 2.4 Make `ClairBrowserWindow::ShowBookmarkBubble` build the `ClairBookmark` and call `showBookmarkDialog:` (D4). Verify with the runtime tests in 3.6.
 - [ ] 2.5 Add `patches/clair/bookmarks-menu-folders.patch`, listed in `patches/series`, to `BookmarkMenuBridge::BuildRootMenu` (D7). It adds the Bookmarks Bar as a submenu while it has content, with one separator before the folders, in the order Managed, Bookmarks Bar, Other Bookmarks, Mobile Bookmarks. Its header says why it isn't a hook. Verify that the patch check applies it, and with the runtime test in 3.5.
-- [ ] 2.6 Use `DefaultOmniboxProviders()` unmasked in `clair_autocomplete.mm`, and update its header comment (D8). Verify with the runtime test in 3.8.
+- [ ] 2.6 Use `DefaultOmniboxProviders()` unmasked in `clair_autocomplete.mm`, and update its header comment. Return `ClairSuggestionKindBookmark` from `KindOf` for bookmarked matches that aren't searches or open tabs, and skip the favicon lookup for them (D8). If #164 hasn't merged, rebase on it first. Verify with the runtime test in 3.8.
 - [ ] 2.7 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
 - [ ] 2.8 Update `docs/native-window.md`: describe the Bookmarks menu, the dialog and its two ways in, and the tab menus' item (D1 to D7), change the command bar row's "no bookmarks", and add rows for the bridge calls, the dialog and the patch in "Where each piece lives". Verify that every file it names exists.
 
@@ -80,14 +81,19 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - on an open pinned tab navigated away from its pinned URL, it bookmarks the page shown.
 
   Verify by running them locally, and they pass.
-- [ ] 3.8 Add a test for suggestions: a seeded, never-visited bookmark with a unique title is listed when its title is typed in the command bar, and choosing the row opens it. Verify by running it locally, and it passes.
+- [ ] 3.8 Give `SuggestionRow` the `bookmark` symbol for `.bookmark` (D8). Verify with a unit test in CI that each kind maps to its symbol. Then add runtime tests for suggestions:
+  - a seeded, never-visited bookmark with a unique title is listed when its title is typed, shows the bookmark icon, and choosing it opens the page;
+  - a visited, bookmarked page with a favicon (`tests/runtime/pages/favicon.html`) is listed once, with the bookmark icon;
+  - with that page open in a tab, its "Switch to Tab" row doesn't show the bookmark icon.
+
+  Verify by running them locally, and they pass.
 
 ## 4. Release notes and integration
 
 - [ ] 4.1 Add a Changie fragment (`changie new`): the Bookmarks menu, Bookmark This Page… and Edit Bookmark… on ⇧⌘B with the bookmark dialog, Manage Bookmarks on ⌥⌘B, the tab menus' Add to Bookmarks… and Remove Bookmark, and bookmarks in the command bar. Verify that it's in the PR.
 - [ ] 4.2 Check by hand, in Light and Dark Mode:
   - the dialog on a narrow window, and on a second window while the first shows one;
-  - bookmark favicons in the menu, the dialog and command bar rows;
+  - bookmark favicons in the menu and the dialog, and the bookmark icon in command bar rows, aligned and sized as the other kinds' symbols;
   - ⇧⌘B in an incognito window bookmarks into the regular profile;
   - ⇧⌘D still reaches the toolbar toggle if `add-page-toolbar` has landed.
 

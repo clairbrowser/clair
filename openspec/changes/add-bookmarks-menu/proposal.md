@@ -27,7 +27,8 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - **Remove Bookmark**, with no shortcut, while it is. It removes the page's bookmarks at once.
 
   A pinned tab or favorite acts on the page it shows. While it has no open page, it acts on its pinned URL under its name, as Copy Link does. Guest windows, and profiles whose policy forbids editing bookmarks, don't show the item.
-- **The command bar suggests bookmarks.** Chromium's bookmark source joins the command bar's suggestions, so a bookmark the user has never visited shows up by its title or URL. The row looks like a history row. Chromium already lists a page once, even when it's both visited and bookmarked.
+- **The command bar suggests bookmarks.** Chromium's bookmark source joins the command bar's suggestions, so a bookmark the user has never visited shows up by its title or URL. Chromium already lists a page once, even when it's both visited and bookmarked.
+- **Bookmarked rows show a bookmark icon** instead of the page's favicon, whether the row came from bookmarks or from history. Bookmark rows therefore never need Chromium's favicon store, which has nothing for a bookmark that was imported and never visited. Searches keep their icon, and "Switch to Tab" rows keep theirs.
 - **Shortcuts that stay:** ⌘D pins or unpins the tab (`pinned-tabs`), and ⇧⌘D stays free for `add-page-toolbar`'s toolbar toggle. Chromium's ⇧⌘B (Always Show Bookmarks Bar) becomes Bookmark This Page….
 - **What stays out:** the bookmarks bar, View › Always Show Bookmarks Bar, the bookmark star, Chromium's bookmark bubble, Bookmark All Tabs, the bookmarks side panel, and Dia's Recent Bookmarks section.
 
@@ -52,11 +53,12 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - `clair_native_window.mm`: `ClairIsRemovedCommand` no longer removes `IDC_BOOKMARK_THIS_TAB`, and the window's menu validation titles it Bookmark This Page… or Edit Bookmark….
   - `clair_browser_window.mm`: `ShowBookmarkBubble` asks `ClairUI` for the bookmark dialog instead of logging that it's unavailable.
   - The browser bridge reports whether each tab's page is bookmarked, lists the profile's bookmark folders, and adds, edits and removes bookmarks and folders.
-  - `clair_autocomplete.mm`: stops removing `kBookmark` from the providers.
+  - `clair_autocomplete.mm`: stops removing `kBookmark` from the providers, and marks bookmarked rows with the new kind instead of fetching their favicon.
   - A new `patches/clair/bookmarks-menu-folders.patch` makes Chromium's `BookmarkMenuBridge` list the Bookmarks Bar as a submenu, as it does Other Bookmarks. No other Chromium file changes.
 - **`ClairHost.h`:** additive:
   - a bookmark snapshot (`ClairBookmark`) and a folder snapshot (`ClairBookmarkFolder`);
   - `ClairTab.isBookmarked` and `ClairPin.isBookmarked`;
+  - `ClairSuggestionKindBookmark`;
   - `ClairBrowser.canEditBookmarks`, `bookmarkFolders`, `-bookmarkTab:`, `-bookmarkPin:`, `-updateBookmark:…`, `-removeBookmark:`, `-removeBookmarkForTab:`, `-removeBookmarkForPin:` and `-addBookmarkFolder:`;
   - `-[ClairWindow showBookmarkDialog:]`.
 - **`ClairUI`:**
