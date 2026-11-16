@@ -6,6 +6,8 @@ Probed on 2026-11-15 in Dia 1.57.1 (`company.thebrowser.dia`) on macOS
 read with System Events from an adapted copy of
 `../../archive/2026-11-05-ship-plain-ungoogled-build/arc-reference/dump-arc-menus.applescript`.
 
+Clair's folders differ from Dia's. Clair has one list, Chromium's Other Bookmarks, called "Bookmarks", and keeps the Bookmarks Bar empty. So its folder popup starts with "Bookmarks", not Bookmarks Bar, and New Folder… creates the folder at the top of Bookmarks.
+
 Clair copies Dia's **controls and their layout** for its bookmark dialog:
 the title with the page's icon, Name, Folder, Remove and Done. The dialog
 itself is Clair's own (`dialogs`): a card centred on the dimmed window, with

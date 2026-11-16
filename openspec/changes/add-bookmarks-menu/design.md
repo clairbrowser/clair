@@ -34,7 +34,7 @@
   `ClairDialogPresenter` queues one dialog per window over the dimmed window. The Rename and Link Rules dialogs put their fields in `content`.
 - **Tab menus.** `PinsLogic.todayMenu`, `pinnedMenu` and `favoriteMenu` return `[MenuItem?]` (title, command, enabled). `TabRow.menuItems` and the pinned and favorite views map them to `RowClickCatcher.Item`s, which have no shortcut.
 - **Autocomplete.** `ClairChromiumAutocomplete` builds its `AutocompleteController` with `DefaultOmniboxProviders() & ~kBookmark`, and `KindOf` maps every match that isn't a search, a typed URL or an open tab to `ClairSuggestionKindHistory`. `SuggestionRow` (`OverlayViews.swift`) draws a symbol per kind (`magnifyingglass`, `globe`, `clock`, `square.on.square`) when a suggestion has no `icon`. The open PR #164 fetches history, typed-URL and most-visited rows' favicons from the profile's favicon database and republishes the rows when they arrive.
-- **Dia** (`dia-reference/README.md`) uses one popover for adding and editing. Only its title changes. It adds the bookmark before showing the popover, Esc keeps the edits, and New Folder… creates the folder in Bookmarks Bar from an inline field.
+- **Dia** (`dia-reference/README.md`) uses one popover for adding and editing. Only its title changes. It adds the bookmark before showing the popover, Esc keeps the edits, and New Folder… creates the folder in Bookmarks Bar from an inline field. Clair departs from Dia on folders: it has one list, Other Bookmarks, called "Bookmarks" (D7).
 
 ## Goals / Non-Goals
 
@@ -45,6 +45,7 @@
 
 **Non-Goals:**
 - A bookmarks bar, star, Chromium's bubble or editor, or Bookmark All Tabs.
+- Hiding the Bookmarks Bar folder in `chrome://bookmarks`. It would take a behaviour patch to Chromium's WebUI (the folder tree and `router.ts`'s default folder), which upstream reworks often. Kept empty (D7), the folder is harmless there.
 - A native bookmark manager: `chrome://bookmarks` stays the manager.
 - Dia's Recent Bookmarks section and its tab menus' Move Bookmark ›.
 - Bookmarks in the sidebar, or any link between bookmarks and pins or Favorites.
@@ -83,16 +84,16 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
   - `bookmarkID`, `title`, `url`, `folderID`;
   - `isNew`: true when this action added it, which picks the dialog's title;
   - `favicon`: the tab's favicon, or nil.
-- **`@protocol ClairBookmarkFolder`**, with `folderID`, `title` and `depth` (0 for Bookmarks Bar and Other Bookmarks).
+- **`@protocol ClairBookmarkFolder`**, with `folderID`, `title` and `depth` (0 for Other Bookmarks itself, which the popup calls "Bookmarks").
 - **`ClairBrowser`**:
   - `canEditBookmarks`: false for guest profiles, and when `bookmarks::prefs::kEditBookmarksEnabled` is off.
-  - `bookmarkFolders`: the user-editable folders in the popup's order. That's Bookmarks Bar, then its folders depth-first, then Other Bookmarks and its folders. Managed and Mobile Bookmarks are left out: managed bookmarks can't be edited, and ungoogled-chromium has no sync to fill Mobile.
-  - `-bookmarkTab:(ClairTabID)`: returns the tab's `ClairBookmark`. It adds the bookmark with `AddIfNotBookmarked` first, so `isNew` is true, unless the page is already bookmarked. It returns nil for a tab without a page that can be bookmarked.
+  - `bookmarkFolders`: the user-editable folders in the popup's order. That's Other Bookmarks, then its folders depth-first. The Bookmarks Bar is left out, since D7 keeps it empty. Managed and Mobile Bookmarks are left out too: managed bookmarks can't be edited, and ungoogled-chromium has no sync to fill Mobile.
+  - `-bookmarkTab:(ClairTabID)`: returns the tab's `ClairBookmark`. It adds the bookmark at index 0 of Other Bookmarks first, so `isNew` is true, unless the page is already bookmarked. It returns nil for a tab without a page that can be bookmarked.
   - `-updateBookmark:title:folder:`: renames and moves the bookmark. An empty title becomes the page's title. An ID that no longer exists, because the bookmark was removed meanwhile, does nothing.
   - `-removeBookmark:(ClairBookmarkID)`: the dialog's Remove.
   - `-removeBookmarkForTab:(ClairTabID)`: `bookmarks::RemoveAllBookmarks` for the tab's URL, for the tab menu's Remove Bookmark.
   - `-bookmarkPin:(ClairPinID)` and `-removeBookmarkForPin:(ClairPinID)`: the same for a pinned tab or favorite. While the pin's tab is open, they act on that tab's page, as `bookmarkTab:` does, even when it has moved away from the pinned URL, as Copy Link does. While it's closed, they act on the pinned URL. A new bookmark is titled with the pin's `name`, or its `title` when it has none, and `favicon` is the pin's `icon`. The bookmark goes into the pin's profile.
-  - `-addBookmarkFolder:(NSString *)title`: adds the folder at the end of Bookmarks Bar, as Dia does, and returns its ID.
+  - `-addBookmarkFolder:(NSString *)title`: adds the folder at the top of Other Bookmarks and returns its ID.
 - **`ClairTab.isBookmarked`**: whether the profile has a user bookmark for the tab's last committed URL. The browser bridge observes the profile's `BookmarkModel` (`BaseBookmarkModelObserver`) and re-snapshots tabs whose URL a change touches, coalesced as other snapshot changes are.
 - **`ClairPin.isBookmarked`**: whether the pinned URL has a user bookmark. Pins whose URL a change touches are re-snapshotted the same way. A pin row reads its open tab's `isBookmarked`, or this one while it's closed.
 - **`-[ClairWindow showBookmarkDialog:(id<ClairBookmark>)]`**, for the ⇧⌘B path.
@@ -101,14 +102,14 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 
 ### D4. Two ways in, one dialog
 
-- **⇧⌘B and the menu item** run `IDC_BOOKMARK_THIS_TAB`. Chromium adds the bookmark, or doesn't, and calls `ClairBrowserWindow::ShowBookmarkBubble(url, already_bookmarked)`. That builds a `ClairBookmark` for `GetMostRecentlyAddedUserNodeForURL(url)` with `isNew = !already_bookmarked`, and calls `showBookmarkDialog:`.
+- **⇧⌘B and the menu item** run `IDC_BOOKMARK_THIS_TAB`. The native window's `ExecuteCommand` (`clair_native_window.mm`) handles it before Chromium does, as it already handles `IDC_NEW_TAB`. It runs `bookmarkTab:`'s code for the active tab and calls `showBookmarkDialog:` with the result. Chromium's `BookmarkCurrentTab` would add to `GetParentForNewNodes`, the most recently modified folder, which can be the Bookmarks Bar. `ClairBrowserWindow::ShowBookmarkBubble` keeps logging, since nothing calls it any more.
 - **Add to Bookmarks…** in a tab menu calls `bookmarkTab:` for a Today tab, or `bookmarkPin:` for a pinned tab or favorite, and shows the dialog with the result. The tab isn't activated, and Chromium's command isn't involved, because it acts only on the active tab.
 
 `BrowserWindowController.showBookmarkDialog(_:)` presents a `BookmarkDialog` through the window's `ClairDialogPresenter`, so it queues behind any other dialog on that window.
 
 *Alternative:* Chromium's `BookmarkBubbleView`, attached to the site controls (the previous plan). Rejected: it needed a hook in Chromium's bubble code, a fix for its folder editor crashing without an anchor view, and row anchors for tab menus. A dialog centred on the window needs none of them, and it's Clair's own look.
 
-*Alternative:* add the bookmark only on Done, so Cancel leaves nothing. Rejected: Dia adds first and offers Remove, and the owner asked for Dia's behaviour. It also keeps ⇧⌘B on Chromium's command.
+*Alternative:* add the bookmark only on Done, so Cancel leaves nothing. Rejected: Dia adds first and offers Remove, and the owner asked for Dia's behaviour.
 
 ### D5. `BookmarkDialog`: Dia's controls in Clair's card
 
@@ -117,7 +118,7 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 - **Icon:** a new `ClairDialogPage.titleAccessory: NSImage?` draws the favicon at 16 pt at the title row's trailing end, where Dia has it (`dia-reference/screenshots/edit.jpg`). The 62 pt `icon` stays unused here. With no favicon, it shows a globe, as Dia does.
 - **Content:** two rows, each a label in a 68 pt column, in secondary grey, then a control filling the rest of the content width, 36 pt tall, with 12 pt between the rows (Dia's measurements):
   - Name: a `TextField`, focused with its text selected when the dialog opens;
-  - Folder: a popup button. It lists `bookmarkFolders` indented 16 pt per `depth`, with a checkmark on the current folder. New Folder… comes after Bookmarks Bar's folders, then Other Bookmarks' group, a divider and Manage Bookmarks.
+  - Folder: a popup button. It lists `bookmarkFolders` indented 16 pt per `depth`, the first titled "Bookmarks", with a checkmark on the current folder. New Folder… comes after the folders, then a divider and Manage Bookmarks.
 - **New Folder…** swaps the popup for a `TextField` with the placeholder "New folder name…" and a × button. Return calls `addBookmarkFolder:`, reloads the folders, selects the new one and puts focus back in Name. × swaps the popup back. While the field shows, Return goes to it, not to Done.
 - **Buttons:** Done is the default (Return, ↵ capsule), Remove is the `leadingButton`, and `escapePressesDefault` is true, so Esc saves as in Dia.
 - **Answers:** Done and Esc call `updateBookmark:title:folder:`. Remove calls `removeBookmark:`. Manage Bookmarks saves, closes, then performs the main menu's Manage Bookmarks item, found by tag as `MainMenuTitles` finds it. That runs `IDC_SHOW_BOOKMARK_MANAGER`, so the dialog switches to an open `chrome://bookmarks` tab just as ⌥⌘B does, with no new contract call.
@@ -134,15 +135,33 @@ The item goes right after the last pin item: after Pin to Favorites in `todayMen
 
 `MenuItem` gains an optional `shortcut`, set to ⇧⌘B only on Add to Bookmarks…, and `RowClickCatcher.Item.action` carries it to the `NSMenuItem`'s key equivalent. It only shows the key: a context menu's key equivalents don't fire once it closes, and the main menu's item handles ⇧⌘B.
 
-### D7. Bookmarks Bar as a submenu: `bookmarks-menu-folders.patch`
+### D7. One list: Other Bookmarks, called "Bookmarks"
 
-The owner wants the Bookmarks Bar as a submenu beside Other Bookmarks, but Chromium lists its children inline. `BuildRootMenu` is the only place this can change, and `AddSubmenu` is private, so a patch to `bookmark_menu_bridge.mm` is needed. It replaces the inline loop with `AddSubmenu(menu_root_, bookmark_bar_folder, folder_image_, recurse)` while the folder `HasContent`. It also merges the two separators into one, added before the first folder that has content. The order stays Managed, Bookmarks Bar, Other Bookmarks, Mobile Bookmarks.
+Clair's interface shows one bookmark list. Chromium's model always has a Bookmarks Bar and an Other Bookmarks folder, both permanent, and Clair uses Other Bookmarks:
+- the menu lists its contents directly (D8);
+- the dialog's folder popup starts with it, titled "Bookmarks" (D5);
+- new bookmarks and new folders go to its top (D3, D4).
+
+**Keeping the Bookmarks Bar empty.** `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` is a `BaseBookmarkModelObserver`, one for each original profile, started where `ApplyPasswordAndAutofillOverrides` runs. It drains the bar when:
+- the model loads;
+- `BookmarkNodeAdded` or `BookmarkNodeMoved` puts a node directly in the bar;
+- `ExtensiveBookmarkChangesEnded` runs, which is when an import finishes. While `IsDoingExtensiveChanges()` is true, it waits.
+
+Draining posts a task, so it never moves nodes inside an observer callback. It moves the bar's children, in order, to indices 0, 1, 2… of Other Bookmarks with `BookmarkModel::Move`. A folder moves whole. A managed (policy) node is never in the bar, and the account-storage bar, which only sync fills, is drained the same way if it exists.
+
+*Alternative:* show the bar's contents and Other Bookmarks' together, moving nothing. Rejected: the dialog would still have to show two roots, and an extension's or import's bookmarks would sit apart from the user's.
+
+*Alternative:* leave the bar alone. Rejected: Chrome imports and most other browsers' bookmarks land there, and they would vanish from the menu.
+
+### D8. The menu's bookmarks: `bookmarks-menu-root.patch`
+
+Chromium's `BuildRootMenu` lists the Bookmarks Bar's children directly in the menu, and Other Bookmarks as a submenu. Clair wants the reverse with no bar. `AddSubmenu` and the bridge's node map are private, so a patch to `bookmark_menu_bridge.mm` is needed. It lists Other Bookmarks' children where the bar's were, with the same `AddNodeToMenu`, and no longer adds Other Bookmarks as a submenu. The Managed folder's submenu stays before them and Mobile Bookmarks' after, each only while it has content, under one separator.
 
 The patch is about ten lines and keeps Chromium's structure. Like `copy-url-shortcut.patch`, it changes Chromium's behaviour directly, because a hook would need to reach the bridge's private members. Its header explains why.
 
 *Alternative:* move the bar's items into a submenu after each rebuild from the hook. Rejected: the bridge keeps `bookmark_nodes_` pointing at the items it made, and its incremental updates and `ClearBookmarkMenu` assume they're in `menu_root_` or in its submenus.
 
-### D8. The command bar: turn the bookmark provider back on
+### D9. The command bar: turn the bookmark provider back on
 
 `clair_autocomplete.mm` uses `DefaultOmniboxProviders()` unmasked. `AutocompleteResult` already removes duplicates by destination URL. In incognito, `BookmarkModelFactory` hands the provider the original profile's bookmarks, as Chromium's omnibox does.
 
@@ -154,21 +173,23 @@ Bookmark rows, which are the ones most likely to have no entry in Chromium's fav
 
 `#164` adds a "Row icons" requirement to `command-bar` directly. Until it merges, this change adds its own "Bookmark row icon" requirement beside it. If #164 merges first, the delta stays an ADDED requirement that narrows "Row icons", and the archive keeps both.
 
-### D9. Tests seed bookmarks through the profile's `Bookmarks` file
+### D10. Tests seed bookmarks through the profile's `Bookmarks` file
 
-The runtime harness already launches with `--user-data-dir`. A helper writes `Default/Bookmarks` before launch. It holds one bookmark in the Bookmarks Bar, one in a "Reading" folder there, and one in Other Bookmarks, pointing at the suite's page server, at paths the test never visits. Chromium's decoder doesn't check a checksum, so the file can leave it out.
+The runtime harness already launches with `--user-data-dir`. A helper writes `Default/Bookmarks` before launch. It holds two bookmarks in the Bookmarks Bar, to check that they're drained in order, and in Other Bookmarks a bookmark and a "Reading" folder with one bookmark, pointing at the suite's page server, at paths the test never visits. Chromium's decoder doesn't check a checksum, so the file can leave it out.
 
 ## Risks / Trade-offs
 
 - **[A Chromium update re-binds ⇧⌘B or ⌘D, or rebuilds the fixed items]** → The runtime tests press ⇧⌘B and ⌘D. The hook finds items by tag, not by index.
-- **[`BookmarkCurrentTab` calls `ShowBookmarkBubble` only while the window is active]** → ⇧⌘B and the menu act on the key window, so it always is. Tab menus don't go through it.
+- **[Moving bookmarks surprises an extension]** → An extension that creates a bookmark in the Bookmarks Bar gets `onMoved` right after `onCreated`, and its later calls by ID still work. This is the cost of one list.
+- **[A drain loop]** → Moving out of the bar never adds to it, and the drain only reacts to nodes whose new parent is the bar.
+- **[A large import]** → One task moves the bar's children once the import's extensive changes end, not node by node.
 - **[The bookmark is removed while the dialog is open, by an extension or Manage Bookmarks in another window]** → `updateBookmark:` and `removeBookmark:` ignore an unknown ID, so Done closes and nothing happens.
 - **[Esc saves rather than cancels]** → That's Dia's behaviour, which the owner chose. Remove undoes an add.
 - **[`isBookmarked` costs a lookup per tab snapshot]** → `IsBookmarkedByUser` is a hash lookup in the model's URL index. Snapshots are already coalesced.
-- **[The patch conflicts on an engine update]** → It's small and in one function. The patch check catches the conflict on the bump PR.
+- **[The menu patch conflicts on an engine update]** → It's small and in one function. The patch check catches the conflict on the bump PR.
 - **[Bookmark matches outrank history]** → Chromium's own relevance scoring decides, as in the omnibox.
 - **[Bookmarks from a 0.1.x profile appear suddenly]** → That's intended. Nothing migrates.
 
 ## Migration Plan
 
-None. Bookmarks already in the profile appear in the menu, the tab menus and the command bar on the first launch after the update. Rolling back hides them again, and the data is unchanged.
+On the first launch after the update, D7 moves the Bookmarks Bar's contents to the top of Other Bookmarks, and every bookmark shows in the menu, the tab menus and the command bar. Rolling back hides them from the interface again. Bookmarks stay where D7 moved them, and nothing is lost.

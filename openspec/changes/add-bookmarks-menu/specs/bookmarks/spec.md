@@ -7,11 +7,11 @@ Defines how Clair's interface offers the profile's bookmarks: the Bookmarks menu
 ## ADDED Requirements
 
 ### Requirement: Bookmarks menu
-The menu bar SHALL have a Bookmarks menu after History. It SHALL hold, in order, Bookmark This Page… (⇧⌘B), Manage Bookmarks (⌥⌘B), a divider, then a Bookmarks Bar submenu and an Other Bookmarks submenu with their folders and bookmarks. A folder's submenu SHALL appear only while it holds bookmarks, and the divider only while one does.
+The menu bar SHALL have a Bookmarks menu after History. It SHALL hold, in order, Bookmark This Page… (⇧⌘B), Manage Bookmarks (⌥⌘B), a divider, then the bookmarks and folders of Other Bookmarks, which Clair calls "Bookmarks", directly in the menu, each folder as a submenu. There SHALL be no Bookmarks Bar or Other Bookmarks submenu. The divider SHALL appear only while there are bookmarks to list.
 
 #### Scenario: Profile with bookmarks
-- **WHEN** the profile has a bookmark in the Bookmarks Bar folder and one in Other Bookmarks, and the user opens the Bookmarks menu
-- **THEN** it lists Bookmark This Page…, Manage Bookmarks, a divider, Bookmarks Bar and Other Bookmarks, and each submenu lists its bookmark by title with its favicon
+- **WHEN** Other Bookmarks holds a bookmark "Example" and a folder "Reading", and the user opens the Bookmarks menu
+- **THEN** it lists Bookmark This Page…, Manage Bookmarks, a divider, "Example" with its favicon, and a "Reading" submenu
 
 #### Scenario: Profile without bookmarks
 - **WHEN** the profile has no bookmarks and the user opens the Bookmarks menu
@@ -20,6 +20,21 @@ The menu bar SHALL have a Bookmarks menu after History. It SHALL hold, in order,
 #### Scenario: Bookmarks change
 - **WHEN** a bookmark is added, renamed or removed in Manage Bookmarks or by an extension
 - **THEN** the Bookmarks menu shows the change the next time it opens
+
+### Requirement: Bookmarks Bar emptied into Bookmarks
+Clair SHALL keep Chromium's Bookmarks Bar folder empty. Whatever is in it at launch, and whatever lands in it later (from an import, Manage Bookmarks or an extension), SHALL move to the top of Other Bookmarks, keeping its order, so it shows first in the Bookmarks menu. Folders SHALL move whole. Manage Bookmarks MAY still show the empty Bookmarks Bar folder.
+
+#### Scenario: Bookmarks Bar at launch
+- **WHEN** a profile's Bookmarks Bar holds "A" then "B", Other Bookmarks holds "C", and Clair launches
+- **THEN** Other Bookmarks holds "A", "B", "C" in that order, the Bookmarks Bar is empty, and the menu lists them in that order
+
+#### Scenario: Added later
+- **WHEN** an extension creates a bookmark in the Bookmarks Bar
+- **THEN** it moves to the top of Other Bookmarks, and the Bookmarks menu lists it first
+
+#### Scenario: Import
+- **WHEN** the user imports bookmarks from another browser and Chromium puts them in the Bookmarks Bar, loose or in a folder
+- **THEN** they move, in their order, to the top of Other Bookmarks
 
 ### Requirement: Opening a bookmark from the menu
 Choosing a bookmark in the Bookmarks menu SHALL open it in the active tab of the frontmost window. ⌘-choosing it SHALL open it in a new tab.
@@ -40,11 +55,11 @@ Manage Bookmarks, from the menu or ⌥⌘B, SHALL open `chrome://bookmarks` in a
 - **THEN** `chrome://bookmarks` opens and lists the profile's bookmarks
 
 ### Requirement: Bookmark This Page
-Bookmark This Page…, from the menu or ⇧⌘B, SHALL bookmark the active tab's page under its title, in the folder Chromium uses for new bookmarks (the Bookmarks Bar folder unless the user last changed another folder), then open the bookmark dialog titled "Bookmark Added". It SHALL be disabled when the active tab's page can't be bookmarked.
+Bookmark This Page…, from the menu or ⇧⌘B, SHALL bookmark the active tab's page under its title, at the top of Bookmarks (Other Bookmarks), then open the bookmark dialog titled "Bookmark Added". It SHALL be disabled when the active tab's page can't be bookmarked.
 
 #### Scenario: New bookmark
 - **WHEN** the active tab shows `https://example.com/`, which isn't bookmarked, and the user presses ⇧⌘B
-- **THEN** a bookmark for `https://example.com/` with the page's title is added, the bookmark dialog opens titled "Bookmark Added", and the Bookmarks menu lists the bookmark
+- **THEN** a bookmark for `https://example.com/` with the page's title is added, the bookmark dialog opens titled "Bookmark Added", and the Bookmarks menu lists the bookmark first after the divider
 
 ### Requirement: Edit Bookmark
 While the active tab's page is bookmarked, the Bookmarks menu's first item SHALL read Edit Bookmark…, keeping ⇧⌘B. It and ⇧⌘B SHALL open the bookmark dialog for the page's most recently added bookmark, titled "Edit Bookmark", and SHALL add nothing.
@@ -84,22 +99,22 @@ Done, Return and Esc SHALL close the bookmark dialog and save its name and folde
 - **THEN** the dialog closes, the bookmark is gone, and the menu's first item reads Bookmark This Page…
 
 ### Requirement: Choosing a folder in the bookmark dialog
-The Folder popup SHALL list Bookmarks Bar, then its folders indented one step per level, then New Folder…, then Other Bookmarks and its folders, a divider and Manage Bookmarks. The bookmark's folder SHALL have a checkmark. Manage Bookmarks SHALL save, close the dialog and open `chrome://bookmarks`, as ⌥⌘B does.
+The Folder popup SHALL list "Bookmarks", meaning Other Bookmarks itself, then its folders indented one step per level, then New Folder…, a divider and Manage Bookmarks. It SHALL NOT list the Bookmarks Bar. The bookmark's folder SHALL have a checkmark. Manage Bookmarks SHALL save, close the dialog and open `chrome://bookmarks`, as ⌥⌘B does.
 
 #### Scenario: Folders
-- **WHEN** the profile has a folder "Reading" in Bookmarks Bar and the user opens the Folder popup of a bookmark in Other Bookmarks
-- **THEN** it lists Bookmarks Bar, "Reading" indented under it, New Folder…, Other Bookmarks with a checkmark, a divider and Manage Bookmarks
+- **WHEN** Other Bookmarks holds a folder "Reading", and the user opens the Folder popup of a bookmark that isn't in a folder
+- **THEN** it lists "Bookmarks" with a checkmark, "Reading" indented under it, New Folder…, a divider and Manage Bookmarks
 
 #### Scenario: Manage Bookmarks from the popup
 - **WHEN** the user types "Reading" in Name and chooses Manage Bookmarks in the Folder popup
 - **THEN** the dialog closes, the bookmark is named "Reading", and `chrome://bookmarks` shows
 
 ### Requirement: New folder in the bookmark dialog
-New Folder… SHALL turn the Folder popup into a field with the placeholder "New folder name…" and a × button. Return there SHALL create the folder at the end of Bookmarks Bar and select it, keeping the dialog open with focus back in Name. × SHALL bring the popup back unchanged.
+New Folder… SHALL turn the Folder popup into a field with the placeholder "New folder name…" and a × button. Return there SHALL create the folder at the top of Bookmarks and select it, keeping the dialog open with focus back in Name. × SHALL bring the popup back unchanged.
 
 #### Scenario: New folder
 - **WHEN** the user chooses New Folder…, types "Recipes" and presses Return, then clicks Done
-- **THEN** a folder "Recipes" exists in Bookmarks Bar, and the bookmark is in it
+- **THEN** a folder "Recipes" is first in the Bookmarks menu, and the bookmark is in it
 
 #### Scenario: Cancelling a new folder
 - **WHEN** the user chooses New Folder… and clicks ×
