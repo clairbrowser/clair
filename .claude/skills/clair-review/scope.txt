@@ -98,6 +98,7 @@
 04 scripts/find-quality-pass.*
 04 scripts/make-deltas.*
 04 scripts/make-test-appcast.*
+04 scripts/prune-engines.*
 04 scripts/publish-release.*
 04 scripts/release-keychain.*
 04 scripts/release-preflight.*
@@ -131,6 +132,11 @@
 05 native/ClairUI/StatusCapsule.swift
 05 native/ClairUI/ReloadStopMode.swift
 05 native/ClairUI/HistoryMenu.swift
+05 native/ClairUI/LinkRulesDialog.swift
+05 native/ClairUI/LinkRulesLogic.swift
+05 native/ClairUI/QuitConfirmation.swift
+05 overlay/chrome/browser/clair/clair_link_rule_store.*
+05 overlay/chrome/browser/clair/clair_link_rules.*
 05 overlay/chrome/browser/clair/window/clair_autocomplete.*
 05 overlay/chrome/browser/clair/window/clair_peeks.*
 05 overlay/chrome/browser/clair/window/clair_peek_session.*
@@ -140,6 +146,8 @@
 05 patches/clair/pinned-link-peek.patch
 05 patches/clair/copy-url-shortcut.patch
 05 patches/clair/first-run-page.patch
+05 patches/clair/link-rules.patch
+05 patches/clair/quit-confirmation.patch
 
 # --- 06 the rest of ClairUI and its unit tests
 06 native/ClairUI/BrowserRootView.swift
@@ -166,6 +174,7 @@
 07 .gitignore
 07 utils/*
 07 scripts/apply-overlay.*
+07 scripts/clean-code-sign-clones.*
 07 scripts/compile-icon.*
 07 scripts/engine-key.*
 07 scripts/filter-domain-substitution.*
