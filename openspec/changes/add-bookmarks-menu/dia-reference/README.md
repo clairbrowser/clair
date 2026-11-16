@@ -24,7 +24,6 @@ Keep these screenshots. They move with the change when it's archived.
 | folder-popup.jpg | The Folder popup: Bookmarks Bar, its subfolder "Test Folder" indented under it, then "New Folder…" indented under it too, Other Bookmarks with a checkmark, a divider, and Manage Bookmarks. |
 | new-folder.jpg | After choosing New Folder…, the popup turns into a text field with the placeholder "New folder name…" and a × button at its trailing end. |
 | folder-popup-nested.jpg | After typing "Probe Folder" and Return: the folder is created inside **Bookmarks Bar** and selected, and the popover stays open with focus back in Name. |
-| tab-menu.jpg | A bookmarked tab's context menu: Remove Bookmark and Move Bookmark › in their own group. (For reference only: Clair's tab menus follow the owner's choice, which is Add to Bookmarks… or Remove Bookmark after the pin items.) |
 
 ## Behaviour
 

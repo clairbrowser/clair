@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines how Clair's interface offers the profile's bookmarks: the Bookmarks menu, the bookmark dialog for adding, editing and removing a page's bookmark, the bookmark item in tabs' menus, opening bookmarks from the menu, and the bookmarks UI Clair leaves out.
+Defines how Clair's interface offers the profile's bookmarks: the Bookmarks menu, the bookmark dialog for adding, editing and removing a page's bookmark, opening bookmarks from the menu, and the bookmarks UI Clair leaves out.
 
 ## ADDED Requirements
 
@@ -119,25 +119,6 @@ New Folder… SHALL turn the Folder popup into a field with the placeholder "New
 #### Scenario: Cancelling a new folder
 - **WHEN** the user chooses New Folder… and clicks ×
 - **THEN** the popup shows the previous folder again, and no folder is created
-
-### Requirement: Bookmark item in tab menus
-A tab's context menu SHALL offer Add to Bookmarks…, showing ⇧⌘B, while the tab's page isn't bookmarked, and Remove Bookmark, with no shortcut, while it is. Add to Bookmarks… SHALL bookmark that tab's page and open the bookmark dialog for it, without activating the tab. Remove Bookmark SHALL remove every bookmark of the page. A pinned tab or favorite with no open page SHALL act on its pinned URL, under its name, as Copy Link does.
-
-#### Scenario: Adding from a background tab
-- **WHEN** the user right-clicks a Today tab that isn't active, whose page isn't bookmarked, and chooses Add to Bookmarks…
-- **THEN** the page is bookmarked, the bookmark dialog opens titled "Bookmark Added" with that page's title in Name, and the active tab doesn't change
-
-#### Scenario: Removing from the menu
-- **WHEN** the user right-clicks a tab whose page is bookmarked
-- **THEN** the menu offers Remove Bookmark with no shortcut, and choosing it removes the bookmark with no dialog
-
-#### Scenario: Closed pinned tab
-- **WHEN** the pinned tab "Mail" has no open page, its pinned URL isn't bookmarked, and the user chooses Add to Bookmarks… in its menu
-- **THEN** its pinned URL is bookmarked under its name, the bookmark dialog opens titled "Bookmark Added", and no page opens
-
-#### Scenario: Guest window
-- **WHEN** the user right-clicks a tab in a guest window
-- **THEN** the menu has neither Add to Bookmarks… nor Remove Bookmark
 
 ### Requirement: Bookmarks UI Clair leaves out
 Clair SHALL NOT show a bookmarks bar, bookmark star, Chromium's bookmark bubble or the bookmarks side panel, and SHALL NOT offer Bookmark All Tabs or View › Always Show Bookmarks Bar. ⌘D SHALL pin or unpin the tab (`pinned-tabs`), as in Arc, and SHALL NOT create a bookmark. Bookmarks already in the profile SHALL be kept.

@@ -2,7 +2,7 @@
 
 ## Why
 
-`replace-browser-window` removed bookmarks from the interface because Arc has none. People coming from other browsers still have bookmarks, and the ones they imported, or saved in Clair 0.1.x, are still in the profile. Today they can only reach them by typing `chrome://bookmarks`. A Bookmarks menu, a bookmark item in tabs' menus and a bookmark dialog let them open, add, edit and remove bookmarks without bringing back the bookmarks bar, the star or the omnibox.
+`replace-browser-window` removed bookmarks from the interface because Arc has none. People coming from other browsers still have bookmarks, and the ones they imported, or saved in Clair 0.1.x, are still in the profile. Today they can only reach them by typing `chrome://bookmarks`. A Bookmarks menu and a bookmark dialog let them open, add, edit and remove bookmarks without bringing back the bookmarks bar, the star or the omnibox.
 
 Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomplete` removes Chromium's `BookmarkProvider` (`clair_autocomplete.mm`). A bookmark only affects the results through history: the history providers rank a visited bookmarked page higher and never drop it. A bookmark the user hasn't visited never shows up. Once bookmarks have a menu, the command bar should find them too.
 
@@ -23,11 +23,6 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - **Buttons:** Remove at the bottom leading corner, and Done ↵ at the bottom trailing corner.
 
   As in Dia, adding a bookmark saves it before the dialog opens. Remove deletes it, and Done, Return or Esc keep the edits. Bookmark This Page… and Edit Bookmark… open it for the active tab.
-- **Tabs' context menus** get a bookmark item right after their last pin action. A Today tab's comes after Pin to Favorites, a pinned tab's after Remove Pin, and a favorite's after Remove Favorite. Incognito Today tabs have no pin items, so theirs takes the same place.
-  - **Add to Bookmarks…**, with ⇧⌘B shown, while the tab's page isn't bookmarked. It adds the bookmark and opens the dialog for that tab, without switching tabs.
-  - **Remove Bookmark**, with no shortcut, while it is. It removes the page's bookmarks at once.
-
-  A pinned tab or favorite acts on the page it shows. While it has no open page, it acts on its pinned URL under its name, as Copy Link does. Guest windows, and profiles whose policy forbids editing bookmarks, don't show the item.
 - **The command bar suggests bookmarks.** Chromium's bookmark source joins the command bar's suggestions, so a bookmark the user has never visited shows up by its title or URL. Chromium already lists a page once, even when it's both visited and bookmarked.
 - **Bookmarked rows show a bookmark icon** instead of the page's favicon, whether the row came from bookmarks or from history. Bookmark rows therefore never need Chromium's favicon store, which has nothing for a bookmark that was imported and never visited. Searches keep their icon, and "Switch to Tab" rows keep theirs.
 - **Shortcuts that stay:** ⌘D pins or unpins the tab (`pinned-tabs`), and ⇧⌘D stays free for `add-page-toolbar`'s toolbar toggle. Chromium's ⇧⌘B (Always Show Bookmarks Bar) becomes Bookmark This Page….
@@ -37,15 +32,12 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
 
 ### New Capabilities
 
-- `bookmarks`: the bookmarks the interface offers: the Bookmarks menu and its items, the bookmark dialog, the bookmark item in tabs' menus, opening bookmarks from the menu, and the bookmarks UI Clair leaves out.
+- `bookmarks`: the bookmarks the interface offers: the Bookmarks menu and its items, the bookmark dialog, opening bookmarks from the menu, and the bookmarks UI Clair leaves out.
 
 ### Modified Capabilities
 
 - `browser-window`: "No bookmarks in the interface" is removed. What it still ruled out (the bar, the star, Cmd+D as a bookmark key) moves to `bookmarks`.
 - `command-bar`: "Suggestions from Chromium's autocomplete" now includes bookmarks, and "Row icons" shows a bookmark icon for bookmarked pages.
-- `sidebar`: "Today tab menu" gains Add to Bookmarks… or Remove Bookmark.
-- `pinned-tabs`: "Pinned tab menu" gains the same item.
-- `favorites`: "Favorite menu" gains the same item.
 
 ## Impact
 
@@ -53,19 +45,17 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - `clair_window_hooks.mm`: the Bookmarks menu is shown, and its first item is moved to the top and given ⇧⌘B.
   - `clair_native_window.mm`: `ClairIsRemovedCommand` no longer removes `IDC_BOOKMARK_THIS_TAB`. The window's menu validation titles it Bookmark This Page… or Edit Bookmark…, and the window runs it itself, adding to the top of Other Bookmarks and asking `ClairUI` for the bookmark dialog.
   - A new `clair_bookmark_bar_drain.{h,mm}` keeps each profile's Bookmarks Bar empty, moving what lands there to the top of Other Bookmarks.
-  - The browser bridge reports whether each tab's page is bookmarked, lists the profile's bookmark folders, and adds, edits and removes bookmarks and folders.
+  - The browser bridge lists the profile's bookmark folders, edits and removes bookmarks, and adds folders.
   - `clair_autocomplete.mm`: stops removing `kBookmark` from the providers, and marks bookmarked rows with the new kind instead of fetching their favicon.
   - A new `patches/clair/bookmarks-menu-root.patch` makes Chromium's `BookmarkMenuBridge` list Other Bookmarks' contents directly in the menu, where it lists the Bookmarks Bar's, with no Bookmarks Bar or Other Bookmarks submenu. No other Chromium file changes.
 - **`ClairHost.h`:** additive:
   - a bookmark snapshot (`ClairBookmark`) and a folder snapshot (`ClairBookmarkFolder`);
-  - `ClairTab.isBookmarked` and `ClairPin.isBookmarked`;
   - `ClairSuggestionKindBookmark`;
-  - `ClairBrowser.canEditBookmarks`, `bookmarkFolders`, `-bookmarkTab:`, `-bookmarkPin:`, `-updateBookmark:…`, `-removeBookmark:`, `-removeBookmarkForTab:`, `-removeBookmarkForPin:` and `-addBookmarkFolder:`;
+  - `ClairBrowser.bookmarkFolders`, `-updateBookmark:…`, `-removeBookmark:` and `-addBookmarkFolder:`;
   - `-[ClairWindow showBookmarkDialog:]`.
 - **`ClairUI`:**
   - a `BookmarkDialog` built on `ClairDialog` as it is;
-  - the three tab menus in `PinsLogic` and their views, with a shortcut shown on a context-menu item;
   - Manage Bookmarks' title in `MainMenuTitles`.
-- **Runtime suite:** new tests cover the menu and its titles, ⇧⌘B and the dialog, the tab menus' items, and bookmark suggestions, using a seeded `Bookmarks` file in the test profile. The PR runs `quality.yml` on its branch.
+- **Runtime suite:** new tests cover the menu and its titles, ⇧⌘B and the dialog, and bookmark suggestions, using a seeded `Bookmarks` file in the test profile. The PR runs `quality.yml` on its branch.
 - **Users:** bookmarks already in the profile appear in the menu right away. Bookmarks in the Bookmarks Bar move to the top of Other Bookmarks on the first launch. They stay there if Clair is rolled back, but nothing is lost.
 - **Docs:** `docs/native-window.md` (the menu, the dialog and the bridge calls), and a Changie fragment.
