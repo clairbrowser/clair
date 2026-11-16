@@ -36,6 +36,29 @@ Clair SHALL keep Chromium's Bookmarks Bar folder empty. Whatever is in it at lau
 - **WHEN** the user imports bookmarks from another browser and Chromium puts them in the Bookmarks Bar, loose or in a folder
 - **THEN** they move to Other Bookmarks
 
+### Requirement: Bookmarks Bar notice
+The first time Clair moves anything out of a Bookmarks Bar, in any profile, it SHALL show a dialog (`dialogs`) titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu." and one OK button, which Return and Esc choose. Clair SHALL show it only once, whichever profiles it moves bookmarks for afterwards.
+
+#### Scenario: First move
+- **WHEN** a profile's Bookmarks Bar holds bookmarks and Clair launches for the first time with this change
+- **THEN** the bookmarks move to Other Bookmarks, and the window shows the Heads Up dialog
+
+#### Scenario: No window open
+- **WHEN** an extension adds the first bookmark to the Bookmarks Bar of a profile with no open window
+- **THEN** the Heads Up dialog shows in the first window that opens for that profile
+
+#### Scenario: Only once
+- **WHEN** the user has seen the dialog, and an extension later creates a bookmark in the Bookmarks Bar
+- **THEN** the bookmark moves to Other Bookmarks, and no dialog shows
+
+#### Scenario: Another profile
+- **WHEN** the user has seen the dialog, and another profile's Bookmarks Bar is emptied for the first time
+- **THEN** no dialog shows
+
+#### Scenario: Nothing to move
+- **WHEN** a profile's Bookmarks Bar is empty, and the user adds bookmarks with Bookmark This Page…
+- **THEN** the Heads Up dialog never shows
+
 ### Requirement: Opening a bookmark from the menu
 Choosing a bookmark in the Bookmarks menu SHALL open it in the active tab of the frontmost window. ⌘-choosing it SHALL open it in a new tab.
 

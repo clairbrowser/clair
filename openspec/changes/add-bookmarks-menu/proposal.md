@@ -16,6 +16,11 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
 
   Choosing a bookmark opens it in the active tab, and ⌘-choosing it opens it in a new tab, as Chromium's menu does.
 - **One bookmark list, "Bookmarks".** Clair uses only Chromium's Other Bookmarks folder and calls it "Bookmarks". The Bookmarks Bar has no place in Clair's interface, so Clair keeps it empty. Whatever is there at launch, or lands there later from an import, Manage Bookmarks or an extension, moves to Other Bookmarks. `chrome://bookmarks` still shows the empty Bookmarks Bar: hiding it would mean patching Chromium's page for little gain.
+
+  The first time Clair moves anything out of a Bookmarks Bar, in any profile, a dialog explains why. It shows only once for the whole app:
+  - **Title:** "Heads Up";
+  - **Message:** "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.";
+  - **Button:** OK.
 - **A bookmark dialog**, one of Clair's own dialogs, with Dia's controls (`dia-reference/`). It's the same dialog for adding and editing:
   - **Title:** "Bookmark Added" or "Edit Bookmark". Dia's small favicon at the end of the title row is left out, so the dialog needs nothing new from `ClairDialog`.
   - **Name:** a field holding the bookmark's name, focused with its text selected.
@@ -52,10 +57,10 @@ Today the command bar doesn't suggest bookmarks either. `ClairChromiumAutocomple
   - a bookmark snapshot (`ClairBookmark`) and a folder snapshot (`ClairBookmarkFolder`);
   - `ClairSuggestionKindBookmark`;
   - `ClairBrowser.bookmarkFolders`, `-updateBookmark:…`, `-removeBookmark:` and `-addBookmarkFolder:`;
-  - `-[ClairWindow showBookmarkDialog:]`.
+  - `-[ClairWindow showBookmarkDialog:]` and `-[ClairWindow showBookmarksBarNotice]`.
 - **`ClairUI`:**
-  - a `BookmarkDialog` built on `ClairDialog` as it is;
+  - a `BookmarkDialog` built on `ClairDialog` as it is, and the Bookmarks Bar notice;
   - Manage Bookmarks' title in `MainMenuTitles`.
 - **Runtime suite:** new tests cover the menu and its titles, ⇧⌘B and the dialog, and bookmark suggestions, using a seeded `Bookmarks` file in the test profile. The PR runs `quality.yml` on its branch.
-- **Users:** bookmarks already in the profile appear in the menu right away. Bookmarks in the Bookmarks Bar move to Other Bookmarks on the first launch. They stay there if Clair is rolled back, but nothing is lost.
+- **Users:** bookmarks already in the profile appear in the menu right away. Bookmarks in the Bookmarks Bar move to Other Bookmarks on the first launch, and the Heads Up dialog says so. They stay there if Clair is rolled back, but nothing is lost.
 - **Docs:** `docs/native-window.md` (the menu, the dialog and the bridge calls), and a Changie fragment.

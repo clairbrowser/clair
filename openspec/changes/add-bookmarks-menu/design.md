@@ -89,6 +89,7 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
   - `-removeBookmark:(ClairBookmarkID)`: the dialog's Remove.
   - `-addBookmarkFolder:(NSString *)title`: adds the folder to Other Bookmarks and returns its ID.
 - **`-[ClairWindow showBookmarkDialog:(id<ClairBookmark>)]`**, for the ⇧⌘B path.
+- **`-[ClairWindow showBookmarksBarNotice]`**, for the Bookmarks Bar notice (D6). `ClairUI` owns the text.
 
 All of it is additive. `ClairUI` and the engine ship together in one app, so there's no version skew to handle.
 
@@ -130,6 +131,14 @@ Clair's interface shows one bookmark list. Chromium's model always has a Bookmar
 
 Draining posts a task, so it never moves nodes inside an observer callback. It moves the bar's children to Other Bookmarks with `BookmarkModel::Move`. A folder moves whole. A managed (policy) node is never in the bar, and the account-storage bar, which only sync fills, is drained the same way if it exists.
 
+**The notice.** It shows once for the whole app, so its flag is a local-state pref, `clair.bookmarks_bar_notice_shown`, false by default, registered in `clair::RegisterLocalStatePrefs` (`clair_window_hooks.mm`) with Clair's other local-state prefs. That hook is already called from `browser_prefs.cc`, so no Chromium file changes for it. When a drain moves at least one node and the pref is false, it calls `showBookmarksBarNotice` on the profile's most recently active normal window and sets the pref. When the profile has no window yet, as on a launch whose drain runs before the first window opens, it observes `BrowserList` and shows the notice in the first normal window that opens for the profile, setting the pref then. Incognito and guest windows never show it: the drain only runs for original profiles.
+
+`ClairUI` shows it through the window's `ClairDialogPresenter`: a `ClairDialogPage` titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.", one default OK button, and `escapePressesDefault` true. It queues behind any other dialog on that window.
+
+*Alternative:* show it on every drain. Rejected: after the first, the user knows, and an extension that writes to the bar would show it again and again.
+
+*Alternative:* once per profile, in a profile pref. Rejected: what the notice explains is the same in every profile, and registering a profile pref would need another hook in `browser_prefs.cc`.
+
 *Alternative:* show the bar's contents and Other Bookmarks' together, moving nothing. Rejected: the dialog would still have to show two roots, and an extension's or import's bookmarks would sit apart from the user's.
 
 *Alternative:* leave the bar alone. Rejected: Chrome imports and most other browsers' bookmarks land there, and they would vanish from the menu.
@@ -156,13 +165,14 @@ The `command-bar` delta modifies #164's "Row icons" requirement to add the bookm
 
 ### D9. Tests seed bookmarks through the profile's `Bookmarks` file
 
-The runtime harness already launches with `--user-data-dir`. A helper writes `Default/Bookmarks` before launch. It holds two bookmarks in the Bookmarks Bar, to check that they're drained, and in Other Bookmarks a bookmark and a "Reading" folder with one bookmark, pointing at the suite's page server, at paths the test never visits. Chromium's decoder doesn't check a checksum, so the file can leave it out.
+The runtime harness already launches with `--user-data-dir`. A helper writes `Default/Bookmarks` before launch. It holds two bookmarks in the Bookmarks Bar, to check that they're drained and that the notice shows, and in Other Bookmarks a bookmark and a "Reading" folder with one bookmark, pointing at the suite's page server, at paths the test never visits. Chromium's decoder doesn't check a checksum, so the file can leave it out.
 
 ## Risks / Trade-offs
 
 - **[A Chromium update re-binds ⇧⌘B or ⌘D, or rebuilds the fixed items]** → The runtime tests press ⇧⌘B and ⌘D. The hook finds items by tag, not by index.
 - **[Moving bookmarks surprises an extension]** → An extension that creates a bookmark in the Bookmarks Bar gets `onMoved` right after `onCreated`, and its later calls by ID still work. This is the cost of one list.
 - **[A drain loop]** → Moving out of the bar never adds to it, and the drain only reacts to nodes whose new parent is the bar.
+- **[The notice covers the first window at launch]** → It shows once for the whole app and closes with Return or Esc. The runtime tests that seed the Bookmarks Bar dismiss it first.
 - **[A large import]** → One task moves the bar's children once the import's extensive changes end, not node by node.
 - **[The bookmark is removed while the dialog is open, by an extension or Manage Bookmarks in another window]** → `updateBookmark:` and `removeBookmark:` ignore an unknown ID, so Done closes and nothing happens.
 - **[Esc saves rather than cancels]** → That's Dia's behaviour, which the owner chose. Remove undoes an add.
