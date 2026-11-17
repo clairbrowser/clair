@@ -529,6 +529,59 @@ final class ExtensionActionTests: NativeWindowTestCase {
     let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
     let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
     defer { tab.close() }
+    let worker = try await extensionWorker(browser)
+    defer { worker.close() }
+    _ = try await worker.evaluate("chrome.action.openPopup()")
+    let popup = browser.ui.dialogs["clair.extensionPopup"]
+    XCTAssertTrue(popup.waitForExistence(timeout: 15), "chrome.action.openPopup() didn't open the popup")
+  }
+
+  /// A popup that closes its own window while it loads goes with the window,
+  /// and the browser keeps running.
+  func testPopupThatClosesItsWindowWhileLoading() async throws {
+    let extensionPath = Fixture.directory.appending(path: "extensions/popup-closes-window").path
+    let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
+    defer { tab.close() }
+    let worker = try await extensionWorker(browser)
+    defer { worker.close() }
+    let windowCount = "chrome.windows.getAll().then(all => all.length)"
+    let before = try await worker.evaluate(windowCount) as? Int
+    // The page's close request and the end of its first load reach the browser
+    // back to back; a few rounds make sure that order comes up.
+    for round in 1...5 {
+      let result = try await worker.evaluate(
+        """
+        (async () => {
+          const opened = await chrome.windows.create({url: 'about:blank', focused: true});
+          await chrome.action.setPopup({popup: 'popup.html?window=' + opened.id});
+          // A new window takes a moment to become the active one.
+          for (let attempt = 0; attempt < 50; attempt++) {
+            try {
+              await chrome.action.openPopup({windowId: opened.id});
+              return 'shown';
+            } catch (error) {
+              if (!error.message.includes('inactive window')) {
+                return error.message;
+              }
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          return 'never active';
+        })()
+        """) as? String
+      XCTAssertEqual(result, "Failed to open popup.", "Round \(round): the popup outlived its window")
+      let closed = await Harness.wait(for: 15) {
+        try await worker.evaluate(windowCount) as? Int == before
+      }
+      try require(closed, "Round \(round): the popup didn't close its window")
+      XCTAssertNotNil(try browser.runningProcessID(), "Round \(round): Clair quit")
+    }
+    let answer = try await tab.evaluate("1 + 1") as? Int
+    XCTAssertEqual(answer, 2, "The first window's tab stopped answering")
+  }
+
+  /// A session on the loaded extension's background script.
+  private func extensionWorker(_ browser: Browser) async throws -> DevToolsSession {
     let session = try await browser.browserSession()
     defer { session.close() }
     var workerID: String?
@@ -543,11 +596,7 @@ final class ExtensionActionTests: NativeWindowTestCase {
       return workerID != nil
     }
     try require(started, "The extension's background script didn't start")
-    let worker = try await browser.session(onTarget: try XCTUnwrap(workerID))
-    defer { worker.close() }
-    _ = try await worker.evaluate("chrome.action.openPopup()")
-    let popup = browser.ui.dialogs["clair.extensionPopup"]
-    XCTAssertTrue(popup.waitForExistence(timeout: 15), "chrome.action.openPopup() didn't open the popup")
+    return try await browser.session(onTarget: try XCTUnwrap(workerID))
   }
 }
 

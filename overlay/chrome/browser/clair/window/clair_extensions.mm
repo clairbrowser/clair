@@ -12,10 +12,13 @@
 #include <utility>
 #include <vector>
 
+#include "base/functional/bind.h"
+#include "base/location.h"
 #include "base/logging.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_window_hooks.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
@@ -175,7 +178,16 @@ class ClairExtensions::Popup : public extensions::ExtensionView,
     id<ClairWindow> window = owner_->window_->clair_window();
     NSView* view = host_->host_contents()->GetNativeView().GetNativeNSView();
     if (!window || !view) {
-      owner_->ClosePopup();
+      // This runs while the page's WebContents notifies its observers, which
+      // must not destroy it: close the popup once the notification is over.
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(
+                         [](base::WeakPtr<Popup> popup) {
+                           if (popup) {
+                             popup->owner_->ClosePopup();
+                           }
+                         },
+                         weak_factory_.GetWeakPtr()));
       return;
     }
     shown_ = true;
