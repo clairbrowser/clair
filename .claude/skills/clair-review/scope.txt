@@ -69,6 +69,7 @@
 03 native/ClairUI/ExtensionPromptSheets.swift
 03 native/ClairUI/ExtensionsMenu.swift
 03 native/ClairUI/PinnedExtensions.swift
+03 overlay/chrome/browser/clair/window/clair_extension_error_ui.*
 03 overlay/chrome/browser/clair/window/clair_extensions.*
 03 overlay/components/clair_store_fixups/*
 03 patches/clair/restore-web-store.patch

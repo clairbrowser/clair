@@ -1,6 +1,9 @@
 # Restores what the Chrome Web Store needs to install and update extensions
-# (arc-extension-experience, design D2). Each revert names the upstream patch
-# and hunk it undoes; the rest of those patches stays applied.
+# (arc-extension-experience, design D2), and the update check flags that turn
+# off extensions the store has pulled (disable-flagged-store-extensions). Each
+# revert names the upstream patch and hunk it undoes; the rest of those patches
+# stays applied. The other hunks route store checks, name their address or
+# limit what they send, and say so.
 
 # Reverts ungoogled-chromium disable-webstore-urls.patch, GetOriginsRequiringDedicatedProcess hunk.
 --- a/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
@@ -48,22 +51,23 @@
  }
  
  void ExtensionDownloader::SetIdentityManager(
-# Not a revert: sends store update checks through the restored downloader.
+# Not a revert: sends installed store extensions to UpdateService, which reports the store's
+# flags (disable-flagged-store-extensions, D1). An extension with no update URL is never checked
+# against the store, so only those that name the store's update URL go there.
 --- a/chrome/browser/extensions/updater/extension_updater.cc
 +++ b/chrome/browser/extensions/updater/extension_updater.cc
-@@ -791,6 +791,12 @@
-     const PendingExtensionInfo* info) const {
-   if (g_force_use_update_service_for_tests) {
-     return true;
-+  }
-+
-+  // Clair: UpdateService's server address stays domain-substituted, so store
-+  // extensions update through ExtensionDownloader instead.
-+  if ((true)) {
-+    return false;
-   }
+@@ -803,8 +803,9 @@
+   // UpdateService can only update extensions from the store. If `update_url`
+   // is empty, we default to checking from the store.
+   GURL update_url = GetEffectiveUpdateURL(*extension);
+-  return update_url.is_empty() ||
+-         extension_urls::IsWebstoreUpdateUrl(update_url);
++  // Clair: an extension with no update URL is never checked against the store,
++  // so only extensions that name the store's update URL go to UpdateService.
++  return extension_urls::IsWebstoreUpdateUrl(update_url);
+ }
  
-   // UpdateService can only update extensions that have been installed on the
+ void ExtensionUpdater::InstallCRXFile(FetchedCRXFile crx_file) {
 # Reverts ungoogled-chromium inox-patchset/0005-disable-default-extensions.patch, webstore_installer.cc download folder hunk.
 --- a/extensions/browser/webstore_installer.cc
 +++ b/extensions/browser/webstore_installer.cc
@@ -136,3 +140,407 @@
  }
  
  void WebstoreInstaller::ReportFailure(const std::string& error,
+# Reverts ungoogled-chromium block-requests.patch, update_checker.cc hunk, for the extension
+# updater only (disable-flagged-store-extensions, D2). The component updater stays blocked.
+--- a/components/update_client/update_checker.cc
++++ b/components/update_client/update_checker.cc
+@@ -38,6 +38,7 @@
+ #include "components/update_client/task_traits.h"
+ #include "components/update_client/update_client.h"
+ #include "components/update_client/update_engine.h"
++#include "components/update_client/update_query_params.h"
+ #include "components/update_client/utils.h"
+ #include "url/gurl.h"
+ 
+@@ -104,7 +105,12 @@
+     scoped_refptr<UpdateContext> context,
+     const base::flat_map<std::string, std::string>& additional_attributes,
+     UpdateCheckCallback update_check_callback) {
+-  return;
++  // Clair: only the extension updater's checks run, for store extensions. The
++  // component updater stays blocked.
++  if (config_->GetProdId() !=
++      UpdateQueryParams::GetProdIdString(UpdateQueryParams::CRX)) {
++    return;
++  }
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
+   update_check_callback_ = std::move(update_check_callback);
+# Not a revert: names the JSON update service that store extensions are checked with
+# (disable-flagged-store-extensions, D3). This file is left out of domain substitution.
+--- a/extensions/common/extension_urls.h
++++ b/extensions/common/extension_urls.h
+@@ -110,6 +110,10 @@
+ // have been overridden by a command line flag for testing purposes.
+ GURL GetWebstoreUpdateUrl();
+ 
++// Clair: returns the address of Google's JSON update service, which
++// UpdateService checks store extensions with.
++GURL GetWebstoreJsonUpdateUrl();
++
+ // Returns the url to visit to report abuse for the given `extension_id`
+ // and `referrer_id`.
+ GURL GetWebstoreReportAbuseUrl(const extensions::ExtensionId& extension_id,
+# Not a revert: the JSON update service's address, beside the store's other addresses (D3).
+--- a/extensions/common/extension_urls.cc
++++ b/extensions/common/extension_urls.cc
+@@ -45,6 +45,9 @@
+     "build-with-ai#modern_web_guidance";
+ const char kChromeWebstoreUpdateURL[] =
+     "https://clients2.google.com/service/update2/crx";
++// Clair: the JSON update service, which store extensions are checked with.
++const char kChromeWebstoreJsonUpdateURL[] =
++    "https://update.googleapis.com/service/update2/json";
+ const char kChromeWebstoreApiURL[] = "https://chromewebstore.googleapis.com/";
+ 
+ const char kAppMenuUtmSource[] = "ext_app_menu";
+@@ -122,6 +125,10 @@
+   return GURL(kChromeWebstoreUpdateURL);
+ }
+ 
++GURL GetWebstoreJsonUpdateUrl() {
++  return GURL(kChromeWebstoreJsonUpdateURL);
++}
++
+ GURL GetWebstoreUpdateUrl() {
+   extensions::ExtensionsClient* client = extensions::ExtensionsClient::Get();
+   if (client)
+# Not a revert: store checks go to the JSON update service without url_override_, which would
+# turn off CUP signing (D3), and send no event pings (D4).
+--- a/chrome/browser/extensions/updater/chrome_update_client_config.cc
++++ b/chrome/browser/extensions/updater/chrome_update_client_config.cc
+@@ -51,6 +51,7 @@
+ #include "extensions/browser/extension_prefs.h"
+ #include "extensions/browser/extension_prefs_observer.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "extensions/common/extension_urls.h"
+ 
+ static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+ 
+@@ -224,15 +225,16 @@
+   if (url_override_.has_value()) {
+     return {*url_override_};
+   }
+-  return impl_.UpdateUrl();
++  // Clair: the component updater's address stays domain-substituted, so store
++  // checks name the update service here. CUP signing stays on.
++  return {extension_urls::GetWebstoreJsonUpdateUrl()};
+ }
+ 
+ std::vector<GURL> ChromeUpdateClientConfig::PingUrl() const {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  if (url_override_.has_value()) {
+-    return {*url_override_};
+-  }
+-  return impl_.PingUrl();
++  // Clair: no address, so no event pings are sent after an install, update
++  // or uninstall.
++  return {};
+ }
+ 
+ std::string ChromeUpdateClientConfig::GetProdId() const {
+# Not a revert: limits what store update checks send (disable-flagged-store-extensions, D4):
+# no hardware details, macOS version or managed state, and on each extension no install date,
+# install ID, install location, cohort, enabled state or activity ping. The update checker runs
+# extension checks only (D2), so this applies to nothing else.
+--- a/components/update_client/protocol_serializer.cc
++++ b/components/update_client/protocol_serializer.cc
+@@ -44,12 +44,12 @@
+ namespace {
+ 
+ // Returns the amount of physical memory in GB, rounded to the nearest GB.
+-int GetPhysicalMemoryGB() {
++[[maybe_unused]] int GetPhysicalMemoryGB() {
+   return base::ClampRound(
+       base::SysInfo::AmountOfTotalPhysicalMemory().InGiBF());
+ }
+ 
+-std::string GetOSVersion() {
++[[maybe_unused]] std::string GetOSVersion() {
+ #if BUILDFLAG(IS_WIN)
+   const auto ver = base::win::OSInfo::GetInstance()->version_number();
+   return absl::StrFormat("%u.%u.%u.%u", ver.major, ver.minor, ver.build,
+@@ -133,7 +133,7 @@
+   request.operating_system = UpdateQueryParams::GetOS();
+   request.arch = UpdateQueryParams::GetArch();
+   request.dlpref = download_preference;
+-  request.domain_joined = domain_joined;
++  // Clair: store update checks don't say whether the Mac is managed.
+   request.additional_attributes = additional_attributes;
+ 
+ #if BUILDFLAG(IS_WIN)
+@@ -143,7 +143,7 @@
+ #endif
+ 
+   // HW platform information.
+-  request.hw.physmemory = GetPhysicalMemoryGB();
++  // Clair: no hardware details. The HW fields keep their zero defaults.
+ #if defined(ARCH_CPU_X86_FAMILY)
+   base::CPU cpu;
+   request.hw.sse = cpu.has_sse();
+@@ -157,7 +157,7 @@
+ 
+   // OS version and platform information.
+   request.os.platform = os_long_name;
+-  request.os.version = GetOSVersion();
++  // Clair: no macOS version, only the platform and architecture.
+   request.os.service_pack = GetServicePack();
+   request.os.arch = GetArchitecture();
+ 
+@@ -236,21 +236,14 @@
+   app.events = std::move(events);
+   app.brand_code = FilterBrandCode(brand_code);
+   app.lang = lang;
+-  app.install_date = install_date;
+-  app.install_id = install_id;
++  // Clair: no install date, install ID, install location, cohort, enabled
++  // state or activity ping. The cached package's hash stays, for patches.
+   app.install_source = install_source;
+-  app.install_location = install_location;
+   app.installer_attributes = FilterInstallerAttributes(installer_attributes);
+-  app.cohort = cohort;
+-  app.cohort_hint = cohort_hint;
+-  app.cohort_name = cohort_name;
+   app.release_channel = release_channel;
+-  app.enabled = disabled_reasons.empty();
+-  app.disabled_reasons = disabled_reasons;
+   app.cached_hashes = cached_hashes;
+   app.update_check = std::move(update_check);
+   app.data = data;
+-  app.ping = std::move(ping);
+   return app;
+ }
+ 
+# Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, chrome/browser/extensions/BUILD.gn
+# hunk (disable-flagged-store-extensions, D5).
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -388,6 +388,8 @@
+     "menu_manager_factory.h",
+     "navigation_extension_enabler.cc",
+     "navigation_extension_enabler.h",
++    "omaha_attributes_handler.cc",
++    "omaha_attributes_handler.h",
+     "open_tab_helper.cc",
+     "open_tab_helper.h",
+     "pack_extension_job.cc",
+# Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, extension_service.h hunks.
+--- a/chrome/browser/extensions/extension_service.h
++++ b/chrome/browser/extensions/extension_service.h
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/extensions/extension_telemetry_service_verdict_handler.h"
+ #include "chrome/browser/extensions/forced_extensions/force_installed_metrics.h"
+ #include "chrome/browser/extensions/forced_extensions/force_installed_tracker.h"
++#include "chrome/browser/extensions/omaha_attributes_handler.h"
+ #include "chrome/browser/extensions/safe_browsing_verdict_handler.h"
+ #include "chrome/browser/policy/cloud/extension_install_policy_service.h"
+ #include "chrome/browser/profiles/profile_manager_observer.h"
+@@ -169,6 +170,10 @@
+   // KeyedService two-phase shutdown.
+   void Shutdown();
+ 
++  // Performs action based on Omaha attributes for the extension.
++  void PerformActionBasedOnOmahaAttributes(const std::string& extension_id,
++                                           const base::DictValue& attributes);
++
+   // Performs action based on verdicts received from the Extension Telemetry
+   // server. Currently, these verdicts are limited to off-store extensions.
+   void PerformActionBasedOnExtensionTelemetryServiceVerdicts(
+@@ -385,6 +390,8 @@
+   ExtensionTelemetryServiceVerdictHandler
+       extension_telemetry_service_verdict_handler_;
+ 
++  // Needs `extension_registrar_` during construction.
++  OmahaAttributesHandler omaha_attributes_handler_;
+ 
+   // Tracker of enterprise policy forced installation.
+   ForceInstalledTracker force_installed_tracker_;
+# Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, extension_service.cc include,
+# constructor and PerformActionBasedOnOmahaAttributes hunks, without the allowlist call (Enhanced
+# Safe Browsing). The --load-extension hunk stays applied.
+--- a/chrome/browser/extensions/extension_service.cc
++++ b/chrome/browser/extensions/extension_service.cc
+@@ -52,6 +52,7 @@
+ #include "chrome/browser/extensions/external_provider_manager.h"
+ #include "chrome/browser/extensions/install_verifier_factory.h"
+ #include "chrome/browser/extensions/installed_loader.h"
++#include "chrome/browser/extensions/omaha_attributes_handler.h"
+ #include "chrome/browser/extensions/profile_util.h"
+ #include "chrome/browser/extensions/sync/extension_sync_service.h"
+ #include "chrome/browser/extensions/updater/chrome_extension_downloader_factory.h"
+@@ -224,6 +225,9 @@
+       extension_telemetry_service_verdict_handler_(extension_prefs,
+                                                    registry_,
+                                                    extension_registrar_),
++      omaha_attributes_handler_(extension_prefs,
++                                registry_,
++                                extension_registrar_),
+       force_installed_tracker_(registry_, profile_),
+       force_installed_metrics_(registry_, profile_, &force_installed_tracker_),
+       corrupted_extension_reinstaller_(
+@@ -474,6 +478,16 @@
+ }
+ #endif
+ 
++void ExtensionService::PerformActionBasedOnOmahaAttributes(
++    const std::string& extension_id,
++    const base::DictValue& attributes) {
++  DCHECK_CURRENTLY_ON(BrowserThread::UI);
++  omaha_attributes_handler_.PerformActionBasedOnOmahaAttributes(extension_id,
++                                                                attributes);
++  // Show an error for the newly blocklisted extension.
++  error_controller_->ShowErrorIfNeeded();
++}
++
+ void ExtensionService::PerformActionBasedOnExtensionTelemetryServiceVerdicts(
+     const Blocklist::BlocklistStateMap& blocklist_state_map) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+# Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, chrome_extension_system.cc hunk.
+--- a/chrome/browser/extensions/chrome_extension_system.cc
++++ b/chrome/browser/extensions/chrome_extension_system.cc
+@@ -478,6 +478,8 @@
+ void ChromeExtensionSystem::PerformActionBasedOnOmahaAttributes(
+     const std::string& extension_id,
+     const base::DictValue& attributes) {
++  extension_service()->PerformActionBasedOnOmahaAttributes(extension_id,
++                                                           attributes);
+ }
+ 
+ }  // namespace extensions
+# Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, extension_registrar.cc hunk, for
+# the four blocklist and greylist handlers. The test helpers stay empty.
+--- a/extensions/browser/extension_registrar.cc
++++ b/extensions/browser/extension_registrar.cc
+@@ -892,18 +892,99 @@
+ 
+ void ExtensionRegistrar::OnBlocklistStateRemoved(
+     const std::string& extension_id) {
++  if (blocklist_prefs::IsExtensionBlocklisted(extension_id, extension_prefs_)) {
++    return;
++  }
++
++  // Clear acknowledged state.
++  blocklist_prefs::RemoveAcknowledgedBlocklistState(
++      extension_id, BitMapBlocklistState::BLOCKLISTED_MALWARE,
++      extension_prefs_);
++
++  scoped_refptr<const Extension> extension =
++      registry_->blocklisted_extensions().GetByID(extension_id);
++  DCHECK(extension);
++  registry_->RemoveBlocklisted(extension_id);
++  AddExtension(extension.get());
+ }
+ 
+ void ExtensionRegistrar::OnBlocklistStateAdded(
+     const std::string& extension_id) {
++  DCHECK(
++      blocklist_prefs::IsExtensionBlocklisted(extension_id, extension_prefs_));
++  // The extension was already acknowledged by the user, it should already be in
++  // the unloaded state.
++  if (blocklist_prefs::HasAcknowledgedBlocklistState(
++          extension_id, BitMapBlocklistState::BLOCKLISTED_MALWARE,
++          extension_prefs_)) {
++    DCHECK(registry_->blocklisted_extensions().GetIDs().contains(extension_id));
++    return;
++  }
++
++  scoped_refptr<const Extension> extension =
++      registry_->GetInstalledExtension(extension_id);
++  registry_->AddBlocklisted(extension);
++  RemoveExtension(extension_id, UnloadedExtensionReason::BLOCKLIST);
+ }
+ 
+ void ExtensionRegistrar::OnGreylistStateRemoved(
+     const std::string& extension_id) {
++  bool is_on_sb_list = (blocklist_prefs::GetSafeBrowsingExtensionBlocklistState(
++                            extension_id, extension_prefs_) !=
++                        BitMapBlocklistState::NOT_BLOCKLISTED);
++  bool is_on_omaha_list =
++      blocklist_prefs::HasAnyOmahaGreylistState(extension_id, extension_prefs_);
++  if (is_on_sb_list || is_on_omaha_list) {
++    return;
++  }
++  // Clear all acknowledged states so the extension will still get disabled if
++  // it is added to the greylist again.
++  blocklist_prefs::ClearAcknowledgedGreylistStates(extension_id,
++                                                   extension_prefs_);
++  RemoveDisableReasonAndMaybeEnable(extension_id,
++                                    disable_reason::DISABLE_GREYLIST);
++
++  // A user can enable and disable a force-installed extension while it is
++  // greylisted. If a user disables an extension while greylisted, the
++  // extension gets a DISABLE_USER_ACTION disable reason assigned to it. So
++  // remove the DISABLE_USER_ACTION disable reason as well when a
++  // force-installed extension gets "un-greylisted" to allow the extension
++  // to be re-enabled.
++  const Extension* extension = registry_->GetInstalledExtension(extension_id);
++  if (extension && extension_system_->management_policy()->MustRemainEnabled(
++                       extension, nullptr)) {
++    RemoveDisableReasonAndMaybeEnable(extension_id,
++                                      disable_reason::DISABLE_USER_ACTION);
++  }
+ }
+ 
+ void ExtensionRegistrar::OnGreylistStateAdded(const std::string& extension_id,
+                                               BitMapBlocklistState new_state) {
++#if DCHECK_IS_ON()
++  bool has_new_state_on_sb_list =
++      (blocklist_prefs::GetSafeBrowsingExtensionBlocklistState(
++           extension_id, extension_prefs_) == new_state);
++  bool has_new_state_on_omaha_list = blocklist_prefs::HasOmahaBlocklistState(
++      extension_id, new_state, extension_prefs_);
++  DCHECK(has_new_state_on_sb_list || has_new_state_on_omaha_list);
++#endif
++  if (blocklist_prefs::HasAcknowledgedBlocklistState(extension_id, new_state,
++                                                     extension_prefs_)) {
++    // If the extension is already acknowledged, don't disable it again
++    // because it can be already re-enabled by the user. This could happen if
++    // the extension is added to the SafeBrowsing blocklist, and then
++    // subsequently marked by Omaha. In this case, we don't want to disable the
++    // extension twice.
++    return;
++  }
++
++  // Set the current greylist states to acknowledge immediately because the
++  // extension is disabled silently. Clear the other acknowledged state because
++  // when the state changes to another greylist state in the future, we'd like
++  // to disable the extension again.
++  blocklist_prefs::UpdateCurrentGreylistStatesAsAcknowledged(extension_id,
++                                                             extension_prefs_);
++  DisableExtension(extension_id, {disable_reason::DISABLE_GREYLIST});
+ }
+ 
+ void ExtensionRegistrar::BlocklistExtensionForTest(
+# Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, update_service.cc hunks.
+--- a/extensions/browser/updater/update_service.cc
++++ b/extensions/browser/updater/update_service.cc
+@@ -106,10 +106,15 @@
+                                      const update_client::CrxUpdateItem& item) {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+ 
++  // Custom attributes can only be sent for NOT_UPDATED/UPDATE_FOUND events.
++  bool should_perform_action_on_omaha_attributes = false;
++
+   switch (item.state) {
+     case update_client::ComponentState::kUpToDate:
++      should_perform_action_on_omaha_attributes = true;
+       break;
+     case update_client::ComponentState::kCanUpdate:
++      should_perform_action_on_omaha_attributes = true;
+       if (update_found_callback) {
+         update_found_callback.Run(item.id, item.next_version);
+       }
+@@ -126,6 +131,13 @@
+       break;
+   }
+ 
++  if (should_perform_action_on_omaha_attributes) {
++    base::DictValue attributes = GetExtensionOmahaAttributes(item);
++    // Note that it's important to perform actions even if |attributes| is
++    // empty, missing values may default to false and have associated logic.
++    ExtensionSystem::Get(browser_context_)
++        ->PerformActionBasedOnOmahaAttributes(item.id, attributes);
++  }
+ }
+ 
+ UpdateService::UpdateService(
