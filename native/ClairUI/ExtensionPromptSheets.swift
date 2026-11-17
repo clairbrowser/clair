@@ -24,6 +24,7 @@ enum ExtensionPromptDialog {
     case .remove:
       page(
         prompt, title: "Remove “\(prompt.extensionName)” from Clair?", heading: nil,
+        message: requesterLine(prompt.requestedByName),
         buttons: buttons(accept: "Remove Extension", role: .default, cancel: "Cancel"))
     default:
       page(
@@ -32,12 +33,23 @@ enum ExtensionPromptDialog {
     }
   }
 
+  /// The line naming the extension that asked for a removal
+  /// (name-extension-requesting-removal D3), or nil when none did.
+  private static func requesterLine(_ name: String?) -> String? {
+    guard let name, !name.isEmpty else { return nil }
+    return "“\(name)” wants to remove this extension."
+  }
+
+  /// A dialog page. Without a heading there's no permission list, and
+  /// `message` is the text under the title.
   private static func page(
-    _ prompt: any ClairExtensionPrompt, title: String, heading: String?, buttons: [ClairDialogButton]
+    _ prompt: any ClairExtensionPrompt, title: String, heading: String?, message: String? = nil,
+    buttons: [ClairDialogButton]
   ) -> ClairDialogPage {
     let permissions = heading == nil ? [] : prompt.permissions
     return ClairDialogPage(
-      icon: prompt.icon, title: title, message: permissions.isEmpty || heading?.isEmpty != false ? nil : heading,
+      icon: prompt.icon, title: title,
+      message: permissions.isEmpty || heading?.isEmpty != false ? message : heading,
       content: permissions.isEmpty ? nil : AnyView(PermissionListView(permissions: permissions)),
       buttons: buttons)
   }

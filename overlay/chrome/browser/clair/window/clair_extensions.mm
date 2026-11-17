@@ -75,6 +75,7 @@
 @property(nonatomic) ClairExtensionPromptKind kind;
 @property(nonatomic, copy) NSString* extensionName;
 @property(nonatomic, nullable) NSImage* icon;
+@property(nonatomic, copy, nullable) NSString* requestedByName;
 @property(nonatomic, copy) NSArray<NSString*>* permissions;
 @property(nonatomic, copy) NSString* title;
 @property(nonatomic, copy) NSString* permissionsHeading;
@@ -741,6 +742,7 @@ bool ShowExtensionInstallPrompt(
 std::unique_ptr<ExtensionPromptHandle> ShowExtensionRemovePrompt(
     gfx::NativeWindow parent,
     const extensions::Extension* extension,
+    const extensions::Extension* requested_by,
     const gfx::ImageSkia& icon,
     base::OnceCallback<void(bool accepted)> answered) {
   ClairBrowserWindow* window = WindowForNativeWindow(parent);
@@ -754,6 +756,13 @@ std::unique_ptr<ExtensionPromptHandle> ShowExtensionRemovePrompt(
   snapshot.kind = ClairExtensionPromptKindRemove;
   snapshot.extensionName = base::SysUTF16ToNSString(
       extensions::ui_util::GetFixupExtensionNameForUIDisplay(extension->name()));
+  // Chromium sets it only for chrome.management.uninstall on another
+  // extension; the check keeps a self-removal unnamed whatever the caller.
+  if (requested_by && requested_by->id() != extension->id()) {
+    snapshot.requestedByName = base::SysUTF16ToNSString(
+        extensions::ui_util::GetFixupExtensionNameForUIDisplay(
+            requested_by->name()));
+  }
   snapshot.icon = icon.isNull() ? nil : gfx::Image(icon).ToNSImage();
   owner->ShowPrompt(snapshot, std::move(answered));
   return std::make_unique<PromptHandle>(owner->AsWeakPtr(),

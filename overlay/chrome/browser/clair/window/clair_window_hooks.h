@@ -139,11 +139,13 @@ class ExtensionPromptHandle {
 };
 
 // extension_uninstall_dialog_impl.cc: shows the remove confirmation as a sheet
-// on its native window (D4). Null when `parent` isn't one. `answered` runs
+// on its native window (D4). Null when `parent` isn't one. `requested_by` is
+// the other extension that asked for the removal, or null. `answered` runs
 // once, unless the handle is destroyed first.
 std::unique_ptr<ExtensionPromptHandle> ShowExtensionRemovePrompt(
     gfx::NativeWindow parent,
     const extensions::Extension* extension,
+    const extensions::Extension* requested_by,
     const gfx::ImageSkia& icon,
     base::OnceCallback<void(bool accepted)> answered);
 

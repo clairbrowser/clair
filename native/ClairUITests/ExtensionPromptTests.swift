@@ -65,6 +65,30 @@ final class ExtensionPromptTests {
     #expect(page.buttons[1].shortcut == .defaultAction)
   }
 
+  /// Another extension asked (chrome.management.uninstall): the dialog says
+  /// which, and keeps its title and buttons.
+  @Test func removeDialogNamesTheRequester() {
+    let page = ExtensionPromptDialog.make(
+      for: FakeExtensionPrompt(id: 2, kind: .remove, name: "Reader", requestedBy: "Cleaner"))
+    #expect(page.title == "Remove “Reader” from Clair?")
+    #expect(page.message == "“Cleaner” wants to remove this extension.")
+    #expect(page.content == nil)
+    #expect(buttons(page) == ["Cancel", "Remove Extension"])
+    #expect(page.buttons[1].role == .default)
+    #expect(page.buttons[1].shortcut == .defaultAction)
+  }
+
+  @Test func removeDialogWithoutARequesterHasNoMessage() {
+    for requester in [nil, ""] as [String?] {
+      let page = ExtensionPromptDialog.make(
+        for: FakeExtensionPrompt(id: 2, kind: .remove, name: "Reader", requestedBy: requester))
+      #expect(page.title == "Remove “Reader” from Clair?")
+      #expect(page.message == nil)
+      #expect(buttons(page) == ["Cancel", "Remove Extension"])
+      #expect(page.buttons[1].shortcut == .defaultAction)
+    }
+  }
+
   @Test func otherDialogUsesChromiumsText() {
     let page = ExtensionPromptDialog.make(
       for: FakeExtensionPrompt(

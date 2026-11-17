@@ -172,6 +172,7 @@ final class FakeExtensionPrompt: NSObject, ClairExtensionPrompt {
   let kind: ExtensionPromptKind
   let extensionName: String
   var icon: NSImage?
+  let requestedByName: String?
   let permissions: [String]
   let title: String
   let permissionsHeading: String
@@ -179,12 +180,13 @@ final class FakeExtensionPrompt: NSObject, ClairExtensionPrompt {
   let cancelLabel: String
 
   init(
-    id: Int, kind: ExtensionPromptKind, name: String, permissions: [String] = [], title: String = "",
-    heading: String = "", accept: String = "", cancel: String = ""
+    id: Int, kind: ExtensionPromptKind, name: String, requestedBy: String? = nil, permissions: [String] = [],
+    title: String = "", heading: String = "", accept: String = "", cancel: String = ""
   ) {
     promptID = id
     self.kind = kind
     extensionName = name
+    requestedByName = requestedBy
     self.permissions = permissions
     self.title = title
     permissionsHeading = heading
