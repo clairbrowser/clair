@@ -60,8 +60,8 @@ A hunk adds `extension_urls::GetWebstoreJsonUpdateUrl()` (`https://update.google
 
 `protocol_serializer.cc` builds the request structs that `protocol_serializer_json.cc` writes, and Clair's hunks change two of its functions:
 
-- **`MakeProtocolRequest`** leaves out `hw`, `os.version` and `domain_joined`.
-- **`MakeProtocolApp`** leaves out `install_date`, `install_id`, the cohort fields, `enabled`, `disabled_reasons` and `ping`.
+- **`MakeProtocolRequest`** leaves out the hardware details, `os.version` and `domain_joined`. The JSON writer always writes an `hw` node, so a request carries one with its zero defaults (no memory size, no CPU features).
+- **`MakeProtocolApp`** leaves out `install_date`, `install_id`, `install_location` (`installedby`, which the XML checks sent but the probe showed isn't needed), the cohort fields, `enabled`, `disabled_reasons` and `ping`.
 
 `ChromeUpdateClientConfig::PingUrl()` returns no address, so `PingManager` sends no events (it returns early on an empty list).
 
