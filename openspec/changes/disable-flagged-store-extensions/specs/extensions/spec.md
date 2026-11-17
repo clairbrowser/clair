@@ -20,11 +20,15 @@ Clair SHALL check for updates to installed extensions whose update URL is the Ch
 ## ADDED Requirements
 
 ### Requirement: What a store update check sends
-A store update check SHALL send only each extension's ID, version and install source, Clair's Chromium version, channel and language, the platform and architecture, and random per-request IDs. It SHALL NOT send the macOS version, hardware details, install dates or IDs, cohorts, enabled state or activity data, and Clair SHALL send no report after an install or update.
+A store update check SHALL send only each extension's ID, version, install source and the hash of its cached store package, Clair's Chromium version, channel and language, the platform and architecture, and random per-request IDs. It SHALL NOT send the macOS version, hardware details, install dates or IDs, cohorts, enabled state or activity data, and Clair SHALL send no report after an install or update.
 
 #### Scenario: Reading a store update check
 - **WHEN** a profile with a store extension checks for updates and the request is captured
 - **THEN** its body names the extension's ID, version and install source, the Chromium version, channel, language, `mac` and `arm64`, and none of the fields this requirement rules out
+
+#### Scenario: Update as a patch
+- **WHEN** a store extension that Clair last downloaded through an update check gets a newer version
+- **THEN** the check names the hash of the package Clair already has, and Clair installs the update from a patch to it when the store offers one, or from the full package when it doesn't
 
 #### Scenario: After an update installs
 - **WHEN** a store update check finds a newer version and Clair installs it

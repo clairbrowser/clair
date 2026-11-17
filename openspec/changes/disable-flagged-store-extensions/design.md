@@ -30,7 +30,6 @@ Patches apply before domain substitution (`build.sh`), so a URL literal a Clair 
 **Non-Goals:**
 - Safe Browsing's blocklist, the store metadata service, Enhanced Safe Browsing's allowlist (`_esbAllowlist`) and the off-store telemetry verdicts.
 - The component updater, which stays blocked.
-- Delta (differential) updates. Without cached hashes in the request, the service sends full packages, as the XML route does.
 - Any change to self-hosted extensions, policy installs or first installs from the store.
 
 ## Decisions
@@ -62,9 +61,17 @@ A hunk adds `extension_urls::GetWebstoreJsonUpdateUrl()` (`https://update.google
 `protocol_serializer.cc` builds the request structs that `protocol_serializer_json.cc` writes, and Clair's hunks change two of its functions:
 
 - **`MakeProtocolRequest`** leaves out `hw`, `os.version` and `domain_joined`.
-- **`MakeProtocolApp`** leaves out `install_date`, `install_id`, the cohort fields, `enabled`, `disabled_reasons`, `ping` and `cached_hashes`.
+- **`MakeProtocolApp`** leaves out `install_date`, `install_id`, the cohort fields, `enabled`, `disabled_reasons` and `ping`.
 
 `ChromeUpdateClientConfig::PingUrl()` returns no address, so `PingManager` sends no events (it returns early on an empty list).
+
+`cached_hashes` stays, so the service can answer with a patch (delta update) instead of the whole package:
+- It's the SHA-256 of the one package `CrxCache` keeps per extension. `Put` replaces the previous one, so it reveals no history.
+- That package is the store's file for the installed version, so its hash follows from the ID and version the request already sends.
+- `op_install.cc` puts every downloaded package in the cache whether or not the hash is sent, so stripping it would keep the disk cost and drop the benefit.
+- A patch's output is checked against the hash in the CUP-signed answer and then against the extension's signature, as for a full download.
+
+Extensions installed before this change aren't in the cache, so their first update through `UpdateService` is a full download.
 
 The `updaters` node is written only in Google Chrome builds, so it needs nothing. `lang` and `prodchannel` stay, matching the XML route's `GetExtraParams`. Since D2 confines the update client to extension checks, the stripping applies to nothing else.
 

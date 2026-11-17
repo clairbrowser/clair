@@ -11,7 +11,7 @@
   Verify that the patch check applies the series with no fuzz.
 - [ ] 1.2 Add the stripping hunks to `components/update_client/protocol_serializer.cc` (D4):
   - no `hw`, `os.version` or `domain_joined`;
-  - on each app, no `install_date`, `install_id`, cohort fields, `enabled`, `disabled_reasons`, `ping` or `cached_hashes`.
+  - on each app, no `install_date`, `install_id`, cohort fields, `enabled`, `disabled_reasons` or `ping`. `cached_hashes` stays, for delta updates (D4).
 
   Verify that the patch check applies it.
 

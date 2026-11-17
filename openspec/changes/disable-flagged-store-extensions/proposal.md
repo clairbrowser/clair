@@ -15,11 +15,13 @@ A hand-made JSON update check confirmed that the update service answers a reques
 - **Store extensions update through Chromium's `UpdateService`** and Google's JSON update service, instead of `ExtensionDownloader`. Extensions with their own update server, and installs that aren't finished yet, keep using `ExtensionDownloader`. An extension with no update URL is still never checked.
 - **Store update checks send no more than they do today.** Each check carries:
   - each extension's ID, version and install source;
+  - the hash of the store package Clair already has for it, if any, so the store can send a small patch instead of the whole package;
   - Clair's Chromium version, channel and language;
   - the platform (`mac`, `arm64`);
   - the protocol's random per-request IDs.
 
-  It doesn't carry the macOS version, hardware details, install dates, install IDs, cohorts, enabled state or activity pings. No event pings are sent after an install or update.
+  It doesn't carry the macOS version, hardware details, install dates, install IDs, cohorts, enabled state or activity pings. No event pings are sent after an install or update. The package hash follows from the extension's ID and version, so it tells Google nothing new.
+- **Store extension updates arrive as patches** when the store has one, as in Chrome. Chromium already keeps the last downloaded package of each extension for this, so it costs no extra disk space.
 - **A flagged extension is turned off, as Chrome does:**
   - **Malware:** the extension is unloaded and can't be turned back on, only removed. A Clair dialog on the frontmost window names it, using Chromium's own wording.
   - **Policy violation or potentially unwanted:** the extension is turned off. `chrome://extensions` gives the reason, and the user can turn it back on.
