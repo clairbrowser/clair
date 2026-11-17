@@ -17,7 +17,7 @@ Start once `disable-flagged-store-extensions`'s implementation has merged (D5).
 
 - [x] 2.1 Build the engine (`gh workflow run engine.yml -f ref=<branch>`). Verify that it compiles and publishes `chromium-engine-<key>`.
 - [x] 2.2 Add a Changie fragment (`changie new`): Clair now checks certificates against Chromium's revocation list, fetched from Google's update service shortly after launch and every five hours, sending only the list's version, the browser version and the platform. Verify that it's in the PR.
-- [ ] 2.3 Run the merge gate. Verify that CI passes.
+- [x] 2.3 Run the merge gate. Verify that CI passes.
 
 ## Workflow follow-up
 
