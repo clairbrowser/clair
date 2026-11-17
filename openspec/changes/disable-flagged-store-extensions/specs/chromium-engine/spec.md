@@ -28,7 +28,7 @@ Clair's patches to existing Chromium source files SHALL be limited to macOS buil
 - **WHEN** the patches in `patches/clair/` and `patches/helium/` are listed
 - **THEN** each one is a build fix, an identity or branding change, a versioning change, a hook, or the store and update restoration, and none implements the updater, the update menu or the native window
 
-#### Scenario: Reviewing a service restoration
+#### Scenario: Reviewing the store restoration
 - **WHEN** a patch that restores a Google service is read
 - **THEN** the service is on "Google services Clair turns back on"'s list, and each hunk puts back code that ungoogled-chromium's patches removed for it, routes its requests through that code, or removes data from what it sends, and adds no other behavior
 
