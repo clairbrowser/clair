@@ -101,26 +101,14 @@ There's no Details button. Chromium's opens `chrome://extensions`, which Manage 
 
 *Alternative:* **a new `ClairHost.h` call for notices.** The prompt protocol already carries a title, lines and a one-button form, so the contract doesn't change.
 
-### D7. The runtime suite stands in for the store with Chromium's switch
-
-Chromium's `--apps-gallery-update-url` testing switch already replaces the store's update URL (`ChromeExtensionsClient::GetWebstoreUpdateURL`), which `IsWebstoreUpdateUrl` and D1's routing compare against. When it's set, `GetWebstoreJsonUpdateUrl()` returns the same host with the JSON path, and `ChromeUpdateClientConfig` passes it as `url_override`. As with any override, CUP is then off, so a local server can answer.
-
-`tests/runtime/server.py` gains a `POST /service/update2/json` handler:
-- it answers with the flags a test asks for;
-- it keeps the last request body for the test to read.
-
-A test extension whose `update_url` is the local store URL, installed from a CRX, then exercises the routing, the stripped request, the registrar and the dialog with no Google traffic. `--extensions-update-frequency` makes the check run soon.
-
-*Alternative:* **a Clair-only switch.** Chromium's switch already defines "the store is here" for every store check, so a second one would only add a way for the two to disagree.
-
 ## Risks / Trade-offs
 
-- **[The service may want a field Clair strips]** The probe showed the flags come back without the stripped fields. If Google later ties flags or updates to them, checks still return versions, but flags could stop arriving. → The by-hand check (tasks) runs at each engine bump, with the pulled-extension probe in `tests/probe/`.
-- **[CUP keys or verification broken by pruning]** ungoogled-chromium edits `components/update_client/BUILD.gn` for pruned binaries. If CUP fails, every store check fails. → Task 1 checks that a real check succeeds. If CUP can't work, fall back to D3's override and record the loss of CUP here.
+- **[The service may want a field Clair strips]** The probe showed the flags come back without the stripped fields. If Google later ties flags or updates to them, checks still return versions, but flags could stop arriving. → Accepted. Store extensions would still update, and the probe request in Context can be repeated if flags seem to stop.
+- **[CUP keys or verification broken by pruning]** ungoogled-chromium edits `components/update_client/BUILD.gn` for pruned binaries. If CUP fails, every store check fails. → A broken CUP shows up as store extensions no longer updating. If it can't work, fall back to passing the address as an override and record the loss of CUP here.
 - **[Google sees store checks at a new address]** `update.googleapis.com` is a different host from `clients2.google.com`. It's the same company and the same data. → The Changie fragment says so.
 - **[Upstream churn]** `OmahaAttributesHandler`, the registrar handlers and the serializer change between Chromium versions. → No-fuzz patching names any hunk that stops applying, and each revert hunk names the upstream hunk to compare.
 - **[A false flag turns off an extension the user trusts]** This is the same exposure Chrome users have. Policy and potentially-unwanted flags can be overridden in `chrome://extensions`, and malware can't, as in Chrome.
-- **[No runtime test can reach the store]** The runtime suite doesn't talk to Google. → The registrar and alert paths are tested with a fake flag (tasks). The live path is a by-hand check.
+- **[Untested]** By the owner's decision, the change ships with no new tests: its tasks are verified by the engine build and the merge gate. → The reverted code is upstream's and has upstream's tests. The routing, stripping and dialog are small.
 
 ## Migration Plan
 
@@ -129,4 +117,4 @@ A test extension whose `update_url` is the local store URL, installed from a CRX
 
 ## Open Questions
 
-- Whether `chrome://extensions`'s malware and policy-violation wording survives ungoogled-chromium's string and Safe Browsing changes as Chromium's. A task records what it shows. If the wording is missing, the spec's scenarios still hold by the state the page shows, and the wording is a follow-up.
+- Whether `chrome://extensions`'s malware and policy-violation wording survives ungoogled-chromium's string and Safe Browsing changes as Chromium's. If the wording is missing, the spec's scenarios still hold by the state the page shows, and the wording is a follow-up.
