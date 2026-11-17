@@ -25,6 +25,7 @@ Patches apply before domain substitution (`build.sh`), so a URL literal a Clair 
 - Pulled store extensions are turned off from the update check's flags, with Chromium's own state, prefs and `chrome://extensions` display.
 - Store update checks send no more about the user or the Mac than the XML checks did.
 - Every Chromium change is a revert of ungoogled-chromium's removal, a routing hunk, a field-stripping hunk or a hook (`chromium-engine`).
+- Set one rule for which Google services Clair turns back on, so this change and later ones (certificate revocation data, for example) are decided against it rather than one at a time.
 
 **Non-Goals:**
 - Safe Browsing's blocklist, the store metadata service, Enhanced Safe Browsing's allowlist (`_esbAllowlist`) and the off-store telemetry verdicts.
@@ -100,6 +101,22 @@ The new `overlay/chrome/browser/clair/window/clair_extension_error_ui.{h,mm}` im
 There's no Details button. Chromium's opens `chrome://extensions`, which Manage Extensions… already reaches, and the dialog spec's Esc maps to cancel.
 
 *Alternative:* **a new `ClairHost.h` call for notices.** The prompt protocol already carries a title, lines and a one-button form, so the contract doesn't change.
+
+### D7. One rule for turning Google services back on, in `chromium-engine`
+
+The store, store update checks and now their flags are each an exception to "ungoogled-chromium privacy defaults preserved". They have one thing in common: each is the store itself or a Google feed that protects users. ungoogled-chromium removes those feeds along with everything else Google.
+
+`chromium-engine` gains "Google services Clair turns back on":
+- only the store, or a feed that protects users from harm, is eligible;
+- each one is added to the requirement's list by the change that turns it on;
+- that change says what each request sends and why each field is needed;
+- no service sends usage, activity, device or identifying data.
+
+The privacy and patch-limit requirements refer to the rule instead of naming the store. A future feed then changes only the list, not three requirements. Convenience services, such as sync, translation, field trials or downloaded media components (Widevine), are outside the rule on purpose. Turning one on needs a change that amends the rule, which makes that a product decision rather than a patch.
+
+*Alternatives:*
+- **Deciding each exception on its own,** as before. The criterion stays implicit, and each change rewrites the same requirements.
+- **Moving the engine to plain Chromium,** which leaves these services in place and removes Google traffic Clair doesn't want instead. ungoogled-chromium's 112 patches, domain substitution and pruning would become Clair's to maintain at every Chromium release, against the twenty or so hunks the rule's exceptions take. Worth revisiting if convenience services become wanted.
 
 ## Risks / Trade-offs
 

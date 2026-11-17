@@ -25,6 +25,12 @@ A hand-made JSON update check confirmed that the update service answers a reques
   - **Policy violation or potentially unwanted:** the extension is turned off. `chrome://extensions` gives the reason, and the user can turn it back on.
 
   If the store clears the flag, the extension comes back as Chrome would bring it back.
+- **A rule for which Google services Clair turns back on.** Every exception so far restores a Google feed that protects users, which ungoogled-chromium removes along with everything else Google. `chromium-engine` now says so:
+  - Clair turns a service back on only if it's the store's or protects users from harm;
+  - it does so only through a change that adds the service to a list and says what each request sends;
+  - each service sends no more than it needs.
+
+  Convenience services, such as sync, translation or downloaded media components, need a change to the rule first.
 - **The rest of ungoogled-chromium's Google-service removals stay:** Safe Browsing, the store metadata service, Enhanced Safe Browsing's allowlist, and the component updater.
 
 ## Capabilities
@@ -36,7 +42,15 @@ None.
 ### Modified Capabilities
 
 - `extensions`: "Extensions update automatically" says which server store extensions are checked with and what a check sends. A new requirement covers what happens to an installed extension the store has flagged, including the notice.
-- `chromium-engine`: "Changes to Chromium limited to hooks and identity" also allows restoring ungoogled-chromium's removed handling of store flags and limiting what store update checks send. "Google contacted only for store extensions" names the update service.
+- `chromium-engine`:
+  - A new requirement, "Google services Clair turns back on", sets the rule for undoing ungoogled-chromium's Google removals:
+    - only the Chrome Web Store, or a feed that protects users from harm;
+    - each one added by a change that names it and says what it sends;
+    - nothing sent beyond what the service needs.
+
+    It lists the store and store update checks with their flags.
+  - "ungoogled-chromium privacy defaults preserved" and "Changes to Chromium limited to hooks and identity" refer to that rule instead of naming the store.
+  - "Google contacted only for store extensions" names the update service.
 
 ## Impact
 

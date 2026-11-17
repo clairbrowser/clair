@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: ungoogled-chromium privacy defaults preserved
-Clair SHALL ship ungoogled-chromium's default settings and Google-service removals unchanged, except for the password and autofill settings that Clair turns off, and the Chrome Web Store installs and extension update checks that `extensions` restores. Clair MUST NOT re-enable any other Google service integration that ungoogled-chromium removes or disables.
+Clair SHALL ship ungoogled-chromium's default settings and Google-service removals unchanged, except for the password and autofill settings that Clair turns off, and the Google services that "Google services Clair turns back on" allows. Clair MUST NOT re-enable any other Google service integration that ungoogled-chromium removes or disables.
 
 #### Scenario: Default settings match ungoogled-chromium
 - **WHEN** a fresh Clair profile is compared with a fresh profile of the same ungoogled-chromium release
@@ -22,15 +22,15 @@ Clair SHALL ship ungoogled-chromium's default settings and Google-service remova
 - **THEN** Clair has made no component update check
 
 ### Requirement: Changes to Chromium limited to hooks and identity
-Clair's patches to existing Chromium source files SHALL be limited to macOS build fixes, identity and branding, versioning, hooks, and restoring what the Chrome Web Store needs that ungoogled-chromium removes: the installer, extension update checks, and acting on the flags those checks return. That includes sending store checks through the restored code and limiting what they send. Other behaviour Clair adds SHALL live in the native layer or in new source files added to the Chromium tree.
+Clair's patches to existing Chromium source files SHALL be limited to macOS build fixes, identity and branding, versioning, hooks, and restoring the Google services that "Google services Clair turns back on" allows. That includes the code that acts on what those services return, routing their requests through the restored code, and limiting what they send. Other behaviour Clair adds SHALL live in the native layer or in new source files added to the Chromium tree.
 
 #### Scenario: Reviewing Clair's patch series
 - **WHEN** the patches in `patches/clair/` and `patches/helium/` are listed
 - **THEN** each one is a build fix, an identity or branding change, a versioning change, a hook, or the store and update restoration, and none implements the updater, the update menu or the native window
 
-#### Scenario: Reviewing the store restoration
-- **WHEN** the patch that restores the Chrome Web Store is read
-- **THEN** each hunk puts back code that ungoogled-chromium's patches removed for the store installer, for extension update checks or for acting on their flags, sends store update checks through that code, or removes data from what those checks send, and adds no other behavior
+#### Scenario: Reviewing a service restoration
+- **WHEN** a patch that restores a Google service is read
+- **THEN** the service is on "Google services Clair turns back on"'s list, and each hunk puts back code that ungoogled-chromium's patches removed for it, routes its requests through that code, or removes data from what it sends, and adds no other behavior
 
 ### Requirement: What Clair's Chromium hooks may do
 Clair's hooks SHALL load the native layer, hand Chromium's browser windows and extension alerts to Clair's code, register Clair's component extensions and preferences, tag Clair's tabs in saved sessions and read them back, free Clair's shortcuts, turn off or hide the password and autofill features and extensions' uninstall pages, restore the last session by default, and offer links from other apps to Clair's link rules first. Each hook SHALL only redirect to Clair's code or switch a Chromium feature off.
@@ -50,3 +50,24 @@ Clair's hooks SHALL load the native layer, hand Chromium's browser windows and e
 #### Scenario: Reviewing the extension alert hook
 - **WHEN** the hunk that hooks Chromium's blocklisted-extension alert is read
 - **THEN** it hands the alert to Clair's overlay files, and decides nothing itself
+
+## ADDED Requirements
+
+### Requirement: Google services Clair turns back on
+Clair SHALL turn back on a Google service that ungoogled-chromium removes or disables only if it is the Chrome Web Store or a feed that protects users from harm, such as flags on malware extensions or certificate revocation data. It SHALL do so only through a change that adds the service to this requirement's list. Each service SHALL send Google only what it needs to work, and no usage, activity, device or identifying data.
+
+#### Scenario: The services Clair turns back on
+- **WHEN** the Google services Clair turns back on are listed
+- **THEN** they are the Chrome Web Store's pages and installs, and store extension update checks with the flags they return, and nothing else
+
+#### Scenario: Proposing another service
+- **WHEN** a change proposes turning on another Google service that ungoogled-chromium removes
+- **THEN** the service is the store's or protects users from harm, the change says what each request sends and why each field is needed, and it adds the service to "The services Clair turns back on"
+
+#### Scenario: A convenience service
+- **WHEN** a Google service would only add convenience, such as sync, sign-in, translation, field trials or downloading media components
+- **THEN** this requirement doesn't allow it, and turning it on needs a change that amends this requirement first
+
+#### Scenario: What a turned-on service sends
+- **WHEN** a request from a service on the list is captured
+- **THEN** it carries only the fields its change named, and no install or device identifiers, usage pings or hardware and OS details beyond the platform and architecture
