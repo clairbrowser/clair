@@ -29,7 +29,7 @@
 ## 3. The malware dialog
 
 - [ ] 3.1 Add the hook in `CreateDefaultExtensionErrorUI` to `patches/clair/native-window-hook.patch`, and `overlay/chrome/browser/clair/window/clair_extension_error_ui.{h,mm}` as D6 describes:
-  - an `ExtensionPromptKindOther` prompt with Chromium's title and item text, OK as accept and no cancel;
+  - an `ExtensionPromptKindOther` prompt titled "“X” contains malware and was turned off for your safety." (several extensions: a shared title over their names), OK as accept and no cancel;
   - OK acknowledges the extensions;
   - with no Clair window, it waits for the profile's next window.
 

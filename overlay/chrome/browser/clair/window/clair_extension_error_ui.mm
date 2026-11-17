@@ -54,8 +54,9 @@ std::u16string DisplayName(const extensions::Extension& extension) {
       extension.name());
 }
 
-// The alert's text, as Chromium's ExtensionErrorUIDesktop words it
-// (extension_error_ui_desktop.cc's GenerateTitle and GenerateMessage).
+// The alert's text. Extensions blocked by enterprise policy keep Chromium's
+// wording (extension_error_ui_desktop.cc's GenerateTitle and GenerateMessage);
+// malware gets Clair's.
 struct AlertText {
   std::u16string title;
   std::vector<std::u16string> lines;
@@ -67,15 +68,8 @@ AlertText MakeAlertText(extensions::ExtensionErrorUI::Delegate* delegate) {
   extensions::ManagementPolicy* policy =
       extensions::ExtensionSystem::Get(delegate->GetContext())
           ->management_policy();
-  int extension_count = 0;
-  int app_count = 0;
   bool blocked_by_policy = false;
   for (const auto& extension : forbidden) {
-    if (extension->is_app()) {
-      app_count++;
-    } else {
-      extension_count++;
-    }
     if (policy && !policy->UserMayLoad(extension.get())) {
       blocked_by_policy = true;
     }
@@ -84,7 +78,8 @@ AlertText MakeAlertText(extensions::ExtensionErrorUI::Delegate* delegate) {
   AlertText text;
   if (blocked_by_policy) {
     text.title = l10n_util::GetPluralStringFUTF16(
-        IDS_POLICY_BLOCKED_EXTENSION_ALERT_TITLE, extension_count + app_count);
+        IDS_POLICY_BLOCKED_EXTENSION_ALERT_TITLE,
+        static_cast<int>(forbidden.size()));
     if (forbidden.size() > 1) {
       text.lines.push_back(l10n_util::GetStringUTF16(
           IDS_POLICY_BLOCKED_EXTENSIONS_ALERT_ITEM_TITLE));
@@ -101,26 +96,17 @@ AlertText MakeAlertText(extensions::ExtensionErrorUI::Delegate* delegate) {
     return text;
   }
 
-  if (app_count > 1 && extension_count > 1) {
-    text.title = l10n_util::GetStringUTF16(IDS_EXTENSION_AND_APP_ALERT_TITLE);
-  } else if (app_count > 0) {
-    text.title =
-        l10n_util::GetPluralStringFUTF16(IDS_APP_ALERT_TITLE, app_count);
-  } else {
-    text.title = l10n_util::GetPluralStringFUTF16(IDS_EXTENSION_ALERT_TITLE,
-                                                  extension_count);
-  }
+  // Malware: Clair's own wording, in English like the rest of ClairUI. One
+  // extension is named in the title; several are listed under it.
   if (forbidden.size() == 1) {
-    text.lines.push_back(
-        l10n_util::GetStringFUTF16(IDS_EXTENSION_ALERT_ITEM_BLOCKLISTED_MALWARE,
-                                   DisplayName(**forbidden.begin())));
+    text.title = u"“" + DisplayName(**forbidden.begin()) +
+                 u"” contains malware and was turned off for your safety.";
     return text;
   }
-  text.lines.push_back(l10n_util::GetStringUTF16(
-      IDS_EXTENSIONS_ALERT_ITEM_BLOCKLISTED_MALWARE_TITLE));
+  text.title =
+      u"These extensions contain malware and were turned off for your safety.";
   for (const auto& extension : forbidden) {
-    text.lines.push_back(l10n_util::GetStringFUTF16(
-        IDS_BLOCKLISTED_EXTENSIONS_ALERT_ITEM, DisplayName(*extension)));
+    text.lines.push_back(DisplayName(*extension));
   }
   return text;
 }

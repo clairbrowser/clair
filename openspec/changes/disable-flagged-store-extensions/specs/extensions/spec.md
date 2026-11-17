@@ -54,11 +54,11 @@ When a store update check reports that an installed extension is malware, Clair 
 - **THEN** the extension is loaded again, as it was before
 
 ### Requirement: Notice for malware extensions
-When Clair unloads an extension for malware, it SHALL tell the user in a Clair dialog (`dialogs`) on the frontmost browser window, using Chromium's wording, with a single OK button. One dialog SHALL name every extension unloaded for malware that the user hasn't yet been told about. Policy-violation and potentially unwanted extensions SHALL be turned off without a dialog, as in Chrome.
+When Clair unloads an extension for malware, it SHALL tell the user in a Clair dialog (`dialogs`) on the frontmost browser window, saying the extension contains malware and was turned off for the user's safety, with a single OK button. One dialog SHALL name every extension unloaded for malware that the user hasn't yet been told about. Policy-violation and potentially unwanted extensions SHALL be turned off without a dialog, as in Chrome.
 
 #### Scenario: One extension found
 - **WHEN** an installed extension is unloaded for malware while a browser window is open
-- **THEN** a dialog on that window says Clair found that the extension contains malware, and OK closes it
+- **THEN** a dialog on that window says "“X” contains malware and was turned off for your safety.", naming the extension, and OK closes it
 
 #### Scenario: Told once
 - **WHEN** the user has closed the dialog for an extension and Clair is relaunched

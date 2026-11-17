@@ -23,7 +23,7 @@ A hand-made JSON update check confirmed that the update service answers a reques
   It doesn't carry the macOS version, hardware details, install dates, install IDs, cohorts, enabled state or activity pings. No event pings are sent after an install or update. The package hash follows from the extension's ID and version, so it tells Google nothing new.
 - **Store extension updates arrive as patches** when the store has one, as in Chrome. Chromium already keeps the last downloaded package of each extension for this, so it costs no extra disk space.
 - **A flagged extension is turned off, as Chrome does:**
-  - **Malware:** the extension is unloaded and can't be turned back on, only removed. A Clair dialog on the frontmost window names it, using Chromium's own wording.
+  - **Malware:** the extension is unloaded and can't be turned back on, only removed. A Clair dialog on the frontmost window names it: "“X” contains malware and was turned off for your safety."
   - **Policy violation or potentially unwanted:** the extension is turned off. `chrome://extensions` gives the reason, and the user can turn it back on.
 
   If the store clears the flag, the extension comes back as Chrome would bring it back.

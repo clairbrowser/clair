@@ -98,8 +98,10 @@ A hook in `CreateDefaultExtensionErrorUI` (`extension_error_controller.cc`) retu
 
 The new `overlay/chrome/browser/clair/window/clair_extension_error_ui.{h,mm}` implements `ExtensionErrorUI`:
 - `ShowErrorInBubbleView` finds the profile's last active Clair window and shows a `ClairExtensionPromptKindOther` prompt:
-  - the title is Chromium's alert title for the delegate's blocklisted extensions;
-  - the permission lines are Chromium's item text (`GenerateMessage`'s strings);
+  - for one extension, the title is "“X” contains malware and was turned off for your safety." and there are no lines;
+  - for several, the title is "These extensions contain malware and were turned off for your safety." and the lines are their names;
+  - the wording is Clair's, in English like ClairUI's own install and remove dialogs, because Chromium's ("This extension is blocked" over "Clair found that "X" contains malware") reads as an error and shows its sentence as a bullet;
+  - an extension blocked by enterprise policy, which reaches the same alert, keeps Chromium's text;
   - the accept label is `IDS_EXTENSION_ALERT_ITEM_OK`;
   - the cancel label is empty, so `ExtensionPromptSheets` shows OK alone.
 - Answering calls `OnAlertAccept`, then `OnAlertClosed`, which acknowledges the extensions in prefs, so the dialog isn't shown again.
