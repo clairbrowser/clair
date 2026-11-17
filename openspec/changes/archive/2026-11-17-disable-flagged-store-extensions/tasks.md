@@ -39,7 +39,7 @@
 
 - [x] 4.1 Build the engine (`gh workflow run engine.yml -f ref=<branch>`). Verify that it compiles and publishes `chromium-engine-<key>`.
 - [x] 4.2 Add a Changie fragment (`changie new`): Clair now turns off store extensions that Google has pulled as malware, policy-violating or unwanted, and says so for malware. Store update checks now go to Google's update service at `update.googleapis.com` and send no more than before. Verify that it's in the PR.
-- [ ] 4.3 Run the merge gate. Verify that CI passes.
+- [x] 4.3 Run the merge gate. Verify that CI passes.
 
 ## Workflow follow-up
 

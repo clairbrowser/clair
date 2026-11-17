@@ -32,6 +32,10 @@ Clair SHALL ship ungoogled-chromium's default settings and Google-service remova
 - **WHEN** the user has installed an extension from the Chrome Web Store
 - **THEN** Clair contacts Google's extension servers and its extension update service only to download that extension and to check it for updates, and contacts no other Google service besides the certificate revocation check
 
+#### Scenario: Component updater stays off
+- **WHEN** a profile with store extensions has run its extension update checks
+- **THEN** those checks named only extensions, and Clair has made no component update check besides the certificate revocation list's
+
 #### Scenario: Component updater checks only the revocation list
 - **WHEN** Clair has run its component update checks
 - **THEN** each check named only the certificate revocation list, and no other component was checked, downloaded or updated
