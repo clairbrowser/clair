@@ -1,8 +1,13 @@
 # Files that domain substitution leaves out, one per line, as paths in
 # ungoogled-chromium's domain_substitution.list. Only files that name the
-# Chrome Web Store's addresses, or the XML namespace of its update responses,
-# belong here (arc-extension-experience, D1). Substituted, the real store isn't
-# the store: it gets no install API, and no update response parses.
+# Chrome Web Store's addresses, the XML namespace of its update responses, or
+# the address of Google's update service belong here, for the services
+# chromium-engine's "Google services Clair turns back on" allows
+# (arc-extension-experience, D1; restore-certificate-revocation, D2).
+# Substituted, the real store isn't the store: it gets no install API, and no
+# update response parses. The component updater's address file names only the
+# update service, which checks the certificate revocation list.
+components/component_updater/component_updater_url_constants.cc
 extensions/browser/updater/safe_manifest_parser.cc
 extensions/common/api/_api_features.json
 extensions/common/extension_urls.cc

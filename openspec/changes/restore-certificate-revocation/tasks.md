@@ -8,7 +8,8 @@ Start once `disable-flagged-store-extensions`'s implementation has merged (D5).
 - [ ] 1.2 Extend the update checker's gate in `patches/clair/restore-web-store.patch` so component checks go through carrying CRLSet's app ID only, and no request is sent when nothing is left (D1). Verify that the patch check applies the series with no fuzz.
 - [ ] 1.3 Add the configurator and policy hunks (D3, D4):
   - `ChromeConfigurator` requires encryption, returns no language and no ping address;
-  - `CRLSetPolicy::RequiresNetworkEncryption()` returns `true`.
+  - `CRLSetPolicy::RequiresNetworkEncryption()` returns `true`;
+  - the update checker drops HTTP download addresses from a component check's answer for components that require encryption, since Chromium 156 doesn't.
 
   Verify that the patch check applies them.
 

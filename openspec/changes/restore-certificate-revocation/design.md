@@ -33,7 +33,7 @@ The current state in the engine tree (Chromium 156.0.8078.79):
 
 The store change's gate lets the extension updater's checks through. Here it also lets the component updater's checks through, but `CheckForUpdatesHelper` puts only CRLSet's app ID into a component request. The other registered components are left out, get no answer and stay as they are. If nothing is left after filtering, no request is sent.
 
-The allowed ID is a single constant beside the gate, and the patch comment says which requirement lists it.
+The allowed ID is a single constant beside the gate, and the patch comment says which requirement lists it. Since the helper filters, the store change's early `return` in `CheckForUpdates` goes, and a component check with nothing left fails at once instead of leaving the update engine waiting. The update checker's hunks stay in `patches/clair/restore-web-store.patch`, which already holds the gate. The configurator and CRLSet policy hunks (D3, D4) go in a new `patches/clair/restore-certificate-revocation.patch`.
 
 *Alternatives:*
 - **Registering only CRLSet**, with a hook in `RegisterComponentsForUpdate`. Other code registers components outside that function (on-demand ones, for example). A filter at the one place requests are built catches all of them.
@@ -49,9 +49,10 @@ The store change names its own copy of the address in `extension_urls.cc` (its D
 
 ### D3. HTTPS only, for checks and downloads
 
-There are two one-line hunks:
+There are two one-line hunks and one in the update checker:
 - `ChromeConfigurator` builds its `ConfiguratorImpl` with `require_encryption = true`, which drops the HTTP fallback address.
-- `CRLSetPolicy::RequiresNetworkEncryption()` returns `true`, which makes `update_client` drop the HTTP download addresses.
+- `CRLSetPolicy::RequiresNetworkEncryption()` returns `true`.
+- In Chromium 156, `update_client` holds a component that requires encryption to HTTPS for its checks and pings only, not for the download addresses an answer names. So `UpdateCheckerImpl::UpdateCheckSucceeded` drops the HTTP addresses from each download operation in a component check's answer, for components that require encryption. Store extension checks keep upstream's behavior; that's for a change of their own.
 
 Both the answer (CUP) and the package (its hash in the answer and the CRX signature) are already authenticated. HTTPS keeps the request's fields off the wire for anyone watching the network, and so it keeps them from learning that this is Clair.
 
