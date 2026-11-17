@@ -22,6 +22,25 @@ class NativeWindowTestCase: RuntimeTestCase {
     try require(browser.nativeWindow.waitForExistence(timeout: 30), "Clair shows no native window")
     return (browser, tab)
   }
+
+  /// A session on the loaded extension's background script.
+  func extensionWorker(_ browser: Browser) async throws -> DevToolsSession {
+    let session = try await browser.browserSession()
+    defer { session.close() }
+    var workerID: String?
+    let started = await Harness.wait(for: 30) {
+      let targets = try await session.send("Target.getTargets")
+      let infos = targets["targetInfos"] as? [[String: Any]] ?? []
+      workerID =
+        infos.first {
+          $0["type"] as? String == "service_worker"
+            && ($0["url"] as? String)?.hasSuffix("/background.js") == true
+        }?["targetId"] as? String
+      return workerID != nil
+    }
+    try require(started, "The extension's background script didn't start")
+    return try await browser.session(onTarget: try XCTUnwrap(workerID))
+  }
 }
 
 extension Browser {
@@ -578,25 +597,6 @@ final class ExtensionActionTests: NativeWindowTestCase {
     }
     let answer = try await tab.evaluate("1 + 1") as? Int
     XCTAssertEqual(answer, 2, "The first window's tab stopped answering")
-  }
-
-  /// A session on the loaded extension's background script.
-  private func extensionWorker(_ browser: Browser) async throws -> DevToolsSession {
-    let session = try await browser.browserSession()
-    defer { session.close() }
-    var workerID: String?
-    let started = await Harness.wait(for: 30) {
-      let targets = try await session.send("Target.getTargets")
-      let infos = targets["targetInfos"] as? [[String: Any]] ?? []
-      workerID =
-        infos.first {
-          $0["type"] as? String == "service_worker"
-            && ($0["url"] as? String)?.hasSuffix("/background.js") == true
-        }?["targetId"] as? String
-      return workerID != nil
-    }
-    try require(started, "The extension's background script didn't start")
-    return try await browser.session(onTarget: try XCTUnwrap(workerID))
   }
 }
 
