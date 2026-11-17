@@ -854,7 +854,7 @@
  void ExtensionUninstallDialogImpl::Show() {
 +  // Clair: a native window asks with its own sheet.
 +  clair_prompt_ = clair::ShowExtensionRemovePrompt(
-+      parent(), extension(), icon(),
++      parent(), extension(), triggering_extension(), icon(),
 +      base::BindOnce(&ExtensionUninstallDialogImpl::ClairPromptAnswered,
 +                     weak_ptr_factory_.GetWeakPtr()));
 +  if (clair_prompt_) {

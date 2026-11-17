@@ -715,6 +715,10 @@ NS_SWIFT_NAME(ClairExtensionPrompt)
 @property(nonatomic, readonly) ClairExtensionPromptKind kind;
 @property(nonatomic, readonly, copy) NSString *extensionName;
 @property(nonatomic, readonly, nullable) NSImage *icon;
+// For ClairExtensionPromptKindRemove, the display name of the other extension
+// that asked for the removal (chrome.management.uninstall); nil when the user
+// started it or the extension is removing itself.
+@property(nonatomic, readonly, copy, nullable) NSString *requestedByName;
 // What the extension can do, one entry per permission. An entry's details
 // follow it on their own lines, indented. Empty when there's nothing to list.
 @property(nonatomic, readonly, copy) NSArray<NSString *> *permissions;

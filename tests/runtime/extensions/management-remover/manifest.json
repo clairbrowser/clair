@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Clair Test Remover",
+  "version": "1.0",
+  "description": "Asks to remove another extension, for Clair's runtime suite.",
+  "permissions": ["management"],
+  "background": {
+    "service_worker": "remover.js"
+  }
+}

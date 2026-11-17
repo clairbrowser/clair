@@ -23,7 +23,7 @@ None.
 ## Impact
 
 - `native/ClairHost.h`: the new `requestedByName` property on `ClairExtensionPrompt`.
-- `overlay/chrome/browser/clair/window/`: `ShowExtensionRemovePrompt` takes the requesting extension and fills the snapshot.
+- `overlay/chrome/browser/clair/window/`: `ShowExtensionRemovePrompt` takes the requesting extension and fills the snapshot. The extension error alert's snapshot (`clair_extension_error_ui.mm`) declares the new property and leaves it nil.
 - `patches/clair/native-window-hook.patch`: the uninstall dialog's hook passes `triggering_extension()`.
 - `native/ClairUI/ExtensionPromptSheets.swift`: the remove dialog shows the line; `ExtensionPromptTests` and the fakes cover it.
 - `tests/runtime/`: a test extension that asks to remove another, and a runtime test for the dialog.

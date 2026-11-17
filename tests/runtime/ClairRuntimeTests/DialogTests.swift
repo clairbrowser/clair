@@ -107,4 +107,66 @@ final class DialogTests: NativeWindowTestCase {
     XCTAssertTrue(installed, "Return didn't install the extension")
     XCTAssertFalse(browser.dialog.exists, "The dialog stayed open")
   }
+
+  /// An extension asking to remove another (chrome.management.uninstall): the
+  /// remove dialog names it, and keeps its title and buttons
+  /// (name-extension-requesting-removal task 3.1).
+  func testRemoveDialogNamesTheRequestingExtension() async throws {
+    let target = "Clair Test Action"
+    let requester = "Clair Test Remover"
+    let paths = ["extensions/popup-badge", "extensions/management-remover"].map {
+      Fixture.directory.appending(path: $0).path
+    }
+    let (browser, first) = try await startWithPage(arguments: ["--load-extension=\(paths.joined(separator: ","))"])
+    defer { first.close() }
+
+    // The remover's page, in a tab for the dialog to show on.
+    let session = try await browser.browserSession()
+    defer { session.close() }
+    var origin: String?
+    let started = await Harness.wait(for: 30) {
+      let targets = try await session.send("Target.getTargets")
+      let infos = targets["targetInfos"] as? [[String: Any]] ?? []
+      let worker = infos.lazy.compactMap { $0["url"] as? String }.first { $0.hasSuffix("/remover.js") }
+      origin = worker.map { String($0.dropLast("/remover.js".count)) }
+      return origin != nil
+    }
+    try require(started, "The remover extension didn't start")
+    let page = try await browser.open("\(try XCTUnwrap(origin))/remove.html")
+    defer { page.close() }
+
+    let asked = try await page.evaluate("askToRemove('\(target)')") as? String
+    try require(asked == "asked", "The remover didn't ask: \(asked ?? "nil")")
+    try require(browser.dialog.waitForExistence(timeout: 30), "chrome.management.uninstall didn't show a dialog")
+    let dialog = browser.dialog
+    XCTAssertTrue(dialog.staticTexts["Remove “\(target)” from Clair?"].exists, "The dialog's title is wrong")
+    XCTAssertTrue(
+      dialog.staticTexts["“\(requester)” wants to remove this extension."].exists,
+      "The dialog doesn't name the extension that asked")
+    XCTAssertEqual(browser.dialogButton("clair.dialogCancel").label, "Cancel")
+    XCTAssertEqual(browser.dialogButton("clair.dialogDefault").label, "Remove Extension")
+
+    // Esc keeps the extension.
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    let closed = await Harness.wait(for: 10) { !browser.dialog.exists }
+    try require(closed, "Esc didn't close the dialog")
+    let answered = await Harness.wait(for: 10) { try await page.evaluate("window.outcome") as? String != nil }
+    try require(answered, "chrome.management.uninstall didn't answer")
+    let outcome = try await page.evaluate("window.outcome") as? String
+    XCTAssertNotEqual(outcome, "removed", "Esc removed the extension")
+    let kept = try await page.evaluate("isInstalled('\(target)')") as? Bool
+    XCTAssertEqual(kept, true, "Esc removed the extension")
+
+    // An extension removing itself isn't named.
+    _ = try await page.evaluate("askToRemoveSelf()")
+    try require(browser.dialog.waitForExistence(timeout: 30), "chrome.management.uninstallSelf didn't show a dialog")
+    XCTAssertTrue(
+      browser.dialog.staticTexts["Remove “\(requester)” from Clair?"].exists, "The self-removal dialog's title is wrong")
+    XCTAssertFalse(
+      browser.dialog.staticTexts["“\(requester)” wants to remove this extension."].exists,
+      "The self-removal dialog names a requester")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    let selfClosed = await Harness.wait(for: 10) { !browser.dialog.exists }
+    XCTAssertTrue(selfClosed, "Esc didn't close the self-removal dialog")
+  }
 }

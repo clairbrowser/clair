@@ -35,6 +35,7 @@
 @property(nonatomic) ClairExtensionPromptKind kind;
 @property(nonatomic, copy) NSString* extensionName;
 @property(nonatomic, nullable) NSImage* icon;
+@property(nonatomic, copy, nullable) NSString* requestedByName;
 @property(nonatomic, copy) NSArray<NSString*>* permissions;
 @property(nonatomic, copy) NSString* title;
 @property(nonatomic, copy) NSString* permissionsHeading;
