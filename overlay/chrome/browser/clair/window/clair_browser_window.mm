@@ -883,6 +883,11 @@ void ClairBrowserWindow::DetachFromClairUI() {
     return;
   }
   detached_ = true;
+  // The popup belongs to the window's ClairUI side and goes with it, rather
+  // than living on, without a window to show in, until this object is deleted.
+  if (extensions_) {
+    extensions_->HideActivePopup();
+  }
   [clair_window_ browserDidClose];
   [bridge_ detach];
   clair_window_ = nil;

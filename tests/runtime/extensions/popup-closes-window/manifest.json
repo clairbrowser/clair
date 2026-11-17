@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Clair Test Closing Popup",
+  "version": "1.0",
+  "description": "A popup that closes its window while it loads, for Clair's runtime suite.",
+  "action": {
+    "default_title": "Clair Test Closing Popup",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

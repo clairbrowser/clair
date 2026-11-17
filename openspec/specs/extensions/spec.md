@@ -120,7 +120,7 @@ An extension's popup SHALL open in a small titled window whose only enabled cont
 - **THEN** the window grows to fit it, keeping its top-leading corner where it is, and stays on screen
 
 ### Requirement: Closing an extension popup
-The popup window SHALL close when the user clicks its close button, presses Esc, clicks anywhere outside it, or clicks the button that opened it, and when the page or Chromium closes it. Clicking the opening button SHALL only close the popup, not open it again.
+The popup window SHALL close when the user clicks its close button, presses Esc, clicks anywhere outside it, or clicks the button that opened it, when the page or Chromium closes it, and when the browser window it belongs to closes, whether or not its page has finished loading. Clicking the opening button SHALL only close the popup, not open it again.
 
 #### Scenario: Clicking outside
 - **WHEN** a popup window is open and the user clicks the page in the browser window
@@ -133,6 +133,10 @@ The popup window SHALL close when the user clicks its close button, presses Esc,
 #### Scenario: Close button
 - **WHEN** the user clicks the popup window's close button
 - **THEN** the popup closes, and Chromium treats it as closed by the user
+
+#### Scenario: The window closes while the popup loads
+- **WHEN** a popup's browser window closes before the popup's page has finished loading, as when the page closes that window itself
+- **THEN** the popup closes with the window, the `chrome.action.openPopup()` call that opened it fails, and the browser keeps running
 
 ### Requirement: Opening a popup from the extension API
 An extension SHALL be able to open its own popup with `chrome.action.openPopup()` in an active Clair window. The popup SHALL open as if its button had been clicked: beside its pinned tile, or beside the site-controls button when it isn't pinned.
