@@ -122,9 +122,9 @@ final class ProfilesTests: NativeWindowTestCase {
 
   /// Starts with Home on the default profile, a "Work" profile and a Space
   /// "Work" using it, shown.
-  func startWithWorkProfile() async throws -> (Browser, DevToolsSession) {
+  func startWithWorkProfile(arguments: [String] = []) async throws -> (Browser, DevToolsSession) {
     try Harness.setRestoreWindows(false)
-    let (browser, tab) = try await startWithPage("counter.html?home")
+    let (browser, tab) = try await startWithPage("counter.html?home", arguments: arguments)
     try browser.openProfilesPage()
     try await browser.addProfile("Work")
     browser.ui.windows["Profiles"].typeKey("w", modifierFlags: .command)
@@ -549,6 +549,63 @@ final class ProfilesTests: NativeWindowTestCase {
       browser.nativeWindow.buttons[XCUIIdentifierCloseWindow].exists
     }
     XCTAssertTrue(controls, "The window kept the cover's hidden controls")
+  }
+
+  /// What an extension asks of the window of a profile the window doesn't
+  /// show leaves it hidden, and leaves the group's full screen as it is.
+  func testAnExtensionLeavesAHiddenProfilesWindowHidden() async throws {
+    let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
+    let (browser, home) = try await startWithWorkProfile(arguments: ["--load-extension=\(extensionPath)"])
+    defer { home.close() }
+    // The extension is the default profile's: its one window is Home's, which
+    // the window hides while it shows Work.
+    let worker = try await extensionWorker(browser)
+    defer { worker.close() }
+    let ids = try await worker.evaluate("chrome.windows.getAll().then(all => all.map(w => w.id))") as? [Int] ?? []
+    try require(ids.count == 1, "The default profile has \(ids.count) windows")
+    func update(_ info: String) async throws -> String? {
+      try await worker.evaluate(
+        "chrome.windows.update(\(ids[0]), \(info)).then(() => 'done', error => error.message)") as? String
+    }
+    let frame = browser.nativeWindow.frame
+    for info in [
+      "{focused: false}", "{state: 'minimized'}", "{state: 'maximized'}", "{state: 'fullscreen'}",
+      "{state: 'normal'}", "{left: 40, top: 60, width: 500, height: 400}",
+    ] {
+      let result = try await update(info)
+      XCTAssertEqual(result, "done", "chrome.windows.update(\(info)) failed")
+      try await Task.sleep(for: .seconds(2))
+      XCTAssertEqual(browser.visibleNativeWindowCount, 1, "\(info) showed Home's window")
+      XCTAssertEqual(browser.spaceName, "Work", "\(info) took the window away from Work")
+      XCTAssertEqual(browser.nativeWindow.frame, frame, "\(info) changed the window's frame")
+    }
+    browser.ui.typeKey("1", modifierFlags: .control)
+    let onHome = await browser.waitForSpace("Home")
+    try require(onHome, "Ctrl+1 didn't show Home")
+    XCTAssertEqual(browser.visibleNativeWindowCount, 1, "Switching to Home showed a second window")
+    XCTAssertEqual(browser.nativeWindow.frame, frame, "Home came back at another frame")
+
+    // Home goes full screen at the extension's request, which it leaves at
+    // the extension's request too, and Work covers it.
+    let entered = try await update("{state: 'fullscreen'}")
+    try require(entered == "done", "Home didn't take the extension's full screen: \(entered ?? "nil")")
+    let screen = NSScreen.main?.frame.size ?? .zero
+    let full = await Harness.wait(for: 30) { browser.nativeWindow.frame.size == screen }
+    try require(full, "The window didn't go full screen: \(browser.nativeWindow.frame)")
+    try await Task.sleep(for: .seconds(1))
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let onWork = await browser.waitForSpace("Work", seconds: 30)
+    try require(onWork, "Ctrl+2 didn't show Work in full screen")
+    let left = try await update("{state: 'normal'}")
+    XCTAssertEqual(left, "done", "chrome.windows.update({state: 'normal'}) failed")
+    try await Task.sleep(for: .seconds(3))
+    XCTAssertEqual(browser.spaceName, "Work", "The window doesn't show Work")
+    // Home's window, under Work's, kept the full screen Work shows.
+    browser.ui.typeKey("1", modifierFlags: .control)
+    let back = await browser.waitForSpace("Home", seconds: 30)
+    try require(back, "Ctrl+1 didn't show Home")
+    let stillFull = await Harness.wait(for: 10) { browser.nativeWindow.frame.size == screen }
+    XCTAssertTrue(stillFull, "Home's window left full screen under Work's: \(browser.nativeWindow.frame)")
   }
 
   /// The Extensions menu acts for the shown Space's profile: Manage

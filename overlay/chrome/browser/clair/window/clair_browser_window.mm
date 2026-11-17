@@ -530,6 +530,26 @@ void ClairExclusiveAccessContext::EnterFullscreen(
     const url::Origin& origin,
     ExclusiveAccessBubbleType bubble_type,
     FullscreenTabParams fullscreen_tab_params) {
+  // add-profiles D3: a member its group keeps hidden stays as it is, whoever
+  // asks (an extension's chrome.windows.update, DevTools): its window never
+  // shows on its own, and the group's full screen is the shown member's.
+  // Chromium's request ends once it has returned, so that it does not wait
+  // for a transition that never comes.
+  if (window_->IsHiddenMember()) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(
+                       [](base::WeakPtr<ClairBrowserWindow> window) {
+                         if (!window || !window->IsHiddenMember()) {
+                           return;
+                         }
+                         if (auto* manager = ExclusiveAccessManager::From(
+                                 window->browser())) {
+                           manager->ExitExclusiveAccess();
+                         }
+                       },
+                       window_->GetWeakPtr()));
+    return;
+  }
   // Only a page's own request shows the page alone. The browser's full screen
   // keeps the sidebar.
   if (!exclusive_access_bubble::IsExclusiveAccessModeBrowserFullscreen(
@@ -557,7 +577,9 @@ void ClairExclusiveAccessContext::ExitFullscreen() {
   // user (IDC_FULLSCREEN, toggleFullScreen:), never with a page's.
   NSWindow* window = window_->FullscreenNSWindow();
   // Leave only what entering changed: a window already in full screen stays.
-  if (entered_window_fullscreen_ &&
+  // add-profiles D3, D4: so does a hidden member's, as the full-screen owner
+  // under a cover, whose full screen the cover now shows.
+  if (entered_window_fullscreen_ && !window_->IsHiddenMember() &&
       (window.styleMask & NSWindowStyleMaskFullScreen)) {
     [window toggleFullScreen:nil];
   }
@@ -2409,21 +2431,38 @@ void ClairBrowserWindow::Activate() {
   [ns_window_ makeKeyAndOrderFront:nil];
 }
 
+// add-profiles D3: a member its group keeps hidden stays as it is, whoever
+// asks (an extension's chrome.windows.update, DevTools): ordering it back
+// would show it beside the shown member, and the group gives it the shown
+// member's frame when it swaps it in. Activate() reaches it, as a switch.
+
 void ClairBrowserWindow::Deactivate() {
+  if (IsHiddenMember()) {
+    return;
+  }
   [ns_window_ orderBack:nil];
 }
 
 void ClairBrowserWindow::Maximize() {
+  if (IsHiddenMember()) {
+    return;
+  }
   if (!ns_window_.zoomed) {
     [ns_window_ zoom:nil];
   }
 }
 
 void ClairBrowserWindow::Minimize() {
+  if (IsHiddenMember()) {
+    return;
+  }
   [ns_window_ miniaturize:nil];
 }
 
 void ClairBrowserWindow::Restore() {
+  if (IsHiddenMember()) {
+    return;
+  }
   if (ns_window_.miniaturized) {
     [ns_window_ deminiaturize:nil];
   }
@@ -2433,7 +2472,7 @@ void ClairBrowserWindow::Restore() {
 }
 
 void ClairBrowserWindow::SetBounds(const gfx::Rect& bounds) {
-  if (IsFullscreen()) {
+  if (IsFullscreen() || IsHiddenMember()) {
     return;
   }
   [ns_window_ setFrame:ToNSRect(bounds) display:YES];
