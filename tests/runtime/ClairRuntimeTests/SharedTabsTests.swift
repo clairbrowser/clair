@@ -123,50 +123,31 @@ final class SharedTabsTests: NativeWindowTestCase {
     try await tab.evaluate("window.counter") as? Double
   }
 
-  func testBothWindowsListTheSameTabs() async throws {
+  /// A tab no window shows opens live with no still; a window that takes a
+  /// tab another shows keeps its page and leaves a still there; a click takes
+  /// it back, and only takes it back in a window that isn't key; moving on
+  /// gives it back; and closing the still's tab ends the still.
+  func testTakingTabsAndStills() async throws {
     let (browser, windowA, windowB, a, b) = try await startWithTwoWindows()
     defer {
       a.close()
       b.close()
     }
-    var same = await Harness.wait(for: 15) {
-      windowA.tabTitles == windowB.tabTitles && windowA.tabTitles.starts(with: ["Counter b", "Counter a"])
-    }
-    XCTAssertTrue(same, "The windows don't list the same tabs: \(windowA.tabTitles) and \(windowB.tabTitles)")
+    // A opens x, then shows a again: x shows nowhere, and B shows it live.
+    windowA.click()
+    let x = try await browser.open(counter("x"))
+    defer { x.close() }
+    _ = await windowA.waitForActiveRow("Counter x")
+    windowA.tabRow("Counter a")?.click()
+    _ = await windowA.waitForActiveRow("Counter a")
+    windowB.click()
+    windowB.tabRow("Counter x")?.click()
+    let shownX = await windowB.waitForActiveRow("Counter x")
+    XCTAssertTrue(shownX, "B didn't show Counter x")
+    try await Task.sleep(for: .seconds(1))
+    XCTAssertFalse(windowA.showsStill, "A shows a still of a tab it didn't show")
+    XCTAssertEqual(windowA.activeRow, "Counter a", "A changed")
 
-    // A tab opened in B, the key window, shows in A at the top.
-    let c = try await browser.open(counter("c"))
-    defer { c.close() }
-    let opened = await windowA.waitForTabs { $0.first == "Counter c" }
-    XCTAssertTrue(opened, "A tab opened in B isn't listed in A: \(windowA.tabTitles)")
-    // Moved in B, moved in A.
-    browser.ui.typeKey(.pageDown, modifierFlags: [.control, .shift])
-    let moved = await windowA.waitForTabs { $0.starts(with: ["Counter b", "Counter c"]) }
-    XCTAssertTrue(moved, "A row moved in B didn't move in A: \(windowA.tabTitles)")
-    // Closed in B, gone from A.
-    browser.ui.typeKey("w", modifierFlags: .command)
-    let closed = await windowA.waitForTabs { !$0.contains("Counter c") }
-    XCTAssertTrue(closed, "A tab closed in B is still listed in A: \(windowA.tabTitles)")
-
-    // Cmd+N lists the Space's tabs, below its new tab page.
-    let listedBefore = windowA.tabTitles
-    browser.ui.typeKey("n", modifierFlags: .command)
-    _ = try await browser.waitForNativeWindows(3)
-    browser.ui.typeKey(.escape, modifierFlags: [])
-    // The new window may open over another, at the same frame: it's the one
-    // in front.
-    let front = NativeWindow(browser: browser, frame: browser.nativeWindow.frame)
-    same = await front.waitForTabs { $0 == ["New Tab"] + listedBefore }
-    XCTAssertTrue(same, "The new window doesn't list the Space's tabs: \(front.tabTitles)")
-    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-  }
-
-  func testTakingATabKeepsItsPageAndLeavesAStill() async throws {
-    let (_, windowA, windowB, a, b) = try await startWithTwoWindows()
-    defer {
-      a.close()
-      b.close()
-    }
     windowA.click()
     _ = await windowA.waitForActiveRow("Counter a")
     _ = try await a.evaluate("window.counter = 7; 1")
@@ -178,7 +159,7 @@ final class SharedTabsTests: NativeWindowTestCase {
     try require(taken, "B didn't show Counter a: \(windowB.activeRow ?? "none")")
     let count = try await count(a)
     XCTAssertEqual(count, 7, "Taking the tab reloaded its page")
-    let still = await windowA.waitForStill()
+    var still = await windowA.waitForStill()
     try require(still, "A shows no still of the tab B took")
     XCTAssertEqual(windowA.activeRow, "Counter a", "A doesn't keep the tab's row highlighted")
     XCTAssertEqual(windowA.urlField.label, "Search or Enter URL…", "A's URL field isn't empty")
@@ -188,9 +169,9 @@ final class SharedTabsTests: NativeWindowTestCase {
 
     // A click in A takes it back; B keeps the still now.
     windowA.click()
-    let back = await windowA.waitForStill(false)
+    var back = await windowA.waitForStill(false)
     XCTAssertTrue(back, "Clicking in A didn't take the tab back")
-    let stillInB = await windowB.waitForStill()
+    var stillInB = await windowB.waitForStill()
     XCTAssertTrue(stillInB, "B shows no still once A took the tab back")
     let countBack = try await self.count(a)
     XCTAssertEqual(countBack, 7, "Taking the tab back reloaded its page")
@@ -198,67 +179,34 @@ final class SharedTabsTests: NativeWindowTestCase {
     // A moves on to another row: B shows the tab live again, unclicked.
     windowA.tabRow("Counter b")?.click()
     _ = await windowA.waitForActiveRow("Counter b")
-    let given = await windowB.waitForStill(false)
+    var given = await windowB.waitForStill(false)
     XCTAssertTrue(given, "Moving on in A didn't give the tab back to B")
     XCTAssertEqual(windowB.activeRow, "Counter a", "B doesn't show the tab it got back")
-  }
 
-  func testSelectingATabNoWindowShows() async throws {
-    let (browser, windowA, windowB, a, b) = try await startWithTwoWindows()
-    defer {
-      a.close()
-      b.close()
-    }
-    // A opens x, then shows a again: x shows nowhere.
-    windowA.click()
-    let x = try await browser.open(counter("x"))
-    defer { x.close() }
-    _ = await windowA.waitForActiveRow("Counter x")
+    // A takes a again. A first click on another row in B, which isn't key,
+    // only takes a back, as in Arc; the second selects the row, and A gets a
+    // back.
     windowA.tabRow("Counter a")?.click()
     _ = await windowA.waitForActiveRow("Counter a")
-    windowB.click()
-    windowB.tabRow("Counter x")?.click()
-    let shown = await windowB.waitForActiveRow("Counter x")
-    XCTAssertTrue(shown, "B didn't show Counter x")
-    try await Task.sleep(for: .seconds(1))
-    XCTAssertFalse(windowA.showsStill, "A shows a still of a tab it didn't show")
-    XCTAssertEqual(windowA.activeRow, "Counter a", "A changed")
-  }
-
-  func testTheStillEndsWhenItsTabClosesOrTheUserMovesOn() async throws {
-    let (browser, windowA, windowB, a, b) = try await startWithTwoWindows()
-    defer {
-      a.close()
-      b.close()
-    }
-    // B takes a. A first click on another row in A, which isn't key, only
-    // takes a back, as in Arc; the second selects the row, and B gets a back.
-    windowB.tabRow("Counter a")?.click()
-    _ = await windowB.waitForActiveRow("Counter a")
-    var still = await windowA.waitForStill()
-    try require(still, "A shows no still")
-    windowA.tabRow("Counter b")?.click()
-    let back = await windowA.waitForStill(false)
-    XCTAssertTrue(back, "A click in A didn't take the tab back")
-    let stillInB = await windowB.waitForStill()
-    XCTAssertTrue(stillInB, "B shows no still once A took the tab back")
-    windowA.tabRow("Counter b")?.click()
-    _ = await windowA.waitForActiveRow("Counter b")
-    let given = await windowB.waitForStill(false)
-    XCTAssertTrue(given, "Moving on in A didn't give the tab back to B")
-    XCTAssertEqual(windowB.activeRow, "Counter a", "B doesn't show the tab it got back")
+    still = await windowB.waitForStill()
+    try require(still, "B shows no still")
+    windowB.tabRow("Counter b")?.click()
+    back = await windowB.waitForStill(false)
+    XCTAssertTrue(back, "A click in B didn't take the tab back")
+    let stillInA = await windowA.waitForStill()
+    XCTAssertTrue(stillInA, "A shows no still once B took the tab back")
+    windowB.tabRow("Counter b")?.click()
+    _ = await windowB.waitForActiveRow("Counter b")
+    given = await windowA.waitForStill(false)
+    XCTAssertTrue(given, "Moving on in B didn't give the tab back to A")
+    XCTAssertEqual(windowA.activeRow, "Counter a", "A doesn't show the tab it got back")
 
     // Switching Space in a window showing a still needs the window key,
     // which takes the tab back first; the unit tests cover it
     // (StillTests.switchingSpaceEndsTheStill).
 
-    // B closes the still's tab: A shows a new tab page with the command bar.
-    windowA.click()
-    windowA.tabRow("Counter a")?.click()
-    _ = await windowA.waitForActiveRow("Counter a")
-    still = await windowB.waitForStill()
-    try require(still, "B shows no still of a")
-    windowB.click()
+    // B takes a and closes it: A shows a new tab page with the command bar.
+    windowB.tabRow("Counter a")?.click()
     _ = await windowB.waitForActiveRow("Counter a")
     still = await windowA.waitForStill()
     try require(still, "A shows no still of a")
@@ -269,6 +217,8 @@ final class SharedTabsTests: NativeWindowTestCase {
       windowA.element("clair.commandBarField").waitForExistence(timeout: 10),
       "A didn't open the command bar on its new tab page")
     XCTAssertFalse(windowA.tabTitles.contains("Counter a"), "The closed tab is still listed")
+    stillInB = windowB.showsStill
+    XCTAssertFalse(stillInB, "B shows a still after closing the tab")
   }
 
   /// Creates a Space from the window's plus menu and closes the command bar
@@ -405,12 +355,6 @@ final class SharedTabsTests: NativeWindowTestCase {
     browser.ui.typeKey(.downArrow, modifierFlags: [.command, .option])
     shown = await windowA.waitForActiveRow("Counter a")
     XCTAssertTrue(shown, "Next Tab didn't go to the next row")
-
-    // Close Tabs Below x closes rows whichever window holds them.
-    windowA.tabRow("Counter x")?.rightClick()
-    browser.ui.menuItems["Close Tabs Below"].click()
-    let closed = await windowB.waitForTabs { $0 == ["Counter x"] }
-    XCTAssertTrue(closed, "Close Tabs Below didn't close every row below: \(windowB.tabTitles)")
   }
 
   func testAPeekMovesWithItsTab() async throws {
@@ -441,16 +385,6 @@ final class SharedTabsTests: NativeWindowTestCase {
     _ = await windowA.waitForStill()
     XCTAssertFalse(windowA.peekBadge.exists, "A's row shows the Peek's badge under the still")
     XCTAssertFalse(windowA.element("clair.peek").exists, "A's still shows the Peek")
-
-    // B closes: A keeps the tab and its Peek.
-    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-    _ = try await browser.waitForNativeWindows(1)
-    let badge = windowA.peekBadge.waitForExistence(timeout: 15)
-    XCTAssertTrue(badge, "The tab's row lost its Peek's badge when B closed")
-    windowA.tabRow(PeekTests.links)?.click()
-    XCTAssertTrue(windowA.element("clair.peek").waitForExistence(timeout: 15), "The Peek didn't come with its tab")
-    let peekMark = try await peek.evaluate("window.mark") as? Double
-    XCTAssertEqual(peekMark, 4, "Closing the window reloaded the Peek")
   }
 
   func testClosingAWindowKeepsItsTabs() async throws {

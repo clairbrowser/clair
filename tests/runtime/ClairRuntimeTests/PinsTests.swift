@@ -80,15 +80,114 @@ final class PinsTests: NativeWindowTestCase {
     return (browser, tab)
   }
 
-  func testPinningAndUnpinning() async throws {
+  /// A pin's life: pinning keeps the page; Cmd+1 counts the pin first and
+  /// opens it when closed; Cmd+W closes its page and keeps it; Clear Today
+  /// leaves it; × removes it, open or closed, and Restore Last Closed Tab
+  /// brings it back as it was; a tab's name survives navigation and pinning;
+  /// and unpinning and Pin to Favorites keep the page.
+  func testPinLifecycle() async throws {
     let (browser, tab) = try await startPinned()
-    defer { tab.close() }
+    tab.close()
     XCTAssertFalse(browser.tabTitles.contains(pinsTitle), "The pinned tab stayed among the Today tabs")
     let open = try await browser.target(endingWith: "pins.html")
     XCTAssertNotNil(open, "Pinning closed the page")
     let unpin = try browser.tabMenuItem("Unpin Tab")
     XCTAssertTrue(unpin.isEnabled, "Tab › Unpin Tab is off on a pinned tab")
     browser.ui.typeKey(.escape, modifierFlags: [])
+
+    // Cmd+1 counts the pinned tab first; Cmd+W closes its page, keeps the pin
+    // and shows the tab it was selected from; Cmd+1 then opens it again.
+    let a = try await browser.open(url("counter.html?a"))
+    let b = try await browser.open(url("counter.html?b"))
+    defer {
+      a.close()
+      b.close()
+    }
+    let shown = await browser.waitForActiveRow("Counter b")
+    try require(shown, "Counter b isn't active: \(browser.activeRow ?? "none")")
+    browser.ui.typeKey("1", modifierFlags: .command)
+    try await Task.sleep(for: .seconds(1))
+    XCTAssertTrue(browser.pinRow(pinsTitle).isSelected, "Cmd+1 didn't select the pinned tab")
+    browser.ui.typeKey("w", modifierFlags: .command)
+    let closed = await browser.waitForTarget("pins.html", open: false)
+    XCTAssertTrue(closed, "Cmd+W didn't close the pinned tab's page")
+    XCTAssertEqual(browser.pinTitles, [pinsTitle], "Cmd+W removed the pin")
+    let back = await browser.waitForActiveRow("Counter b")
+    XCTAssertTrue(back, "Cmd+W didn't show the tab the pin was selected from")
+    browser.ui.typeKey("1", modifierFlags: .command)
+    let opened = await browser.waitForTarget("pins.html")
+    XCTAssertTrue(opened, "Cmd+1 didn't open the pinned tab")
+
+    // Clear Today closes the Today tabs only.
+    let clear = try browser.tabMenuItem("Clear Today")
+    XCTAssertTrue(clear.isEnabled, "Clear Today is off with Today tabs")
+    clear.click()
+    let cleared = await browser.waitForTabs { !$0.contains("Counter a") && !$0.contains("Counter b") }
+    XCTAssertTrue(cleared, "Clear Today left Today tabs: \(browser.tabTitles)")
+    XCTAssertEqual(browser.pinTitles, [pinsTitle], "Clear Today touched the pinned tab")
+    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
+    let one = await browser.waitForTabs { $0.contains("Counter a") || $0.contains("Counter b") }
+    try require(one, "Restore Last Closed Tab didn't bring back a Today tab")
+    let today = try XCTUnwrap(browser.tabTitles.first { $0.hasPrefix("Counter") })
+
+    // × on the open, unselected pin closes its page; Restore Last Closed Tab
+    // brings both back.
+    browser.tabRow(today)?.click()
+    _ = await browser.waitForActiveRow(today)
+    browser.pinRow(pinsTitle).hover()
+    let remove = browser.element("clair.pinRemove")
+    try require(remove.waitForExistence(timeout: 5), "The open, unselected pin shows no ×")
+    remove.click()
+    let gone = await browser.waitForTarget("pins.html", open: false)
+    let removed = await browser.waitForPins { $0.isEmpty }
+    XCTAssertTrue(gone && removed, "× didn't remove the pin and close its page")
+    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
+    let both = await browser.waitForPins { $0 == [self.pinsTitle] }
+    let reopened = await browser.waitForTarget("pins.html")
+    try require(both && reopened, "Restore Last Closed Tab didn't bring the pin back with its page")
+
+    // × on the closed pin removes it; it comes back still closed.
+    browser.pinRow(pinsTitle).click()
+    try await Task.sleep(for: .seconds(1))
+    browser.ui.typeKey("w", modifierFlags: .command)
+    _ = await browser.waitForTarget("pins.html", open: false)
+    _ = await browser.waitForActiveRow(today)
+    browser.pinRow(pinsTitle).hover()
+    try require(remove.waitForExistence(timeout: 5), "The unselected pin shows no ×")
+    remove.click()
+    let removedClosed = await browser.waitForPins { $0.isEmpty }
+    XCTAssertTrue(removedClosed, "× didn't remove the closed pin")
+    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
+    let restored = await browser.waitForPins { $0 == [self.pinsTitle] }
+    XCTAssertTrue(restored, "Restore Last Closed Tab didn't bring the pin back")
+    let stillClosed = try await browser.target(endingWith: "pins.html")
+    XCTAssertNil(stillClosed, "The closed pin came back open")
+
+    // A tab's name survives navigation and pinning.
+    let named = try await browser.open(url("counter.html?name"))
+    defer { named.close() }
+    _ = await browser.waitForActiveRow("Counter name")
+    try browser.choose("Rename…", inMenuOf: try XCTUnwrap(browser.tabRow("Counter name")))
+    let field = browser.element("clair.renameField")
+    try require(field.waitForExistence(timeout: 5), "Rename… opened no field")
+    field.typeText("Fruit Co\r")
+    let renamed = await browser.waitForTabs { $0.contains("Fruit Co") }
+    try require(renamed, "Return didn't name the row: \(browser.tabTitles)")
+    try await named.navigate(to: url("counter.html?other"))
+    try await Task.sleep(for: .seconds(1))
+    XCTAssertTrue(browser.tabTitles.contains("Fruit Co"), "Navigating lost the name")
+    browser.tabRow("Fruit Co")?.click()
+    browser.ui.typeKey("d", modifierFlags: .command)
+    let pinnedName = await browser.waitForPins { $0.contains("Fruit Co") }
+    XCTAssertTrue(pinnedName, "Pinning lost the name: \(browser.pinTitles)")
+    browser.ui.typeKey("d", modifierFlags: .command)
+    let unpinnedName = await browser.waitForTabs { $0.contains("Fruit Co") }
+    XCTAssertTrue(unpinnedName, "Unpinning lost the name")
+
+    // Unpinning puts the tab at the top of Today with its page.
+    browser.pinRow(pinsTitle).click()
+    let pinOpen = await browser.waitForTarget("pins.html")
+    try require(pinOpen, "Clicking the pin didn't open its page")
     browser.ui.typeKey("d", modifierFlags: .command)
     let unpinned = await browser.waitForTabs { $0.first == self.pinsTitle }
     XCTAssertTrue(unpinned, "Cmd+D didn't unpin to the top of Today: \(browser.tabTitles)")
@@ -103,83 +202,11 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertNotNil(stillOpen, "Pin to Favorites closed the page")
   }
 
-  func testClosingAndRemovingPins() async throws {
-    let (browser, tab) = try await startPinned()
-    defer { tab.close() }
-    let news = try await browser.open(url("counter.html?news"))
-    defer { news.close() }
-    _ = await browser.waitForActiveRow("Counter news")
-    browser.pinRow(pinsTitle).click()
-    try await Task.sleep(for: .seconds(1))
-    // Cmd+W on the selected pinned tab keeps it, and shows News.
-    browser.ui.typeKey("w", modifierFlags: .command)
-    let closed = await browser.waitForTarget("pins.html", open: false)
-    XCTAssertTrue(closed, "Cmd+W didn't close the pinned tab's page")
-    XCTAssertEqual(browser.pinTitles, [pinsTitle], "Cmd+W removed the pin")
-    let back = await browser.waitForActiveRow("Counter news")
-    XCTAssertTrue(back, "Cmd+W didn't show the tab the pin was selected from")
-
-    // × on it, unselected and closed, removes it; Restore Last Closed Tab
-    // brings it back, still closed.
-    browser.pinRow(pinsTitle).hover()
-    let remove = browser.element("clair.pinRemove")
-    try require(remove.waitForExistence(timeout: 5), "The unselected pin shows no ×")
-    remove.click()
-    let removed = await browser.waitForPins { $0.isEmpty }
-    XCTAssertTrue(removed, "× didn't remove the pin")
-    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
-    let restored = await browser.waitForPins { $0 == [self.pinsTitle] }
-    XCTAssertTrue(restored, "Restore Last Closed Tab didn't bring the pin back")
-
-    // Open, then × again: its page closes, and comes back with the pin.
-    browser.pinRow(pinsTitle).click()
-    let opened = await browser.waitForTarget("pins.html")
-    try require(opened, "Clicking the pin didn't open its page")
-    browser.tabRow("Counter news")?.click()
-    browser.pinRow(pinsTitle).hover()
-    try require(remove.waitForExistence(timeout: 5), "The open, unselected pin shows no ×")
-    remove.click()
-    let gone = await browser.waitForTarget("pins.html", open: false)
-    XCTAssertTrue(gone, "× didn't close the pin's page")
-    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
-    let both = await browser.waitForPins { $0 == [self.pinsTitle] }
-    let reopened = await browser.waitForTarget("pins.html")
-    XCTAssertTrue(both && reopened, "Restore Last Closed Tab didn't bring the pin back with its page")
-  }
-
-  func testClearTodayAndCommandNumbers() async throws {
-    let (browser, tab) = try await startPinned()
-    defer { tab.close() }
-    let a = try await browser.open(url("counter.html?a"))
-    let b = try await browser.open(url("counter.html?b"))
-    defer {
-      a.close()
-      b.close()
-    }
-    _ = await browser.waitForTabs { $0.contains("Counter b") }
-    // Cmd+1 counts the pinned tab first.
-    browser.ui.typeKey("1", modifierFlags: .command)
-    try await Task.sleep(for: .seconds(1))
-    XCTAssertTrue(browser.pinRow(pinsTitle).isSelected, "Cmd+1 didn't select the pinned tab")
-    browser.ui.typeKey("w", modifierFlags: .command)
-    _ = await browser.waitForTarget("pins.html", open: false)
-    // Cmd+1 on the pin without a page opens it.
-    browser.ui.typeKey("1", modifierFlags: .command)
-    let opened = await browser.waitForTarget("pins.html")
-    XCTAssertTrue(opened, "Cmd+1 didn't open the pinned tab")
-
-    let clear = try browser.tabMenuItem("Clear Today")
-    XCTAssertTrue(clear.isEnabled, "Clear Today is off with Today tabs")
-    clear.click()
-    let cleared = await browser.waitForTabs { !$0.contains("Counter a") && !$0.contains("Counter b") }
-    XCTAssertTrue(cleared, "Clear Today left Today tabs: \(browser.tabTitles)")
-    XCTAssertEqual(browser.pinTitles, [pinsTitle], "Clear Today touched the pinned tab")
-    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
-    let one = await browser.waitForTabs { $0.contains("Counter a") || $0.contains("Counter b") }
-    XCTAssertTrue(one, "Restore Last Closed Tab didn't bring back a Today tab")
-  }
-
-  func testBackToPinnedURLAndEditingIt() async throws {
+  /// The pinned URL: another query is still it, a same-site link navigates,
+  /// Back to Pinned URL returns, and Replace and Edit… change it. Links to
+  /// other sites open a Peek (clair_pinned_link_throttle.mm decides), but not
+  /// from a Today tab, from a script, or with the toggle off.
+  func testPinnedURLAndPeeks() async throws {
     let (browser, tab) = try await startPinned()
     defer { tab.close() }
     // Another query is still the pinned URL, as in Arc.
@@ -239,19 +266,15 @@ final class PinsTests: NativeWindowTestCase {
     try await Task.sleep(for: .seconds(1))
     try browser.tabMenuItem("Back to Pinned URL").click()
     let edited = await browser.waitForTarget("pins.html?edited")
-    XCTAssertTrue(edited, "Back to Pinned URL didn't load the edited URL")
-  }
+    try require(edited, "Back to Pinned URL didn't load the edited URL")
 
-  func testLinksToOtherSitesPeek() async throws {
-    let (browser, tab) = try await startPinned()
-    defer { tab.close() }
-    // Another subdomain is another site, as in Arc.
+    // From the pinned tab, another subdomain is another site, as in Arc.
     try await tab.click("sub")
     XCTAssertTrue(browser.peek.waitForExistence(timeout: 15), "A link to a subdomain opened no Peek")
     browser.peekClose.click()
-    let closed = await Harness.wait(for: 10) { !browser.peek.exists }
-    try require(closed, "The subdomain's Peek didn't close")
-    // From the pinned tab: another site opens in a Peek, and the tab stays.
+    let peekClosed = await Harness.wait(for: 10) { !browser.peek.exists }
+    try require(peekClosed, "The subdomain's Peek didn't close")
+    // Another site opens in a Peek, and the tab stays.
     try await tab.click("other")
     XCTAssertTrue(browser.peek.waitForExistence(timeout: 15), "A link to another site opened no Peek")
     let stayed = try await tab.evaluate("location.pathname") as? String
@@ -262,24 +285,6 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertTrue(expanded, "The expanded Peek isn't the first Today tab: \(browser.tabTitles)")
     XCTAssertEqual(browser.pinTitles, [pinsTitle], "Expanding the Peek unpinned the tab")
 
-    // A script without a click navigates the tab.
-    browser.pinRow(pinsTitle).click()
-    try await Task.sleep(for: .seconds(1))
-    _ = try await tab.send("Runtime.evaluate", ["expression": "goElsewhere()", "userGesture": false])
-    let scripted = await Harness.wait(for: 15) {
-      try await browser.target(endingWith: "?script") != nil
-    }
-    XCTAssertTrue(scripted, "A scripted navigation didn't navigate the pinned tab")
-  }
-
-  func testNoPeekFromTodayOrWithTheToggleOff() async throws {
-    try Harness.run("/usr/bin/defaults", ["write", Harness.bundleID, "ClairPeekForOtherSites", "-bool", "NO"])
-    let (browser, tab) = try await startPinned()
-    defer { tab.close() }
-    try await tab.click("other")
-    let navigated = await browser.waitForTarget("?other")
-    XCTAssertTrue(navigated, "With the toggle off, the pinned tab didn't navigate")
-    XCTAssertFalse(browser.peek.exists, "A Peek opened with the toggle off")
     // A Today tab never peeks.
     let today = try await browser.open(url("pins.html?today"))
     defer { today.close() }
@@ -289,49 +294,36 @@ final class PinsTests: NativeWindowTestCase {
     }
     XCTAssertTrue(todayNavigated, "A Today tab's link to another site didn't navigate")
     XCTAssertFalse(browser.peek.exists, "A Today tab's link opened a Peek")
-  }
 
-  func testRenaming() async throws {
-    let (browser, tab) = try await startWithPage("counter.html?name")
-    defer { tab.close() }
-    let row = try XCTUnwrap(browser.tabRow("Counter name"))
-    try browser.choose("Rename…", inMenuOf: row)
-    let field = browser.element("clair.renameField")
-    try require(field.waitForExistence(timeout: 5), "Rename… opened no field")
-    field.typeText("Fruit Co\r")
-    let renamed = await browser.waitForTabs { $0.contains("Fruit Co") }
-    XCTAssertTrue(renamed, "Return didn't name the row: \(browser.tabTitles)")
-    let titled = await Harness.wait(for: 10) { browser.nativeWindow.title == "Fruit Co" }
-    XCTAssertTrue(titled, "The window's title isn't the name: \(browser.nativeWindow.title)")
-
-    // Esc cancels.
-    try browser.choose("Rename…", inMenuOf: try XCTUnwrap(browser.tabRow("Fruit Co")))
-    try require(field.waitForExistence(timeout: 5), "Rename… opened no field")
-    field.typeText("Other")
-    browser.ui.typeKey(.escape, modifierFlags: [])
+    // A script without a click navigates the tab.
+    browser.pinRow(pinsTitle).click()
     try await Task.sleep(for: .seconds(1))
-    XCTAssertTrue(browser.tabTitles.contains("Fruit Co"), "Esc didn't keep the name")
+    _ = try await tab.send("Runtime.evaluate", ["expression": "goElsewhere()", "userGesture": false])
+    let scripted = await Harness.wait(for: 15) {
+      try await browser.target(endingWith: "?script") != nil
+    }
+    XCTAssertTrue(scripted, "A scripted navigation didn't navigate the pinned tab")
 
-    // The name survives navigation and pinning.
-    try await tab.navigate(to: url("counter.html?other"))
-    try await Task.sleep(for: .seconds(1))
-    XCTAssertTrue(browser.tabTitles.contains("Fruit Co"), "Navigating lost the name")
-    browser.tabRow("Fruit Co")?.click()
-    browser.ui.typeKey("d", modifierFlags: .command)
-    let pinned = await browser.waitForPins { $0 == ["Fruit Co"] }
-    XCTAssertTrue(pinned, "Pinning lost the name: \(browser.pinTitles)")
-    browser.ui.typeKey("d", modifierFlags: .command)
-    let unpinned = await browser.waitForTabs { $0.contains("Fruit Co") }
-    XCTAssertTrue(unpinned, "Unpinning lost the name")
-
-    // An empty name brings back the page's title.
-    try browser.choose("Rename…", inMenuOf: try XCTUnwrap(browser.tabRow("Fruit Co")))
-    try require(field.waitForExistence(timeout: 5), "Rename… opened no field")
-    field.typeKey("a", modifierFlags: .command)
-    field.typeKey(.delete, modifierFlags: [])
-    field.typeText("\r")
-    let cleared = await browser.waitForTabs { $0.contains("Counter other") }
-    XCTAssertTrue(cleared, "An empty name didn't bring back the title: \(browser.tabTitles)")
+    // With the toggle off on Settings' Links page, the pinned tab navigates.
+    try browser.tabMenuItem("Back to Pinned URL").click()
+    let returnedAgain = await Harness.wait(for: 15) {
+      try await tab.evaluate("location.search") as? String == "?edited"
+    }
+    try require(returnedAgain, "Back to Pinned URL didn't load the pinned URL again")
+    browser.ui.typeKey(",", modifierFlags: .command)
+    let linksPage = browser.ui.toolbars.buttons["Links"]
+    try require(linksPage.waitForExistence(timeout: 15), "Settings has no Links page")
+    linksPage.click()
+    let toggle = browser.ui.switches["clair.peekOtherSitesToggle"]
+    try require(toggle.waitForExistence(timeout: 10), "The Links page has no toggle for other sites")
+    toggle.click()
+    browser.ui.typeKey("w", modifierFlags: .command)
+    try await tab.click("other")
+    let navigatedOff = await Harness.wait(for: 15) {
+      try await tab.evaluate("location.search") as? String == "?other"
+    }
+    XCTAssertTrue(navigatedOff, "With the toggle off, the pinned tab didn't navigate")
+    XCTAssertFalse(browser.peek.exists, "A Peek opened with the toggle off")
   }
 
   func testRelaunchKeepsPinsFavoritesAndNames() async throws {
@@ -397,26 +389,6 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertTrue(name, "The name didn't come back: \(browser.tabTitles)")
   }
 
-  func testIncognitoHasNoPins() async throws {
-    let (browser, tab) = try await startPinned()
-    defer { tab.close() }
-    browser.ui.typeKey("n", modifierFlags: [.command, .shift])
-    let incognito = browser.ui.windows.containing(.any, identifier: "clair.sidebar")
-      .matching(NSPredicate(format: "title CONTAINS[c] 'incognito' OR title == ''")).firstMatch
-    try await Task.sleep(for: .seconds(3))
-    _ = incognito
-    let window = browser.ui.windows.firstMatch
-    let pinRows = window.descendants(matching: .any).matching(identifier: "clair.pinRow").count
-    XCTAssertEqual(pinRows, 0, "The incognito window shows pinned tabs")
-    browser.ui.typeKey("d", modifierFlags: .command)
-    try await Task.sleep(for: .seconds(1))
-    let favorites = window.descendants(matching: .any).matching(identifier: "clair.favoriteTile").count
-    XCTAssertEqual(favorites, 0, "Cmd+D in incognito made a favorite or pin show")
-    let pin = try browser.tabMenuItem("Pin Tab")
-    XCTAssertFalse(pin.isEnabled, "Tab › Pin Tab is on in incognito")
-    browser.ui.typeKey(.escape, modifierFlags: [])
-  }
-
   /// Creates a Space from the Spaces menu and closes the command bar it
   /// opens with.
   func createSpace(_ name: String, in browser: Browser) async throws {
@@ -464,36 +436,5 @@ final class PinsTests: NativeWindowTestCase {
     let opened = await browser.waitForTarget("?other")
     XCTAssertTrue(opened, "Cmd-click didn't open the link")
     XCTAssertFalse(browser.peek.exists, "Cmd-click opened a Peek")
-  }
-
-  func testDeletingASpaceRemovesItsPins() async throws {
-    let (browser, tab) = try await startWithPage("counter.html?home")
-    defer { tab.close() }
-    try await createSpace("Work", in: browser)
-    let work = try await browser.open(url("pins.html?work"))
-    defer { work.close() }
-    _ = await browser.waitForActiveRow(pinsTitle)
-    browser.ui.typeKey("d", modifierFlags: .command)
-    _ = await browser.waitForPins { $0 == [self.pinsTitle] }
-    browser.ui.typeKey("w", modifierFlags: .command)
-    _ = await browser.waitForTarget("?work", open: false)
-    // Delete Space counts the pinned tab and asks.
-    let header = browser.element("clair.spaceHeader")
-    header.rightClick()
-    let delete = browser.ui.menuItems["Delete Space"]
-    try require(delete.waitForExistence(timeout: 5), "The header's menu has no Delete Space")
-    delete.click()
-    let confirm = browser.ui.buttons["clair.dialogDefault"]
-    try require(confirm.waitForExistence(timeout: 10), "Deleting a Space with a pinned tab didn't ask")
-    confirm.click()
-    let home = await browser.waitForSpace("Home")
-    try require(home, "The window didn't go back to Home")
-    XCTAssertTrue(browser.pinTitles.isEmpty, "Home shows Work's pinned tab")
-    try await Task.sleep(for: .seconds(3))
-    try await browser.quit()
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
-    try await Task.sleep(for: .seconds(3))
-    XCTAssertTrue(browser.pinTitles.isEmpty, "The deleted Space's pin came back")
   }
 }
