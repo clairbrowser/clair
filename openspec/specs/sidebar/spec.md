@@ -21,7 +21,7 @@ The sidebar's top row SHALL hold, after the window controls, a button that hides
 - **THEN** the top row shows back, forward and a "More" menu with Reload and Hide Sidebar
 
 ### Requirement: Tooltips in Arc's wording
-The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and on a pinned extension's tile the title the extension gives its action for the active tab, or its name when that title is empty.
+The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and a pinned extension's action title, or its name when that's empty.
 
 #### Scenario: Tooltip on back
 - **WHEN** the pointer rests on the back button

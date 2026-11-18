@@ -22,7 +22,7 @@ The sidebar's top row SHALL hold, after the window controls, a button that hides
 - **THEN** the sidebar's top row shows only the window controls, and the hide-sidebar button, back, forward and reload are in the toolbar
 
 ### Requirement: Tooltips in Arc's wording
-The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Show sidebar" while hidden, "Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and a pinned extension's own name.
+The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Show sidebar" while hidden, "Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and a pinned extension's action title, or its name when that's empty.
 
 #### Scenario: Tooltip on back
 - **WHEN** the pointer rests on the back button
@@ -39,6 +39,10 @@ The sidebar's controls SHALL have Clair's own tooltips, never the system's, in A
 #### Scenario: Tooltip on the toolbar's sidebar button
 - **WHEN** the toolbar is shown, the sidebar is hidden, and the pointer rests on the toolbar's sidebar button
 - **THEN** a tooltip reads "Show sidebar" with the keys ⌘ and S
+
+#### Scenario: Tooltip on a pinned extension
+- **WHEN** a pinned extension has set its action's title to "3 logins for this site" and the pointer rests on its tile
+- **THEN** a tooltip reads "3 logins for this site"
 
 ### Requirement: URL field
 Below the top row, the sidebar SHALL show the active tab's host without a leading `www.`, or its full URL for pages without a host such as `chrome://` pages and files, with a search icon and "Search or Enter URL…" for a new tab page. Clicking the field SHALL open the command bar on the current URL, and its context menu SHALL offer Copy URL. While the pointer is over the field, its background SHALL darken. While the toolbar shows, the field SHALL be its host instead.
