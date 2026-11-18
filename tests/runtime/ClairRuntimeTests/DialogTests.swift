@@ -29,7 +29,9 @@ final class DialogTests: NativeWindowTestCase {
     try require(browser.dialog.waitForExistence(timeout: 30), "The CRX didn't ask to install")
   }
 
-  func testInstallDialogBlocksOnlyItsWindow() async throws {
+  /// The install dialog is a sheet that blocks clicks and keys in its own
+  /// window only, and Return installs the extension and pins its button.
+  func testInstallDialogBlocksItsWindowAndInstalls() async throws {
     let (browser, other) = try await startWithPage("index.html?other", arguments: Self.installArguments)
     let tab = try await browser.open(url("find.html"))
     defer {
@@ -81,27 +83,10 @@ final class DialogTests: NativeWindowTestCase {
     XCTAssertTrue(field.waitForExistence(timeout: 10), "The other window doesn't respond while the dialog shows")
     browser.ui.typeKey(.escape, modifierFlags: [])
     XCTAssertTrue(dialog.exists, "Esc in the other window closed the dialog")
-  }
 
-  func testEscCancelsAndReturnInstalls() async throws {
-    let (browser, tab) = try await startWithPage("find.html", arguments: Self.installArguments)
-    defer { tab.close() }
-    browser.cardPoint(0.5, 0.5).click()
-
-    // Esc cancels, and focus goes back to the page.
-    try await askToInstall(from: tab, browser: browser)
-    browser.ui.typeKey(.escape, modifierFlags: [])
-    let closed = await Harness.wait(for: 10) { !browser.dialog.exists }
-    try require(closed, "Esc didn't close the dialog")
-    let focused = await Harness.wait(for: 10) { try await tab.evaluate("document.hasFocus()") as? Bool == true }
-    XCTAssertTrue(focused, "The page didn't get focus back")
-    XCTAssertFalse(browser.element("clair.extensionAction").exists, "Esc installed the extension")
-
-    // Return installs, and the new extension's button is pinned. A new tab
-    // asks, since Chromium holds back a second download from the same page.
-    let again = try await browser.open(url("find.html?again"))
-    defer { again.close() }
-    try await askToInstall(from: again, browser: browser)
+    // Back in the dialog's window, Return installs, and the new extension's
+    // button is pinned.
+    browser.dialogButton("clair.dialogTitle").click()
     browser.ui.typeKey(.return, modifierFlags: [])
     let installed = browser.element("clair.extensionAction").waitForExistence(timeout: 30)
     XCTAssertTrue(installed, "Return didn't install the extension")

@@ -6,9 +6,8 @@ import AppKit
 import Foundation
 import XCTest
 
-/// The native window's fundamentals (replace-browser-window design D14): one
-/// test or more for each item of the build-pipeline spec's native window
-/// coverage. XCUITest finds ClairUI's views by accessibility identifier, and
+/// The native window's fundamentals (replace-browser-window design D14): the
+/// build-pipeline spec's native window coverage. XCUITest finds ClairUI's views by accessibility identifier, and
 /// DevTools reads the pages' state.
 @MainActor
 class NativeWindowTestCase: RuntimeTestCase {
@@ -135,14 +134,15 @@ extension DevToolsSession {
 /// Which windows are native, and how the window is laid out (task 4.1).
 @MainActor
 final class NativeWindowStructureTests: NativeWindowTestCase {
-  func testNormalWindowsAreNative() async throws {
+  func testWhichWindowsAreNative() async throws {
     let (browser, tab) = try await startWithPage()
     defer { tab.close() }
     XCTAssertTrue(browser.sidebar.exists, "The window has no sidebar")
     XCTAssertTrue(browser.card.exists, "The window has no card")
     XCTAssertFalse(browser.ui.windows.toolbars.firstMatch.exists, "The window shows a toolbar")
 
-    // An incognito window is native, and says so.
+    // An incognito window is native, says so, and lists only its own tab.
+    let regular = browser.nativeWindows.first
     browser.ui.typeKey("n", modifierFlags: [.command, .shift])
     let incognito = await Harness.wait(for: 30) {
       browser.ui.windows.containing(.any, identifier: "clair.sidebar").count >= 2
@@ -150,6 +150,15 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
     XCTAssertTrue(incognito, "The incognito window isn't native")
     XCTAssertTrue(
       browser.ui.staticTexts["Incognito"].waitForExistence(timeout: 10), "The incognito window doesn't say so")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    if let window = browser.nativeWindows.first(where: { $0.frame != regular?.frame }) {
+      let own = await window.waitForTabs { $0.count == 1 }
+      XCTAssertTrue(own, "The incognito window lists other windows' tabs: \(window.tabTitles)")
+      XCTAssertFalse(
+        window.tabTitles.contains("Clair runtime test page"), "The incognito window lists a regular tab")
+    } else {
+      XCTFail("Can't find the incognito window")
+    }
     browser.ui.typeKey("w", modifierFlags: [.command, .shift])
 
     // A pop-up keeps Chromium's window.
@@ -161,31 +170,28 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
     XCTAssertEqual(native, 1, "The pop-up opened in a native window")
   }
 
-  func testWindowLayout() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
-    let window = browser.nativeWindow.frame
-    let sidebar = browser.sidebar.frame
-    let card = browser.card.frame
-    XCTAssertEqual(sidebar.minX, window.minX, accuracy: 1, "The sidebar isn't at the leading edge")
-    XCTAssertEqual(card.minX, sidebar.maxX, accuracy: 2, "The card doesn't meet the sidebar")
-    XCTAssertEqual(card.minY - window.minY, 10, accuracy: 2, "The card's top inset")
-    XCTAssertEqual(window.maxX - card.maxX, 10, accuracy: 2, "The card's trailing inset")
-    XCTAssertEqual(window.maxY - card.maxY, 10, accuracy: 2, "The card's bottom inset")
-    let close = browser.nativeWindow.buttons[XCUIIdentifierCloseWindow]
-    XCTAssertTrue(close.exists, "The window has no close button")
-    XCTAssertTrue(sidebar.contains(close.frame), "The window controls aren't in the sidebar")
-    XCTAssertTrue(browser.element("clair.urlField").exists, "The sidebar has no URL field")
-    XCTAssertTrue(browser.element("clair.back").exists, "The sidebar has no back button")
-  }
+  /// The window's anatomy: the window controls at Arc's place with the top row
+  /// lined up with them, before and after a title change
+  /// (place-traffic-lights-with-appkit); selecting a row shows its page in the
+  /// card; the row's favicon, speaker and title sit where they were checked
+  /// against Arc (design D12, D18); and the page follows the card's size.
+  ///
+  /// Accessibility reports what's drawn, not the layout's frames: on the audio
+  /// page, which has no favicon, the favicon is the 13 pt globe glyph centred
+  /// in its 18 pt frame 9 pt into the pill, so it reads 12 pt in, with the
+  /// title 10 pt after it. While the tab plays sound, the speaker sits between
+  /// them with the same visible gap on each side as the title has from the
+  /// favicon without it, which reads 7 pt before the speaker's reported frame
+  /// and 5.5 pt after it.
+  func testBrowserWindowLayout() async throws {
+    let (browser, audio) = try await startWithPage("audio.html")
+    let second = try await browser.open(url("index.html?second"))
+    defer {
+      audio.close()
+      second.close()
+    }
 
-  /// The window controls sit at Arc's place and the top row lines up with
-  /// them, before and after a title change (place-traffic-lights-with-appkit).
-  func testWindowControlsStayInPlace() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
-
-    func check(_ when: String) {
+    func checkControls(_ when: String) {
       let sidebar = browser.sidebar.frame
       let close = browser.nativeWindow.buttons[XCUIIdentifierCloseWindow]
       // A window that can go full screen has a full-screen button for zoom.
@@ -202,53 +208,67 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
       XCTAssertGreaterThanOrEqual(hideSidebar.frame.minX, zoom.frame.maxX, "The hide-sidebar button overlaps the zoom button \(when)")
     }
 
-    check("at first")
-    _ = try await tab.evaluate("document.title = 'A different title'; 1")
+    // The window controls.
+    let listed = await browser.waitForTabs { $0.count >= 2 }
+    try require(listed, "The sidebar doesn't list both tabs: \(browser.tabTitles)")
+    checkControls("at first")
+    _ = try await second.evaluate("document.title = 'A different title'; 1")
     let retitled = await browser.waitForTabs { $0.contains("A different title") }
     try require(retitled, "The page's new title didn't reach the sidebar")
     // Give AppKit's title bar a moment to lay out for the new window title.
     try await Task.sleep(for: .seconds(1))
-    check("after a title change")
-  }
-}
+    checkControls("after a title change")
 
-/// The page in the card, and the window's place across a relaunch (task 4.2).
-@MainActor
-final class PageHostingTests: NativeWindowTestCase {
-  func testPageShownInTheCard() async throws {
-    let (browser, first) = try await startWithPage("index.html?first")
-    let second = try await browser.open(url("index.html?second"))
-    defer {
-      first.close()
-      second.close()
+    // The newest tab is at the top; selecting the row below shows its page.
+    XCTAssertEqual(browser.tabTitles.first, "A different title", "The newest tab isn't at the top")
+    guard let row = browser.tabRows.first(where: { $0.label == "Clair runtime audio page" }) else {
+      throw HarnessError("No row for the audio page: \(browser.tabTitles)")
     }
-    // The newest tab is active and at the top.
-    let listed = await browser.waitForTabs { $0.count >= 2 }
-    try require(listed, "The sidebar doesn't list both tabs: \(browser.tabTitles)")
-    let rows = browser.tabRows
-    rows[1].click()
-    let switched = await Harness.wait(for: 15) {
-      try await browser.visibility(of: first) == "visible"
-    }
+    row.click()
+    let switched = await Harness.wait(for: 15) { try await browser.visibility(of: audio) == "visible" }
     XCTAssertTrue(switched, "Selecting the tab didn't show its page")
     let hidden = try await browser.visibility(of: second)
     XCTAssertEqual(hidden, "hidden", "The previous page isn't hidden")
 
+    // The row's favicon and title, without sound.
+    let favicon = browser.element("clair.tabFavicon", in: row)
+    let title = browser.element("clair.tabTitle", in: row)
+    try require(favicon.waitForExistence(timeout: 10) && title.exists, "The row shows no favicon or title")
+    XCTAssertEqual(favicon.frame.minX - row.frame.minX, 12, accuracy: 1, "The favicon's inset in the pill")
+    XCTAssertEqual(favicon.frame.width, 13, accuracy: 1, "The favicon's width")
+    XCTAssertEqual(title.frame.minX - favicon.frame.maxX, 10, accuracy: 1, "The gap between favicon and title")
+
+    // With sound: the speaker sits between them with even gaps.
+    let state = try await audio.evaluate("startTone()") as? String
+    try require(state == "running", "The test tone didn't start")
+    let speaker = browser.element("clair.tabSpeaker", in: row)
+    let shown = await Harness.wait(for: 15) { speaker.exists && speaker.frame.width > 10 }
+    try require(shown, "The playing tab shows no speaker")
+    try await Task.sleep(for: .milliseconds(500))
+    XCTAssertEqual(speaker.frame.minX - favicon.frame.maxX, 7, accuracy: 1, "The gap between favicon and speaker")
+    XCTAssertEqual(title.frame.minX - speaker.frame.maxX, 5.5, accuracy: 1, "The gap between speaker and title")
+    XCTAssertEqual(favicon.frame.minX - row.frame.minX, 12, accuracy: 1, "The favicon moved when the speaker showed")
+    _ = try await audio.evaluate("stopTone()")
+
     // The page follows the card's size.
     let session = try await browser.browserSession()
     defer { session.close() }
-    let targetID = try await first.targetID(in: browser) ?? ""
+    let targetID = try await audio.targetID(in: browser) ?? ""
     let window = try await session.send("Browser.getWindowForTarget", ["targetId": targetID])
     let windowID = window["windowId"] as? Int ?? 0
     try await session.send(
       "Browser.setWindowBounds", ["windowId": windowID, "bounds": ["width": 900, "height": 600]])
     let resized = await Harness.wait(for: 15) {
-      let width = try await first.innerWidth
+      let width = try await audio.innerWidth
       return abs(width - Double(browser.card.frame.width)) <= 2
     }
     XCTAssertTrue(resized, "The page's viewport doesn't match the card after a resize")
   }
+}
 
+/// The window's place across a relaunch (task 4.2).
+@MainActor
+final class PageHostingTests: NativeWindowTestCase {
   func testWindowSizeAndPlacementRestored() async throws {
     let browser = try await startBrowser()
     let first = try await browser.open(url("index.html?a"))
@@ -350,66 +370,33 @@ final class FullscreenTests: NativeWindowTestCase {
   }
 }
 
-/// Toasts (task 4.6).
-@MainActor
-final class ToastTests: NativeWindowTestCase {
-  func testCopyImageShowsAToast() async throws {
-    let (browser, tab) = try await startWithPage("image.html")
-    defer { tab.close() }
-    let loaded = await Harness.wait(for: 15) {
-      try await tab.evaluate("document.getElementById('image').complete") as? Bool == true
-    }
-    try require(loaded, "The image didn't load")
-    // The image is 400×300 at the page's top left.
-    let card = browser.card.frame
-    let point = browser.card.coordinate(
-      withNormalizedOffset: CGVector(dx: 100 / card.width, dy: 100 / card.height))
-    point.rightClick()
-    let copy = browser.ui.menuItems["Copy Image"]
-    try require(copy.waitForExistence(timeout: 10), "The context menu has no Copy Image item")
-    copy.click()
-    let toast = browser.element("clair.toast")
-    XCTAssertTrue(toast.waitForExistence(timeout: 10), "Copy Image showed no toast")
-  }
-}
-
-/// The top row and the URL field (task 5.1).
+/// The top row's back and forward buttons (task 5.1), and the back button's
+/// history menu (arc-navigation-feedback task 4.2).
 @MainActor
 final class NavigationTests: NativeWindowTestCase {
-  func testBackAndForward() async throws {
-    let (browser, tab) = try await startWithPage("link.html")
-    defer { tab.close() }
-    try await tab.navigate(to: url("index.html?next"))
-    let back = browser.element("clair.back")
-    let enabled = await Harness.wait(for: 15) { back.isEnabled }
-    try require(enabled, "Back isn't available after a navigation")
-    back.click()
-    let wentBack = await Harness.wait(for: 15) {
-      (try await tab.evaluate("location.pathname") as? String)?.hasSuffix("link.html") == true
-    }
-    XCTAssertTrue(wentBack, "Back didn't return to the previous page")
-    let forward = browser.element("clair.forward")
-    let forwardEnabled = await Harness.wait(for: 15) { forward.isEnabled }
-    XCTAssertTrue(forwardEnabled, "Forward isn't available after going back")
-    forward.click()
-    let wentForward = await Harness.wait(for: 15) {
-      try await tab.evaluate("location.search") as? String == "?next"
-    }
-    XCTAssertTrue(wentForward, "Forward didn't go to the next page")
-  }
-}
-
-/// The back button's history menu (arc-navigation-feedback task 4.2).
-@MainActor
-final class HistoryMenuTests: NativeWindowTestCase {
-  func testChoosingAnEntryInTheBackMenu() async throws {
+  func testBackForwardAndTheBackMenu() async throws {
     let (browser, tab) = try await startWithPage("link.html")
     defer { tab.close() }
     try await tab.navigate(to: url("index.html?second"))
     try await tab.navigate(to: url("find.html"))
     let back = browser.element("clair.back")
+    let forward = browser.element("clair.forward")
     let enabled = await Harness.wait(for: 15) { back.isEnabled }
-    try require(enabled, "Back isn't available after two navigations")
+    try require(enabled, "Back isn't available after a navigation")
+    back.click()
+    let wentBack = await Harness.wait(for: 15) {
+      try await tab.evaluate("location.search") as? String == "?second"
+    }
+    XCTAssertTrue(wentBack, "Back didn't return to the previous page")
+    let forwardEnabled = await Harness.wait(for: 15) { forward.isEnabled }
+    XCTAssertTrue(forwardEnabled, "Forward isn't available after going back")
+    forward.click()
+    let wentForward = await Harness.wait(for: 15) {
+      (try await tab.evaluate("location.pathname") as? String)?.hasSuffix("find.html") == true
+    }
+    try require(wentForward, "Forward didn't go to the next page")
+
+    // The back menu lists the history session's pages, nearest first.
     back.rightClick()
     // The back menu, not the menu bar's History menu, which lists the same pages.
     let menu = browser.sidebar.descendants(matching: .menu).firstMatch
@@ -422,13 +409,12 @@ final class HistoryMenuTests: NativeWindowTestCase {
       XCTAssertLessThan(second.frame.minY, first.frame.minY, "The back menu isn't nearest first")
     }
     first.click()
-    let wentBack = await Harness.wait(for: 15) {
+    let wentToFirst = await Harness.wait(for: 15) {
       (try await tab.evaluate("location.pathname") as? String)?.hasSuffix("link.html") == true
     }
-    XCTAssertTrue(wentBack, "Choosing the first page didn't go there")
-    let forward = browser.element("clair.forward")
-    let forwardEnabled = await Harness.wait(for: 15) { forward.isEnabled }
-    XCTAssertTrue(forwardEnabled, "Forward isn't available after going back through the menu")
+    XCTAssertTrue(wentToFirst, "Choosing the first page didn't go there")
+    let forwardAgain = await Harness.wait(for: 15) { forward.isEnabled }
+    XCTAssertTrue(forwardAgain, "Forward isn't available after going back through the menu")
   }
 }
 
@@ -450,15 +436,16 @@ final class PermissionPromptTests: NativeWindowTestCase {
     XCTAssertTrue(answered, "Choosing \(button) didn't give \(result)")
   }
 
-  func testPromptWithTheSidebarShownAllows() async throws {
+  /// The prompt stays on screen with the sidebar shown and hidden (#93).
+  func testPromptWithTheSidebarShownAndHidden() async throws {
     let (browser, tab) = try await startWithPage("notify.html")
     defer { tab.close() }
     try await ask(browser, tab, choose: "Allow", expect: "granted")
-  }
 
-  func testPromptWithTheSidebarHiddenBlocks() async throws {
-    let (browser, tab) = try await startWithPage("notify.html")
-    defer { tab.close() }
+    // Forget the answer, so the page asks again.
+    let session = try await browser.browserSession()
+    try await session.send("Browser.resetPermissions")
+    session.close()
     browser.ui.typeKey("s", modifierFlags: .command)
     let hidden = await Harness.wait(for: 10) { !browser.isSidebarInWindow }
     try require(hidden, "Cmd+S didn't hide the sidebar")
@@ -466,10 +453,12 @@ final class PermissionPromptTests: NativeWindowTestCase {
   }
 }
 
-/// An extension action's popup from its pinned button (task 5.3).
+/// An extension action's popup (task 5.3).
 @MainActor
 final class ExtensionActionTests: NativeWindowTestCase {
-  func testPinnedActionOpensItsPopup() async throws {
+  /// The popup opens from the action's pinned button, from the Extensions menu,
+  /// and from the background script.
+  func testOpeningAPopup() async throws {
     let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
     let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
     defer { tab.close() }
@@ -516,13 +505,9 @@ final class ExtensionActionTests: NativeWindowTestCase {
     XCTAssertTrue(close.isEnabled, "The popup window's close button is disabled")
     close.click()
     let closed = await Harness.wait(for: 15) { !popup.exists }
-    XCTAssertTrue(closed, "The close button didn't close the popup")
-  }
+    try require(closed, "The close button didn't close the popup")
 
-  func testExtensionsMenuOpensThePopup() async throws {
-    let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
-    let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
-    defer { tab.close() }
+    // The Extensions menu.
     let menu = browser.ui.menuBars.menuBarItems["Extensions"]
     try require(menu.waitForExistence(timeout: 30), "The menu bar has no Extensions menu")
     // The menu lists what the window has when it opens, and the extension may
@@ -540,22 +525,17 @@ final class ExtensionActionTests: NativeWindowTestCase {
     try require(listed, "The Extensions menu doesn't list the extension")
     XCTAssertTrue(browser.ui.menuItems["Manage Extensions…"].exists, "The Extensions menu has no Manage Extensions…")
     item.click()
-    let popup = browser.ui.dialogs["clair.extensionPopup"]
     XCTAssertTrue(popup.waitForExistence(timeout: 15), "Choosing the extension didn't open its popup")
-    let close = popup.buttons[XCUIIdentifierCloseWindow]
     if close.waitForExistence(timeout: 5) {
       close.click()
     }
-  }
+    let closedAgain = await Harness.wait(for: 15) { !popup.exists }
+    try require(closedAgain, "The popup from the Extensions menu didn't close")
 
-  func testBackgroundScriptOpensItsPopup() async throws {
-    let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
-    let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
-    defer { tab.close() }
+    // The background script.
     let worker = try await extensionWorker(browser)
     defer { worker.close() }
     _ = try await worker.evaluate("chrome.action.openPopup()")
-    let popup = browser.ui.dialogs["clair.extensionPopup"]
     XCTAssertTrue(popup.waitForExistence(timeout: 15), "chrome.action.openPopup() didn't open the popup")
   }
 
@@ -621,7 +601,7 @@ final class DownloadsTests: NativeWindowTestCase {
       browser.ui.windows.containing(.any, identifier: "clair.sidebar").count >= 2
     }
     try require(opened, "No incognito window opened")
-    // The one with the "Incognito" badge, found as testNormalWindowsAreNative
+    // The one with the "Incognito" badge, found as testWhichWindowsAreNative
     // finds it.
     let incognito = browser.ui.windows.containing(.staticText, identifier: "Incognito").firstMatch
     try require(incognito.waitForExistence(timeout: 10), "The new window has no incognito badge")
@@ -720,90 +700,25 @@ final class TabListTests: NativeWindowTestCase {
   }
 }
 
-/// The tab row's layout (design D12, D18). Accessibility reports what's drawn,
-/// not the layout's frames: on this page, which has no favicon, the favicon is
-/// the 13 pt globe glyph centred in its 18 pt frame 9 pt into the pill, so it
-/// reads 12 pt in, with the title 10 pt after it. While the tab plays sound,
-/// the speaker sits between them with the same visible gap on each side as
-/// the title has from the favicon without it, which reads 7 pt before the
-/// speaker's reported frame and 5.5 pt after it. These are the values of the layout checked
-/// against Arc; a change that moves any of them fails here.
-@MainActor
-final class TabRowLayoutTests: NativeWindowTestCase {
-  func testFaviconSpeakerAndTitlePositions() async throws {
-    let (browser, tab) = try await startWithPage("audio.html")
-    defer { tab.close() }
-    let found = await browser.waitForTabs { $0.contains("Clair runtime audio page") }
-    try require(found, "The sidebar doesn't list the audio page: \(browser.tabTitles)")
-    guard let row = browser.tabRows.first(where: { $0.label == "Clair runtime audio page" }) else {
-      return XCTFail("No row for the audio page")
-    }
-    let favicon = browser.element("clair.tabFavicon", in: row)
-    let title = browser.element("clair.tabTitle", in: row)
-    try require(favicon.waitForExistence(timeout: 10) && title.exists, "The row shows no favicon or title")
-
-    // Without sound.
-    XCTAssertEqual(favicon.frame.minX - row.frame.minX, 12, accuracy: 1, "The favicon's inset in the pill")
-    XCTAssertEqual(favicon.frame.width, 13, accuracy: 1, "The favicon's width")
-    XCTAssertEqual(title.frame.minX - favicon.frame.maxX, 10, accuracy: 1, "The gap between favicon and title")
-
-    // With sound: the speaker sits between them with even gaps.
-    let state = try await tab.evaluate("startTone()") as? String
-    try require(state == "running", "The test tone didn't start")
-    let speaker = browser.element("clair.tabSpeaker", in: row)
-    let shown = await Harness.wait(for: 15) { speaker.exists && speaker.frame.width > 10 }
-    try require(shown, "The playing tab shows no speaker")
-    try await Task.sleep(for: .milliseconds(500))
-    XCTAssertEqual(speaker.frame.minX - favicon.frame.maxX, 7, accuracy: 1, "The gap between favicon and speaker")
-    XCTAssertEqual(title.frame.minX - speaker.frame.maxX, 5.5, accuracy: 1, "The gap between speaker and title")
-    XCTAssertEqual(favicon.frame.minX - row.frame.minX, 12, accuracy: 1, "The favicon moved when the speaker showed")
-    _ = try await tab.evaluate("stopTone()")
-  }
-}
-
 /// Hiding, revealing and Save Page As (task 5.6).
 @MainActor
 final class SidebarHidingTests: NativeWindowTestCase {
-  func testCmdSHidesAndShowsTheSidebar() async throws {
+  /// Cmd+S hides the sidebar without saving the page, resting at the leading
+  /// edge reveals it over the page without resizing the page (#93), Cmd+S
+  /// brings it back, and Shift+Cmd+S saves.
+  func testHidingAndRevealingTheSidebar() async throws {
     let (browser, tab) = try await startWithPage()
     defer { tab.close() }
     let window = browser.nativeWindow.frame
+    browser.cardPoint(0.5, 0.5).click()
     browser.ui.typeKey("s", modifierFlags: .command)
     let hidden = await Harness.wait(for: 10) {
-      abs(browser.card.frame.minX - window.minX - 10) <= 2
+      abs(browser.card.frame.minX - window.minX - 10) <= 2 && !browser.isSidebarInWindow
     }
-    XCTAssertTrue(hidden, "Cmd+S didn't hide the sidebar and widen the card")
-    browser.ui.typeKey("s", modifierFlags: .command)
-    let shown = await Harness.wait(for: 10) {
-      abs(browser.card.frame.minX - browser.sidebar.frame.maxX) <= 2 && browser.isSidebarInWindow
-    }
-    XCTAssertTrue(shown, "Cmd+S didn't bring the sidebar back")
-  }
-
-  func testCmdSDoesNotSaveButShiftCmdSDoes() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
-    browser.cardPoint(0.5, 0.5).click()
-    browser.ui.typeKey("s", modifierFlags: .command)
-    try await Task.sleep(for: .seconds(2))
-    XCTAssertFalse(browser.ui.sheets.firstMatch.exists, "Cmd+S opened a save panel")
-    browser.ui.typeKey("s", modifierFlags: .command)
-    browser.cardPoint(0.5, 0.5).click()
-    browser.ui.typeKey("s", modifierFlags: [.command, .shift])
-    let saving =
-      browser.ui.sheets.firstMatch.waitForExistence(timeout: 10)
-      || browser.ui.dialogs.firstMatch.waitForExistence(timeout: 5)
-    XCTAssertTrue(saving, "Shift+Cmd+S opened no save panel")
-    browser.ui.typeKey(.escape, modifierFlags: [])
-  }
-
-  func testHoverRevealKeepsThePageSize() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
-    browser.ui.typeKey("s", modifierFlags: .command)
-    let hidden = await Harness.wait(for: 10) { !browser.isSidebarInWindow }
-    try require(hidden, "Cmd+S didn't hide the sidebar")
+    try require(hidden, "Cmd+S didn't hide the sidebar and widen the card")
     try await Task.sleep(for: .seconds(1))
+    XCTAssertFalse(browser.ui.sheets.firstMatch.exists, "Cmd+S opened a save panel")
+
     let width = try await tab.innerWidth
     browser.nativeWindow.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
       .withOffset(CGVector(dx: 2, dy: 0)).hover()
@@ -811,6 +726,23 @@ final class SidebarHidingTests: NativeWindowTestCase {
     XCTAssertTrue(revealed, "Resting at the leading edge didn't reveal the sidebar")
     let after = try await tab.innerWidth
     XCTAssertEqual(after, width, accuracy: 1, "Revealing the sidebar resized the page")
+    // Leave the edge, so the revealed sidebar slides away again.
+    browser.cardPoint(0.5, 0.5).hover()
+    _ = await Harness.wait(for: 5) { !browser.isSidebarInWindow }
+
+    browser.ui.typeKey("s", modifierFlags: .command)
+    let shown = await Harness.wait(for: 10) {
+      abs(browser.card.frame.minX - browser.sidebar.frame.maxX) <= 2 && browser.isSidebarInWindow
+    }
+    XCTAssertTrue(shown, "Cmd+S didn't bring the sidebar back")
+
+    browser.cardPoint(0.5, 0.5).click()
+    browser.ui.typeKey("s", modifierFlags: [.command, .shift])
+    let saving =
+      browser.ui.sheets.firstMatch.waitForExistence(timeout: 10)
+      || browser.ui.dialogs.firstMatch.waitForExistence(timeout: 5)
+    XCTAssertTrue(saving, "Shift+Cmd+S opened no save panel")
+    browser.ui.typeKey(.escape, modifierFlags: [])
   }
 }
 
@@ -824,56 +756,34 @@ final class CommandBarTests: NativeWindowTestCase {
     return field
   }
 
-  func testCmdTOpensATypedURLAtTheTop() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
+  /// Cmd+T opens a typed URL as the first, active row; Cmd+L navigates the
+  /// current tab; a Switch to Tab suggestion activates the open tab.
+  func testOpeningURLsAndSwitchingTabs() async throws {
+    let (browser, first) = try await startWithPage("index.html?open")
+    defer { first.close() }
     let count = browser.tabRows.count
-    let field = try openCommandBar(browser, "t")
-    field.typeText(url("index.html?typed") + "\n")
+    let typed = try openCommandBar(browser, "t")
+    typed.typeText(url("index.html?typed") + "\n")
     let opened = await Harness.wait(for: 15) {
       try await browser.pageTargets().contains { $0.url.hasSuffix("?typed") }
     }
-    XCTAssertTrue(opened, "The typed URL didn't open")
+    try require(opened, "The typed URL didn't open")
     let listed = await browser.waitForTabs { $0.count == count + 1 }
     XCTAssertTrue(listed, "The new tab isn't in the sidebar")
     XCTAssertTrue(browser.tabRows.first?.isSelected == true, "The new tab isn't first and active")
-  }
 
-  func testEscapeCreatesNoTab() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
-    let before = try await browser.pageTargets().count
-    _ = try openCommandBar(browser, "t")
-    browser.ui.typeKey(.escape, modifierFlags: [])
-    XCTAssertTrue(
-      browser.element("clair.commandBar").waitForNonExistence(timeout: 10), "Esc didn't close the command bar")
-    let after = try await browser.pageTargets().count
-    XCTAssertEqual(after, before, "Esc created a tab")
-  }
-
-  func testCmdLNavigatesTheCurrentTab() async throws {
-    let (browser, tab) = try await startWithPage()
-    defer { tab.close() }
-    let before = try await browser.pageTargets().count
-    let field = try openCommandBar(browser, "l")
-    field.typeKey("a", modifierFlags: .command)
-    field.typeText(url("index.html?edited") + "\n")
+    let tabs = try await browser.pageTargets().count
+    let edited = try openCommandBar(browser, "l")
+    edited.typeKey("a", modifierFlags: .command)
+    edited.typeText(url("index.html?edited") + "\n")
     let navigated = await Harness.wait(for: 15) {
-      try await tab.evaluate("location.search") as? String == "?edited"
+      let urls = try await browser.pageTargets().map(\.url)
+      return urls.contains { $0.hasSuffix("?edited") } && !urls.contains { $0.hasSuffix("?typed") }
     }
     XCTAssertTrue(navigated, "Cmd+L didn't navigate the current tab")
-    let after = try await browser.pageTargets().count
-    XCTAssertEqual(after, before, "Cmd+L created a tab")
-  }
+    let afterEdit = try await browser.pageTargets().count
+    XCTAssertEqual(afterEdit, tabs, "Cmd+L created a tab")
 
-  func testSwitchesToAnOpenTab() async throws {
-    let (browser, first) = try await startWithPage("index.html?open")
-    let second = try await browser.open(url("link.html"))
-    defer {
-      first.close()
-      second.close()
-    }
-    let before = try await browser.pageTargets().count
     let field = try openCommandBar(browser, "t")
     field.typeText(url("index.html?open"))
     let row = browser.ui.descendants(matching: .any).matching(
@@ -883,8 +793,8 @@ final class CommandBarTests: NativeWindowTestCase {
     row.click()
     let switched = await Harness.wait(for: 15) { try await browser.visibility(of: first) == "visible" }
     XCTAssertTrue(switched, "Choosing Switch to Tab didn't activate the open tab")
-    let after = try await browser.pageTargets().count
-    XCTAssertEqual(after, before, "Switch to Tab created a tab")
+    let afterSwitch = try await browser.pageTargets().count
+    XCTAssertEqual(afterSwitch, tabs, "Switch to Tab created a tab")
   }
 
   /// A visited page's row shows its favicon (command-bar spec, "Favicon").

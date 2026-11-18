@@ -146,11 +146,11 @@ Infobars that Chromium attaches to a tab, such as the warning that the browser i
 - **THEN** a bar at the top of the card says that the extension started debugging the browser, and its cancel button detaches the debugger
 
 ### Requirement: Toasts
-Short confirmations that Chromium shows as toasts, such as "Image copied", SHALL show as a native toast at the bottom of the card that disappears on its own.
+Short confirmations, Clair's own and those Chromium shows as toasts, SHALL show as a native toast at the bottom of the card that disappears on its own.
 
-#### Scenario: Copying an image from the context menu
-- **WHEN** the user chooses Copy Image from the page's context menu
-- **THEN** a toast with Chromium's message appears at the bottom of the card and disappears after a few seconds
+#### Scenario: Copying a tab's link
+- **WHEN** the user chooses Copy Link on a row
+- **THEN** a "Copied Link" toast appears at the bottom of the card and disappears after a few seconds
 
 ### Requirement: Crashed page
 When a tab's page crashes or its renderer is killed, the card SHALL show a native view saying the page crashed, with a Reload button that reloads it.
