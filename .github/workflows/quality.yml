@@ -83,11 +83,13 @@ jobs:
             tests: >-
               -only-testing:ClairRuntimeTests/UpdateMenuTests
               -only-testing:ClairRuntimeTests/IdleInstallTests
+              -only-testing:ClairRuntimeTests/CertificateDataTests
           - shard: app
             name: app and window
             tests: >-
               -skip-testing:ClairRuntimeTests/UpdateMenuTests
               -skip-testing:ClairRuntimeTests/IdleInstallTests
+              -skip-testing:ClairRuntimeTests/CertificateDataTests
     steps:
       - name: Check out
         uses: actions/checkout@v7
