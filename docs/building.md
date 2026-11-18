@@ -11,6 +11,19 @@ The build is split in two (design D9–D12 of the active OpenSpec change):
 
 To try an engine, download it with `gh release download chromium-engine-<key>`, unzip it and remove the quarantine flag first: `xattr -dr com.apple.quarantine Clair.app`.
 
+## Development tools
+
+Working on Clair, as opposed to building it, needs a few more tools:
+
+| Tool | Used for | Install |
+|---|---|---|
+| [OpenSpec](https://openspec.dev) 2.1 or later | Planning changes in `openspec/`, and the `openspec-*` agent skills | See [OpenSpec's installation guide](https://openspec.dev/docs/installation) |
+| GitHub CLI (`gh`) | Engine builds, job logs, pull requests | `brew install gh` |
+| [Changie](https://changie.dev) | Release-note fragments (see `.changes/README.md`) | `brew install changie` |
+| `shellcheck`, `actionlint`, `cmark-gfm` | Running the merge gate's script tests and lints locally. Optional, because CI runs them | `brew install shellcheck actionlint cmark-gfm` |
+
+Since OpenSpec 2.1, its agent skills (`openspec-propose`, `openspec-apply-change` and the others) live on each machine, not in the repository: in `~/.agents/skills/`, linked from `~/.claude/skills/`. After installing the CLI, run `openspec update` once and answer Yes to set them up. Run it again after upgrading OpenSpec to refresh them. CI runs `openspec validate --all --strict` with the version pinned in `.github/workflows/ci.yml`.
+
 ## Building locally
 
 ### System requirements
