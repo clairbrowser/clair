@@ -150,15 +150,7 @@
 # to check, no request is sent.
 --- a/components/update_client/update_checker.cc
 +++ b/components/update_client/update_checker.cc
-@@ -13,6 +13,7 @@
- #include <vector>
- 
- #include "base/check_op.h"
-+#include "base/containers/contains.h"
- #include "base/containers/flat_map.h"
- #include "base/containers/span.h"
- #include "base/containers/to_vector.h"
-@@ -38,12 +39,30 @@
+@@ -38,12 +38,30 @@
  #include "components/update_client/task_traits.h"
  #include "components/update_client/update_client.h"
  #include "components/update_client/update_engine.h"
@@ -189,7 +181,7 @@
  class UpdateCheckerImpl : public UpdateChecker {
   public:
    explicit UpdateCheckerImpl(scoped_refptr<Configurator> config);
-@@ -104,7 +123,9 @@
+@@ -104,7 +122,9 @@
      scoped_refptr<UpdateContext> context,
      const base::flat_map<std::string, std::string>& additional_attributes,
      UpdateCheckCallback update_check_callback) {
@@ -200,7 +192,7 @@
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
  
    update_check_callback_ = std::move(update_check_callback);
-@@ -204,6 +225,14 @@
+@@ -204,6 +224,14 @@
        continue;
      }
  
@@ -208,14 +200,14 @@
 +    // metadata only. The other components are left out, get no answer and stay
 +    // as they are. With nothing left, no request is sent (below).
 +    if (!IsClairExtensionCheck(*config_) &&
-+        !base::Contains(kClairComponentAppIds, app_id)) {
++        !std::ranges::contains(kClairComponentAppIds, app_id)) {
 +      continue;
 +    }
 +
      sent_ids.push_back(app_id);
  
      std::string install_source;
-@@ -338,9 +367,28 @@
+@@ -338,9 +366,28 @@
      }
    }
  
