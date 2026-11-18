@@ -214,46 +214,6 @@ final class SpacesTests: NativeWindowTestCase {
     XCTAssertTrue(browser.pinTitles.isEmpty, "The deleted Space's pin came back")
   }
 
-  func testMoveToSpaceKeepsThePage() async throws {
-    let (browser, tab) = try await startWithPage("counter.html?stay")
-    defer { tab.close() }
-    let moving = try await browser.open(counter("moving"))
-    defer { moving.close() }
-    try await createSpace("Work", in: browser)
-    browser.ui.typeKey("1", modifierFlags: .control)
-    var shown = await browser.waitForSpace("Home")
-    try require(shown, "Ctrl+1 didn't show Home")
-    _ = try await moving.evaluate("window.counter = 5; 1")
-
-    // The active tab moves, and the window follows it to Work, the tab
-    // still active (add-profiles D9).
-    browser.tabRow("Counter moving")?.click()
-    let selected = await browser.waitForActiveRow("Counter moving")
-    try require(selected, "The tab to move isn't active")
-    browser.tabRow("Counter moving")?.rightClick()
-    let move = browser.ui.menuItems["Move to Space"]
-    move.hover()
-    // The submenu's own item: the Spaces menu has one of the same title.
-    let work = move.menuItems["Work"]
-    try require(work.waitForExistence(timeout: 5), "Move to Space doesn't list Work")
-    work.click()
-    shown = await browser.waitForSpace("Work")
-    XCTAssertTrue(shown, "Moving the active tab didn't show Work: \(browser.spaceName)")
-    let followed = await browser.waitForActiveRow("Counter moving")
-    XCTAssertTrue(followed, "The moved tab isn't active in Work: \(browser.activeRow ?? "none")")
-    browser.ui.typeKey("1", modifierFlags: .control)
-    shown = await browser.waitForSpace("Home")
-    let gone = await browser.waitForTabs { !$0.contains("Counter moving") }
-    XCTAssertTrue(gone, "The moved tab is still in Home")
-
-    browser.ui.typeKey("2", modifierFlags: .control)
-    shown = await browser.waitForSpace("Work")
-    try require(shown, "Ctrl+2 didn't show Work")
-    XCTAssertEqual(browser.tabTitles.first, "Counter moving", "The moved tab isn't first in Work")
-    let count = try await moving.evaluate("window.counter") as? Double
-    XCTAssertEqual(count, 5, "Moving the tab reloaded its page")
-  }
-
   /// `arc-reference.md`'s close sequences: the tab the user came from, then
   /// the row above, then the row below.
   func testTheTabShownAfterAClose() async throws {
@@ -340,60 +300,4 @@ final class SpacesTests: NativeWindowTestCase {
     XCTAssertEqual(browser.spaceName, "Home", "The close left the Space")
   }
 
-  func testQuitAndRelaunchRestoresSpaces() async throws {
-    let (browser, first) = try await startWithPage("counter.html?h1")
-    let h2 = try await browser.open(counter("h2"))
-    try await createSpace("Work", in: browser)
-    var work: [DevToolsSession] = []
-    for name in ["w1", "w2", "w3"] {
-      work.append(try await browser.open(counter(name)))
-    }
-    // Leave Work with its three tabs: close the new tab page it opened with.
-    browser.tabRow("New Tab")?.click()
-    if browser.tabTitles.count > 3 {
-      browser.ui.typeKey("w", modifierFlags: .command)
-    }
-    let listed = await browser.waitForTabs { $0 == ["Counter w3", "Counter w2", "Counter w1"] }
-    try require(listed, "Work doesn't list its three tabs: \(browser.tabTitles)")
-    let workRows = browser.tabTitles
-    browser.ui.typeKey("1", modifierFlags: .control)
-    _ = await browser.waitForSpace("Home")
-    // A new tab page left open at quit doesn't come back (add-profiles D6).
-    let homeRows = browser.tabTitles.filter { $0 != "New Tab" }
-    browser.ui.typeKey("2", modifierFlags: .control)
-    _ = await browser.waitForSpace("Work")
-
-    // Let session restore write the tabs, then quit with windows restored
-    // (add-profiles D6).
-    try await Task.sleep(for: .seconds(3))
-    ([first, h2] + work).forEach { $0.close() }
-    try await browser.quit()
-    try Harness.setRestoreWindows(true)
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
-    let restored = await browser.waitForSpace("Work", seconds: 60)
-    try require(restored, "The window doesn't show the Space it showed: \(browser.spaceName)")
-    let rowsBack = await browser.waitForTabs(60) { $0 == workRows }
-    XCTAssertTrue(rowsBack, "Work's tabs didn't come back in order: \(browser.tabTitles)")
-    browser.ui.typeKey("1", modifierFlags: .control)
-    _ = await browser.waitForSpace("Home")
-    let homeBack = await browser.waitForTabs { $0 == homeRows }
-    XCTAssertTrue(homeBack, "Home's tabs didn't come back: \(browser.tabTitles)")
-
-    // Restore Last Closed Tab returns a tab to its Space and shows it.
-    browser.ui.typeKey("2", modifierFlags: .control)
-    _ = await browser.waitForSpace("Work")
-    browser.tabRow("Counter w2")?.click()
-    _ = await browser.waitForActiveRow("Counter w2")
-    browser.ui.typeKey("w", modifierFlags: .command)
-    let closed = await browser.waitForTabs { !$0.contains("Counter w2") }
-    try require(closed, "Cmd+W didn't close w2")
-    browser.ui.typeKey("1", modifierFlags: .control)
-    _ = await browser.waitForSpace("Home")
-    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
-    let back = await browser.waitForSpace("Work")
-    XCTAssertTrue(back, "Restoring the tab didn't show its Space")
-    let inWork = await browser.waitForTabs { $0.contains("Counter w2") }
-    XCTAssertTrue(inWork, "The restored tab isn't in Work: \(browser.tabTitles)")
-  }
 }

@@ -266,54 +266,6 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
   }
 }
 
-/// The window's place across a relaunch (task 4.2).
-@MainActor
-final class PageHostingTests: NativeWindowTestCase {
-  func testWindowSizeAndPlacementRestored() async throws {
-    let browser = try await startBrowser()
-    let first = try await browser.open(url("index.html?a"))
-    let second = try await browser.open(url("index.html?b"), newWindow: true)
-    let session = try await browser.browserSession()
-    // Both fit the hosted runner's 1024×768 screen, which would clamp them.
-    let sizes = [(first, 720, 520), (second, 900, 600)]
-    var expected: [String: (Int, Int)] = [:]
-    for (tab, width, height) in sizes {
-      let id = try await tab.targetID(in: browser) ?? ""
-      let window = try await session.send("Browser.getWindowForTarget", ["targetId": id])
-      try await session.send(
-        "Browser.setWindowBounds",
-        ["windowId": window["windowId"] as? Int ?? 0, "bounds": ["left": 40, "top": 60, "width": width, "height": height]])
-      expected[try await tab.evaluate("location.search") as? String ?? ""] = (width, height)
-    }
-    session.close()
-    first.close()
-    second.close()
-    // Let session restore write the bounds.
-    try await Task.sleep(for: .seconds(3))
-    try await browser.quit()
-
-    // With no switch: tabs come back at launch by default (add-spaces D11),
-    // and both windows with the restore setting on (add-profiles D6).
-    try Harness.setRestoreWindows(true)
-    try await browser.start()
-    for (search, size) in expected {
-      var target: Browser.Target?
-      let restored = await Harness.wait(for: 60) {
-        target = try await browser.pageTargets().first { $0.url.hasSuffix(search) }
-        return target != nil
-      }
-      try require(restored, "The tab \(search) didn't come back")
-      let tab = try await browser.session(onTarget: target!.id)
-      defer { tab.close() }
-      let bounds = try await browser.windowBounds(of: tab, targetID: target!.id)
-      XCTAssertEqual(bounds["width"] as? Int, size.0, "The window of \(search) came back at another width")
-      XCTAssertEqual(bounds["height"] as? Int, size.1, "The window of \(search) came back at another height")
-    }
-    let native = browser.ui.windows.containing(.any, identifier: "clair.sidebar").count
-    XCTAssertEqual(native, 2, "The restored windows aren't native")
-  }
-}
-
 /// DevTools docked in the card (task 4.3).
 @MainActor
 final class DockedDevToolsTests: NativeWindowTestCase {

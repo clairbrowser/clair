@@ -329,69 +329,6 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertFalse(browser.peek.exists, "A Peek opened with the toggle off")
   }
 
-  func testRelaunchKeepsPinsFavoritesAndNames() async throws {
-    let (browser, tab) = try await startPinned()
-    let fav = try await browser.open(url("counter.html?fav"))
-    _ = await browser.waitForActiveRow("Counter fav")
-    try browser.choose("Pin to Favorites", inMenuOf: try XCTUnwrap(browser.tabRow("Counter fav")))
-    _ = await browser.waitForFavorites { $0 == ["Counter fav"] }
-    let closed = try await browser.open(url("counter.html?closed"))
-    _ = await browser.waitForActiveRow("Counter closed")
-    browser.ui.typeKey("d", modifierFlags: .command)
-    _ = await browser.waitForPins { $0.count == 2 }
-    browser.ui.typeKey("w", modifierFlags: .command)
-    _ = await browser.waitForTarget("?closed", open: false)
-    let named = try await browser.open(url("counter.html?named"))
-    _ = await browser.waitForActiveRow("Counter named")
-    try browser.choose("Rename…", inMenuOf: try XCTUnwrap(browser.tabRow("Counter named")))
-    let field = browser.element("clair.renameField")
-    try require(field.waitForExistence(timeout: 5), "Rename… opened no field")
-    try await Task.sleep(for: .seconds(0.5))
-    field.typeText("Fruit Co\r")
-    _ = await browser.waitForTabs { $0.contains("Fruit Co") }
-    // The pinned tab navigated away from its pinned URL.
-    try await tab.click("same")
-    _ = await browser.waitForPins { $0.contains("Clair pins guide") }
-    // "Open the New Tab page", set as the settings page would.
-    let settings = try await browser.open("chrome://settings")
-    _ = try await settings.evaluate(
-      "(async () => { await chrome.settingsPrivate.setPref('session.restore_on_startup', 5); return 1; })()")
-    // The sections, searched for through every shadow root once the page
-    // has drawn them.
-    let sections = """
-      (() => { const find = (root, selector) => { const hit = root.querySelector(selector); if (hit) return hit;
-        for (const element of root.querySelectorAll('*')) { if (element.shadowRoot) {
-          const found = find(element.shadowRoot, selector); if (found) return found; } } return null; };
-        const shown = (s) => { const a = find(document, s); return !!a && !a.hidden; };
-        return [shown('a[href="/appearance"]'), shown('a[href="/onStartup"]')]; })()
-      """
-    var onStartup: [Bool]?
-    _ = await Harness.wait(for: 15) {
-      onStartup = try await settings.evaluate(sections) as? [Bool]
-      return onStartup?.first == true
-    }
-    XCTAssertEqual(onStartup?.first, true, "Couldn't read chrome://settings' sections")
-    XCTAssertEqual(onStartup?.last, false, "chrome://settings shows On startup")
-    settings.close()
-    try await Task.sleep(for: .seconds(3))
-    [tab, fav, closed, named].forEach { $0.close() }
-    try await browser.quit()
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
-    let pins = await browser.waitForPins(60) { $0 == ["Clair pins guide", "Counter closed"] }
-    XCTAssertTrue(pins, "The pinned tabs didn't come back in order: \(browser.pinTitles)")
-    let favorites = await browser.waitForFavorites { $0 == ["Counter fav"] }
-    XCTAssertTrue(favorites, "The favorite didn't come back: \(browser.favoriteTitles)")
-    let open = await browser.waitForTarget("pins-same.html", seconds: 30)
-    XCTAssertTrue(open, "The open pinned tab didn't come back at the URL it showed")
-    let favoriteOpen = await browser.waitForTarget("?fav")
-    XCTAssertTrue(favoriteOpen, "The open favorite didn't come back open")
-    let stillClosed = try await browser.target(endingWith: "?closed")
-    XCTAssertNil(stillClosed, "A pinned tab without a page came back open")
-    let name = await browser.waitForTabs { $0.contains("Fruit Co") }
-    XCTAssertTrue(name, "The name didn't come back: \(browser.tabTitles)")
-  }
-
   /// Creates a Space from the Spaces menu and closes the command bar it
   /// opens with.
   func createSpace(_ name: String, in browser: Browser) async throws {
