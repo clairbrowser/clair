@@ -21,7 +21,7 @@ The sidebar's top row SHALL hold, after the window controls, a button that hides
 - **THEN** the top row shows back, forward and a "More" menu with Reload and Hide Sidebar
 
 ### Requirement: Tooltips in Arc's wording
-The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and a pinned extension's own name.
+The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and a pinned extension's action title, or its name when that's empty.
 
 #### Scenario: Tooltip on back
 - **WHEN** the pointer rests on the back button
@@ -34,6 +34,10 @@ The sidebar's controls SHALL have Clair's own tooltips, never the system's, in A
 #### Scenario: Tooltip on the revealed sidebar's button
 - **WHEN** the hidden sidebar is revealed and the pointer rests on its sidebar button
 - **THEN** a tooltip reads "Lock sidebar"
+
+#### Scenario: Tooltip on a pinned extension
+- **WHEN** a pinned extension has set its action's title to "3 logins for this site" and the pointer rests on its tile
+- **THEN** a tooltip reads "3 logins for this site"
 
 ### Requirement: Icon controls
 Every icon control in the sidebar, buttons and menus alike, SHALL highlight under the pointer, as in Arc, except while disabled, and SHALL dim while the window isn't key. A tab's speaker and close buttons SHALL keep their grey while the window isn't key, as the tab row has its own inactive look, and a pinned extension keeps its own icon. Each icon control SHALL have a VoiceOver label in its tooltip's words.

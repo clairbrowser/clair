@@ -4,6 +4,7 @@
 Defines the native Site Control Center that the site-controls button opens: the grid of extensions, their pin badges, the tile for adding extensions, the Site Info pill and the "…" menu, following Arc.
 
 ## Requirements
+
 ### Requirement: Opening the Site Control Center
 Clicking the URL field's site-controls button SHALL open the Site Control Center, a native popover attached below the button with its arrow pointing at it. Clicking the button again, pressing Esc or clicking outside the popover SHALL close it.
 
@@ -27,15 +28,19 @@ While the Site Control Center is open, the site-controls button SHALL stay shown
 - **THEN** the site-controls button stays shown
 
 ### Requirement: Grid of extensions
-Under the heading "Extensions", the Site Control Center SHALL show every extension with an action as an icon tile, in rows of four. Pinned extensions SHALL come first, in their pinned order, followed by the others in alphabetical order. A tile's tooltip SHALL be the extension's name, which SHALL also be its VoiceOver label.
+Under the heading "Extensions", the Site Control Center SHALL show every extension with an action as an icon tile, in rows of four. Pinned extensions SHALL come first, in their pinned order, followed by the others in alphabetical order of their names as `chrome://extensions` shows them. A tile's tooltip SHALL be the title the extension gives its action for the active tab, or its name when that title is empty, and the same text SHALL be its VoiceOver label.
 
 #### Scenario: Order
 - **WHEN** two of ten extensions are pinned and the Site Control Center opens
 - **THEN** the two pinned extensions come first in their pinned order, followed by the other eight from A to Z
 
+#### Scenario: Order ignores action titles
+- **WHEN** an unpinned extension sets its action's title to text that sorts before every other extension's name, and the Site Control Center opens
+- **THEN** its tile keeps its name's place among the unpinned extensions
+
 #### Scenario: Tooltip
 - **WHEN** the pointer rests on a tile
-- **THEN** a tooltip shows the extension's name
+- **THEN** a tooltip shows the action's title, or the extension's name when the action has no title
 
 ### Requirement: Running an extension from the grid
 Clicking a tile SHALL close the Site Control Center and run the extension's action as Chromium's toolbar would. Its popup window SHALL open beside the site-controls button.
