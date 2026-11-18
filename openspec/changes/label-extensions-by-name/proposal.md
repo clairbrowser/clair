@@ -29,5 +29,5 @@ None.
 - `overlay/chrome/browser/clair/window/clair_extensions.mm`: the action snapshot fills both.
 - `native/ClairUI/PinnedExtensions.swift` and `SiteControlCenter.swift`: tiles use `title` for their tooltip and VoiceOver label. `ExtensionsMenu.swift` and the grid's order keep using `name`, which now holds the extension's name.
 - `native/ClairUITests/`: the fake action gains `title`.
-- `tests/runtime/`: the badge test extension sets an action title different from its name, and a runtime test checks that the Extensions menu shows the name and the pinned tile's label shows the title.
+- `tests/runtime/`: the badge test extension sets an action title different from its name, and the existing runtime tests check that the Extensions menu shows the name and the pinned tile's label shows the title.
 - The engine key changes, so the pull request needs an engine build.

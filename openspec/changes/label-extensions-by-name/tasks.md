@@ -14,5 +14,5 @@ Groups 1 and 2 change the engine key, so build the engine first and push docs af
 
 ## 3. Tests and release notes
 
-- [ ] 3.1 Make `tests/runtime/extensions/popup-badge` set its action's title to "3 badges for this page", and add a runtime test that the Extensions menu lists the extension as "Clair Test Action" and its pinned tile's VoiceOver label is "3 badges for this page". Verify with a `quality.yml` run on the branch.
+- [ ] 3.1 Make `tests/runtime/extensions/popup-badge` set its action's title to "3 badges for this page", and extend the runtime tests: `testExtensionsMenuOpensThePopup` still finds the item "Clair Test Action", and `testPinnedActionOpensItsPopup` checks that the pinned tile's VoiceOver label is "3 badges for this page". Verify with a `quality.yml` run on the branch.
 - [ ] 3.2 Add a Changie fragment. Verify that `openspec validate --all --strict` passes in CI.
