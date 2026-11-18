@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "Clair Test Action",
   "version": "1.0",
-  "description": "An action with a popup and a badge, for Clair's runtime suite.",
+  "description": "An action with a popup, a badge and a title other than its name, for Clair's runtime suite.",
   "action": {
-    "default_title": "Clair Test Action",
+    "default_title": "3 badges for this page",
     "default_popup": "popup.html"
   },
   "background": {

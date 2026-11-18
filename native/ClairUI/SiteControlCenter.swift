@@ -175,8 +175,8 @@ struct SiteControlCenterTile: View {
       }
       .buttonStyle(.plain)
       .overlay(RowClickCatcher(onMiddleClick: {}, menuItems: [], menuProvider: contextMenu))
-      .tooltip(action.name)
-      .accessibilityLabel(action.name)
+      .tooltip(action.title)
+      .accessibilityLabel(action.title)
       .accessibilityIdentifier("clair.siteControlsExtension")
 
       if action.isPinned || isHovered {

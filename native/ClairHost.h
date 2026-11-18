@@ -735,8 +735,12 @@ NS_SWIFT_NAME(ClairExtensionAction)
 @protocol ClairExtensionAction <NSObject>
 // The extension's ID, which names the action in commands.
 @property(nonatomic, readonly, copy) NSString *extensionID;
-// The action's title, which is its tooltip.
+// The extension's name, as chrome://extensions shows it (label-extensions-by-name
+// design D1).
 @property(nonatomic, readonly, copy) NSString *name;
+// The action's title for the active tab, or the name when that's empty: the
+// button's tooltip and VoiceOver label.
+@property(nonatomic, readonly, copy) NSString *title;
 // The action's icon for the active tab.
 @property(nonatomic, readonly, nullable) NSImage *icon;
 // The badge text for the active tab, or empty.

@@ -199,6 +199,7 @@ final class FakeExtensionPrompt: NSObject, ClairExtensionPrompt {
 final class FakeExtensionAction: NSObject, ClairExtensionAction {
   let extensionID: String
   let name: String
+  let title: String
   var icon: NSImage?
   let badgeText: String
   let badgeBackgroundColor: NSColor?
@@ -208,11 +209,12 @@ final class FakeExtensionAction: NSObject, ClairExtensionAction {
   let hasPopup: Bool
 
   init(
-    id: String, name: String, badge: String = "", badgeBackground: NSColor? = nil, badgeTextColor: NSColor? = nil,
+    id: String, name: String, title: String? = nil, badge: String = "", badgeBackground: NSColor? = nil, badgeTextColor: NSColor? = nil,
     pinned: Bool = true, enabled: Bool = true, popup: Bool = true
   ) {
     extensionID = id
     self.name = name
+    self.title = title ?? name
     badgeText = badge
     badgeBackgroundColor = badgeBackground
     self.badgeTextColor = badgeTextColor

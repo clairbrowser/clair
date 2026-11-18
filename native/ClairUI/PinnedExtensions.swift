@@ -140,8 +140,8 @@ struct PinnedExtensionTile: View {
     .foregroundStyle(IconButtonStyle.grey(isWindowKey: isWindowKey))
     .overlay(RowClickCatcher(onMiddleClick: {}, menuItems: [], menuProvider: contextMenu))
     .onHover { hovering in withAnimation(sidebarHoverFade) { isHovered = hovering } }
-    .tooltip(action.name)
-    .accessibilityLabel(action.name)
+    .tooltip(action.title)
+    .accessibilityLabel(action.title)
     .accessibilityValue(action.badgeText)
     .accessibilityIdentifier("clair.extensionAction")
   }

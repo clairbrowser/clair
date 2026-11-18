@@ -498,6 +498,9 @@ final class ExtensionActionTests: NativeWindowTestCase {
     try require(pinned.waitForExistence(timeout: 10), "The pinned action has no button")
     let badge = await Harness.wait(for: 15) { (pinned.value as? String) == "3" }
     XCTAssertTrue(badge, "The pinned action doesn't show its badge")
+    // The button keeps its action's title, not the extension's name
+    // (label-extensions-by-name task 3.1).
+    XCTAssertEqual(pinned.label, "3 badges for this page", "The pinned action's VoiceOver label isn't its title")
     pinned.click()
     let popup = browser.ui.dialogs["clair.extensionPopup"]
     XCTAssertTrue(popup.waitForExistence(timeout: 15), "The action's popup didn't open")
@@ -523,7 +526,8 @@ final class ExtensionActionTests: NativeWindowTestCase {
     let menu = browser.ui.menuBars.menuBarItems["Extensions"]
     try require(menu.waitForExistence(timeout: 30), "The menu bar has no Extensions menu")
     // The menu lists what the window has when it opens, and the extension may
-    // still be loading: open it again until it's there.
+    // still be loading: open it again until it's there. It lists the extension
+    // by its name, not its action's title (label-extensions-by-name task 3.1).
     let item = browser.ui.menuItems["Clair Test Action"]
     var listed = false
     for _ in 0..<5 where !listed {
