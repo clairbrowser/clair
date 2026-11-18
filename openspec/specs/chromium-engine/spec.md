@@ -30,19 +30,19 @@ Clair SHALL ship ungoogled-chromium's default settings and Google-service remova
 
 #### Scenario: No Google service traffic on an idle first launch
 - **WHEN** Clair is launched for the first time with default settings and left on its new tab page with no user navigation
-- **THEN** its only requests to Google are the certificate revocation check to Google's update service and the download it points to, and none go to Safe Browsing, sync, sign-in, metrics, extension updates or variations servers
+- **THEN** its only requests to Google are the certificate data check to Google's update service and the downloads it points to, and none go to Safe Browsing, sync, sign-in, metrics, extension updates or variations servers
 
 #### Scenario: Google contacted only for store extensions
 - **WHEN** the user has installed an extension from the Chrome Web Store
-- **THEN** Clair contacts Google's extension servers and its extension update service only to download that extension and to check it for updates, and contacts no other Google service besides the certificate revocation check
+- **THEN** Clair contacts Google's extension servers and its extension update service only to download that extension and to check it for updates, and contacts no other Google service besides the certificate data check
 
 #### Scenario: Component updater stays off
 - **WHEN** a profile with store extensions has run its extension update checks
-- **THEN** those checks named only extensions, and Clair has made no component update check besides the certificate revocation list's
+- **THEN** those checks named only extensions, and Clair has made no component update check besides the certificate data check
 
 #### Scenario: Component updater checks only the revocation list
 - **WHEN** Clair has run its component update checks
-- **THEN** each check named only the certificate revocation list, and no other component was checked, downloaded or updated
+- **THEN** each check named only the certificate revocation list and the PKI metadata component, and no other component was checked, downloaded or updated
 
 ### Requirement: Browser behavior as in ungoogled-chromium outside Clair's interface
 Apart from what Clair's own capabilities specify (`app-identity`, `native-layer`, `software-updates`, `browser-window`, `sidebar`, `command-bar`, `spaces`, `profiles`, `link-rules`, `extensions`) and the password and autofill features it turns off, Clair SHALL behave as its ungoogled-chromium release: page rendering, settings, `chrome://` pages, each profile's data, history, extensions' APIs, and the menus and shortcuts the native window keeps.
@@ -116,7 +116,7 @@ Clair SHALL turn back on a Google service that ungoogled-chromium removes or dis
 
 #### Scenario: The services Clair turns back on
 - **WHEN** the Google services Clair turns back on are listed
-- **THEN** they are the Chrome Web Store's pages and installs, store extension update checks with the flags they return, and Chromium's certificate revocation list (CRLSet), and nothing else
+- **THEN** they are the Chrome Web Store's pages and installs, store extension update checks with the flags they return, Chromium's certificate revocation list (CRLSet), and Chromium's PKI metadata component (the CT log list, static key pins and Chrome Root Store), and nothing else
 
 #### Scenario: Proposing another service
 - **WHEN** a change proposes turning on another Google service that ungoogled-chromium removes
@@ -145,17 +145,51 @@ Clair SHALL fetch Chromium's certificate revocation list (CRLSet) from Google's 
 - **WHEN** Clair has fetched a list before and is launched with no network connection
 - **THEN** it applies the list it has
 
-### Requirement: What a revocation check sends
-A certificate revocation check SHALL send only the list's component ID and version, the hash of the list package Clair has, Clair's Chromium version and channel, the platform and architecture, and random per-request IDs, over HTTPS only. It SHALL NOT send the language or any field "What a store update check sends" in `extensions` rules out, and Clair SHALL send no report after a list installs.
+### Requirement: Certificate transparency and key pins kept current
+Clair SHALL fetch Chromium's PKI metadata component in the same check as the certificate revocation list, and SHALL apply its Certificate Transparency log list, static key pins and Chrome Root Store when they're newer than the engine's own. It SHALL keep the last component it fetched, and use it from launch, until a newer one arrives.
+
+#### Scenario: An engine older than 10 weeks
+- **WHEN** Clair runs on an engine whose compiled-in CT log list and pins are more than 10 weeks old, and it has fetched the current component
+- **THEN** it still requires CT for publicly trusted certificates and still enforces the static key pins, as Chrome does
+
+#### Scenario: A certificate that isn't logged
+- **WHEN** a site presents a publicly trusted certificate with no proof that it was logged in CT
+- **THEN** Clair refuses the connection with Chromium's CT error
+
+#### Scenario: A pinned domain
+- **WHEN** a site on the static pin list presents a certificate from an authority its pins don't allow
+- **THEN** Clair refuses the connection with Chromium's pinning error
+
+#### Scenario: First launch
+- **WHEN** Clair is launched for the first time and has a network connection
+- **THEN** it has fetched the component and applies it within a few minutes, with no user action
+
+#### Scenario: Offline
+- **WHEN** Clair has fetched the component before and is launched with no network connection
+- **THEN** it applies the component it has
+
+### Requirement: HSTS preload list enforced at any age
+Clair SHALL enforce the HSTS preload list compiled into its engine however old the engine is.
+
+#### Scenario: An engine older than 10 weeks
+- **WHEN** Clair runs on an engine built more than 10 weeks ago, and the user opens `http://` on a domain in the preload list
+- **THEN** Clair loads it over HTTPS without sending a plain-HTTP request, as Chrome does with a current build
+
+#### Scenario: A certificate error on a preloaded domain
+- **WHEN** a domain in the preload list presents an invalid certificate, whatever the engine's age
+- **THEN** Clair's certificate error offers no way to proceed
+
+### Requirement: What a certificate data check sends
+A certificate data check SHALL send only each component's ID and version, the hash of the package Clair has for it, Clair's Chromium version and channel, the platform and architecture, and random per-request IDs, over HTTPS only. Both components SHALL share one request. It SHALL NOT send the language or any field "What a store update check sends" in `extensions` rules out, and Clair SHALL send no report after a component installs.
 
 #### Scenario: Reading a revocation check
-- **WHEN** a revocation check is captured
-- **THEN** its body names the list's component ID and version, the Chromium version and channel, `mac` and `arm64`, and nothing this requirement rules out
+- **WHEN** a certificate data check is captured
+- **THEN** its body names the revocation list's and the PKI metadata component's IDs and versions, the Chromium version and channel, `mac` and `arm64`, and nothing this requirement rules out
 
 #### Scenario: Plain HTTP refused
 - **WHEN** Google's update service answers with download addresses over both HTTP and HTTPS
-- **THEN** Clair downloads the list over HTTPS only, and makes no check over plain HTTP
+- **THEN** Clair downloads each component over HTTPS only, and makes no check over plain HTTP
 
 #### Scenario: List updated as a patch
-- **WHEN** Clair has a list and a newer one is published
-- **THEN** Clair downloads a patch to the list it has when Google offers one, or the full list when it doesn't
+- **WHEN** Clair has a component and a newer one is published
+- **THEN** Clair downloads a patch to the version it has when Google offers one, or the full component when it doesn't
