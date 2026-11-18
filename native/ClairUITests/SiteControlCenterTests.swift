@@ -79,7 +79,7 @@ struct PinnedExtensionsGridTests {
 struct SiteControlCenterLogicTests {
   @Test func pinnedComeFirstInTheirOrderThenAToZ() {
     let actions = [
-      FakeExtensionAction(id: "z", name: "Zebra", pinned: false),
+      FakeExtensionAction(id: "z", name: "Zebra", title: "Aardvark", pinned: false),
       FakeExtensionAction(id: "p2", name: "Second", pinned: true),
       FakeExtensionAction(id: "a10", name: "App 10", pinned: false),
       FakeExtensionAction(id: "p1", name: "Alpha", pinned: true),

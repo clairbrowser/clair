@@ -36,7 +36,7 @@ struct ExtensionsMenuTests {
 
   @Test func itListsExtensionsFromAToZThenTheLinks() {
     let (_, controller) = window([
-      FakeExtensionAction(id: "z", name: "Zulu"),
+      FakeExtensionAction(id: "z", name: "Zulu", title: "Add Extension…"),
       FakeExtensionAction(id: "u", name: "uBlock Origin Lite", pinned: false),
       FakeExtensionAction(id: "v", name: "Violentmonkey", enabled: false),
     ])

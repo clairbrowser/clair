@@ -58,6 +58,7 @@
 @interface ClairChromiumExtensionAction : NSObject <ClairExtensionAction>
 @property(nonatomic, copy) NSString* extensionID;
 @property(nonatomic, copy) NSString* name;
+@property(nonatomic, copy) NSString* title;
 @property(nonatomic, nullable) NSImage* icon;
 @property(nonatomic, copy) NSString* badgeText;
 @property(nonatomic, nullable) NSColor* badgeBackgroundColor;
@@ -290,8 +291,12 @@ NSArray<id<ClairExtensionAction>>* ClairExtensions::Snapshot() {
     }
     ClairChromiumExtensionAction* item = [[ClairChromiumExtensionAction alloc] init];
     item.extensionID = base::SysUTF8ToNSString(id);
+    // The menu and orders show the name; the button shows the action's title,
+    // as Chromium's toolbar does (label-extensions-by-name design D1).
+    item.name = base::SysUTF16ToNSString(
+        extensions::ui_util::GetFixupExtensionNameForUIDisplay(extension->name()));
     const std::string title = action->GetTitle(tab_id);
-    item.name = base::SysUTF8ToNSString(title.empty() ? extension->name() : title);
+    item.title = title.empty() ? item.name : base::SysUTF8ToNSString(title);
     if (extensions::IconImage* default_icon = action->default_icon_image();
         default_icon && !icon_observations_.IsObservingSource(default_icon)) {
       icon_observations_.AddObservation(default_icon);
