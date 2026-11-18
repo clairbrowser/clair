@@ -1,11 +1,11 @@
 # Restores what the Chrome Web Store needs to install and update extensions
 # (arc-extension-experience, design D2), and the update check flags that turn
 # off extensions the store has pulled (disable-flagged-store-extensions). The
-# update checker also lets the certificate revocation check through
-# (restore-certificate-revocation, whose other hunks are in its own patch). Each
-# revert names the upstream patch and hunk it undoes; the rest of those patches
-# stays applied. The other hunks route store checks, name their address or
-# limit what they send, and say so.
+# update checker also lets the certificate data check through
+# (restore-certificate-revocation and keep-certificate-data-current, whose other
+# hunks are in their own patches). Each revert names the upstream patch and hunk
+# it undoes; the rest of those patches stays applied. The other hunks route
+# store checks, name their address or limit what they send, and say so.
 
 # Reverts ungoogled-chromium disable-webstore-urls.patch, GetOriginsRequiringDedicatedProcess hunk.
 --- a/chrome/browser/extensions/chrome_content_browser_client_extensions_part.cc
@@ -144,12 +144,21 @@
  void WebstoreInstaller::ReportFailure(const std::string& error,
 # Reverts ungoogled-chromium block-requests.patch, update_checker.cc hunk, and limits what it
 # lets through. The extension updater checks store extensions (disable-flagged-store-extensions,
-# D2). The component updater checks only the certificate revocation list, CRLSet, and a component
-# that requires network encryption downloads over HTTPS only (restore-certificate-revocation, D1
-# and D3). With no ID left to check, no request is sent.
+# D2). The component updater checks only the certificate revocation list, CRLSet, and the PKI
+# metadata component (keep-certificate-data-current, D1), and a component that requires network
+# encryption downloads over HTTPS only (restore-certificate-revocation, D1 and D3). With no ID left
+# to check, no request is sent.
 --- a/components/update_client/update_checker.cc
 +++ b/components/update_client/update_checker.cc
-@@ -38,12 +38,25 @@
+@@ -13,6 +13,7 @@
+ #include <vector>
+ 
+ #include "base/check_op.h"
++#include "base/containers/contains.h"
+ #include "base/containers/flat_map.h"
+ #include "base/containers/span.h"
+ #include "base/containers/to_vector.h"
+@@ -38,12 +39,30 @@
  #include "components/update_client/task_traits.h"
  #include "components/update_client/update_client.h"
  #include "components/update_client/update_engine.h"
@@ -160,10 +169,15 @@
  namespace update_client {
  namespace {
  
-+// Clair: the only component the component updater checks, Chromium's
-+// certificate revocation list (CRLSet). chromium-engine's "Google services
-+// Clair turns back on" lists it.
-+constexpr char kClairCrlSetAppId[] = "hfnkpimlhhgieaddgfemjhofmfblmnib";
++// Clair: the only components the component updater checks. chromium-engine's
++// "Google services Clair turns back on" lists them.
++constexpr std::string_view kClairComponentAppIds[] = {
++    // Chromium's certificate revocation list (CRLSet).
++    "hfnkpimlhhgieaddgfemjhofmfblmnib",
++    // Chromium's PKI metadata: the Certificate Transparency log list, static
++    // key pins and Chrome Root Store (keep-certificate-data-current).
++    "efniojlnjndmcbiieegkicadnoecjjef",
++};
 +
 +// Clair: whether `config` is the extension updater's, which checks store
 +// extensions. Every other check is the component updater's.
@@ -175,32 +189,33 @@
  class UpdateCheckerImpl : public UpdateChecker {
   public:
    explicit UpdateCheckerImpl(scoped_refptr<Configurator> config);
-@@ -104,7 +117,9 @@
+@@ -104,7 +123,9 @@
      scoped_refptr<UpdateContext> context,
      const base::flat_map<std::string, std::string>& additional_attributes,
      UpdateCheckCallback update_check_callback) {
 -  return;
 +  // Clair: the extension updater's checks run for store extensions, and the
-+  // component updater's for the certificate revocation list only, which
-+  // CheckForUpdatesHelper enforces.
++  // component updater's for the certificate revocation list and PKI metadata
++  // only, which CheckForUpdatesHelper enforces.
    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
  
    update_check_callback_ = std::move(update_check_callback);
-@@ -204,6 +219,13 @@
+@@ -204,6 +225,14 @@
        continue;
      }
  
-+    // Clair: a component check names the certificate revocation list only. The
-+    // other components are left out, get no answer and stay as they are. With
-+    // nothing left, no request is sent (below).
-+    if (!IsClairExtensionCheck(*config_) && app_id != kClairCrlSetAppId) {
++    // Clair: a component check names the certificate revocation list and PKI
++    // metadata only. The other components are left out, get no answer and stay
++    // as they are. With nothing left, no request is sent (below).
++    if (!IsClairExtensionCheck(*config_) &&
++        !base::Contains(kClairComponentAppIds, app_id)) {
 +      continue;
 +    }
 +
      sent_ids.push_back(app_id);
  
      std::string install_source;
-@@ -338,9 +360,28 @@
+@@ -338,9 +367,28 @@
      }
    }
  

@@ -43,6 +43,7 @@ clair/space-shortcuts.patch
 clair/dock-incognito.patch
 clair/restore-web-store.patch
 clair/restore-certificate-revocation.patch
+clair/keep-certificate-data-current.patch
 helium/store-fixups-component.patch
 clair/no-extension-uninstall-page.patch
 clair/always-restore.patch

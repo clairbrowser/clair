@@ -6,7 +6,8 @@
 # (arc-extension-experience, D1; restore-certificate-revocation, D2).
 # Substituted, the real store isn't the store: it gets no install API, and no
 # update response parses. The component updater's address file names only the
-# update service, which checks the certificate revocation list.
+# update service, which checks the certificate revocation list and PKI
+# metadata.
 components/component_updater/component_updater_url_constants.cc
 extensions/browser/updater/safe_manifest_parser.cc
 extensions/common/api/_api_features.json
