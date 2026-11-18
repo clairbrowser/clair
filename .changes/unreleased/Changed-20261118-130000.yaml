@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Clair now keeps Chromium''s Certificate Transparency log list, key pins and trusted root certificates current, as Chrome does, so sites keep being checked against them as the browser ages, and certificate authorities that Chromium stops trusting stop being trusted without waiting for a Clair update. It fetches them in the same check as the revocation list, over HTTPS, and the check sends nothing more. Clair also keeps forcing HTTPS on the sites in its built-in HSTS preload list, however old the browser is'
+time: 2026-11-18T13:00:00-05:00

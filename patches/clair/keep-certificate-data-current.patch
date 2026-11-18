@@ -1,0 +1,43 @@
+# Keeps the certificate data that Chromium compiles in and trusts for 10 weeks
+# from lapsing as the engine ages (keep-certificate-data-current). The update
+# checker's hunk that lets the PKI metadata component through, beside the
+# certificate revocation list, is in clair/restore-web-store.patch.
+
+# Not a revert: the PKI metadata component (CT log list, static key pins and
+# Chrome Root Store) downloads over HTTPS only, under the rule the revocation
+# list's downloads follow (D2).
+--- a/chrome/browser/component_updater/pki_metadata_component_installer_policy.cc
++++ b/chrome/browser/component_updater/pki_metadata_component_installer_policy.cc
+@@ -38,7 +38,10 @@
+ }
+ 
+ bool PKIMetadataComponentInstallerPolicy::RequiresNetworkEncryption() const {
+-  return false;
++  // Clair: the component downloads over HTTPS only, like the certificate
++  // revocation list. The update checker drops HTTP download addresses for
++  // components that require network encryption.
++  return true;
+ }
+ 
+ update_client::CrxInstaller::Result
+
+# Not a revert: the compiled-in HSTS preload list stays enforced however old the
+# engine is, since no component refreshes it (D4).
+--- a/net/http/transport_security_state.cc
++++ b/net/http/transport_security_state.cc
+@@ -594,9 +594,12 @@
+ 
+ // static
+ bool TransportSecurityState::IsBuildTimely() {
+-  const base::Time build_time = base::GetBuildTime();
+-  // We consider built-in information to be timely for 10 weeks.
+-  return (base::Time::Now() - build_time).InDays() < 70 /* 10 weeks */;
++  // Clair: the HSTS preload list is enforced however old the build is. No
++  // component refreshes it, and ignoring it would drop HTTPS enforcement on
++  // every preloaded site, while keeping it only keeps a site that has left the
++  // list on HTTPS until the next engine. Static pins keep their own clock
++  // (IsStaticPKPListTimely), which the PKI metadata component keeps current.
++  return true;
+ }
+ 
+ TransportSecurityState::PKPStatus
