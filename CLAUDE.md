@@ -8,6 +8,8 @@ Leave ungoogled-chromium alone as much as possible. Patches to existing Chromium
 
 The work is planned as OpenSpec changes in `openspec/changes/<name>/`, each with `proposal.md`, `design.md`, `specs/` and `tasks.md`. Change 1, `ship-plain-ungoogled-build`, is archived in `openspec/changes/archive/2026-11-05-ship-plain-ungoogled-build/`: its `proposal.md` holds the product decisions, the roadmap and the MVP feature list, and its `arc-reference/` the Arc behavior references. Its capability specs are in `openspec/specs/`. A change that copies Dia keeps its probed screenshots and measurements in its own `dia-reference/`, indexed by a README, and they move with it when it's archived.
 
+OpenSpec's CLI and its `openspec-*` skills are installed on each machine, not in the repository (see "Development tools" in `docs/building.md`).
+
 When work needs a change, following OpenSpec's own guidance:
 
 - **A change is required for:** new features or behavior; breaking changes (the `ClairHost.h` contract, data formats, identifiers); architecture changes or new patterns; performance work that changes behavior; security changes; anything that takes several steps or touches several systems, such as `ClairUI` and the engine.
