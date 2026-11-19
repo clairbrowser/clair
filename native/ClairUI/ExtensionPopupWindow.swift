@@ -18,6 +18,8 @@ final class ExtensionPopupWindow: NSWindow {
   private let anchor: NSRect
   private var onDismiss: (() -> Void)?
   private var monitor: Any?
+  /// Set while dismiss() closes the window, so close() doesn't start it again.
+  private var isDismissing = false
 
   init(page: NSView, size: NSSize, name: String, parent: NSWindow, anchor: NSRect, onDismiss: @escaping () -> Void) {
     self.parentWindowRef = parent
@@ -74,9 +76,15 @@ final class ExtensionPopupWindow: NSWindow {
     }
   }
 
-  /// The close button: the same as any other way the user closes it.
-  override func performClose(_ sender: Any?) {
-    dismiss()
+  /// The close button: the same as any other way the user closes it. The
+  /// button closes the window directly, not through performClose(_:), so
+  /// this is where its click arrives.
+  override func close() {
+    if isDismissing {
+      super.close()
+    } else {
+      dismiss()
+    }
   }
 
   /// The page resized itself: the window keeps its top-leading corner, which
@@ -116,6 +124,7 @@ final class ExtensionPopupWindow: NSWindow {
     // The page belongs to Chromium; let go of it.
     contentView?.subviews.forEach { $0.removeFromSuperview() }
     contentView = NSView()
+    isDismissing = true
     close()
     let callback = onDismiss
     onDismiss = nil
