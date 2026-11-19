@@ -192,6 +192,8 @@ git -C ungoogled-chromium checkout <new tag>
 git add ungoogled-chromium
 ```
 
+Then sync the files copied from [ungoogled-chromium-macos](https://github.com/ungoogled-software/ungoogled-chromium-macos) with its tag for the same version (see `CREDITS.md`): `downloads-arm64.ini`, `retrieve_and_unpack_resource.py`, `flags.macos.gn`, the patches in `patches/ungoogled-chromium-macos/` (add and remove them in `patches/series` as its own series does) and any change to the toolchain steps of its `build.sh` and `build_crubit.sh`, which `build.sh`'s `configure` stage ports. Update the commit in `CREDITS.md`.
+
 Then open a pull request. If a macOS or Clair patch no longer applies, the fetch job names it. Fix that patch, using ungoogled-chromium-macos's and Helium's updates as references.
 
 ## Engine build times

@@ -20,7 +20,8 @@ Stages (run in the order given; default: all):
   update     Bring a tree prepared with -k up to date with Clair's patches
              in place, so ninja rebuilds only what changed. Falls back to
              "fetch prepare" when the tree can't be updated in place.
-  configure  Write args.gn, bootstrap GN, build bindgen and run gn gen
+  configure  Write args.gn, bootstrap GN, build bindgen and Crubit's
+             cc_bindings_from_rs, and run gn gen
   compile    Run ninja for Clair. With -t, stop after SECONDS and record
              build/compile_status as "running" so a later run can resume.
   all        fetch prepare configure compile
@@ -330,6 +331,24 @@ stage_configure() {
   fi
   if $fresh_out || [[ ! -x third_party/rust-toolchain/bin/bindgen ]]; then
     ./tools/rust/build_bindgen.py --skip-test
+  fi
+  # Crubit's cc_bindings_from_rs (rust_crubit_root in flags.macos.gn), built
+  # with the tree's Rust toolchain (from ungoogled-chromium-macos's
+  # build_crubit.sh). It links librustc_driver and libLLVM from rustc/lib.
+  local rust_dir="third_party/rust-toolchain"
+  local crubit_root="$rust_dir/crubit"
+  if $fresh_out || [[ ! -x "$crubit_root/bin/cc_bindings_from_rs" ]]; then
+    CARGO_HOME="$_src_dir/out/crubit/cargo_home" \
+    RUSTC="$_src_dir/$rust_dir/bin/rustc" \
+    RUSTFLAGS="-Clink-args=-Wl,-rpath,@loader_path/../../rustc/lib" \
+      "$rust_dir/bin/cargo" build --release --locked \
+        -p cc_bindings_from_rs --bin cc_bindings_from_rs \
+        --manifest-path "$crubit_root/lib/third_party/crubit/Cargo.toml" \
+        --target-dir "$_src_dir/out/crubit"
+    mkdir -p "$crubit_root/bin"
+    cp "$_src_dir/out/crubit/release/cc_bindings_from_rs" "$crubit_root/bin/"
+    # Fails when its runtime libraries can't be found.
+    "$crubit_root/bin/cc_bindings_from_rs" --help >/dev/null
   fi
   ./out/Default/gn gen out/Default --fail-on-unused-args
 }
