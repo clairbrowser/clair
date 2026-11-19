@@ -350,15 +350,17 @@
  #if defined(ARCH_CPU_X86_FAMILY)
    base::CPU cpu;
    request.hw.sse = cpu.has_sse();
-@@ -157,7 +157,7 @@
+@@ -157,8 +157,8 @@
  
    // OS version and platform information.
    request.os.platform = os_long_name;
 -  request.os.version = GetOSVersion();
-+  // Clair: no macOS version, only the platform and architecture.
++  // Clair: no macOS version or device form factor, only the platform and
++  // architecture. An empty form factor leaves it out of the request.
    request.os.service_pack = GetServicePack();
    request.os.arch = GetArchitecture();
-   request.os.device_form_factor = device_form_factor;
+-  request.os.device_form_factor = device_form_factor;
+ 
 @@ -236,21 +236,14 @@
    app.events = std::move(events);
    app.brand_code = FilterBrandCode(brand_code);
