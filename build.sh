@@ -191,6 +191,9 @@ stage_prepare() {
   mkdir -p "$_src_dir/third_party/llvm-build/Release+Asserts"
   mkdir -p "$_src_dir/third_party/rust-toolchain/bin"
   "$_root_dir/retrieve_and_unpack_resource.py" -p arm64
+  # Old versions of the downloads stay in the cache otherwise.
+  python3 "$_root_dir/utils/prune_download_cache.py" "$_main_repo/utils" \
+    "$_root_dir/build/download_cache" "$_main_repo/downloads.ini" "$_root_dir/downloads-arm64.ini"
 
   if $_keep_base; then
     if python3 "$_sync_tree" clone "$_src_dir" "$_base_dir"; then
