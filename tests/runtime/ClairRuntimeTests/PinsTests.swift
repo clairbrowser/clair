@@ -295,14 +295,17 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertTrue(todayNavigated, "A Today tab's link to another site didn't navigate")
     XCTAssertFalse(browser.peek.exists, "A Today tab's link opened a Peek")
 
-    // A script without a click navigates the tab.
+    // A script without a click navigates the tab. The page keeps a user
+    // gesture for 5 seconds, and the clicks and evaluations above, which run
+    // as gestures, would make the script's navigation a click's: wait it out.
     browser.pinRow(pinsTitle).click()
-    try await Task.sleep(for: .seconds(1))
+    try await Task.sleep(for: .seconds(6))
     _ = try await tab.send("Runtime.evaluate", ["expression": "goElsewhere()", "userGesture": false])
     let scripted = await Harness.wait(for: 15) {
-      try await browser.target(endingWith: "?script") != nil
+      try await tab.evaluate("location.search") as? String == "?script"
     }
     XCTAssertTrue(scripted, "A scripted navigation didn't navigate the pinned tab")
+    XCTAssertFalse(browser.peek.exists, "A scripted navigation opened a Peek")
 
     // With the toggle off on Settings' Links page, the pinned tab navigates.
     try browser.tabMenuItem("Back to Pinned URL").click()
