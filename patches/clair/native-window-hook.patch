@@ -468,7 +468,7 @@
 +    # D1, D3), pins (add-pinned-tabs-and-favorites design D1, D7), link
 +    # rules (add-link-rules design D1, D2) and its alert for blocklisted
 +    # extensions (disable-flagged-store-extensions design D6).
-+    sources += [
++    sources = [
 +      "//chrome/browser/clair/clair_link_rule_store.h",
 +      "//chrome/browser/clair/clair_link_rule_store.mm",
 +      "//chrome/browser/clair/clair_link_rules.h",
