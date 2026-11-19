@@ -1187,7 +1187,7 @@ NS_SWIFT_NAME(ClairWindow)
 - (void)stillDidChange;
 // The URL of the link under the pointer, or nil to hide the status capsule.
 - (void)statusTextDidChange:(nullable NSString *)text NS_SWIFT_NAME(statusTextDidChange(_:));
-// Shows a short confirmation at the bottom of the card, such as "Image copied".
+// Shows a short confirmation at the bottom of the card, such as "Copied Link".
 - (void)showToast:(NSString *)message NS_SWIFT_NAME(showToast(_:));
 // The page asked for full screen, or left it: the card shows the page alone,
 // with no sidebar, insets or corners. Chromium puts the window into macOS full
