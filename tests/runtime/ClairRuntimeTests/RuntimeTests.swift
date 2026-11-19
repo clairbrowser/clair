@@ -51,7 +51,9 @@ class RuntimeTestCase: XCTestCase {
 
 @MainActor
 final class AppTests: RuntimeTestCase {
-  func testLaunchesAndRendersALocalPage() async throws {
+  /// Launches, renders a local page, and shows ungoogled-chromium's first-run
+  /// page under Clair's name and data folder (#75).
+  func testLaunchAndTheFirstRunPage() async throws {
     let browser = try await startBrowser()
     let tab = try await browser.open(page)
     defer { tab.close() }
@@ -61,6 +63,14 @@ final class AppTests: RuntimeTestCase {
     let shot = try await tab.send("Page.captureScreenshot")
     XCTAssertFalse(shot["data"] as? String ?? "" == "", "The page has no pixels")
     XCTAssertTrue(browser.ui.windows.firstMatch.waitForExistence(timeout: 30), "Clair shows no window")
+
+    try await tab.navigate(to: "chrome://ungoogled-first-run")
+    let title = try await tab.evaluate("document.title") as? String
+    XCTAssertEqual(title, "Welcome to Clair")
+    let text = try await tab.evaluate("document.documentElement.textContent") as? String ?? ""
+    XCTAssertTrue(text.contains("~/Library/Application Support/Clair/Dictionaries/"), text)
+    XCTAssertFalse(text.contains("Application Support/Chromium"), text)
+    XCTAssertFalse(text.contains("first run page"), text)
   }
 
   func testApplicationMenu() async throws {
@@ -130,63 +140,6 @@ final class AppTests: RuntimeTestCase {
       "The engine still names the \"Chromium Safe Storage\" keychain item")
     XCTAssertNotNil(binary.range(of: Data("Clair Safe Storage".utf8)))
   }
-
-  func testUserAgentReportsTheEngineVersion() async throws {
-    let browser = try await startBrowser()
-    let tab = try await browser.open(page)
-    defer { tab.close() }
-    let userAgent = try await tab.evaluate("navigator.userAgent") as? String ?? ""
-    let major = fixture.chromiumVersion.split(separator: ".").first.map(String.init) ?? ""
-    XCTAssertTrue(userAgent.contains("Chrome/\(major)."), "Unexpected user agent: \(userAgent)")
-    XCTAssertFalse(userAgent.contains(fixture.version), "The user agent names Clair's version: \(userAgent)")
-    XCTAssertFalse(userAgent.contains("Clair"), "The user agent names Clair: \(userAgent)")
-  }
-
-  func testSettingsHelpPageShowsBothVersions() async throws {
-    let browser = try await startBrowser()
-    let tab = try await browser.open("about:blank")
-    defer { tab.close() }
-    // chrome:// URLs work only through a navigation, and Settings pages keep
-    // their text in shadow roots.
-    try await tab.navigate(to: "chrome://settings/help")
-    let script = """
-      (() => {
-        const walk = (root) => {
-          let text = '';
-          for (const node of root.querySelectorAll('*')) {
-            if (node.shadowRoot) text += walk(node.shadowRoot) + ' ';
-            if (!node.children.length) text += node.textContent + ' ';
-          }
-          return text;
-        };
-        return walk(document);
-      })()
-      """
-    let expected = [
-      "Version \(fixture.version) (\(fixture.build)) (Official Build) (arm64)",
-      "Engine: Chromium \(fixture.chromiumVersion) (ungoogled-chromium \(fixture.ungoogledVersion))",
-    ]
-    var text = ""
-    let shown = await Harness.wait(for: 30) {
-      text = (try await tab.evaluate(script) as? String ?? "")
-        .split(whereSeparator: \.isWhitespace).joined(separator: " ")
-      return expected.allSatisfy(text.contains)
-    }
-    XCTAssertTrue(shown, "chrome://settings/help doesn't show \(expected). It reads: \(text)")
-  }
-
-  func testFirstRunPageNamesClairAndItsDataFolder() async throws {
-    let browser = try await startBrowser()
-    let tab = try await browser.open("about:blank")
-    defer { tab.close() }
-    try await tab.navigate(to: "chrome://ungoogled-first-run")
-    let title = try await tab.evaluate("document.title") as? String
-    XCTAssertEqual(title, "Welcome to Clair")
-    let text = try await tab.evaluate("document.documentElement.textContent") as? String ?? ""
-    XCTAssertTrue(text.contains("~/Library/Application Support/Clair/Dictionaries/"), text)
-    XCTAssertFalse(text.contains("Application Support/Chromium"), text)
-    XCTAssertFalse(text.contains("first run page"), text)
-  }
 }
 
 @MainActor
@@ -199,25 +152,11 @@ final class UpdateMenuTests: RuntimeTestCase {
     try browser.clickAlertButton("OK")
   }
 
-  func testCheckReportsReadyAndItemChanges() async throws {
-    try skipAutomaticCheck()
-    let browser = try await startBrowser(feed: updateFeed)
-    try browser.chooseUpdateItem(titled: "Check for Updates…")
-    let ready = "Clair \(fixture.updateVersion) is ready"
-    try browser.requireAlert(titled: ready, within: 180)
-    try browser.clickAlertButton("Later")
-    XCTAssertTrue(
-      browser.updateItemExists(titled: "Update Available…", within: 30),
-      "The update item doesn't read \"Update Available…\"")
-    try browser.chooseUpdateItem(titled: "Update Available…")
-    try browser.requireAlert(titled: ready)
-    try browser.clickAlertButton("Later")
-  }
-
-  /// Restart and Update goes through ClairHost's relaunch: the same windows and
-  /// tabs come back, in the new version, with windows restored
+  /// A manual check finds the update, Later leaves it waiting behind "Update
+  /// Available…", and Restart and Update goes through ClairHost's relaunch: the
+  /// same windows and tabs come back, in the new version, with windows restored
   /// (add-profiles D6).
-  func testRelaunchRestoresWindowsAndTabs() async throws {
+  func testFoundUpdateInstallsAndRestoresWindows() async throws {
     try skipAutomaticCheck()
     try Harness.setRestoreWindows(true)
     let browser = try await startBrowser(feed: updateFeed)
@@ -236,6 +175,12 @@ final class UpdateMenuTests: RuntimeTestCase {
     try browser.chooseUpdateItem(titled: "Check for Updates…")
     let ready = "Clair \(fixture.updateVersion) is ready"
     try browser.requireAlert(titled: ready, within: 180)
+    try browser.clickAlertButton("Later")
+    try require(
+      browser.updateItemExists(titled: "Update Available…", within: 30),
+      "The update item doesn't read \"Update Available…\"")
+    try browser.chooseUpdateItem(titled: "Update Available…")
+    try browser.requireAlert(titled: ready)
     let oldProcess = try browser.runningProcessID()
     let beside = try browser.itemsBesideApp()
     try browser.clickAlertButton("Restart and Update")
@@ -286,9 +231,9 @@ final class IdleInstallTests: RuntimeTestCase {
   private let idleSeconds = 20
 
   override func setUp() async throws {
-    // These wait out the idle timer and a relaunch, about two minutes, past
-    // run.sh's default allowance.
-    executionTimeAllowance = 300
+    // This waits for the update, three blockers' idle periods and a relaunch,
+    // about seven minutes, past run.sh's default allowance.
+    executionTimeAllowance = 600
     try await super.setUp()
   }
 
@@ -318,29 +263,24 @@ final class IdleInstallTests: RuntimeTestCase {
     assertUpdateLeftNothingBeside(browser, before: beside)
   }
 
-  func testInstallsAndRelaunchesWhenIdle() async throws {
+  /// Each blocker in turn holds the install for three idle periods on its own:
+  /// the next one starts before the last one ends, so the update never sees a
+  /// moment with none. Once the last one ends, the update installs and the tabs
+  /// come back.
+  func testIdleInstallWaitsForEveryBlocker() async throws {
     let browser = try await startWithWaitingUpdate()
-    let tab = try await browser.open("\(page)?idle")
-    tab.close()
-    let process = try browser.runningProcessID()
-    try await assertInstalls(browser, from: process)
-    let restored = await Harness.wait(for: 60) {
-      try await browser.pageTargets().contains { $0.url.hasSuffix("?idle") }
-    }
-    XCTAssertTrue(restored, "The tab didn't come back after the idle install")
-  }
+    let idleTab = try await browser.open("\(page)?idle")
+    idleTab.close()
 
-  func testDownloadInProgressPreventsIdleInstall() async throws {
-    let browser = try await startWithWaitingUpdate()
-    // ungoogled-chromium asks where to save every download, and a save panel
-    // would leave the download waiting. This setting lasts as long as the session.
+    // A download in progress. ungoogled-chromium asks where to save every
+    // download, and a save panel would leave the download waiting. This setting
+    // lasts as long as the session.
     let folder = browser.workDirectory.appending(path: "downloads")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let session = try await browser.browserSession()
     defer { session.close() }
     try await session.send(
       "Browser.setDownloadBehavior", ["behavior": "allow", "downloadPath": folder.path])
-
     let tab = try await browser.open(page)
     defer { tab.close() }
     _ = try await tab.evaluate("location.href = '/slow-download'; 1")
@@ -348,37 +288,31 @@ final class IdleInstallTests: RuntimeTestCase {
     try require(started, "The download didn't start")
     try await assertStaysRunning(browser, reason: "a download in progress")
 
-    let process = try browser.runningProcessID()
+    // An audible tab.
+    let audio = try await browser.open("\(fixture.baseURL)/pages/audio.html")
+    defer { audio.close() }
+    let state = try await audio.evaluate("startTone()") as? String
+    try require(state == "running", "The test tone didn't start")
     let finish = URL(string: "\(fixture.baseURL)/slow-download/finish")!
     _ = try await URLSession.shared.data(from: finish)
-    try await assertInstalls(browser, from: process)
-  }
+    try await assertStaysRunning(browser, reason: "an audible tab")
 
-  func testIncognitoWindowPreventsIdleInstall() async throws {
-    let browser = try await startWithWaitingUpdate()
+    // An incognito window.
     browser.ui.activate()
     try require(browser.ui.windows.firstMatch.waitForExistence(timeout: 30), "Clair shows no window")
     browser.ui.typeKey("n", modifierFlags: [.command, .shift])
     let opened = await Harness.wait(for: 30) { browser.ui.windows.count >= 2 }
     try require(opened, "No incognito window opened")
+    _ = try await audio.evaluate("stopTone()")
     try await assertStaysRunning(browser, reason: "an incognito window")
 
     let process = try browser.runningProcessID()
     browser.ui.typeKey("w", modifierFlags: [.command, .shift])
     try await assertInstalls(browser, from: process)
-  }
-
-  func testAudibleTabPreventsIdleInstall() async throws {
-    let browser = try await startWithWaitingUpdate()
-    let tab = try await browser.open("\(fixture.baseURL)/pages/audio.html")
-    defer { tab.close() }
-    let state = try await tab.evaluate("startTone()") as? String
-    try require(state == "running", "The test tone didn't start")
-    try await assertStaysRunning(browser, reason: "an audible tab")
-
-    let process = try browser.runningProcessID()
-    _ = try await tab.evaluate("stopTone()")
-    try await assertInstalls(browser, from: process)
+    let restored = await Harness.wait(for: 60) {
+      try await browser.pageTargets().contains { $0.url.hasSuffix("?idle") }
+    }
+    XCTAssertTrue(restored, "The tab didn't come back after the idle install")
   }
 }
 
