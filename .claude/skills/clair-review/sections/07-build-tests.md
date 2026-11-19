@@ -30,7 +30,7 @@ Only to confirm what a build script produces.
 - Read the slowest tests and the harness. What does each test spend its time on: launching and relaunching the app, fixed sleeps, waiting on timeouts that only expire, repeated set-up that could be shared?
 - Which tests exist to check logic that `FakeBrowser` and `FakeHost` could express, and so could run as unit tests in seconds? Which genuinely need a running browser?
 - Where do two tests, or a runtime test and a unit test, check the same behaviour?
-- The suite already runs as two jobs. How could it be split further so that classes run in parallel, and what shared state (the user's Clair data, the keychain item, ports, the page server) stands in the way?
+- The suite already runs as three jobs split by class. How could it be split further so that classes run in parallel, and what shared state (the user's Clair data, the keychain item, ports, the page server) stands in the way?
 - Which tests are likely to fail intermittently, judged from the code: timing assumptions, reliance on animation, order dependence, leftover state from a previous test?
 - Give a ranked list of changes with a rough estimate of the minutes each would save.
 
