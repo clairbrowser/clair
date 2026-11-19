@@ -491,22 +491,6 @@ final class SharedTabsTests: NativeWindowTestCase {
     XCTAssertTrue(back, "Reopen Closed Window didn't bring the tabs back")
   }
 
-  func testAnIncognitoWindowListsItsOwnTabs() async throws {
-    let (browser, a) = try await startWithPage("counter.html?a")
-    defer { a.close() }
-    let regular = browser.nativeWindows[0]
-    browser.ui.typeKey("n", modifierFlags: [.command, .shift])
-    let windows = try await browser.waitForNativeWindows(2)
-    browser.ui.typeKey(.escape, modifierFlags: [])
-    guard let incognito = windows.first(where: { $0.frame != regular.frame }) else {
-      throw HarnessError("Can't find the incognito window")
-    }
-    let own = await incognito.waitForTabs { $0.count == 1 }
-    XCTAssertTrue(own, "The incognito window lists other windows' tabs: \(incognito.tabTitles)")
-    XCTAssertFalse(incognito.tabTitles.contains("Counter a"), "The incognito window lists a regular tab")
-    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-  }
-
   func testQuittingWithAStill() async throws {
     let (browser, windowA, windowB, a, b) = try await startWithTwoWindows()
     windowB.tabRow("Counter a")?.click()

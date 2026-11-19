@@ -673,11 +673,18 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     model.statusText = text
   }
 
+  /// Waits out a toast's time; tests replace it so they don't depend on the
+  /// clock.
+  var toastWait: (Duration) async -> Void = { duration in
+    try? await Task.sleep(for: duration)
+  }
+
   func showToast(_ message: String) {
     let toast = Toast(message: message)
     model.toast = toast
+    let wait = toastWait
     Task { [weak self] in
-      try? await Task.sleep(for: Self.toastDuration)
+      await wait(Self.toastDuration)
       if self?.model.toast?.id == toast.id {
         self?.model.toast = nil
       }

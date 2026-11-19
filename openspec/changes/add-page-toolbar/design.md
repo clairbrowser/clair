@@ -153,7 +153,7 @@ The component takes its size from its container, so a future first-run screen ca
 ## Risks / Trade-offs
 
 - **[The runtime suite assumes the sidebar layout]** → Identifiers are kept (D4), so most tests pass in the new default.
-  - `testWindowLayout` and `testWindowControlsStayInPlace` check the toolbar layout by default, and a toolbar-off case sets the preference with `defaults write` before launch, as `ClairRestoreWindows` does.
+  - `NativeWindowStructureTests/testBrowserWindowLayout` checks the toolbar layout by default, and a toolbar-off case sets the preference with `defaults write` before launch, as `ClairRestoreWindows` does. The card's frames and insets are `WindowContentTests`' unit tests.
   - New tests cover ⇧⌘D, the picker and toolbar anchors.
   - The PR runs `quality.yml` on its branch, as `CLAUDE.md` requires for views the suite drives.
 - **[Toolbar frames and sidebar frames both report through `AnchorFramesKey`]** → Separate tables per source (D6), so a hidden sidebar's stale frames can't win over the toolbar's.
