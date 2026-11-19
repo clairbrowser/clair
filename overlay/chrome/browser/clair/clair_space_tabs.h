@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_multi_source_observation.h"
@@ -281,6 +282,9 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
 
   // D6: records each tab's Space and index in the session where they changed.
   void WriteSessionTags(const std::string& space);
+  // D6: session restore has created every window of `profile`; the restored
+  // ranks have done their work.
+  void SessionRestored(Profile* profile, int tab_count);
   // Records `tab`'s tags in the session if they changed; `rank` is its index
   // in its Today list, or -1 for a bound tab.
   void WriteTabTags(tabs::TabInterface* tab,
@@ -302,6 +306,7 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   std::set<std::string> changed_spaces_;
   std::set<int32_t> changed_tabs_;
   bool flush_posted_ = false;
+  base::CallbackListSubscription session_restored_subscription_;
   base::ScopedMultiSourceObservation<infobars::InfoBarManager,
                                      infobars::InfoBarManager::Observer>
       infobar_observations_{this};
@@ -373,6 +378,14 @@ void Unpin(ClairBrowserWindow* window, const std::string& pin, int index);
 bool RestoreRemovedPin(ClairBrowserWindow* window);
 // Whether `window` has a removed pin to put back.
 bool HasRemovedPin(ClairBrowserWindow* window);
+// Restore Last Closed Tab in `window`, which may show a Space of another
+// profile than the tab or pin closed last (add-profiles D3): restores in the
+// group's member whose profile closed something last, which the group then
+// shows. Returns false when Chromium's own command should run in `window`.
+bool RestoreLastClosed(ClairBrowserWindow* window);
+// Whether Restore Last Closed Tab has anything to bring back in `window`'s
+// group.
+bool CanRestoreLastClosed(ClairBrowserWindow* window);
 // D7: whether `url` is on another site than `current`: another scheme or
 // host.
 bool IsOtherSite(const GURL& url, const GURL& current);
