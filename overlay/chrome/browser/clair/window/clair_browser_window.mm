@@ -2200,6 +2200,20 @@ void ClairBrowserWindow::WindowGeometryChanged() {
   if (!IsFullscreen() && !IsMinimized() && !ns_window_.zoomed) {
     restored_bounds_ = gfx::ScreenRectFromNSRect(ns_window_.frame);
   }
+  // The group's hidden members follow the shown one's frame. Session restore
+  // builds the window from the first profile it restores, which may be a
+  // hidden member's (add-profiles D6): without this, a window moved or
+  // resized while it showed another profile's Space came back at that
+  // member's old frame. A hidden member's own change goes no further.
+  ClairWindowGroup* group = ClairWindowGroup::Of(this);
+  if (group && group->shown() == this && !IsFullscreen() && !IsMinimized()) {
+    for (ClairBrowserWindow* member : group->members()) {
+      if (member != this &&
+          !NSEqualRects(member->ns_window().frame, ns_window_.frame)) {
+        [member->ns_window() setFrame:ns_window_.frame display:NO];
+      }
+    }
+  }
   if (!IsFullscreen() && chrome::ShouldSaveWindowPlacement(browser_)) {
     chrome::SaveWindowPlacement(browser_, GetRestoredBounds(),
                                 GetWindowShowState());
