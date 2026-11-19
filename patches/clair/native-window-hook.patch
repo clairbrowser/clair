@@ -436,18 +436,6 @@
      return;
    }
  
---- a/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
-+++ b/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
-@@ -160,7 +160,8 @@
-               }
-               BrowserView* browser_view =
-                   BrowserView::GetBrowserViewForBrowser(browser_interface);
--              if (!browser_view->toolbar()) {
-+              // Clair: a native window has no BrowserView.
-+              if (!browser_view || !browser_view->toolbar()) {
-                 return;
-               }
-               ExtensionsToolbarDesktop* extensions_toolbar =
 --- a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
 +++ b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
 @@ -9,6 +9,7 @@
@@ -469,9 +457,9 @@
        CHECK_IS_TEST();
      }
      return;  // IN-TEST
---- a/chrome/browser/ui/BUILD.gn
-+++ b/chrome/browser/ui/BUILD.gn
-@@ -3340,6 +3340,57 @@
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -4541,6 +4541,57 @@
    }
  
    if (is_mac) {
@@ -527,28 +515,28 @@
 +    cflags_objcc = [ "-Werror=protocol" ]
 +
      deps += [
-       ":browser_commands_mac",
-       ":browser_commands_mac_impl",
+       ":app_controller_mac",
+       ":chrome_browser_application_mac",
+
 --- a/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc
 +++ b/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc
-@@ -301,10 +301,13 @@
-     ui::TrackedElement* const browser_element =
-         ui::ElementTracker::GetElementTracker()->GetUniqueElement(
-             kBrowserViewElementId, context);
--    CHECK(browser_element);
--    ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
--        browser_element,
--        browsing_data_important_sites_util::kClearBrowsingDataHistoryEventId);
-+    // Clair: a native window has no BrowserView element. Skip the event, as
-+    // Chromium's other users of kBrowserViewElementId do.
-+    if (browser_element) {
-+      ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
-+          browser_element,
-+          browsing_data_important_sites_util::kClearBrowsingDataHistoryEventId);
-+    }
-   }
+@@ -88,9 +88,12 @@
+   ui::TrackedElement* const browser_element =
+       ui::ElementTracker::GetElementTracker()->GetUniqueElement(
+           kBrowserViewElementId, context);
+-  CHECK(browser_element);
+-  ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(browser_element,
+-                                                                event_type);
++  // Clair: a native window has no BrowserView element. Skip the event, as
++  // Chromium's other users of kBrowserViewElementId do.
++  if (browser_element) {
++    ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
++        browser_element, event_type);
++  }
+ }
  
-   ResolveJavascriptCallback(base::Value(webui_callback_id), result);
+ }  // namespace
+
 --- a/components/constrained_window/constrained_window_views.cc
 +++ b/components/constrained_window/constrained_window_views.cc
 @@ -30,6 +30,10 @@
