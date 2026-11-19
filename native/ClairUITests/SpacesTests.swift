@@ -5,6 +5,7 @@
 import AppKit
 import ClairHost
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import ClairUI
@@ -326,6 +327,30 @@ struct SpaceActionsTests {
     #expect(controller.model.newSpaceForm == nil)
     #expect(host.spaces.count == 1)
     #expect(browser.shownSpaceID == FakeHost.homeID)
+  }
+
+  /// Esc in the form, from its focused name field, cancels through SwiftUI's
+  /// exit command.
+  @Test func escInTheFormCreatesNothing() throws {
+    let (host, _, controller) = spacesWindow()
+    controller.beginNewSpace()
+    controller.model.newSpaceForm?.name = "Nope"
+    let form = NSHostingView(rootView: NewSpaceFormView(model: controller.model, actions: controller))
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 260, height: 600), styleMask: [.titled], backing: .buffered,
+      defer: false)
+    window.contentView = form
+    window.makeKeyAndOrderFront(nil)
+    defer { window.orderOut(nil) }
+    // The form focuses its name field once it appears.
+    RunLoop.main.run(until: .now + 0.5)
+    let escape = NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
+      context: nil, characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}", isARepeat: false, keyCode: 53)
+    window.sendEvent(try #require(escape))
+    RunLoop.main.run(until: .now + 0.2)
+    #expect(controller.model.newSpaceForm == nil)
+    #expect(host.spaces.count == 1)
   }
 
   @Test func renamingIgnoresAnEmptyName() {
