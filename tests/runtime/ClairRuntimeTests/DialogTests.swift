@@ -30,7 +30,8 @@ final class DialogTests: NativeWindowTestCase {
   }
 
   /// The install dialog is a sheet that blocks clicks and keys in its own
-  /// window only, and Return installs the extension and pins its button.
+  /// window only, and Add Extension installs the extension and pins its
+  /// button.
   func testInstallDialogBlocksItsWindowAndInstalls() async throws {
     let (browser, other) = try await startWithPage("index.html?other", arguments: Self.installArguments)
     let tab = try await browser.open(url("find.html"))
@@ -69,27 +70,29 @@ final class DialogTests: NativeWindowTestCase {
     XCTAssertEqual(keys, 0, "Typing behind the dialog reached the page")
     XCTAssertTrue(dialog.exists, "Typing closed the dialog")
 
-    // Another window still works.
+    // Another window still works. It's found by its frame: both windows list
+    // the Space's tabs.
+    let dialogWindowFrame = browser.nativeWindow.frame
     let second = try await browser.open(url("link.html"), newWindow: true)
     defer { second.close() }
-    // The window whose sidebar lists the link page.
-    let secondWindow = browser.ui.windows.containing(
-      NSPredicate(format: "identifier == 'clair.tabRow' AND label == 'Clair link page'")
-    ).firstMatch
-    try require(secondWindow.waitForExistence(timeout: 30), "The second window didn't open")
-    secondWindow.click()
-    secondWindow.typeKey("t", modifierFlags: .command)
-    let field = secondWindow.descendants(matching: .any).matching(identifier: "clair.commandBarField").firstMatch
-    XCTAssertTrue(field.waitForExistence(timeout: 10), "The other window doesn't respond while the dialog shows")
+    _ = try await browser.waitForNativeWindows(2)
+    let otherWindow = try XCTUnwrap(browser.nativeWindows.first { $0.frame != dialogWindowFrame })
+    otherWindow.click()
+    otherWindow.element.typeKey("t", modifierFlags: .command)
+    XCTAssertTrue(
+      otherWindow.element("clair.commandBarField").waitForExistence(timeout: 10),
+      "The other window doesn't respond while the dialog shows")
     browser.ui.typeKey(.escape, modifierFlags: [])
     XCTAssertTrue(dialog.exists, "Esc in the other window closed the dialog")
 
-    // Back in the dialog's window, Return installs, and the new extension's
-    // button is pinned.
-    browser.dialogButton("clair.dialogTitle").click()
-    browser.ui.typeKey(.return, modifierFlags: [])
+    // Closing the other window uncovers the dialog: Add Extension installs,
+    // and the new extension's button is pinned. (Return choosing it is
+    // ClairDialogTests.rolesMapToEscAndReturn.)
+    otherWindow.element.buttons[XCUIIdentifierCloseWindow].click()
+    _ = try await browser.waitForNativeWindows(1)
+    browser.dialogButton("clair.dialogDefault").click()
     let installed = browser.element("clair.extensionAction").waitForExistence(timeout: 30)
-    XCTAssertTrue(installed, "Return didn't install the extension")
+    XCTAssertTrue(installed, "Add Extension didn't install the extension")
     XCTAssertFalse(browser.dialog.exists, "The dialog stayed open")
   }
 

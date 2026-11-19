@@ -436,20 +436,20 @@ final class PermissionPromptTests: NativeWindowTestCase {
     XCTAssertTrue(answered, "Choosing \(button) didn't give \(result)")
   }
 
-  /// The prompt stays on screen with the sidebar shown and hidden (#93).
+  /// The prompt stays on screen with the sidebar shown and hidden (#93). The
+  /// second prompt comes from another origin, which hasn't been asked.
   func testPromptWithTheSidebarShownAndHidden() async throws {
     let (browser, tab) = try await startWithPage("notify.html")
     defer { tab.close() }
     try await ask(browser, tab, choose: "Allow", expect: "granted")
 
-    // Forget the answer, so the page asks again.
-    let session = try await browser.browserSession()
-    try await session.send("Browser.resetPermissions")
-    session.close()
+    let port = URL(string: fixture.baseURL)?.port ?? 80
+    let other = try await browser.open("http://127.0.0.1:\(port)/pages/notify.html")
+    defer { other.close() }
     browser.ui.typeKey("s", modifierFlags: .command)
     let hidden = await Harness.wait(for: 10) { !browser.isSidebarInWindow }
     try require(hidden, "Cmd+S didn't hide the sidebar")
-    try await ask(browser, tab, choose: "Block", expect: "denied")
+    try await ask(browser, other, choose: "Block", expect: "denied")
   }
 }
 
