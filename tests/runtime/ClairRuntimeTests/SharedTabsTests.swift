@@ -387,44 +387,6 @@ final class SharedTabsTests: NativeWindowTestCase {
     XCTAssertFalse(windowA.element("clair.peek").exists, "A's still shows the Peek")
   }
 
-  func testClosingAWindowKeepsItsTabs() async throws {
-    let (browser, windowA, _, a, b) = try await startWithTwoWindows()
-    defer {
-      a.close()
-      b.close()
-    }
-    // B also holds a page that asks before it closes, armed by a click.
-    let asking = try await browser.open(url("beforeunload.html"))
-    defer { asking.close() }
-    _ = try await asking.evaluate("document.body.id = 'body'; 1")
-    try await asking.click("body")
-    _ = try await b.evaluate("window.counter = 3; 1")
-
-    // Closing B keeps its tabs in A, without asking.
-    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-    _ = try await browser.waitForNativeWindows(1)
-    XCTAssertFalse(browser.ui.buttons["Leave"].waitForExistence(timeout: 3), "Closing B asked about a page")
-    let kept = await windowA.waitForTabs { $0.contains("Counter b") && $0.contains("Clair leave page") }
-    XCTAssertTrue(kept, "A doesn't list B's tabs: \(windowA.tabTitles)")
-    windowA.tabRow("Counter b")?.click()
-    _ = await windowA.waitForActiveRow("Counter b")
-    let count = try await count(b)
-    XCTAssertEqual(count, 3, "B's tab reloaded")
-
-    // Closing the last window closes its tabs; Reopen Closed Window brings
-    // them back.
-    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-    let leave = browser.ui.buttons["Leave"]
-    if leave.waitForExistence(timeout: 10) {
-      leave.click()
-    }
-    let closed = await browser.waitForTarget("?b", open: false, seconds: 30)
-    try require(closed, "Closing the last window didn't close its tabs")
-    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
-    let back = await browser.waitForTarget("?b", seconds: 30)
-    XCTAssertTrue(back, "Reopen Closed Window didn't bring the tabs back")
-  }
-
   func testQuittingWithAStill() async throws {
     let (browser, windowA, windowB, a, b) = try await startWithTwoWindows()
     windowB.tabRow("Counter a")?.click()

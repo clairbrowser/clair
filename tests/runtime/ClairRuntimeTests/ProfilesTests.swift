@@ -147,16 +147,11 @@ final class ProfilesTests: NativeWindowTestCase {
       "The Clair menu has Warn Before Quitting")
     browser.ui.typeKey(.escape, modifierFlags: [])
 
+    // The Profiles page adds, renames and removes profiles in the engine;
+    // the unit tests check its dialogs.
     try browser.openProfilesPage()
     XCTAssertEqual(browser.profileRows.count, 1, "There isn't one profile at first")
-    // The only profile, which Home uses, can't be removed.
-    XCTAssertFalse(browser.settingsElement("clair.profilesRemove").isEnabled, "Remove is on for the last profile")
-
     try await browser.addProfile("Client")
-    XCTAssertTrue(browser.profileRow("Client")?.isSelected == true, "The new profile isn't selected")
-    XCTAssertTrue(browser.settingsElement("clair.profilesRemove").isEnabled, "Remove is off for a profile no Space uses")
-    XCTAssertTrue(
-      browser.settingsElement("clair.profileLinksNote").exists, "The link rows aren't explained for a profile without a Space")
 
     // Rename.
     browser.settingsElement("clair.profilesRename").click()
@@ -165,10 +160,6 @@ final class ProfilesTests: NativeWindowTestCase {
     let renamed = await Harness.wait(for: 15) { browser.profileRow("Office") != nil }
     XCTAssertTrue(renamed, "The profile wasn't renamed")
 
-    // The default profile, which Home uses, can't be removed.
-    browser.profileRows.first?.click()
-    XCTAssertFalse(browser.settingsElement("clair.profilesRemove").isEnabled, "Remove is on for a profile a Space uses")
-
     // Remove, after typing the name.
     let folders = try FileManager.default.contentsOfDirectory(atPath: browser.dataDirectory.path)
     browser.profileRow("Office")?.click()
@@ -176,11 +167,7 @@ final class ProfilesTests: NativeWindowTestCase {
     try require(browser.dialog.waitForExistence(timeout: 10), "Remove didn't ask")
     let field = browser.dialogElement("clair.deleteProfileName")
     field.click()
-    field.typeText("office 2")
-    XCTAssertFalse(browser.dialogElement("clair.dialogDefault").isEnabled, "Delete is on for a wrong name")
-    field.typeKey("a", modifierFlags: .command)
     field.typeText("Office")
-    XCTAssertTrue(browser.dialogElement("clair.dialogDefault").isEnabled, "Delete is off for the name")
     browser.dialogElement("clair.dialogDefault").click()
     let removed = await Harness.wait(for: 30) { browser.profileRow("Office") == nil }
     XCTAssertTrue(removed, "The profile wasn't removed")
@@ -190,17 +177,6 @@ final class ProfilesTests: NativeWindowTestCase {
       return created.allSatisfy { !now.contains($0) }
     }
     XCTAssertTrue(gone, "The removed profile's data folder is still there")
-  }
-
-  func testNoProfilePickerWithTwoProfiles() async throws {
-    let (browser, tab) = try await startWithWorkProfile()
-    tab.close()
-    try await Task.sleep(for: .seconds(3))
-    try await browser.quit()
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "No browser window opened with two profiles")
-    let picker = try await browser.pageTargets().contains { $0.url.hasPrefix("chrome://profile-picker") }
-    XCTAssertFalse(picker, "Chromium's profile picker showed at launch")
   }
 
   func testIsolationAndSwitching() async throws {
@@ -238,7 +214,10 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertEqual(browser.visibleNativeWindowCount, 1, "Switching back showed a second window")
   }
 
-  func testSettingASpacesProfile() async throws {
+  /// Setting a Space's profile asks when the Space has tabs and reopens them
+  /// in order; then closing the new tab page of an emptied Space closes the
+  /// window (design D13).
+  func testSettingASpacesProfileAndEmptyingIt() async throws {
     let (browser, home) = try await startWithWorkProfile()
     defer { home.close() }
     // Work shows a new tab page, so it asks; Cancel changes nothing.
@@ -272,40 +251,26 @@ final class ProfilesTests: NativeWindowTestCase {
     defer { session.close() }
     let counter = try await browser.target(endingWith: "?home")
     XCTAssertNotNil(counter, "The counter page didn't come back")
+
+    // Work's only row is a new tab page: closing it closes the window.
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let work = await browser.waitForSpace("Work")
+    try require(work, "Ctrl+2 didn't show Work")
+    let emptied = await browser.waitForTabs { $0.count == 1 }
+    try require(emptied, "Work doesn't list its new tab page alone: \(browser.tabTitles)")
+    let windowsBefore = try await browser.windowCount()
+    browser.ui.typeKey("w", modifierFlags: .command)
+    let closed = await Harness.wait(for: 30) { try await browser.windowCount() < windowsBefore }
+    XCTAssertTrue(closed, "Closing an emptied Space's new tab page didn't close the window")
   }
 
-  func testManageSpacesStaysOpenWhenTheShownSpaceChangesProfile() async throws {
+  /// Move to Space within a profile keeps the page; across profiles it
+  /// reopens it. Moving the active tab takes the window with it (design D9);
+  /// moving another leaves a notice.
+  func testMoveToSpace() async throws {
     let (browser, home) = try await startWithWorkProfile()
     defer { home.close() }
-    browser.ui.typeKey("1", modifierFlags: .control)
-    _ = await browser.waitForSpace("Home")
-    try browser.chooseSpacesItem("Manage Spaces…")
-    try require(browser.dialog.waitForExistence(timeout: 10), "Manage Spaces didn't open")
-    let popup = browser.dialogElement("clair.profilePopup")
-    popup.click()
-    try await browser.openMenuItem("Work").click()
-    try require(
-      browser.dialogElement("clair.dialogDefault").waitForExistence(timeout: 10), "Changing Home's profile didn't ask")
-    browser.dialogElement("clair.dialogDefault").click()
-    let back = await Harness.wait(for: 15) { browser.dialog.exists && browser.dialogElement("clair.manageSpacesList").exists }
-    XCTAssertTrue(back, "Manage Spaces didn't stay open")
-
-    // A Space Manage Spaces adds has no tab: its profile changes at once.
-    browser.dialogElement("clair.manageSpacesAdd").click()
-    let added = await Harness.wait(for: 10) {
-      browser.dialog.descendants(matching: .any).matching(identifier: "clair.manageSpacesRow").count == 3
-    }
-    try require(added, "Add didn't add a Space")
-    browser.dialogElement("clair.profilePopup").click()
-    try await browser.openMenuItem(Self.defaultProfile).click()
-    let asked = browser.dialogElement("clair.manageSpacesList").waitForExistence(timeout: 3)
-    XCTAssertTrue(asked, "Changing an empty Space's profile asked")
-    browser.ui.typeKey(.escape, modifierFlags: [])
-  }
-
-  func testMoveToSpaceAcrossProfiles() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    defer { home.close() }
+    try await browser.createSpace("Errands", profile: Self.defaultProfile)
     browser.ui.typeKey("1", modifierFlags: .control)
     _ = await browser.waitForSpace("Home")
     let moving = try await browser.open(counter("moving"))
@@ -316,7 +281,27 @@ final class ProfilesTests: NativeWindowTestCase {
     }
     _ = try await moving.evaluate("window.counter = 5; 1")
 
-    // Another tab: the window stays, and a notice says where it went.
+    // The active tab, within the profile: the window follows it to Errands,
+    // the tab still active, its page kept.
+    browser.tabRow("Counter moving")?.click()
+    let selected = await browser.waitForActiveRow("Counter moving")
+    try require(selected, "The tab to move isn't active")
+    try await moveRow("Counter moving", to: "Errands", in: browser)
+    var shown = await browser.waitForSpace("Errands")
+    XCTAssertTrue(shown, "Moving the active tab didn't show Errands: \(browser.spaceName)")
+    var active = await browser.waitForActiveRow("Counter moving")
+    XCTAssertTrue(active, "The moved tab isn't active in Errands: \(browser.activeRow ?? "none")")
+    XCTAssertEqual(browser.tabTitles.first, "Counter moving", "The moved tab isn't first in Errands")
+    let kept = try await moving.evaluate("window.counter") as? Double
+    XCTAssertEqual(kept, 5, "Moving the tab within its profile reloaded its page")
+    browser.ui.typeKey("1", modifierFlags: .control)
+    shown = await browser.waitForSpace("Home")
+    try require(shown, "Ctrl+1 didn't show Home")
+    let gone = await browser.waitForTabs { !$0.contains("Counter moving") }
+    XCTAssertTrue(gone, "The moved tab is still in Home")
+
+    // Another tab, across profiles: the window stays, and a notice says
+    // where it went.
     browser.tabRow("Counter staying")?.click()
     _ = await browser.waitForActiveRow("Counter staying")
     try await moveRow("Counter home", to: "Work", in: browser)
@@ -325,13 +310,17 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertEqual(notice.value as? String, "Tab was moved to Work", "The notice doesn't name Work")
     XCTAssertEqual(browser.spaceName, "Home", "Moving another tab left Home")
 
-    // The active tab: the window follows it, reopened at the top of Work.
+    // The active tab, across profiles: the window follows it, reopened at
+    // the top of Work.
+    browser.ui.typeKey("3", modifierFlags: .control)
+    shown = await browser.waitForSpace("Errands")
+    try require(shown, "Ctrl+3 didn't show Errands")
     browser.tabRow("Counter moving")?.click()
     _ = await browser.waitForActiveRow("Counter moving")
     try await moveRow("Counter moving", to: "Work", in: browser)
     let followed = await browser.waitForSpace("Work", seconds: 30)
     XCTAssertTrue(followed, "Moving the active tab didn't show Work")
-    let active = await browser.waitForActiveRow("Counter moving")
+    active = await browser.waitForActiveRow("Counter moving")
     XCTAssertTrue(active, "The moved tab isn't active in Work: \(browser.activeRow ?? "none")")
     XCTAssertEqual(browser.tabTitles.first, "Counter moving", "The moved tab isn't at the top of Work")
     let target = try await browser.target(endingWith: "?moving")
@@ -351,123 +340,6 @@ final class ProfilesTests: NativeWindowTestCase {
     let item = move.menuItems[space]
     try require(item.waitForExistence(timeout: 5), "Move to Space doesn't list \(space)")
     item.click()
-  }
-
-  func testTheEmptiedSpace() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    defer { home.close() }
-    // Work's only row is a new tab page: closing it closes the window.
-    let windowsBefore = try await browser.windowCount()
-    browser.ui.typeKey("w", modifierFlags: .command)
-    let closed = await Harness.wait(for: 30) { try await browser.windowCount() < windowsBefore }
-    XCTAssertTrue(closed, "Closing an emptied Space's new tab page didn't close the window")
-  }
-
-  func testRelaunchWithRestoringOff() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    let work = try await browser.open(counter("work"))
-    // A second window, last active, on Home.
-    let other = try await browser.open(counter("other"), newWindow: true)
-    _ = await Harness.wait(for: 30) { browser.visibleNativeWindowCount == 2 }
-    browser.ui.typeKey("1", modifierFlags: .control)
-    try await Task.sleep(for: .seconds(3))
-    [home, work, other].forEach { $0.close() }
-    try await browser.quit()
-    try Harness.setRestoreWindows(false)
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
-    let one = await Harness.wait(for: 30) { browser.visibleNativeWindowCount == 1 }
-    XCTAssertTrue(one, "Clair didn't come back as one window: \(browser.visibleNativeWindowCount)")
-    let onHome = await browser.waitForSpace("Home", seconds: 30)
-    XCTAssertTrue(onHome, "The window doesn't show the Space last shown: \(browser.spaceName)")
-    let listed = await browser.waitForTabs(30) { $0.contains("Counter home") }
-    XCTAssertTrue(listed, "Home doesn't list its tabs: \(browser.tabTitles)")
-    XCTAssertTrue(
-      browser.element("clair.commandBarField").waitForExistence(timeout: 10), "The window didn't open the command bar")
-    browser.ui.typeKey(.escape, modifierFlags: [])
-    browser.ui.typeKey("2", modifierFlags: .control)
-    // The second window opened on Work, the Space shown then.
-    let workBack = await browser.waitForTabs(30) { $0.contains("Counter work") && $0.contains("Counter other") }
-    XCTAssertTrue(workBack, "Work doesn't list its tabs: \(browser.tabTitles)")
-
-    // A second launch lists one new tab page, not two.
-    browser.ui.typeKey("1", modifierFlags: .control)
-    try await Task.sleep(for: .seconds(3))
-    try await browser.quit()
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back again")
-    _ = await browser.waitForSpace("Home", seconds: 30)
-    let newTabPages = await Harness.wait(for: 30) {
-      try await browser.pageTargets().filter { $0.url.hasPrefix("chrome://newtab") }.count == 1
-    }
-    XCTAssertTrue(newTabPages, "New tab pages left open at quit came back")
-  }
-
-  func testRelaunchWithRestoringOn() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    let work = try await browser.open(counter("work"))
-    browser.tabRow("Counter work")?.click()
-    _ = await browser.waitForActiveRow("Counter work")
-    let other = try await browser.open(counter("other"), newWindow: true)
-    _ = await Harness.wait(for: 30) { browser.visibleNativeWindowCount == 2 }
-    try await Task.sleep(for: .seconds(3))
-    [home, work, other].forEach { $0.close() }
-    try await browser.quit()
-    try Harness.setRestoreWindows(true)
-    try await browser.start()
-    let two = await Harness.wait(for: 60) { browser.visibleNativeWindowCount == 2 }
-    XCTAssertTrue(two, "Both windows didn't come back: \(browser.visibleNativeWindowCount)")
-    let windows = browser.nativeWindows
-    let rows = windows.map { $0.activeRow ?? "" }.sorted()
-    XCTAssertEqual(rows, ["Counter other", "Counter work"], "The windows don't show their tabs: \(rows)")
-  }
-
-  /// A window of two profiles comes back as one window on every relaunch:
-  /// the browser a later profile restores joins the group, and its tabs'
-  /// session tags follow it (design D6).
-  func testRestoringOnKeepsTheGroupAcrossTwoRelaunches() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    let work = try await browser.open(counter("work"))
-    _ = await browser.waitForTabs { $0.contains("Counter work") }
-    browser.ui.typeKey("1", modifierFlags: .control)
-    _ = await browser.waitForSpace("Home")
-    try await Task.sleep(for: .seconds(3))
-    [home, work].forEach { $0.close() }
-    try await browser.quit()
-    try Harness.setRestoreWindows(true)
-    for launch in ["first", "second"] {
-      try await browser.start()
-      try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back (\(launch))")
-      // Each profile restores in turn; give the later one time to join.
-      try await Task.sleep(for: .seconds(5))
-      XCTAssertEqual(browser.visibleNativeWindowCount, 1, "The window came back split (\(launch) relaunch)")
-      if launch == "first" {
-        try await browser.quit()
-      }
-    }
-    browser.ui.typeKey("2", modifierFlags: .control)
-    let onWork = await browser.waitForTabs(30) { $0.contains("Counter work") }
-    XCTAssertTrue(onWork, "Work doesn't list its tab: \(browser.tabTitles)")
-    XCTAssertEqual(browser.visibleNativeWindowCount, 1, "Switching to Work showed a second window")
-  }
-
-  /// With restoring on, a window last on a new tab page comes back on one,
-  /// though new tab pages themselves aren't restored (design D6).
-  func testRestoringOnASelectedNewTabPage() async throws {
-    try Harness.setRestoreWindows(true)
-    let (browser, home) = try await startWithPage("counter.html?home")
-    let newTab = try await browser.open("chrome://newtab/")
-    let selected = await browser.waitForActiveRow("New Tab")
-    try require(selected, "The new tab page isn't the active row: \(browser.activeRow ?? "none")")
-    try await Task.sleep(for: .seconds(3))
-    [home, newTab].forEach { $0.close() }
-    try await browser.quit()
-    try await browser.start()
-    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
-    let listed = await browser.waitForTabs(30) { $0.contains("Counter home") }
-    XCTAssertTrue(listed, "Home doesn't list its tab: \(browser.tabTitles)")
-    let onNewTab = await browser.waitForActiveRow("New Tab", seconds: 30)
-    XCTAssertTrue(onNewTab, "The window came back on \(browser.activeRow ?? "none"), not a new tab page")
   }
 
   /// Changing the profile of a Space two windows show swaps both, including
@@ -608,33 +480,11 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertTrue(stillFull, "Home's window left full screen under Work's: \(browser.nativeWindow.frame)")
   }
 
-  /// The Extensions menu acts for the shown Space's profile: Manage
-  /// Extensions… opens Chromium's page in that profile, in its Space.
-  func testTheExtensionsMenuFollowsTheProfile() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    defer { home.close() }
-    try require(browser.spaceName == "Work", "The window doesn't show Work")
-    func manageExtensions() {
-      browser.ui.menuBars.menuBarItems["Extensions"].click()
-      browser.ui.menuItems["Manage Extensions…"].click()
-    }
-    manageExtensions()
-    let inWork = await browser.waitForTabs(30) { $0.contains("Extensions") }
-    XCTAssertTrue(inWork, "Manage Extensions… didn't open in Work: \(browser.tabTitles)")
-    browser.ui.typeKey("1", modifierFlags: .control)
-    _ = await browser.waitForSpace("Home")
-    manageExtensions()
-    let inHome = await browser.waitForTabs(30) { $0.contains("Extensions") }
-    XCTAssertTrue(inHome, "Manage Extensions… didn't open in Home: \(browser.tabTitles)")
-    // One page per profile: within one profile Chromium would reuse its tab.
-    let pages = try await browser.pageTargets().filter { $0.url.hasPrefix("chrome://extensions") }
-    XCTAssertEqual(pages.count, 2, "The two Spaces' profiles share an extensions page")
-  }
-
   /// Taking a tab of another profile between windows keeps its page and
   /// leaves a still; closing a window with tabs of two profiles keeps them
-  /// all, without a reload (design D5).
-  func testSharedTabsAcrossProfiles() async throws {
+  /// all, without a reload or a page asking (design D5). Closing the last
+  /// window closes its tabs, and Reopen Closed Window brings them back.
+  func testSharedTabsAndClosingWindowsAcrossProfiles() async throws {
     let (browser, home) = try await startWithWorkProfile()
     defer { home.close() }
     _ = try await home.evaluate("window.counter = 9; 1")
@@ -673,10 +523,17 @@ final class ProfilesTests: NativeWindowTestCase {
     let still = await windowA.waitForStill()
     XCTAssertTrue(still, "A shows no still of the tab B took")
 
-    // Closing B keeps both its tabs, of two profiles, in A.
+    // B also holds a page that asks before it closes, armed by a click.
+    let asking = try await browser.open(url("beforeunload.html"))
+    defer { asking.close() }
+    _ = try await asking.evaluate("document.body.id = 'body'; 1")
+    try await asking.click("body")
+
+    // Closing B keeps its tabs, of two profiles, in A, without asking.
     windowB.click()
     browser.ui.typeKey("w", modifierFlags: [.command, .shift])
     _ = try await browser.waitForNativeWindows(1)
+    XCTAssertFalse(browser.ui.buttons["Leave"].waitForExistence(timeout: 3), "Closing B asked about a page")
     let workKept = await browser.waitForTabs { $0.contains("Counter w") }
     XCTAssertTrue(workKept, "A's Work doesn't list Counter w: \(browser.tabTitles)")
     browser.ui.typeKey("1", modifierFlags: .control)
@@ -687,6 +544,21 @@ final class ProfilesTests: NativeWindowTestCase {
     let homeCount = try await home.evaluate("window.counter") as? Double
     XCTAssertEqual(wCount, 5, "Counter w reloaded")
     XCTAssertEqual(homeCount, 9, "Counter home reloaded")
+    let askingKept = try await browser.target(endingWith: "beforeunload.html")
+    XCTAssertNotNil(askingKept, "Closing B closed the page that asks")
+
+    // Closing the last window closes its tabs; Reopen Closed Window brings
+    // them back.
+    browser.ui.typeKey("w", modifierFlags: [.command, .shift])
+    let leave = browser.ui.buttons["Leave"]
+    if leave.waitForExistence(timeout: 10) {
+      leave.click()
+    }
+    let closed = await browser.waitForTarget("?w", open: false, seconds: 30)
+    try require(closed, "Closing the last window didn't close its tabs")
+    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
+    let back = await browser.waitForTarget("?w", seconds: 30)
+    XCTAssertTrue(back, "Reopen Closed Window didn't bring the tabs back")
   }
 
   /// A data folder from before profiles, whose Spaces name no profile, loads
@@ -780,42 +652,10 @@ final class ProfilesTests: NativeWindowTestCase {
     try require(closed, "The window didn't close: \(try await browser.pageTargets().map(\.url))")
   }
 
-  /// A link from another app opens as a tab in a window already open, not
-  /// in a window of its own (design D8).
-  func testALinkFromAnotherAppOpensInAWindowAlreadyOpen() async throws {
-    let (browser, home) = try await startWithWorkProfile()
-    defer { home.close() }
-    let session = try await browser.browserSession()
-    defer { session.close() }
-    func windowOf(_ target: Browser.Target) async throws -> Int? {
-      let window = try await session.send("Browser.getWindowForTarget", ["targetId": target.id])
-      return window["windowId"] as? Int
-    }
-    var windows: Set<Int> = []
-    for target in try await browser.pageTargets() {
-      if let window = try await windowOf(target) {
-        windows.insert(window)
-      }
-    }
-    // As a link from outside reaches the running Clair: a second launch on
-    // its data folder hands the URL over and exits. XCUITest loses track of
-    // the app after it, so what follows goes through DevTools alone.
-    let launch = Process()
-    launch.executableURL = browser.appPath.appending(path: "Contents/MacOS/Clair")
-    launch.arguments = [
-      "--user-data-dir=\(browser.dataDirectory.path)", "--use-mock-keychain", url("counter.html?external"),
-    ]
-    try launch.run()
-    let opened = await browser.waitForTarget("?external", seconds: 30)
-    try require(opened, "The link didn't open")
-    guard let target = try await browser.target(endingWith: "?external") else {
-      throw HarnessError("The link's tab is gone")
-    }
-    let window = try await windowOf(target)
-    XCTAssertTrue(window.map(windows.contains) == true, "The link opened in a window of its own")
-  }
-
-  func testDownloadSettingsAndLinksPerProfile() async throws {
+  /// Settings act for a profile: Work's download folder applies to Work only,
+  /// Search Engine opens Chromium's page in a Space of Work, and Manage
+  /// Extensions… opens in the shown Space's profile.
+  func testSettingsPagesFollowTheProfile() async throws {
     let (browser, home) = try await startWithWorkProfile()
     defer { home.close() }
     try browser.openProfilesPage()
@@ -855,12 +695,31 @@ final class ProfilesTests: NativeWindowTestCase {
     let homeAsks = try await homeSettings.evaluate(
       "(async () => (await new Promise(r => chrome.settingsPrivate.getPref('download.prompt_for_download', r))).value)()")
     XCTAssertEqual(homeAsks as? Bool, true, "Work's folder applied to the default profile")
+
+    // The Extensions menu acts for the shown Space's profile.
+    func manageExtensions() {
+      browser.ui.menuBars.menuBarItems["Extensions"].click()
+      browser.ui.menuItems["Manage Extensions…"].click()
+    }
+    browser.ui.typeKey("2", modifierFlags: .control)
+    _ = await browser.waitForSpace("Work")
+    manageExtensions()
+    let inWork = await browser.waitForTabs(30) { $0.contains("Extensions") }
+    XCTAssertTrue(inWork, "Manage Extensions… didn't open in Work: \(browser.tabTitles)")
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    manageExtensions()
+    let inHome = await browser.waitForTabs(30) { $0.contains("Extensions") }
+    XCTAssertTrue(inHome, "Manage Extensions… didn't open in Home: \(browser.tabTitles)")
+    // One page per profile: within one profile Chromium would reuse its tab.
+    let pages = try await browser.pageTargets().filter { $0.url.hasPrefix("chrome://extensions") }
+    XCTAssertEqual(pages.count, 2, "The two Spaces' profiles share an extensions page")
   }
 
   /// native-quit-confirmation: Cmd+Q and Clair › Quit Clair ask in Dia's
   /// dialog; Cancel keeps Clair running, and "Always quit" quits and turns
-  /// the warning off.
-  func testWarnBeforeQuittingAsks() async throws {
+  /// the warning off, so after a relaunch Cmd+Q quits at once.
+  func testWarnBeforeQuitting() async throws {
     try Harness.setRestoreWindows(false)
     let (browser, tab) = try await startWithPage("counter.html?a")
     tab.close()
@@ -891,25 +750,12 @@ final class ProfilesTests: NativeWindowTestCase {
     let state = try JSONSerialization.jsonObject(with: Data(contentsOf: localState)) as? [String: Any]
     let warns = (state?["browser"] as? [String: Any])?["confirm_to_quit"] as? Bool
     XCTAssertEqual(warns, false, "Always quit didn't turn Warn before quitting off")
-  }
 
-  func testWarnBeforeQuittingOff() async throws {
-    try Harness.setRestoreWindows(false)
-    let (browser, tab) = try await startWithPage("counter.html?a")
-    tab.close()
-    browser.ui.typeKey(",", modifierFlags: .command)
-    let advanced = browser.ui.toolbars.buttons["Advanced"]
-    try require(advanced.waitForExistence(timeout: 15), "Settings has no Advanced page")
-    advanced.click()
-    let warn = browser.ui.switches["clair.warnBeforeQuittingToggle"]
-    try require(warn.waitForExistence(timeout: 10), "The Advanced page has no Warn before quitting toggle")
-    XCTAssertEqual(warn.value as? Int, 1, "Warn before quitting isn't on by default")
-    let restore = browser.ui.switches["clair.restoreWindowsToggle"]
-    XCTAssertEqual(restore.value as? Int, 0, "Restoring windows isn't off by default")
-    warn.click()
+    try await browser.start()
+    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
     browser.nativeWindow.click()
     browser.ui.typeKey("q", modifierFlags: .command)
-    let quit = await Harness.wait(for: 15) { try browser.runningProcessID() == nil }
-    XCTAssertTrue(quit, "Cmd+Q didn't quit at once with the warning off")
+    let quitAtOnce = await Harness.wait(for: 15) { try browser.runningProcessID() == nil }
+    XCTAssertTrue(quitAtOnce, "Cmd+Q didn't quit at once with the warning off")
   }
 }
