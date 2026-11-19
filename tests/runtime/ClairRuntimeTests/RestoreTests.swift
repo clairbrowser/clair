@@ -48,6 +48,12 @@ final class RestoreTests: NativeWindowTestCase {
     try Harness.setRestoreWindows(true)
     let (browser, h1) = try await startWithPage("counter.html?h1")
     let h2 = try await browser.open(counter("h2"))
+    // A on the left, B on the right, at different sizes. Both fit the hosted
+    // runner's 1024×768 screen, which would clamp them, and A's sidebar
+    // stays clear of B. Each is sized while it shows Home: a window sized
+    // while it shows another profile's Space, and quit on it, comes back at
+    // the default frame (a known engine bug).
+    try await setBounds(of: h2, in: browser, ["left": 0, "top": 40, "width": 600, "height": 560])
     try await addWorkSpace(browser)
     var work: [DevToolsSession] = []
     for name in ["w1", "w2", "w3"] {
@@ -60,24 +66,19 @@ final class RestoreTests: NativeWindowTestCase {
     }
     let listed = await browser.waitForTabs { $0 == ["Counter w3", "Counter w2", "Counter w1"] }
     try require(listed, "Work doesn't list its three tabs: \(browser.tabTitles)")
-    // A on the left, B on the right, at different sizes. Both fit the hosted
-    // runner's 1024×768 screen, which would clamp them, and A's sidebar
-    // stays clear of B.
-    try await setBounds(of: work[1], in: browser, ["left": 0, "top": 40, "width": 600, "height": 560])
 
     // B opens on Work, then shows a new tab page in Home.
     let other = try await browser.open(counter("other"), newWindow: true)
     _ = try await browser.waitForNativeWindows(2)
-    try await setBounds(of: other, in: browser, ["left": 420, "top": 40, "width": 600, "height": 640])
+    browser.ui.typeKey("1", modifierFlags: .control)
+    let bHome = try await browser.open(counter("b-home"))
+    try await setBounds(of: bHome, in: browser, ["left": 420, "top": 40, "width": 600, "height": 640])
+    let newTab = try await browser.open("chrome://newtab/")
     try await Task.sleep(for: .seconds(1))
     let windows = try await windowsLeftToRight(browser, count: 2)
     let windowA = windows[0], windowB = windows[1]
-    let onWork = await windowB.waitForActiveRow("Counter other")
-    try require(onWork, "B doesn't show Counter other: \(windowB.activeRow ?? "none")")
-    browser.ui.typeKey("1", modifierFlags: .control)
     let bOnHome = await Harness.wait(for: 15) { windowB.spaceName == "Home" }
     try require(bOnHome, "B didn't switch to Home")
-    let newTab = try await browser.open("chrome://newtab/")
     let onNewTab = await windowB.waitForActiveRow("New Tab")
     try require(onNewTab, "B isn't on its new tab page: \(windowB.activeRow ?? "none")")
     let homeRows = windowB.tabTitles.filter { $0 != "New Tab" }
@@ -92,7 +93,7 @@ final class RestoreTests: NativeWindowTestCase {
 
     // Let session restore write the tabs and the windows' bounds.
     try await Task.sleep(for: .seconds(3))
-    ([h1, h2, other, newTab] + work).forEach { $0.close() }
+    ([h1, h2, other, bHome, newTab] + work).forEach { $0.close() }
     try await browser.quit()
     try await browser.start()
 
