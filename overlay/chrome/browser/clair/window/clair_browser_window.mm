@@ -1743,8 +1743,9 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
     }
     case IDC_RESTORE_TAB:
       // add-pinned-tabs-and-favorites D3: a pin removed after the last tab
-      // Chromium would reopen comes back first.
-      return clair::RestoreRemovedPin(this);
+      // Chromium would reopen comes back first. add-profiles D3: what closed
+      // last in any of the group's profiles comes back.
+      return clair::RestoreLastClosed(this);
     case IDC_CLOSE_WINDOW:
       // The user closes the window: its tabs may move to another
       // (share-tabs-across-windows D4).
@@ -2335,6 +2336,22 @@ gfx::Rect ClairBrowserWindow::GetBounds() const {
 }
 
 void ClairBrowserWindow::Show() {
+  // The window took its frame in the constructor, before the session tracked
+  // it, and WindowGeometryChanged() records only changes: record it once, or
+  // a restored window that isn't moved quits with no frame in the session
+  // and comes back at the default one on the next launch. Hidden members of
+  // a group record theirs too, since session restore builds the window from
+  // whichever profile it restores first (add-profiles D6).
+  if (!placement_recorded_) {
+    placement_recorded_ = true;
+    if (chrome::ShouldSaveWindowPlacement(browser_)) {
+      chrome::SaveWindowPlacement(
+          browser_, GetRestoredBounds(),
+          initial_show_state_ == ui::mojom::WindowShowState::kDefault
+              ? ui::mojom::WindowShowState::kNormal
+              : initial_show_state_);
+    }
+  }
   // add-profiles D6: session restore's windows wait until it has finished.
   if (ClairWindowGroup::HoldsShow(this)) {
     return;

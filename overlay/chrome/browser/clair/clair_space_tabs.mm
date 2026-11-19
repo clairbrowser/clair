@@ -30,11 +30,13 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profiles_state.h"
+#include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ssl/chrome_security_state_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -618,6 +620,11 @@ ClairSpaceTabs::ClairSpaceTabs(Profile* profile) : profile_(profile) {
   }
   Instances().insert(this);
   clair::ClairPinStore::Get()->AddObserver(this);
+  if (!profile->IsOffTheRecord()) {
+    session_restored_subscription_ =
+        SessionRestore::RegisterOnSessionRestoredCallback(base::BindRepeating(
+            &ClairSpaceTabs::SessionRestored, base::Unretained(this)));
+  }
 }
 
 ClairSpaceTabs::~ClairSpaceTabs() {
@@ -1571,16 +1578,35 @@ void ClairSpaceTabs::WriteSessionTags(const std::string& space) {
   }
   SessionService* service =
       SessionServiceFactory::GetForProfileIfExisting(profile_);
+  // Restored ranks have done their work once the list is written, unless
+  // session restore is still creating windows: a later window's tabs find
+  // their places among these by comparing ranks, which skip the new tab pages
+  // and Peeks it dropped, so they can't be compared with indexes here.
+  const bool restoring = SessionRestore::IsRestoring(profile_);
   int index = 0;
   for (const tabs::TabHandle& handle : list->second) {
     tabs::TabInterface* tab = handle.Get();
     if (!tab) {
       continue;
     }
-    // Restored ranks have done their work once the list is written.
-    EnsureTag(tab->GetContents())->rank.reset();
+    if (!restoring) {
+      EnsureTag(tab->GetContents())->rank.reset();
+    }
     WriteTabTags(tab, service, space, index);
     ++index;
+  }
+}
+
+void ClairSpaceTabs::SessionRestored(Profile* profile, int tab_count) {
+  if (profile != profile_) {
+    return;
+  }
+  for (const auto& [space, list] : lists_) {
+    for (const tabs::TabHandle& handle : list) {
+      if (tabs::TabInterface* tab = handle.Get()) {
+        EnsureTag(tab->GetContents())->rank.reset();
+      }
+    }
   }
 }
 
@@ -2530,6 +2556,80 @@ bool HasRemovedPin(ClairBrowserWindow* window) {
   return lists && lists->is_regular() &&
          ClairPinStore::Get()->NewestRemoval(
              ClairProfiles::IDOf(lists->profile()));
+}
+
+namespace {
+
+// When `window`'s profile last closed something Restore Last Closed Tab
+// brings back: a tab or window Chromium keeps, or a removed pin.
+std::optional<base::Time> NewestClosed(ClairBrowserWindow* window) {
+  ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
+  if (!lists || !lists->is_regular()) {
+    return std::nullopt;
+  }
+  std::optional<base::Time> newest;
+  if (sessions::TabRestoreService* service =
+          TabRestoreServiceFactory::GetForProfile(lists->profile());
+      service && !service->entries().empty()) {
+    newest = service->entries().front()->timestamp;
+  }
+  if (const ClairPinStore::Removal* removal = ClairPinStore::Get()->NewestRemoval(
+          ClairProfiles::IDOf(lists->profile()));
+      removal && (!newest || removal->time > *newest)) {
+    newest = removal->time;
+  }
+  return newest;
+}
+
+// The member of `window`'s group whose profile closed something last, or
+// `window` itself.
+ClairBrowserWindow* MemberToRestoreIn(ClairBrowserWindow* window) {
+  ClairWindowGroup* group = ClairWindowGroup::Of(window);
+  if (!group || !group->is_regular()) {
+    return window;
+  }
+  ClairBrowserWindow* target = window;
+  std::optional<base::Time> newest = NewestClosed(window);
+  for (ClairBrowserWindow* member : group->members()) {
+    if (member == window) {
+      continue;
+    }
+    if (std::optional<base::Time> closed = NewestClosed(member);
+        closed && (!newest || *closed > *newest)) {
+      newest = closed;
+      target = member;
+    }
+  }
+  return target;
+}
+
+}  // namespace
+
+bool RestoreLastClosed(ClairBrowserWindow* window) {
+  ClairBrowserWindow* target = MemberToRestoreIn(window);
+  if (RestoreRemovedPin(target)) {
+    return true;
+  }
+  if (target == window) {
+    return false;
+  }
+  // The restored tab's context shows its browser, a hidden member, which
+  // the group switches to (ClairBrowserWindow::Show()).
+  chrome::RestoreTab(target->browser());
+  return true;
+}
+
+bool CanRestoreLastClosed(ClairBrowserWindow* window) {
+  ClairWindowGroup* group = ClairWindowGroup::Of(window);
+  if (!group) {
+    return HasRemovedPin(window);
+  }
+  for (ClairBrowserWindow* member : group->members()) {
+    if (NewestClosed(member)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool IsOtherSite(const GURL& url, const GURL& current) {

@@ -200,8 +200,9 @@ bool ExecuteCommand(ClairBrowserWindow* window,
       break;
     case IDC_RESTORE_TAB:
       // add-pinned-tabs-and-favorites D3: a removed pin can come back though
-      // Chromium has no tab to reopen.
-      enable |= clair::HasRemovedPin(browser_window);
+      // Chromium has no tab to reopen; add-profiles D3: so can what another
+      // profile of the window's group closed.
+      enable |= clair::CanRestoreLastClosed(browser_window);
       break;
     case IDC_BACK:
     case IDC_DUPLICATE_TAB:

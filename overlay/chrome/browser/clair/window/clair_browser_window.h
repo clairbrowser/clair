@@ -715,6 +715,8 @@ class ClairBrowserWindow : public BrowserWindow {
   bool hands_over_ = false;
   // add-profiles D6: the command bar opens when the window next becomes key.
   bool command_bar_when_key_ = false;
+  // Whether Show() recorded the frame the window was created at.
+  bool placement_recorded_ = false;
   // The show state session restore asked for, applied when first shown.
   ui::mojom::WindowShowState initial_show_state_ =
       ui::mojom::WindowShowState::kDefault;
