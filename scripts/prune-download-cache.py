@@ -6,7 +6,7 @@ Node.js, the Chromium archive), and the old archives would otherwise stay in
 the cache for good. Run by build.sh's prepare stage once the current resources
 are retrieved:
 
-    prune_download_cache.py <ungoogled utils dir> <cache dir> <downloads.ini>...
+    prune-download-cache.py <ungoogled utils dir> <cache dir> <downloads.ini>...
 
 Keeps every file an INI names as its download_filename or as the hash file of
 its hash_url, and every directory (resource_stamps holds the clone state).

@@ -223,6 +223,6 @@ Measured with `du` in the same workspace after the full compile:
 | Whole workspace | about 38 GB |
 | Published engine zip | 164 MB |
 
-`prepare` deletes the files in `build/download_cache` that neither ungoogled-chromium's `downloads.ini` nor `downloads-arm64.ini` names any more (`utils/prune_download_cache.py`), so the archives an engine update replaces, such as an old Rust nightly or Chromium source archive, don't pile up. Everything under `build/src/out` is deleted whenever `prepare` runs.
+`prepare` deletes the files in `build/download_cache` that neither ungoogled-chromium's `downloads.ini` nor `downloads-arm64.ini` names any more (`scripts/prune-download-cache.py`), so the archives an engine update replaces, such as an old Rust nightly or Chromium source archive, don't pile up. Everything under `build/src/out` is deleted whenever `prepare` runs.
 
 `build/base`, the pristine clone kept by `build.sh -k`, shares its blocks with `build/src` through APFS and adds only the files Clair's layer changes, but `du` counts it in full. `engine.yml` sizes the workspace without it and allows 50 GB for a fresh tree, plus the 30 GB reserve. That estimate is generous for an incremental build: when it refuses one, `gh workflow run engine.yml -f ref=<branch> -f skip_free_space_check=true` skips the check, and the build still stops if free space falls below 10 GB.

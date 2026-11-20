@@ -1,5 +1,5 @@
 #!/bin/bash
-# Tests for utils/prune_download_cache.py, which build.sh's prepare stage runs
+# Tests for scripts/prune-download-cache.py, which build.sh's prepare stage runs
 # to delete old downloads from build/download_cache. Run directly:
 # ./scripts/prune-download-cache.test.sh
 #
@@ -9,7 +9,7 @@
 set -uo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-prune="$script_dir/../utils/prune_download_cache.py"
+prune="$script_dir/prune-download-cache.py"
 
 failures=0
 workdir="$(mktemp -d)"
