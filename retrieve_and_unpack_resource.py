@@ -111,15 +111,31 @@ def _replace_symlink(target: Path, link: Path) -> None:
     link.symlink_to(target)
 
 
+def _require_hashes(download_info: DownloadInfo, ini_path: Path) -> None:
+    """Refuse an INI file with a download that declares no hash.
+
+    The upstream downloader verifies only the hashes a section declares, so a
+    section without one would be built from whatever the server returns.
+    """
+    unhashed = [name for name, properties in download_info.properties_iter()
+                if not properties.hashes]
+    if unhashed:
+        raise RuntimeError(
+            f"{ini_path.name} declares no hash for: {', '.join(sorted(unhashed))}"
+        )
+
+
 def _retrieve_and_unpack(ini_path: Path) -> None:
     """Retrieve verified resources from one INI file, then unpack them.
 
-    The upstream downloader already skips cached filenames. It verifies their
-    declared hashes after retrieval; if an existing cache entry fails that
-    verification, remove only that entry and download it again.
+    Every download must declare a hash. The upstream downloader already skips
+    cached filenames. It verifies their declared hashes after retrieval; if an
+    existing cache entry fails that verification, remove only that entry and
+    download it again.
     """
-    DOWNLOAD_CACHE.mkdir(parents=True, exist_ok=True)
     download_info = DownloadInfo([ini_path])
+    _require_hashes(download_info, ini_path)
+    DOWNLOAD_CACHE.mkdir(parents=True, exist_ok=True)
     cached_downloads = {
         DOWNLOAD_CACHE / properties.download_filename
         for _, properties in download_info.properties_iter()
