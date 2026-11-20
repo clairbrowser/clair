@@ -35,7 +35,7 @@ Building and running have different requirements: Clair runs on macOS 15.6 or la
 | Mac | Apple Silicon, 32 GB of RAM or more, about 80 GB of free disk (a 40 GB workspace plus the 30 GB reserve) | Apple Silicon |
 | macOS | 26.6 or later, for Xcode 27.2 | 26.6 or later, for Xcode 27.2 |
 | Xcode | 27.2 or later, with its Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`): ANGLE compiles its shaders with it | 27.2 or later: the project is in Xcode's JSON format (`project.xcproj`), which Xcode 26 can't open |
-| macOS SDK | 26.x, 26.2 or later, passed with `-s`: Chromium 156 needs 26.2, and its linker can't read the macOS 27 SDK that Xcode 27 ships. The Command Line Tools include a 26.x SDK (`/Library/Developer/CommandLineTools/SDKs/`) | Xcode's own |
+| macOS SDK | The newest released SDK that Chromium's linker can read, passed with `-s`: for now the newest 26.x, since the linker can't read the macOS 27 SDK that Xcode 27 ships. The Command Line Tools include a 26.x SDK (`/Library/Developer/CommandLineTools/SDKs/`) | Xcode's own |
 | Other tools | Python 3.13 with `pip3 install PySocks httplib2`, and `brew install go ninja coreutils esbuild typescript zstd quilt` | none |
 
 `engine.yml` picks the newest installed 26.x SDK itself. On the owner's Mac, `.github/workflows/runner-check.yml` checks the Xcode version, the Metal toolchain, the SDK, Python and the Homebrew tools, and warns when free disk is low. Software Update can replace the Command Line Tools' SDKs; when the SDK changes, the engine build deletes `out/Default` and compiles from scratch. A clean engine build takes about 4 hours on an M1 Pro (see [Engine build times](#engine-build-times)).
@@ -192,6 +192,8 @@ git -C ungoogled-chromium checkout <new tag>
 git add ungoogled-chromium
 ```
 
+Then sync the files copied from [ungoogled-chromium-macos](https://github.com/ungoogled-software/ungoogled-chromium-macos) with its tag for the same version (see `CREDITS.md`): `downloads-arm64.ini`, `retrieve_and_unpack_resource.py`, `flags.macos.gn`, the patches in `patches/ungoogled-chromium-macos/` (add and remove them in `patches/series` as its own series does) and any change to the toolchain steps of its `build.sh` and `build_crubit.sh`, which `build.sh`'s `configure` stage ports. Update the commit in `CREDITS.md`.
+
 Then open a pull request. If a macOS or Clair patch no longer applies, the fetch job names it. Fix that patch, using ungoogled-chromium-macos's and Helium's updates as references.
 
 ## Engine build times
@@ -220,5 +222,7 @@ Measured with `du` in the same workspace after the full compile:
 | `build/download_cache` | 0.9 GB |
 | Whole workspace | about 38 GB |
 | Published engine zip | 164 MB |
+
+`prepare` deletes the files in `build/download_cache` that neither ungoogled-chromium's `downloads.ini` nor `downloads-arm64.ini` names any more (`scripts/prune-download-cache.py`), so the archives an engine update replaces, such as an old Rust nightly or Chromium source archive, don't pile up. Everything under `build/src/out` is deleted whenever `prepare` runs.
 
 `build/base`, the pristine clone kept by `build.sh -k`, shares its blocks with `build/src` through APFS and adds only the files Clair's layer changes, but `du` counts it in full. `engine.yml` sizes the workspace without it and allows 50 GB for a fresh tree, plus the 30 GB reserve. That estimate is generous for an incremental build: when it refuses one, `gh workflow run engine.yml -f ref=<branch> -f skip_free_space_check=true` skips the check, and the build still stops if free space falls below 10 GB.

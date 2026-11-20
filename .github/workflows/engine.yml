@@ -101,10 +101,10 @@ jobs:
 
       - name: Pick the macOS SDK
         run: |
-          # Chromium 156 needs a macOS 26.2 or newer SDK, and its pinned LLD
-          # can't read the macOS 27 SDK (design Risks). Software Update
-          # replaces the Command Line Tools' SDKs, so take the newest 26.x
-          # installed rather than a fixed path.
+          # Build Chromium with the newest released SDK its pinned LLD can
+          # read: for now the newest 26.x, since it can't read the macOS 27
+          # SDK (design Risks). Software Update replaces the Command Line
+          # Tools' SDKs, so take the newest installed rather than a fixed path.
           best="" best_version=""
           for sdk in "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.*.sdk \
                      /Library/Developer/CommandLineTools/SDKs/MacOSX26.*.sdk; do

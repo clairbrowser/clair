@@ -54,8 +54,8 @@ jobs:
             fail "The Metal toolchain is not installed (xcodebuild -downloadComponent MetalToolchain)"
           echo "::endgroup::"
 
-          # Chromium 156 needs a macOS 26.2 or newer SDK, and its LLD can't read
-          # the macOS 27 SDK, so the engine builds against a 26.x SDK (design Risks).
+          # The engine builds with the newest released SDK Chromium's LLD can
+          # read: for now a 26.x SDK, since it can't read macOS 27's (design Risks).
           echo "::group::macOS SDKs"
           found_sdk=""
           for sdk in "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk \

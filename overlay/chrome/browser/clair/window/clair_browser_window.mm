@@ -2938,9 +2938,6 @@ void ClairBrowserWindow::ShowAvatarBubbleFromAvatarButton(
   LogUnavailable("The profile menu");
 }
 
-void ClairBrowserWindow::MaybeShowProfileSwitchIPH() {}
-void ClairBrowserWindow::MaybeShowSupervisedUserProfileSignInIPH() {}
-
 void ClairBrowserWindow::ShowHatsDialog(
     const std::string& site_id,
     const std::optional<std::string>& hats_histogram_name,

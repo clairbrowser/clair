@@ -436,18 +436,6 @@
      return;
    }
  
---- a/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
-+++ b/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
-@@ -160,7 +160,8 @@
-               }
-               BrowserView* browser_view =
-                   BrowserView::GetBrowserViewForBrowser(browser_interface);
--              if (!browser_view->toolbar()) {
-+              // Clair: a native window has no BrowserView.
-+              if (!browser_view || !browser_view->toolbar()) {
-                 return;
-               }
-               ExtensionsToolbarDesktop* extensions_toolbar =
 --- a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
 +++ b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
 @@ -9,6 +9,7 @@
@@ -469,86 +457,102 @@
        CHECK_IS_TEST();
      }
      return;  // IN-TEST
---- a/chrome/browser/ui/BUILD.gn
-+++ b/chrome/browser/ui/BUILD.gn
-@@ -3340,6 +3340,57 @@
-   }
- 
-   if (is_mac) {
-+    # Clair's native browser window (replace-browser-window design D1), its
-+    # Spaces (add-spaces design D1, D2, D6), profiles (add-profiles design
-+    # D1, D3), pins (add-pinned-tabs-and-favorites design D1, D7), link
-+    # rules (add-link-rules design D1, D2) and its alert for blocklisted
-+    # extensions (disable-flagged-store-extensions design D6).
-+    sources += [
-+      "//chrome/browser/clair/clair_link_rule_store.h",
-+      "//chrome/browser/clair/clair_link_rule_store.mm",
-+      "//chrome/browser/clair/clair_link_rules.h",
-+      "//chrome/browser/clair/clair_link_rules.mm",
-+      "//chrome/browser/clair/clair_pin_store.h",
-+      "//chrome/browser/clair/clair_pin_store.mm",
-+      "//chrome/browser/clair/clair_profiles.h",
-+      "//chrome/browser/clair/clair_profiles.mm",
-+      "//chrome/browser/clair/clair_space_store.h",
-+      "//chrome/browser/clair/clair_space_store.mm",
-+      "//chrome/browser/clair/clair_space_tabs.h",
-+      "//chrome/browser/clair/clair_space_tabs.mm",
-+      "//chrome/browser/clair/window/clair_autocomplete.h",
-+      "//chrome/browser/clair/window/clair_autocomplete.mm",
-+      "//chrome/browser/clair/window/clair_browser_bridge.h",
-+      "//chrome/browser/clair/window/clair_browser_bridge.mm",
-+      "//chrome/browser/clair/window/clair_browser_window.h",
-+      "//chrome/browser/clair/window/clair_browser_window.mm",
-+      "//chrome/browser/clair/window/clair_downloads.h",
-+      "//chrome/browser/clair/window/clair_downloads.mm",
-+      "//chrome/browser/clair/window/clair_extension_error_ui.h",
-+      "//chrome/browser/clair/window/clair_extension_error_ui.mm",
-+      "//chrome/browser/clair/window/clair_extensions.h",
-+      "//chrome/browser/clair/window/clair_extensions.mm",
-+      "//chrome/browser/clair/window/clair_native_window.h",
-+      "//chrome/browser/clair/window/clair_native_window.mm",
-+      "//chrome/browser/clair/window/clair_peek_session.h",
-+      "//chrome/browser/clair/window/clair_peek_session.mm",
-+      "//chrome/browser/clair/window/clair_peeks.h",
-+      "//chrome/browser/clair/window/clair_peeks.mm",
-+      "//chrome/browser/clair/window/clair_pinned_link_throttle.h",
-+      "//chrome/browser/clair/window/clair_pinned_link_throttle.mm",
-+      "//chrome/browser/clair/window/clair_space_session.h",
-+      "//chrome/browser/clair/window/clair_space_session.mm",
-+      "//chrome/browser/clair/window/clair_window_group.h",
-+      "//chrome/browser/clair/window/clair_window_group.mm",
-+      "//chrome/browser/clair/window/clair_window_hooks.h",
-+      "//chrome/browser/clair/window/clair_window_hooks.mm",
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -4544,6 +4544,7 @@
+     deps += [
+       ":app_controller_mac",
+       ":chrome_browser_application_mac",
++      ":clair_window",
+       ":global_keyboard_shortcuts_mac",
+       "//chrome/browser/apps/app_shim",
+       "//chrome/browser/mac",
+@@ -5257,6 +5258,66 @@
+   # is easy to catch in review.
+   sources = []
+ }
++
++if (is_mac) {
++  # Clair's native browser window (replace-browser-window design D1), its
++  # Spaces (add-spaces design D1, D2, D6), profiles (add-profiles design D1,
++  # D3), pins (add-pinned-tabs-and-favorites design D1, D7), link rules
++  # (add-link-rules design D1, D2) and its alert for blocklisted extensions
++  # (disable-flagged-store-extensions design D6). Since Chromium 157 the
++  # browser target takes no sources, so they get a target of their own; it
++  # includes //chrome/browser headers, so like every target circular with
++  # browser it carries browser_public_dependencies.
++  source_set("clair_window") {
++    sources = [
++      "clair/clair_link_rule_store.h",
++      "clair/clair_link_rule_store.mm",
++      "clair/clair_link_rules.h",
++      "clair/clair_link_rules.mm",
++      "clair/clair_pin_store.h",
++      "clair/clair_pin_store.mm",
++      "clair/clair_profiles.h",
++      "clair/clair_profiles.mm",
++      "clair/clair_space_store.h",
++      "clair/clair_space_store.mm",
++      "clair/clair_space_tabs.h",
++      "clair/clair_space_tabs.mm",
++      "clair/window/clair_autocomplete.h",
++      "clair/window/clair_autocomplete.mm",
++      "clair/window/clair_browser_bridge.h",
++      "clair/window/clair_browser_bridge.mm",
++      "clair/window/clair_browser_window.h",
++      "clair/window/clair_browser_window.mm",
++      "clair/window/clair_downloads.h",
++      "clair/window/clair_downloads.mm",
++      "clair/window/clair_extension_error_ui.h",
++      "clair/window/clair_extension_error_ui.mm",
++      "clair/window/clair_extensions.h",
++      "clair/window/clair_extensions.mm",
++      "clair/window/clair_native_window.h",
++      "clair/window/clair_native_window.mm",
++      "clair/window/clair_peek_session.h",
++      "clair/window/clair_peek_session.mm",
++      "clair/window/clair_peeks.h",
++      "clair/window/clair_peeks.mm",
++      "clair/window/clair_pinned_link_throttle.h",
++      "clair/window/clair_pinned_link_throttle.mm",
++      "clair/window/clair_space_session.h",
++      "clair/window/clair_space_session.mm",
++      "clair/window/clair_window_group.h",
++      "clair/window/clair_window_group.mm",
++      "clair/window/clair_window_hooks.h",
++      "clair/window/clair_window_hooks.mm",
 +    ]
++
++    public_deps = [ ":browser_public_dependencies" ]
 +
 +    # ClairUI calls these Objective-C protocol implementations; a method
 +    # missing from one must fail the build, not raise an unrecognized
 +    # selector at run time.
 +    cflags_objcc = [ "-Werror=protocol" ]
-+
-     deps += [
-       ":browser_commands_mac",
-       ":browser_commands_mac_impl",
++  }
++}
+ 
+ # These are the dependencies for the "browser" target that are outside of
+ # //chrome/browser. All gn targets that have circular dependencies with
 --- a/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc
 +++ b/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc
-@@ -301,10 +301,13 @@
-     ui::TrackedElement* const browser_element =
-         ui::ElementTracker::GetElementTracker()->GetUniqueElement(
-             kBrowserViewElementId, context);
--    CHECK(browser_element);
--    ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
--        browser_element,
--        browsing_data_important_sites_util::kClearBrowsingDataHistoryEventId);
-+    // Clair: a native window has no BrowserView element. Skip the event, as
-+    // Chromium's other users of kBrowserViewElementId do.
-+    if (browser_element) {
-+      ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
-+          browser_element,
-+          browsing_data_important_sites_util::kClearBrowsingDataHistoryEventId);
-+    }
-   }
+@@ -88,9 +88,12 @@
+   ui::TrackedElement* const browser_element =
+       ui::ElementTracker::GetElementTracker()->GetUniqueElement(
+           kBrowserViewElementId, context);
+-  CHECK(browser_element);
+-  ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(browser_element,
+-                                                                event_type);
++  // Clair: a native window has no BrowserView element. Skip the event, as
++  // Chromium's other users of kBrowserViewElementId do.
++  if (browser_element) {
++    ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
++        browser_element, event_type);
++  }
+ }
  
-   ResolveJavascriptCallback(base::Value(webui_callback_id), result);
+ }  // namespace
+
 --- a/components/constrained_window/constrained_window_views.cc
 +++ b/components/constrained_window/constrained_window_views.cc
 @@ -30,6 +30,10 @@

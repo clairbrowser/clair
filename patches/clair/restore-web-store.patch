@@ -350,14 +350,16 @@
  #if defined(ARCH_CPU_X86_FAMILY)
    base::CPU cpu;
    request.hw.sse = cpu.has_sse();
-@@ -157,7 +157,7 @@
+@@ -157,8 +157,8 @@
  
    // OS version and platform information.
    request.os.platform = os_long_name;
 -  request.os.version = GetOSVersion();
-+  // Clair: no macOS version, only the platform and architecture.
++  // Clair: no macOS version or device form factor, only the platform and
++  // architecture. An empty form factor leaves it out of the request.
    request.os.service_pack = GetServicePack();
    request.os.arch = GetArchitecture();
+-  request.os.device_form_factor = device_form_factor;
  
 @@ -236,21 +236,14 @@
    app.events = std::move(events);
@@ -457,7 +459,7 @@
 +void ExtensionService::PerformActionBasedOnOmahaAttributes(
 +    const std::string& extension_id,
 +    const base::DictValue& attributes) {
-+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
++  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M161);
 +  omaha_attributes_handler_.PerformActionBasedOnOmahaAttributes(extension_id,
 +                                                                attributes);
 +  // Show an error for the newly blocklisted extension.
@@ -466,7 +468,7 @@
 +
  void ExtensionService::PerformActionBasedOnExtensionTelemetryServiceVerdicts(
      const Blocklist::BlocklistStateMap& blocklist_state_map) {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M161);
 # Reverts ungoogled-chromium fix-building-without-safebrowsing.patch, chrome_extension_system.cc hunk.
 --- a/chrome/browser/extensions/chrome_extension_system.cc
 +++ b/chrome/browser/extensions/chrome_extension_system.cc
