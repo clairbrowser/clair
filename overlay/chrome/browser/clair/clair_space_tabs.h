@@ -265,8 +265,13 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   // Puts `tab`, with its Peek, in `space`'s Today list at `index`.
   void ListInToday(tabs::TabInterface* tab, const std::string& space, int index);
   // The Space a tab whose pin went joins: its own if it still exists, its
-  // window's, or the last one shown.
+  // window's, or else OwnSpace().
   std::string FallbackSpaceFor(tabs::TabInterface* tab) const;
+  // Whether `space` exists and uses this profile.
+  bool IsOwnSpace(const std::string& space) const;
+  // The Space of this profile a tab with none joins: the one a new window of
+  // the profile shows, or clair.last_space while the profile has none.
+  std::string OwnSpace() const;
   // `tab` and its Peek, if it has one in the same window.
   std::vector<tabs::TabInterface*> FamilyOf(tabs::TabInterface* tab) const;
   // Takes `tab`'s family out of `list` and returns its handles, in order.

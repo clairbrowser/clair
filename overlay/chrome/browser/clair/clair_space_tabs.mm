@@ -996,11 +996,12 @@ void ClairSpaceTabs::Insert(TabStripModel* model,
     space = tag->space;
     rank = tag->rank;
   } else {
-    // A new tab joins the Space its window shows (D3). A Peek joins its
-    // parent's once it's linked (PeekLinked).
-    space = window && store->Contains(window->shown_space())
+    // A new tab joins the Space its window shows (D3), or, in a window that
+    // shows none yet, a Space of its own profile. A Peek joins its parent's
+    // once it's linked (PeekLinked).
+    space = window && IsOwnSpace(window->shown_space())
                 ? window->shown_space()
-                : store->last_space();
+                : OwnSpace();
   }
   tag = EnsureTag(contents);
   tag->space = space;
@@ -1153,22 +1154,28 @@ void ClairSpaceTabs::ListInToday(tabs::TabInterface* tab,
 }
 
 std::string ClairSpaceTabs::FallbackSpaceFor(tabs::TabInterface* tab) const {
-  clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
-  const std::string profile = clair::ClairProfiles::IDOf(profile_);
   SpaceTag* tag = tab ? GetTag(tab->GetContents()) : nullptr;
-  if (tag && store->Contains(tag->space) && store->ProfileOf(tag->space) == profile) {
+  if (tag && IsOwnSpace(tag->space)) {
     return tag->space;
   }
   if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
-      holder && store->Contains(holder->shown_space())) {
+      holder && IsOwnSpace(holder->shown_space())) {
     return holder->shown_space();
   }
-  for (const clair::Space& space : store->spaces()) {
-    if (space.profile == profile) {
-      return space.id;
-    }
-  }
-  return store->last_space();
+  return OwnSpace();
+}
+
+bool ClairSpaceTabs::IsOwnSpace(const std::string& space) const {
+  // ProfileOf is empty for an unknown Space.
+  return !space.empty() && clair::ClairSpaceStore::Get()->ProfileOf(space) ==
+                               clair::ClairProfiles::IDOf(profile_);
+}
+
+std::string ClairSpaceTabs::OwnSpace() const {
+  // add-profiles D8: the Space a new window of the profile shows. A profile
+  // no Space uses has none; its window hands its pages to clair.last_space.
+  std::string space = ClairWindowGroup::SpaceForNewWindow(profile_);
+  return space.empty() ? clair::ClairSpaceStore::Get()->last_space() : space;
 }
 
 std::string ClairSpaceTabs::PinTab(tabs::TabInterface* tab,
