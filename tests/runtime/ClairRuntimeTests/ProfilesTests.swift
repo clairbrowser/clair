@@ -431,7 +431,7 @@ final class ProfilesTests: NativeWindowTestCase {
     defer { home.close() }
     // The extension is the default profile's: its one window is Home's, which
     // the window hides while it shows Work.
-    let worker = try await extensionWorker(browser)
+    let worker = try await extensionWorker(browser, named: "Clair Test Action")
     defer { worker.close() }
     let ids = try await worker.evaluate("chrome.windows.getAll().then(all => all.map(w => w.id))") as? [Int] ?? []
     try require(ids.count == 1, "The default profile has \(ids.count) windows")
