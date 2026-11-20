@@ -22,23 +22,31 @@ class NativeWindowTestCase: RuntimeTestCase {
     return (browser, tab)
   }
 
-  /// A session on the loaded extension's background script.
-  func extensionWorker(_ browser: Browser) async throws -> DevToolsSession {
+  /// A session on the background script of the extension named `name`.
+  /// Chromium's own component extensions run background scripts too, so the
+  /// worker is told apart by its extension's manifest.
+  func extensionWorker(_ browser: Browser, named name: String) async throws -> DevToolsSession {
     let session = try await browser.browserSession()
     defer { session.close() }
-    var workerID: String?
+    var worker: DevToolsSession?
     let started = await Harness.wait(for: 30) {
       let targets = try await session.send("Target.getTargets")
       let infos = targets["targetInfos"] as? [[String: Any]] ?? []
-      workerID =
-        infos.first {
-          $0["type"] as? String == "service_worker"
-            && ($0["url"] as? String)?.hasSuffix("/background.js") == true
-        }?["targetId"] as? String
-      return workerID != nil
+      for info in infos where info["type"] as? String == "service_worker" {
+        guard let id = info["targetId"] as? String,
+          (info["url"] as? String)?.hasPrefix("chrome-extension://") == true
+        else { continue }
+        let candidate = try await browser.session(onTarget: id)
+        if (try? await candidate.evaluate("chrome.runtime.getManifest().name")) as? String == name {
+          worker = candidate
+          return true
+        }
+        candidate.close()
+      }
+      return false
     }
-    try require(started, "The extension's background script didn't start")
-    return try await browser.session(onTarget: try XCTUnwrap(workerID))
+    try require(started, "\(name)'s background script didn't start")
+    return try XCTUnwrap(worker)
   }
 }
 
@@ -485,7 +493,7 @@ final class ExtensionActionTests: NativeWindowTestCase {
     try require(closedAgain, "The popup from the Extensions menu didn't close")
 
     // The background script.
-    let worker = try await extensionWorker(browser)
+    let worker = try await extensionWorker(browser, named: "Clair Test Action")
     defer { worker.close() }
     _ = try await worker.evaluate("chrome.action.openPopup()")
     XCTAssertTrue(popup.waitForExistence(timeout: 15), "chrome.action.openPopup() didn't open the popup")
@@ -497,7 +505,7 @@ final class ExtensionActionTests: NativeWindowTestCase {
     let extensionPath = Fixture.directory.appending(path: "extensions/popup-closes-window").path
     let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
     defer { tab.close() }
-    let worker = try await extensionWorker(browser)
+    let worker = try await extensionWorker(browser, named: "Clair Test Closing Popup")
     defer { worker.close() }
     let windowCount = "chrome.windows.getAll().then(all => all.length)"
     let before = try await worker.evaluate(windowCount) as? Int
