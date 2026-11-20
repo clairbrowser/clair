@@ -516,14 +516,11 @@ void ClairExtensions::OnToolbarActionAdded(
     const ToolbarActionsModel::ActionId& id) {
   if (pending_pins_.erase(id)) {
     // Not from here: pinning notifies the model's observers, and the model is
-    // still iterating over them.
-    base::WeakPtr<ClairExtensions> weak = weak_factory_.GetWeakPtr();
-    std::string pinned_id = id;
-    dispatch_async(dispatch_get_main_queue(), ^{
-      if (weak) {
-        weak->SetPinned(pinned_id, true);
-      }
-    });
+    // still iterating over them. On Chromium's task runner, as Changed()
+    // explains.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&ClairExtensions::SetPinned,
+                                  weak_factory_.GetWeakPtr(), id, true));
   }
   Changed();
 }
@@ -591,23 +588,39 @@ void ClairExtensions::OnExtensionIconImageDestroyed(
 }
 
 // Changes come in bursts while the registry and the toolbar model change, so
-// they're posted once the turn ends.
+// they're posted once the turn ends. Chromium's task runner, not the main
+// queue, holds the flush back while another task spins a nested run loop (a
+// menu, a drag, a sheet), in the middle of whatever that task was changing.
 void ClairExtensions::Changed() {
   if (flush_posted_) {
     return;
   }
   flush_posted_ = true;
-  base::WeakPtr<ClairExtensions> weak = weak_factory_.GetWeakPtr();
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (weak) {
-      weak->Flush();
-    }
-  });
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&ClairExtensions::Flush, weak_factory_.GetWeakPtr()));
 }
 
 void ClairExtensions::Flush() {
   flush_posted_ = false;
+  // A hidden member's actions aren't seen: it takes its snapshot when it
+  // shows, so a badge that changes often costs only the windows on screen.
+  if (window_->IsHiddenMember()) {
+    stale_ = true;
+    return;
+  }
+  SendSnapshot();
+}
+
+void ClairExtensions::FlushIfStale() {
+  if (stale_) {
+    SendSnapshot();
+  }
+}
+
+void ClairExtensions::SendSnapshot() {
   if (id<ClairWindow> window = window_->clair_window()) {
+    stale_ = false;
     [window extensionActionsDidChange:Snapshot()];
   }
 }

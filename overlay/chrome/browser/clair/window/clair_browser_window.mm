@@ -1387,6 +1387,10 @@ void ClairBrowserWindow::JoinActiveSpace() {
 }
 
 void ClairBrowserWindow::Reveal(NSWindow* above, bool make_key) {
+  // The extension actions it missed while hidden, before it shows.
+  if (extensions_) {
+    extensions_->FlushIfStale();
+  }
   JoinActiveSpace();
   if (above && above.visible) {
     [ns_window_ orderWindow:NSWindowAbove relativeTo:above.windowNumber];
@@ -2378,6 +2382,9 @@ void ClairBrowserWindow::ShowNow() {
   // when AppKit gets round to making the window key.
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   const bool was_visible = ns_window_.visible;
+  if (extensions_) {
+    extensions_->FlushIfStale();
+  }
   // Change 1's background-relaunch hook keeps this from bringing Clair
   // forward when it relaunched behind another app.
   [NSApp activateIgnoringOtherApps:YES];

@@ -480,6 +480,37 @@ final class ProfilesTests: NativeWindowTestCase {
     XCTAssertTrue(stillFull, "Home's window left full screen under Work's: \(browser.nativeWindow.frame)")
   }
 
+  /// A window of a profile the group doesn't show hears of its extensions'
+  /// changes when it shows again.
+  func testAHiddenProfilesWindowShowsItsActionsLatestBadge() async throws {
+    let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
+    let (browser, home) = try await startWithWorkProfile(arguments: ["--load-extension=\(extensionPath)"])
+    defer { home.close() }
+    browser.ui.typeKey("1", modifierFlags: .control)
+    let onHome = await browser.waitForSpace("Home")
+    try require(onHome, "Ctrl+1 didn't show Home")
+    let pinned = try browser.pinExtensionFromSiteControls()
+    let badge = await Harness.wait(for: 15) { (pinned.value as? String) == "3" }
+    try require(badge, "The pinned action doesn't show its badge")
+
+    browser.ui.typeKey("2", modifierFlags: .control)
+    let onWork = await browser.waitForSpace("Work")
+    try require(onWork, "Ctrl+2 didn't show Work")
+    let worker = try await extensionWorker(browser, named: "Clair Test Action")
+    defer { worker.close() }
+    let set = try await worker.evaluate(
+      "chrome.action.setBadgeText({text: '7'}).then(() => 'done', error => error.message)") as? String
+    try require(set == "done", "chrome.action.setBadgeText failed: \(set ?? "nil")")
+    try await Task.sleep(for: .seconds(2))
+
+    browser.ui.typeKey("1", modifierFlags: .control)
+    let back = await browser.waitForSpace("Home")
+    try require(back, "Ctrl+1 didn't show Home again")
+    let shown = browser.element("clair.extensionAction")
+    let updated = await Harness.wait(for: 5) { (shown.value as? String) == "7" }
+    XCTAssertTrue(updated, "Home's pinned action shows \(shown.value ?? "nothing"), not the badge it got while hidden")
+  }
+
   /// Taking a tab of another profile between windows keeps its page and
   /// leaves a still; closing a window with tabs of two profiles keeps them
   /// all, without a reload or a page asking (design D5). Closing the last
