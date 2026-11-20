@@ -66,10 +66,10 @@ struct SpaceHeaderView: View {
   static let iconSize: CGFloat = 26
   static let nameGap: CGFloat = 2
   /// Arc's name: 13 pt semibold, in the sidebar's secondary grey.
-  static let nameFont = Font.system(size: 13, weight: .semibold)
+  static let nameNSFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+  static let nameFont = Font(nameNSFont)
 
   @State private var draft = ""
-  @FocusState private var nameFocused: Bool
   @State private var isHovered = false
   @Environment(\.colorScheme) private var colorScheme
 
@@ -89,17 +89,11 @@ struct SpaceHeaderView: View {
         icon
       }
       if edit == .renaming {
-        TextField("Space name", text: $draft)
-          .textFieldStyle(.plain)
-          .font(Self.nameFont)
-          .focused($nameFocused)
-          .onSubmit { commitName() }
-          .onExitCommand { actions?.endEditingSpaceHeader() }
-          .onAppear {
-            draft = space?.name ?? ""
-            nameFocused = true
-          }
-          .accessibilityIdentifier("clair.spaceNameField")
+        SpaceNameField(
+          text: space?.name ?? "", font: Self.nameNSFont,
+          onChange: { draft = $0 }, onSubmit: commitName, onCancel: { actions?.endEditingSpaceHeader() }
+        )
+        .onAppear { draft = space?.name ?? "" }
         Button("Done") { commitName() }
           .buttonStyle(.borderless)
           .font(.system(size: 12, weight: .medium))
@@ -218,6 +212,71 @@ struct SpaceHeaderView: View {
         return item.isChecked ? .checked(item.title, {}) : .action(item.title, choose)
       case .newProfile:
         return .action(item.title) { [weak actions] in actions?.newProfile(forSpace: spaceID) }
+      }
+    }
+  }
+}
+
+/// The Space's name as a field. It takes the keyboard itself once it's in the
+/// window, as a row's rename field does: SwiftUI's focus, taking it from
+/// another field such as the command bar's, can leave it with the sidebar's
+/// list instead, where typing goes nowhere.
+private struct SpaceNameField: NSViewRepresentable {
+  let text: String
+  let font: NSFont
+  let onChange: (String) -> Void
+  let onSubmit: () -> Void
+  let onCancel: () -> Void
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(self)
+  }
+
+  func makeNSView(context: Context) -> NSTextField {
+    let field = RenameField.FocusingField(string: text)
+    field.isBordered = false
+    field.drawsBackground = false
+    field.focusRingType = .none
+    field.font = font
+    field.placeholderString = "Space name"
+    field.lineBreakMode = .byTruncatingTail
+    field.cell?.usesSingleLineMode = true
+    field.delegate = context.coordinator
+    field.setAccessibilityIdentifier("clair.spaceNameField")
+    field.onWindow = { [weak field] in
+      guard let field, let window = field.window, window.makeFirstResponder(field) else { return }
+      field.currentEditor()?.selectAll(nil)
+    }
+    return field
+  }
+
+  func updateNSView(_ field: NSTextField, context: Context) {
+    context.coordinator.parent = self
+  }
+
+  final class Coordinator: NSObject, NSTextFieldDelegate {
+    var parent: SpaceNameField
+
+    init(_ parent: SpaceNameField) {
+      self.parent = parent
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+      guard let field = notification.object as? NSTextField else { return }
+      parent.onChange(field.stringValue)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+      switch selector {
+      case #selector(NSResponder.insertNewline(_:)):
+        parent.onChange(textView.string)
+        parent.onSubmit()
+        return true
+      case #selector(NSResponder.cancelOperation(_:)):
+        parent.onCancel()
+        return true
+      default:
+        return false
       }
     }
   }
