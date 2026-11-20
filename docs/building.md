@@ -176,7 +176,7 @@ gh run list --workflow engine.yml --limit 1   # gives the run ID
 gh run view <run ID> --log
 ```
 
-The owner's Mac doesn't fetch Chromium by hand, because that's left to `engine.yml`. To write a patch there, read the engine workspace without changing it, in the runner's `_work/clair/clair/build/`. A development machine sees the workspace read-only at `/Volumes/My Shared Files/clair`. Diff against `build/base`, the source before Clair's patches. `build/src` has had name and domain substitution applied, so its context lines won't match.
+The owner's Mac doesn't fetch Chromium by hand, because that's left to `engine.yml`. To write a patch there, read the engine workspace without changing it: the `build/` folder of the self-hosted runner's workspace, which a development machine sees through a read-only share. Diff against `build/base`, the source before Clair's patches. `build/src` has had name and domain substitution applied, so its context lines won't match.
 
 ## Adding new source files: the overlay
 
