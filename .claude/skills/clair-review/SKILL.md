@@ -133,26 +133,25 @@ The checkout no longer matches the commit the run is reviewing, so later section
 
 ## Setting up a machine
 
-Reviewers read the patched Chromium tree from the engine build's workspace, which is outside this repository, and write reports under `build/review/`. Without permission rules every such read prompts. Add these to `.claude/settings.local.json`, adjusting the path if `CLAIR_ENGINE_WORKSPACE` points elsewhere:
+Reviewers read the engine build's workspace, the self-hosted runner's `_work/clair/clair` shared read-only at `/Volumes/My Shared Files/clair`: the patched tree in `build/src`, the ungoogled-chromium checkout beside it, and the `build/engine_key` and `build/compile_status` that `preflight` checks. They write reports under `build/review/`. Without permission rules every read of the share prompts. Add these to `.claude/settings.local.json`, adjusting the path if `CLAIR_ENGINE_WORKSPACE` points elsewhere:
 
 ```json
 {
   "permissions": {
     "allow": [
-      "Read(//Volumes/My Shared Files/clair-actions-runner/_work/Clair/Clair/build/src/**)",
-      "Read(//Volumes/My Shared Files/clair-actions-runner/_work/Clair/Clair/ungoogled-chromium/**)",
+      "Read(//Volumes/My Shared Files/clair/build/**)",
+      "Read(//Volumes/My Shared Files/clair/ungoogled-chromium/**)",
       "Edit(/build/review/**)"
     ],
     "deny": [
-      "Read(//Volumes/My Shared Files/clair-actions-runner/.credentials*)",
-      "Read(//Volumes/My Shared Files/clair-actions-runner/.env)",
+      "Read(//Volumes/My Shared Files/clair/.git/**)",
       "Edit(//Volumes/My Shared Files/**)"
     ]
   }
 }
 ```
 
-The deny rules matter: the runner's registration credentials sit at the top of that share.
+Share the workspace, not anything above it: the runner's top folder holds its registration credentials. The `.git` deny is there because `actions/checkout` leaves a GitHub token in `.git/config` while a job runs. Keep the mapping fixed for the length of a run, since `run.md` records the paths every reviewer uses.
 
 ## Preparing a later run
 
