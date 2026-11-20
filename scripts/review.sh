@@ -32,7 +32,8 @@
 # step. The one exception is work.txt, where the clair-fix skill records what
 # became of each work item of the final report, since that happens in pull
 # requests and not in the run directory. CLAIR_ENGINE_WORKSPACE names the
-# engine build's workspace when it is not at the default path.
+# engine build's workspace (the runner's _work/clair/clair, shared read-only)
+# when it is not at the default path.
 
 set -euo pipefail
 
@@ -48,7 +49,7 @@ skill=".claude/skills/clair-review"
 sections_file="$skill/sections.txt"
 scope_file="$skill/scope.txt"
 review_root="build/review"
-engine_ws="${CLAIR_ENGINE_WORKSPACE:-/Volumes/My Shared Files/clair-actions-runner/_work/Clair/Clair}"
+engine_ws="${CLAIR_ENGINE_WORKSPACE:-/Volumes/My Shared Files/clair}"
 max_attempts=2
 tab="$(printf '\t')"
 
