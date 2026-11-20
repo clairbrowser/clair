@@ -592,6 +592,7 @@ void ClairExtensions::OnExtensionIconImageDestroyed(
 // queue, holds the flush back while another task spins a nested run loop (a
 // menu, a drag, a sheet), in the middle of whatever that task was changing.
 void ClairExtensions::Changed() {
+  stale_ = true;
   if (flush_posted_) {
     return;
   }
@@ -605,11 +606,9 @@ void ClairExtensions::Flush() {
   flush_posted_ = false;
   // A hidden member's actions aren't seen: it takes its snapshot when it
   // shows, so a badge that changes often costs only the windows on screen.
-  if (window_->IsHiddenMember()) {
-    stale_ = true;
-    return;
+  if (!window_->IsHiddenMember()) {
+    FlushIfStale();
   }
-  SendSnapshot();
 }
 
 void ClairExtensions::FlushIfStale() {

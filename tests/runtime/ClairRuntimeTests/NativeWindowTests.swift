@@ -24,17 +24,27 @@ class NativeWindowTestCase: RuntimeTestCase {
 
   /// A session on the background script of the extension named `name`.
   /// Chromium's own component extensions run background scripts too, so the
-  /// worker is told apart by its extension's manifest.
-  func extensionWorker(_ browser: Browser, named name: String) async throws -> DevToolsSession {
+  /// worker is told apart by its extension's manifest. `--load-extension`
+  /// loads an extension into every profile: `pageEndingWith` picks the
+  /// worker of the profile of the page whose URL ends with it.
+  func extensionWorker(
+    _ browser: Browser, named name: String, pageEndingWith page: String? = nil
+  ) async throws -> DevToolsSession {
     let session = try await browser.browserSession()
     defer { session.close() }
     var worker: DevToolsSession?
     let started = await Harness.wait(for: 30) {
       let targets = try await session.send("Target.getTargets")
       let infos = targets["targetInfos"] as? [[String: Any]] ?? []
+      let context = page.flatMap { suffix in
+        infos.first { $0["type"] as? String == "page" && ($0["url"] as? String)?.hasSuffix(suffix) == true }?[
+          "browserContextId"] as? String
+      }
+      if page != nil && context == nil { return false }
       for info in infos where info["type"] as? String == "service_worker" {
         guard let id = info["targetId"] as? String,
-          (info["url"] as? String)?.hasPrefix("chrome-extension://") == true
+          (info["url"] as? String)?.hasPrefix("chrome-extension://") == true,
+          context == nil || info["browserContextId"] as? String == context
         else { continue }
         let candidate = try await browser.session(onTarget: id)
         if (try? await candidate.evaluate("chrome.runtime.getManifest().name")) as? String == name {

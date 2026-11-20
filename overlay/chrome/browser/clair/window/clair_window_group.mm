@@ -24,6 +24,7 @@
 #import "chrome/browser/clair/clair_space_tabs.h"
 #import "chrome/browser/clair/window/clair_browser_bridge.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
+#include "chrome/browser/clair/window/clair_extensions.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
@@ -208,6 +209,10 @@ void ClairWindowGroup::Remove(ClairBrowserWindow* window) {
   }
   if (shown_ == window) {
     shown_ = members_.empty() ? nullptr : members_.front().get();
+    // Shown now without a Reveal(), if the group's close stops.
+    if (shown_ && shown_->extensions()) {
+      shown_->extensions()->FlushIfStale();
+    }
   }
 }
 
