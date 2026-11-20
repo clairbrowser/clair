@@ -26,7 +26,7 @@ Nobody chose most of what you will find. A mitigation that is off because a flag
 
 **Build settings**
 - For each mitigation that is decided when the engine is compiled, give the value in Clair's build, the value an official Chrome build for Apple Silicon Macs would have, and where the difference comes from. Cover at least: `is_official_build` and what it implies, control-flow integrity (`is_cfi` and its cast and indirect-call variants) and arm64 pointer authentication and branch protection, the V8 sandbox, pointer compression and V8's own control-flow integrity, PartitionAlloc as the allocator with BackupRefPtr and its dangling-pointer checks, libc++ hardening, stack protection and automatic initialisation of locals, `DCHECK` and iterator-debugging settings, and the Rust toolchain settings that `fix-build-with-rust.patch` and `set-rustc-nightly-capability.patch` change.
-- Which flags in `flags.macos.gn` exist only because another project needed them? `fatal_linker_warnings=false`, `enable_iterator_debugging=false`, `use_sysroot=false` and `v8_use_metagen_instance_types=false` each need a reason that holds for Clair.
+- Which flags in `flags.macos.gn` exist only because another project needed them? `fatal_linker_warnings=false`, `enable_iterator_debugging=false`, `use_sysroot=false` and `v8_use_metagen=false` each need a reason that holds for Clair.
 - Does `gn gen --fail-on-unused-args` in `build.sh` mean a misspelt or retired hardening argument fails the build, or can one be silently ignored?
 
 **The process model**
@@ -40,7 +40,7 @@ Nobody chose most of what you will find. A mitigation that is off because a flag
 
 **Security data that is refreshed between releases**
 - With the component updater, Safe Browsing and Google's endpoints gone, what does the user lose, and what is frozen at the day the engine was built? Go through at least: the certificate revocation set, certificate transparency log lists and their enforcement when the list goes stale, the root store, the extension blocklist, the subresource filter and safety-tip data, download protection, and password-leak checks. For each: absent, frozen at build time, or still working, and what an engine that is some weeks old then gets wrong.
-- `fix-disabling-safebrowsing.patch` and `fix-disable-verification-token.patch` finish a removal that ungoogled starts. Do they remove only what was intended?
+- `fix-disabling-safebrowsing.patch` finishes a removal that ungoogled starts. Does it remove only what was intended?
 
 **Every patch, for its hardening effect**
 - Walk ungoogled's series and then `patches/series` in the order they are applied. For each patch, say in a line whether it touches anything security-relevant: `sandbox/`, `content/` security checks, certificate verification or `net/`, V8, the allocator, compiler or linker flags, crash reporting, permission or policy code. Read in full the ones that do.
