@@ -101,23 +101,27 @@ jobs:
 
       - name: Pick the macOS SDK
         run: |
-          # Build Chromium with the newest released SDK its pinned LLD can
-          # read: for now the newest 26.x, since it can't read the macOS 27
-          # SDK (design Risks). Software Update replaces the Command Line
-          # Tools' SDKs, so take the newest installed rather than a fixed path.
+          # Build Chromium with the newest released SDK of the major version
+          # in macos-sdk-major, an engine input, so changing it builds a new
+          # engine. Software Update replaces the Command Line Tools' SDKs, so
+          # take the newest installed rather than a fixed path.
+          major="$(tr -d '[:space:]' < macos-sdk-major)"
+          if [[ ! "$major" =~ ^[0-9]+$ ]]; then
+            echo "::error::macos-sdk-major holds no version: $major"
+            exit 1
+          fi
           best="" best_version=""
-          for sdk in "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.*.sdk \
-                     /Library/Developer/CommandLineTools/SDKs/MacOSX26.*.sdk; do
+          for sdk in "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk \
+                     /Library/Developer/CommandLineTools/SDKs/MacOSX*.sdk; do
             [[ -d "$sdk" && ! -L "$sdk" ]] || continue
             version="$(/usr/libexec/PlistBuddy -c 'Print :Version' "$sdk/SDKSettings.plist" 2>/dev/null)" || continue
-            [[ "$version" =~ ^26\.([0-9]+)(\.([0-9]+))?$ ]] || continue
-            (( BASH_REMATCH[1] >= 2 )) || continue
+            [[ "$version" =~ ^$major\.[0-9]+(\.[0-9]+)?$ ]] || continue
             if [[ -z "$best" ]] || [[ "$(printf '%s\n%s\n' "$best_version" "$version" | sort -t . -k 1,1n -k 2,2n -k 3,3n | tail -1)" == "$version" ]]; then
               best="$sdk" best_version="$version"
             fi
           done
           if [[ -z "$best" ]]; then
-            echo "::error::No macOS 26.2 or newer 26.x SDK is installed."
+            echo "::error::No macOS $major SDK is installed."
             exit 1
           fi
           echo "macOS SDK $best_version: $best"

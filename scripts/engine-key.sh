@@ -29,7 +29,7 @@ logo_list="$icon_dir/product-logos.txt"
 
 # Tracked files at or under these paths are engine inputs.
 inputs=(
-  build.sh retrieve_and_unpack_resource.py 'downloads*.ini' 'flags*.gn'
+  build.sh retrieve_and_unpack_resource.py 'downloads*.ini' 'flags*.gn' macos-sdk-major
   patches overlay utils native/ClairHost.h
   scripts/engine-key.sh scripts/apply-overlay.sh scripts/compile-icon.sh scripts/patch-no-fuzz.sh
   scripts/replace-icon-resources.sh scripts/install-native-contract.sh

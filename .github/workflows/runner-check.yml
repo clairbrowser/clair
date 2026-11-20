@@ -54,8 +54,11 @@ jobs:
             fail "The Metal toolchain is not installed (xcodebuild -downloadComponent MetalToolchain)"
           echo "::endgroup::"
 
-          # The engine builds with the newest released SDK Chromium's LLD can
-          # read: for now a 26.x SDK, since it can't read macOS 27's (design Risks).
+          # The engine builds with the newest released SDK of the major version
+          # in macos-sdk-major. Read from GitHub: a checkout here could touch the
+          # engine workspace.
+          sdk_major="$(curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/macos-sdk-major" | tr -d '[:space:]')"
+          [[ "$sdk_major" =~ ^[0-9]+$ ]] || fail "Can't read macos-sdk-major at $GITHUB_SHA"
           echo "::group::macOS SDKs"
           found_sdk=""
           for sdk in "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk \
@@ -63,14 +66,14 @@ jobs:
             [[ -d "$sdk" && ! -L "$sdk" ]] || continue
             version="$(/usr/libexec/PlistBuddy -c 'Print :Version' "$sdk/SDKSettings.plist" 2>/dev/null)"
             echo "$version  $sdk"
-            if [[ "$version" == 26.* ]] && version_at_least "$version" 26.2; then
+            if [[ "$version" == "$sdk_major".* ]]; then
               found_sdk="$sdk"
             fi
           done
           if [[ -n "$found_sdk" ]]; then
             echo "Engine SDK: $found_sdk"
           else
-            fail "No macOS 26.2 or newer 26.x SDK found"
+            fail "No macOS $sdk_major SDK found"
           fi
           echo "::endgroup::"
 

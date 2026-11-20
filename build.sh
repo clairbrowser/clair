@@ -31,7 +31,8 @@ Options:
   -k           Keep a clone of the tree from before Clair's patches in
                build/base, so a later "update" can work in place (APFS only)
   -j JOBS      Run at most JOBS ninja jobs in parallel during compile
-  -s SDK_PATH  Use this macOS SDK instead of the Xcode default
+  -s SDK_PATH  Use this macOS SDK instead of the Xcode default. Its major
+               version must be the one in macos-sdk-major.
   -t SECONDS   Time limit for the compile stage
   -h           Show this help
 EOF
@@ -279,6 +280,19 @@ relink_toolchains() {
 
 stage_configure() {
   relink_toolchains
+  # The engine key covers macos-sdk-major, so an engine is always compiled
+  # with an SDK of that major version.
+  local sdk_major sdk_version
+  sdk_major="$(tr -d '[:space:]' < "$_root_dir/macos-sdk-major")"
+  if [[ -n "$_sdk_path" ]]; then
+    sdk_version="$(/usr/libexec/PlistBuddy -c 'Print :Version' "$_sdk_path/SDKSettings.plist" 2>/dev/null || true)"
+  else
+    sdk_version="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)"
+  fi
+  if [[ ! "$sdk_major" =~ ^[0-9]+$ || "${sdk_version%%.*}" != "$sdk_major" ]]; then
+    echo "The engine builds with a macOS $sdk_major SDK (macos-sdk-major), not ${sdk_version:-an unknown SDK}." >&2
+    exit 1
+  fi
   # mac_sdk_path is a symlink with a fixed name, so ninja doesn't see an SDK
   # change. Objects compiled with another SDK are deleted instead of mixed in.
   local sdk_link="$_out_dir/sdk/selected_macos_sdk"

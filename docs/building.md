@@ -35,10 +35,10 @@ Building and running have different requirements: Clair runs on macOS 15.6 or la
 | Mac | Apple Silicon, 32 GB of RAM or more, about 80 GB of free disk (a 40 GB workspace plus the 30 GB reserve) | Apple Silicon |
 | macOS | 26.6 or later, for Xcode 27.2 | 26.6 or later, for Xcode 27.2 |
 | Xcode | 27.2 or later, with its Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`): ANGLE compiles its shaders with it | 27.2 or later: the project is in Xcode's JSON format (`project.xcproj`), which Xcode 26 can't open |
-| macOS SDK | The newest released SDK that Chromium's linker can read, passed with `-s`: for now the newest 26.x, since the linker can't read the macOS 27 SDK that Xcode 27 ships. The Command Line Tools include a 26.x SDK (`/Library/Developer/CommandLineTools/SDKs/`) | Xcode's own |
+| macOS SDK | The newest released SDK of the major version in `macos-sdk-major` (27), passed with `-s`. `configure` refuses any other, since the engine key covers that file. Xcode 27 and its Command Line Tools (`/Library/Developer/CommandLineTools/SDKs/`) include one | Xcode's own |
 | Other tools | Python 3.13 with `pip3 install PySocks httplib2`, and `brew install go ninja coreutils esbuild typescript zstd quilt` | none |
 
-`engine.yml` picks the newest installed 26.x SDK itself. On the owner's Mac, `.github/workflows/runner-check.yml` checks the Xcode version, the Metal toolchain, the SDK, Python and the Homebrew tools, and warns when free disk is low. Software Update can replace the Command Line Tools' SDKs; when the SDK changes, the engine build deletes `out/Default` and compiles from scratch. A clean engine build takes about 4 hours on an M1 Pro (see [Engine build times](#engine-build-times)).
+`engine.yml` picks the newest installed SDK of that major version itself; to move the engine to a new SDK major version, change `macos-sdk-major`. On the owner's Mac, `.github/workflows/runner-check.yml` checks the Xcode version, the Metal toolchain, the SDK, Python and the Homebrew tools, and warns when free disk is low. Software Update can replace the Command Line Tools' SDKs; when the SDK changes, the engine build deletes `out/Default` and compiles from scratch. A clean engine build takes about 4 hours on an M1 Pro (see [Engine build times](#engine-build-times)).
 
 GitHub's `macos-26` runner image has Xcode 26.6 at most, so CI jobs that build `ClairUI` use the `xcode-27` image (a public preview).
 
@@ -47,7 +47,7 @@ Then:
 ```sh
 git clone --recurse-submodules https://github.com/clairbrowser/clair.git
 cd Clair
-./build.sh -s /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk   # fetch, prepare, configure and compile
+./build.sh -s /Library/Developer/CommandLineTools/SDKs/MacOSX27.2.sdk   # fetch, prepare, configure and compile
 ```
 
 The stages can also be run one at a time: `./build.sh fetch prepare`, then `./build.sh configure`, then `./build.sh compile`. Run `./build.sh -h` for the options. The app is built at `build/src/out/Default/`.

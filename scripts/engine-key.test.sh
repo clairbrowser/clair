@@ -34,6 +34,7 @@ covered=(
   downloads-arm64.ini
   flags.macos.gn
   flags.clair.gn
+  macos-sdk-major
   patches/series
   patches/clair/branding.patch
   overlay/chrome/browser/clair/clair_host.mm
