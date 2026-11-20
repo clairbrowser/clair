@@ -719,7 +719,8 @@ bool ShowExtensionInstallPrompt(
     snapshot.acceptLabel = base::SysUTF16ToNSString(prompt->GetAcceptButtonLabel());
     snapshot.cancelLabel = base::SysUTF16ToNSString(prompt->GetAbortButtonLabel());
   }
-  prompt->OnDialogOpened();
+  // ExtensionInstallPrompt::ShowConfirmation() has already told the prompt's
+  // observers that it opened; the sheet reports only how it was answered.
   owner->ShowPrompt(
       snapshot,
       base::BindOnce(
