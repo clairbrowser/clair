@@ -2,7 +2,7 @@
 
 Clair is a macOS web browser in the style of Arc, built on ungoogled-chromium. It targets Apple Silicon only, with macOS 15.6 as the minimum. Its interface is native AppKit/SwiftUI in Crest's style (`pauljoda/Crest`): a Swift framework, `ClairUI`, that Chromium loads at start-up, with WebUI only for Chromium's internal pages. Change 1 uses it only for Sparkle 2 updates, the update menu and the About window. The UX spike (roadmap step 2 in change 1's `proposal.md`) replaces Chromium's window with a native one.
 
-Leave ungoogled-chromium alone as much as possible. Patches to existing Chromium files are for build fixes, identity, versioning and hooks only. Put new behavior in `ClairUI` or in new files under `overlay/`.
+Leave ungoogled-chromium alone as much as possible. Patches to existing Chromium files are for build fixes, identity, versioning and hooks only, plus two kinds of restoration: the Google services and the Chromium safety defaults that `chromium-engine`'s spec lists ("Google services Clair turns back on", "Chromium safety defaults Clair restores"). Put new behavior in `ClairUI` or in new files under `overlay/`.
 
 ## Planning: OpenSpec
 
