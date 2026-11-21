@@ -53,7 +53,7 @@ Clair's patches to existing Chromium source files SHALL be limited to macOS buil
 
 #### Scenario: Reviewing a safety default restoration
 - **WHEN** a patch that restores a Chromium safety default is read
-- **THEN** the default is on "Chromium safety defaults Clair restores"'s list, and each hunk reverts part of an ungoogled-chromium patch, or sets the limit the list names, and adds no other behavior
+- **THEN** the default is on "Chromium safety defaults Clair restores"'s list, and each hunk reverts part of an ungoogled-chromium patch and adds no other behavior
 
 ## ADDED Requirements
 
@@ -62,22 +62,11 @@ Clair SHALL revert an ungoogled-chromium change to Chromium's defaults only if t
 
 #### Scenario: The defaults Clair restores
 - **WHEN** the Chromium safety defaults Clair restores are listed
-- **THEN** they are the size limit on proxy auto-config downloads and secure DNS in automatic mode, and nothing else
+- **THEN** it is secure DNS in automatic mode, and nothing else
 
 #### Scenario: Proposing another default
 - **WHEN** a change proposes reverting another ungoogled-chromium default
 - **THEN** it says which security default the ungoogled-chromium change weakens and why ungoogled-chromium's reason doesn't hold for Clair, shows that the revert contacts no Google service, and adds the default to "The defaults Clair restores"
-
-### Requirement: Proxy auto-config downloads bounded
-Clair SHALL stop downloading a proxy auto-config file once it passes 16 MB and treat the download as failed, as Chromium does above its own limit. Smaller files SHALL load and apply as in Chromium.
-
-#### Scenario: An oversized proxy auto-config file
-- **WHEN** the proxy settings name a proxy auto-config file larger than 16 MB
-- **THEN** Clair stops the download at the limit, doesn't apply the file, and connects as it does when a proxy auto-config file can't be fetched
-
-#### Scenario: A large proxy auto-config file
-- **WHEN** the proxy settings name a 2 MB proxy auto-config file
-- **THEN** Clair loads it and routes requests as it says
 
 ### Requirement: Secure DNS automatic by default
 Clair SHALL default secure DNS to Chromium's automatic mode with its mapping from DNS providers' addresses to their own DNS-over-HTTPS endpoints. It SHALL NOT offer or upgrade to Google's DNS-over-HTTPS endpoints. The user's choice in `chrome://settings/security` SHALL override the default.
