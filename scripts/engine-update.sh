@@ -1,12 +1,16 @@
 #!/bin/bash
 # Keeps one engine update pull request open, from the branch engine-update,
-# for the newest ungoogled-chromium tag (automate-engine-updates D2 to D5).
-# engine-update.yml runs it on a schedule, in a checkout of main.
+# for the ungoogled-chromium tag that ungoogled-chromium-macos's newest tag
+# pins (automate-engine-updates D2 to D5). engine-update.yml runs it on a
+# schedule, in a checkout of main.
 #
 #   engine-update.sh
 #
-# When a tag newer than main's pin exists, it opens a draft pull request that
-# moves the pin to it and adds the release note, or adds that commit on top of
+# Clair needs ungoogled-chromium-macos's files for a version, so it follows
+# that repository's tags. Each pins ungoogled-chromium as a submodule. When the
+# newest version's tags pin an ungoogled-chromium tag newer than main's pin, it
+# opens a draft pull request that moves the pin to that tag and adds the
+# release note, or adds that commit on top of
 # the open pull request's branch. It leaves the branch alone once the owner has
 # started an engine build for its current pin (the pull request is "held"),
 # unless TAKE_NEWEST is true. It never force-pushes, rebases or merges, never
@@ -53,6 +57,10 @@ upstream_web=""
 if [[ "$upstream_url" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   upstream_web="${upstream_url%.git}"
 fi
+macos_web=""
+if [[ "$macos_url" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+  macos_web="${macos_url%.git}"
+fi
 
 work="$(mktemp -d)"
 cleanup() {
@@ -72,7 +80,7 @@ remote_git() {
     "$@"
 }
 
-# --- Tags (D2) ---------------------------------------------------------------
+# --- ungoogled-chromium's tags (D2) ------------------------------------------
 
 # list_tags <url> <file>: writes "<tag> <commit>" lines, oldest first, for the
 # tags whose names match the pattern. An annotated tag's commit is its peeled
@@ -196,7 +204,7 @@ conflicts() {
 # write_block <to tag> <head> [<newer tag held back>]: the bot's part of the
 # description, to $work/block.
 write_block() {
-  local to="$1" head="$2" newer="${3-}" version major from_major macos_tags kind
+  local to="$1" head="$2" newer="${3-}" version major from_major macos_tag macos_from kind
   version="$(version_of "$to")"
   major="$(major_of "$to")"
   from_major="$(major_of "$current")"
@@ -215,18 +223,18 @@ write_block() {
     if [[ -n "$upstream_web" ]]; then
       echo "- **Upstream changes:** [$current...$to]($upstream_web/compare/$current...$to)"
     fi
-    if list_tags_macos; then
-      # Its tags name the version alone (157.0.8103.78) or with a suffix
-      # (157.0.8103.78-1.1, 157.0.8103.78_arm64).
-      macos_tags="$(awk -v v="$version" '$0 == v || index($0, v "-") == 1 || index($0, v "_") == 1' \
-        "$work/macos-tags" | tr '\n' ' ' | sed 's/ $//; s/ /`, `/g')"
-      if [[ -n "$macos_tags" ]]; then
-        echo "- **ungoogled-chromium-macos:** has tagged this version: \`$macos_tags\`."
+    macos_tag="$(macos_tag_for "$to")"
+    macos_from="$(macos_tag_for "$current")"
+    if [[ -z "$macos_tag" ]]; then
+      echo "- **ungoogled-chromium-macos:** none of its tags pins \`$to\`."
+    elif [[ -n "$macos_web" ]]; then
+      if [[ -n "$macos_from" && "$macos_from" != "$macos_tag" ]]; then
+        echo "- **ungoogled-chromium-macos:** follows its tag [\`$macos_tag\`]($macos_web/tree/$macos_tag). [Its changes since \`$macos_from\`]($macos_web/compare/$macos_from...$macos_tag) are the files to sync."
       else
-        echo "- **ungoogled-chromium-macos:** has no tag for Chromium $version yet."
+        echo "- **ungoogled-chromium-macos:** follows its tag [\`$macos_tag\`]($macos_web/tree/$macos_tag)."
       fi
     else
-      echo "- **ungoogled-chromium-macos:** its tags could not be read."
+      echo "- **ungoogled-chromium-macos:** follows its tag \`$macos_tag\`${macos_from:+, after \`$macos_from\`}."
     fi
     echo "- **Engine build:** the pin changes, so the engine compiles Chromium from scratch (about 4 hours) on the owner's Mac. Only the owner starts it: \`gh workflow run engine.yml -f ref=$branch\`."
     echo "- **Ready for review** means every patch applies, not that the engine compiles. The comment below follows each patch check."
@@ -234,9 +242,9 @@ write_block() {
       echo
       echo "### Steps for a new major"
       echo
-      echo "See \"Updating the engine\" in \`docs/building.md\`. ungoogled-chromium-macos's patches usually fail first, so this pull request stays a draft until they are synced."
+      echo "See \"Updating the engine\" in \`docs/building.md\`. Its macOS patches usually fail until they are synced, so this pull request stays a draft until then."
       echo
-      echo "- [ ] Sync \`downloads-arm64.ini\`, \`retrieve_and_unpack_resource.py\`, \`flags.macos.gn\` and \`patches/ungoogled-chromium-macos/\` (and \`patches/series\`) from ungoogled-chromium-macos's tag for $version, with the toolchain steps of its \`build.sh\` and \`build_crubit.sh\`. Update the commit in \`CREDITS.md\`."
+      echo "- [ ] Sync \`downloads-arm64.ini\`, \`retrieve_and_unpack_resource.py\`, \`flags.macos.gn\` and \`patches/ungoogled-chromium-macos/\` (and \`patches/series\`) from ungoogled-chromium-macos's tag ${macos_tag:+\`$macos_tag\`}${macos_tag:-for $version}, with the toolchain steps of its \`build.sh\` and \`build_crubit.sh\`. Update the commit in \`CREDITS.md\`."
       echo "- [ ] Keep Clair's \`sha256\` lines for \`[rust]\` and \`[rustc-dev]\` in \`downloads-arm64.ini\`, updated for the new toolchain."
       echo "- [ ] Check the SDK that ungoogled-chromium-macos builds $version with against \`macos-sdk-major\`."
       echo "- [ ] Fix the Clair patches the comment below lists, from the top."
@@ -244,7 +252,7 @@ write_block() {
     if [[ -n "$newer" ]]; then
       echo
       echo "> [!NOTE]"
-      echo "> ungoogled-chromium has tagged \`$newer\`, but this pull request stays on \`$to\`: an engine build was started for its pin, and moving the pin would make the next build a full one again. Merge this pull request and the next run opens one for \`$newer\`, or take it now with \`gh workflow run engine-update.yml -f take-newest=true\`."
+      echo "> ungoogled-chromium-macos has tagged a version that pins \`$newer\`, but this pull request stays on \`$to\`: an engine build was started for its pin, and moving the pin would make the next build a full one again. Merge this pull request and the next run opens one for \`$newer\`, or take it now with \`gh workflow run engine-update.yml -f take-newest=true\`."
     fi
     if conflicts "$head"; then
       echo
@@ -257,18 +265,52 @@ write_block() {
   } >"$work/block"
 }
 
-macos_listed=""
-list_tags_macos() {
-  if [[ -z "$macos_listed" ]]; then
-    if git ls-remote --tags "$macos_url" >"$work/macos-ls-remote" 2>/dev/null; then
-      awk '{ name = $2; sub(/^refs\/tags\//, "", name); sub(/\^\{\}$/, "", name); print name }' \
-        "$work/macos-ls-remote" | grep -E '^[0-9]+(\.[0-9]+){3}([-_][A-Za-z0-9._-]*)?$' | LC_ALL=C sort -u >"$work/macos-tags" || true
-      macos_listed=yes
-    else
-      macos_listed=no
-    fi
-  fi
-  [[ "$macos_listed" == yes ]]
+# --- ungoogled-chromium-macos's tags (D2) ------------------------------------
+
+# list_macos_tags: writes "<n1> <n2> <n3> <n4> <tag>" lines to
+# $work/macos-tags, oldest version first. Its tags name the version alone
+# (157.0.8103.78) or with a suffix (157.0.8103.78-1.1, 157.0.8103.78_arm64).
+list_macos_tags() {
+  git ls-remote --tags "$macos_url" >"$work/macos-ls-remote" || return 1
+  awk '{ name = $2; sub(/^refs\/tags\//, "", name); sub(/\^\{\}$/, "", name); print name }' \
+    "$work/macos-ls-remote" |
+    { grep -E '^[0-9]+(\.[0-9]+){3}([-_][A-Za-z0-9._-]+)?$' || true; } |
+    LC_ALL=C sort -u |
+    awk '{ split($0, n, /[^0-9]/); print n[1], n[2], n[3], n[4], $0 }' |
+    LC_ALL=C sort -k1,1n -k2,2n -k3,3n -k4,4n -k5,5 >"$work/macos-tags"
+}
+
+# macos_tags_of <version>: that version's tags, oldest first.
+macos_tags_of() {
+  awk -v v="$1" '$5 == v || index($5, v "-") == 1 || index($5, v "_") == 1 { print $5 }' "$work/macos-tags"
+}
+
+# macos_pins <tag>...: "<tag> <ungoogled-chromium commit>" lines, from a
+# shallow fetch of those tags into a scratch repository, so the checkout is
+# left as it is.
+macos_pins() {
+  local tag specs=()
+  [[ -d "$work/macos.git" ]] || git init -q --bare "$work/macos.git"
+  for tag in "$@"; do
+    specs+=("+refs/tags/$tag:refs/macos/$tag")
+  done
+  git -C "$work/macos.git" fetch --quiet --no-tags --depth 1 "$macos_url" "${specs[@]}" || return 1
+  for tag in "$@"; do
+    echo "$tag $(git -C "$work/macos.git" ls-tree "refs/macos/$tag" ungoogled-chromium | awk '$2 == "commit" { print $3 }')"
+  done
+}
+
+# macos_tag_for <ungoogled-chromium tag>: the newest ungoogled-chromium-macos
+# tag that pins that tag's commit, or nothing.
+macos_tag_for() {
+  local commit tag tags=()
+  commit="$(commit_of "$1")"
+  while IFS= read -r tag; do
+    tags+=("$tag")
+  done < <(macos_tags_of "$(version_of "$1")")
+  (( ${#tags[@]} > 0 )) || return 0
+  macos_pins "${tags[@]}" >"$work/pins" || return 0
+  awk -v commit="$commit" '$2 == commit { tag = $1 } END { if (tag != "") print tag }' "$work/pins"
 }
 
 # merge_body <current body file> <out>: the description with the bot's part
@@ -321,14 +363,32 @@ pin="$(gitlink_of "$main_commit")"
 [[ -n "$pin" ]] || die "main has no ungoogled-chromium submodule"
 current="$(tag_of "$pin")"
 [[ -n "$current" ]] || die "main's ungoogled-chromium pin ($pin) is not on any tag of $upstream_url"
-target="$(tail -n 1 "$work/tags" | awk '{ print $1 }')"
+
+list_macos_tags || die "could not list the tags of $macos_url"
+[[ -s "$work/macos-tags" ]] || die "$macos_url has no tags of the form 1.2.3.4"
+newest_version="$(tail -n 1 "$work/macos-tags" | awk '{ print $1 "." $2 "." $3 "." $4 }')"
+newest_tags=()
+while IFS= read -r tag; do
+  newest_tags+=("$tag")
+done < <(macos_tags_of "$newest_version")
+macos_pins "${newest_tags[@]}" >"$work/newest-pins" || die "could not fetch $newest_version's tags from $macos_url"
+target="" macos_tag=""
+while read -r tag commit; do
+  candidate="$(tag_of "$commit")"
+  [[ -n "$candidate" ]] || continue
+  if [[ -z "$target" || "$candidate" == "$target" ]] || tag_newer "$candidate" "$target"; then
+    target="$candidate" macos_tag="$tag"
+  fi
+done <"$work/newest-pins"
+[[ -n "$target" ]] ||
+  die "ungoogled-chromium-macos's tags for $newest_version (${newest_tags[*]}) pin no tag of $upstream_url"
 target_commit="$(commit_of "$target")"
 
 if ! tag_newer "$target" "$current"; then
-  echo "main is on $current, the newest tag. Nothing to do."
+  echo "main is on $current; ungoogled-chromium-macos's newest tag, $macos_tag, pins $target. Nothing to do."
   exit 0
 fi
-echo "main is on $current; the newest tag is $target."
+echo "main is on $current; ungoogled-chromium-macos's newest tag, $macos_tag, pins $target."
 
 branch_commit=""
 if [[ -n "$(remote_git ls-remote --heads "$remote" "refs/heads/$branch")" ]]; then

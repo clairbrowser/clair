@@ -35,10 +35,32 @@ for name in $all_tags; do
 done
 commit_for() { awk -v n="$1" '$1 == n { print $2 }' "$work/commits"; }
 
+# ungoogled-chromium-macos: its GitHub URL, the script's default, is served
+# from a local repository, so the description's links can be checked.
+macos="$work/macos"
+macos_web=https://github.com/ungoogled-software/ungoogled-chromium-macos
+git init -q "$macos"
+git -C "$macos" commit -q --allow-empty -m init
+git config --global url."file://$macos".insteadOf "$macos_web.git"
+
+# set_macos_tags <tag>=<upstream commit name>...: ungoogled-chromium-macos has
+# exactly these tags, each on a commit that pins that ungoogled-chromium commit.
+set_macos_tags() {
+  local spec t
+  git -C "$macos" tag -l | while read -r t; do git -C "$macos" tag -d "$t" >/dev/null; done
+  for spec in "$@"; do
+    git -C "$macos" update-index --add --cacheinfo "160000,$(commit_for "${spec#*=}"),ungoogled-chromium"
+    git -C "$macos" commit -q -m "${spec%%=*}"
+    git -C "$macos" tag "${spec%%=*}"
+  done
+}
+
 # set_tags <name>...: upstream has exactly these tags. <name>@a is annotated;
 # <other>=<name> tags <name>'s commit as <other> (a name outside the pattern).
+# ungoogled-chromium-macos tags each one in the pattern as <name>.1, as it does
+# (157.0.8103.78-1.1); call set_macos_tags afterwards for anything else.
 set_tags() {
-  local spec name tagname
+  local spec name tagname mirrored=()
   git -C "$upstream" tag -l | while read -r t; do git -C "$upstream" tag -d "$t" >/dev/null; done
   for spec in "$@"; do
     name="${spec%@a}"
@@ -49,16 +71,11 @@ set_tags() {
     else
       git -C "$upstream" tag "$tagname" "$(commit_for "$name")"
     fi
+    if [[ "$tagname" == "$name" && "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; then
+      mirrored+=("$name.1=$name")
+    fi
   done
-}
-
-macos="$work/macos"
-git init -q "$macos"
-git -C "$macos" commit -q --allow-empty -m init
-set_macos_tags() {
-  local t
-  git -C "$macos" tag -l | while read -r t; do git -C "$macos" tag -d "$t" >/dev/null; done
-  for t in "$@"; do git -C "$macos" tag "$t"; done
+  set_macos_tags "${mirrored[@]}"
 }
 
 # --- This repository ---------------------------------------------------------
@@ -145,7 +162,7 @@ run() {
   rm -f "$gh_state/created.json" "$gh_state/patched.json"
   (cd "$work/checkout" && PATH="$work/bin:$PATH" FAKE_GH="$gh_state" GH_REPO=o/r \
     GH_TOKEN=app-token ACTIONS_TOKEN=actions-token BOT_NAME="$bot_name" BOT_EMAIL="$bot_email" \
-    ENGINE_UPDATE_REMOTE="$origin" ENGINE_UPDATE_MACOS_URL="$macos" env "$@" \
+    ENGINE_UPDATE_REMOTE="$origin" env "$@" \
     "$script" >"$work/out" 2>"$work/err")
   status=$?
 }
@@ -202,7 +219,8 @@ reset 157.0.8103.78-1 yes
 set_tags 157.0.8103.78-1 99.0.1.2-1 v200.0.0.0-1=158.0.8127.40-1 159.0.1.1=158.0.8127.36-1
 run
 check "no newer tag: exits 0" test "$status" -eq 0
-check "no newer tag: says there is nothing to do" out_has "main is on 157.0.8103.78-1, the newest tag. Nothing to do."
+check "no newer tag: says there is nothing to do, naming the ungoogled-chromium-macos tag" \
+  out_has "main is on 157.0.8103.78-1; ungoogled-chromium-macos's newest tag, 157.0.8103.78-1.1, pins 157.0.8103.78-1. Nothing to do."
 check "no newer tag: an older major and names outside the pattern are ignored" no_branch
 check "no newer tag: no pull request is touched" no_pr_change
 
@@ -219,7 +237,6 @@ check "a pin that matches no tag: nothing is pushed" no_branch
 
 reset 157.0.8103.78-1 yes
 set_tags 99.0.1.2-1 157.0.900.500-1 157.0.8103.78-1 157.0.8103.78-2@a 157.0.8103.100-1@a 158.0.8127.36-1-beta=158.0.8127.36-1
-set_macos_tags 157.0.8103.78-1.1 157.0.8103.100-1.1 157.0.8103.100_arm64 157.0.8103.10 157.0.8103.1000
 run
 check "patch-level: exits 0" test "$status" -eq 0
 check "ordering: 157.0.8103.100-1 is newer than 157.0.8103.78-2, 157.0.900.500-1 and 99.0.1.2-1" \
@@ -245,21 +262,10 @@ check "patch-level: a draft pull request is opened from $branch to main" \
   eval 'jq -e ".draft == true and .head == \"engine-update\" and .base == \"main\" and .title == \"build(engine): update to ungoogled-chromium 157.0.8103.100-1\"" "$gh_state/created.json" >/dev/null'
 check "patch-level: the description says patch-level" created_body_has "a patch-level update, within Chromium 157"
 check "patch-level: the description carries the tag marker" created_body_has "<!-- engine-update-tag: 157.0.8103.100-1 -->"
-check "patch-level: the description says ungoogled-chromium-macos has tagged it, with or without a suffix" \
-  created_body_has '`157.0.8103.100-1.1`, `157.0.8103.100_arm64`'
-check "a macOS tag for another version that starts the same isn't counted" \
-  eval '! created_body_has "157.0.8103.10\`" && ! created_body_has "157.0.8103.1000"'
-
-# A macOS tag that is the bare version, as its recent tags are.
-reset 157.0.8103.78-1 yes
-set_tags 157.0.8103.78-1 157.0.8103.100-1
-set_macos_tags 157.0.8103.78 157.0.8103.100
-run
-check "a bare macOS version tag counts" created_body_has 'has tagged this version: `157.0.8103.100`.'
-
-set_macos_tags 157.0.8103.78
-run
-check "no macOS tag for the version: the description says so" created_body_has "has no tag for Chromium 157.0.8103.100 yet"
+check "the description links the ungoogled-chromium-macos tag it follows" \
+  created_body_has "follows its tag [\`157.0.8103.100-1.1\`]($macos_web/tree/157.0.8103.100-1.1)"
+check "the description links its changes since the tag of main's pin" \
+  created_body_has "[Its changes since \`157.0.8103.78-1.1\`]($macos_web/compare/157.0.8103.78-1.1...157.0.8103.100-1.1)"
 check "patch-level: the description has no new-major steps" eval '! created_body_has "Steps for a new major"'
 check "the description has no bare @name" eval '! jq -r .body "$gh_state/created.json" | grep -qE "(^|[^\`A-Za-z0-9])@[A-Za-z0-9]"'
 check "pull requests use the App's token" gh_called "app-token | api -X POST repos/o/r/pulls"
@@ -280,18 +286,66 @@ check "second run: says it is already on the tag" out_has "#300 is already on 15
 
 reset 157.0.8103.78-1 no
 set_tags 157.0.8103.78-1 158.0.8127.36-1
-set_macos_tags 157.0.8103.78-1.1
 run
 check "new major: exits 0" test "$status" -eq 0
 check "new major: the pin moves" test "$(pin_at "refs/heads/$branch")" == "$(commit_for 158.0.8127.36-1)"
 check "new major: the description says it is a new major" created_body_has "a new major, from Chromium 157 to Chromium 158"
 check "new major: the description lists the manual steps" created_body_has "Steps for a new major"
-check "new major: the description says ungoogled-chromium-macos has no tag yet" \
-  created_body_has "has no tag for Chromium 158.0.8127.36 yet"
+check "new major: the sync step names the ungoogled-chromium-macos tag" \
+  created_body_has "from ungoogled-chromium-macos's tag \`158.0.8127.36-1.1\`"
 new_fragment="$(fragment_on "refs/heads/$branch")"
 expected="$(printf 'A\t%s\nM\tungoogled-chromium' "$new_fragment" | sort)"
 check "no engine fragment on main: one is added, and the other fragments stay" \
   test "$(changed_files "$(main_head)" "refs/heads/$branch")" == "$expected"
+
+# --- Following ungoogled-chromium-macos's tags --------------------------------
+
+# A newer ungoogled-chromium tag isn't followed until ungoogled-chromium-macos
+# tags its version; the target is what that repository's newest tag pins.
+reset 157.0.8103.78-1 yes
+set_tags 157.0.8103.78-1 157.0.8103.100-1 158.0.8127.36-1
+set_macos_tags 157.0.8103.78=157.0.8103.78-1 157.0.8103.100=157.0.8103.100-1
+run
+check "the target is what the newest ungoogled-chromium-macos tag pins" \
+  eval 'test "$status" -eq 0 && test "$(pin_at "refs/heads/$branch")" == "$(commit_for 157.0.8103.100-1)"'
+check "the log names the ungoogled-chromium-macos tag" \
+  out_has "ungoogled-chromium-macos's newest tag, 157.0.8103.100, pins 157.0.8103.100-1."
+check "a bare ungoogled-chromium-macos tag is followed and linked" \
+  created_body_has "follows its tag [\`157.0.8103.100\`]($macos_web/tree/157.0.8103.100). [Its changes since \`157.0.8103.78\`]($macos_web/compare/157.0.8103.78...157.0.8103.100)"
+
+# Tags with suffixes, ordered by their version numbers, not as text.
+reset 157.0.8103.78-1 yes
+set_tags 157.0.8103.78-1 157.0.8103.78-2 157.0.8103.100-1 157.0.900.500-1
+set_macos_tags 157.0.900.500=157.0.900.500-1 157.0.8103.78-1.1=157.0.8103.78-1 \
+  157.0.8103.100_arm64=157.0.8103.100-1 157.0.8103.100-1.1=157.0.8103.100-1 157.0.8103.10=157.0.8103.78-2
+run
+check "ungoogled-chromium-macos's versions are ordered by number (157.0.8103.100 after 157.0.900.500 and 157.0.8103.10)" \
+  eval 'test "$status" -eq 0 && test "$(pin_at "refs/heads/$branch")" == "$(commit_for 157.0.8103.100-1)"'
+check "a suffixed ungoogled-chromium-macos tag is followed" \
+  eval 'created_body_has "follows its tag [\`157.0.8103.100_arm64\`]" || created_body_has "follows its tag [\`157.0.8103.100-1.1\`]"'
+check "another version that starts the same isn't taken as this one's" eval '! created_body_has "157.0.8103.10\`"'
+
+# A tag whose submodule commit is on no ungoogled-chromium tag.
+reset 157.0.8103.78-1 yes
+set_tags 157.0.8103.78-1 157.0.8103.100-1
+set_macos_tags 157.0.8103.78=157.0.8103.78-1 157.0.8103.200=untagged
+run
+check "an ungoogled-chromium-macos tag that pins no ungoogled-chromium tag fails" test "$status" -eq 1
+check "it names that tag" err_has "tags for 157.0.8103.200 (157.0.8103.200) pin no tag"
+check "it pushes nothing" eval 'no_branch && no_pr_change'
+
+# An open pull request on a version ungoogled-chromium-macos hasn't tagged (as
+# #212 was opened before the bot followed it) is left alone.
+reset 157.0.8103.78-1 yes
+set_tags 157.0.8103.78-1 158.0.8127.36-1
+run
+open_pr_from_created
+before="$(branch_head)"
+set_macos_tags 157.0.8103.78=157.0.8103.78-1
+run
+check "an open pull request on a version ungoogled-chromium-macos hasn't tagged: nothing to do" \
+  eval 'test "$status" -eq 0 && out_has "Nothing to do."'
+check "it is left alone" eval 'test "$(branch_head)" == "$before" && no_pr_change'
 
 # --- Declined tag --------------------------------------------------------------
 
@@ -369,7 +423,7 @@ for state in "in_progress|" "completed|failure" "completed|success"; do
   check "$label: the branch is unchanged" test "$(branch_head)" == "$before"
   check "$label: the log says it is held" out_has "#300 is held on 157.0.8103.78-2"
   check "$label: the description names the newer tag and why" \
-    eval 'patched_body_has "ungoogled-chromium has tagged \`157.0.8103.100-1\`, but this pull request stays on \`157.0.8103.78-2\`"'
+    eval 'patched_body_has "ungoogled-chromium-macos has tagged a version that pins \`157.0.8103.100-1\`, but this pull request stays on \`157.0.8103.78-2\`"'
   check "$label: the description keeps the pull request's own tag" patched_body_has "<!-- engine-update-tag: 157.0.8103.78-2 -->"
   check "$label: it stays as it was" eval '! gh_called "pr ready"'
   check "$label: engine.yml's runs are read with the Actions token" \
