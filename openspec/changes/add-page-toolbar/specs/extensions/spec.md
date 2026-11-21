@@ -14,7 +14,7 @@ An extension the user has just installed through a confirmation SHALL be pinned,
 - **THEN** it stays unpinned
 
 ### Requirement: Extension popups in a window
-An extension's popup SHALL open in a small titled window whose only enabled control is the close button. The window SHALL be movable by its title bar, and SHALL first open beside the control that opened it, following `sidebar`. While the toolbar shows (`page-toolbar`), it SHALL instead open over the toolbar with its top-trailing corner at the card's top edge, 40 points in from the card's trailing edge, as in Arc. Its page SHALL show whole, at the size the extension asks for, within Chromium's limits of 25×25 to 800×600 points.
+An extension's popup SHALL open in a small titled window whose only enabled control is the close button. The window SHALL be movable by its title bar. It SHALL first open beside the control that opened it, following `sidebar`, or over the toolbar at a fixed place by the card's top-trailing corner while the toolbar shows (`page-toolbar`), as in Arc. Its page SHALL show whole, at the size the extension asks for, within Chromium's limits of 25×25 to 800×600 points.
 
 #### Scenario: Opening a popup
 - **WHEN** the toolbar is off and the user clicks a pinned extension's button whose action has a popup
