@@ -37,8 +37,8 @@ Three pull requests implement this change (design D9): tasks 1.x, then tasks 2.x
 Task 5.1 was verified before these, with #212, which the bot opened for ungoogled-chromium's `158.0.8127.36-1`.
 
 - [x] 6.1 Make `scripts/engine-update.sh` take its target from ungoogled-chromium-macos's tags (D2) and describe that tag in the pull request (D5), and extend `scripts/engine-update.test.sh`. Verify that the test covers: a target taken from the submodule commit of the newest ungoogled-chromium-macos version's tags; tags with no suffix and with suffixes, ordered by version; an ungoogled-chromium-macos tag whose commit is on no ungoogled-chromium tag failing; an open pull request on a version ungoogled-chromium-macos hasn't tagged being left alone; and the description linking the ungoogled-chromium-macos tag and its comparison. Verify that `shellcheck -S warning` passes.
-- [ ] 6.2 Update `docs/building.md`'s "Updating the engine" and `CLAUDE.md` for ungoogled-chromium-macos's tags. Verify that the merge gate passes on the pull request and that its engine key equals `main`'s.
-- [ ] 6.3 After it merges, start `engine-update.yml` by hand. Verify that its log names the ungoogled-chromium-macos tag it follows and says there is nothing to do while that tag pins Clair's pin, and that #212 is unchanged.
+- [x] 6.2 Update `docs/building.md`'s "Updating the engine" and `CLAUDE.md` for ungoogled-chromium-macos's tags. Verify that the merge gate passes on the pull request and that its engine key equals `main`'s.
+- [x] 6.3 After it merges, start `engine-update.yml` by hand. Verify that its log names the ungoogled-chromium-macos tag it follows and says there is nothing to do while that tag pins Clair's pin, and that #212 is unchanged.
 
 ## Workflow follow-up
 
