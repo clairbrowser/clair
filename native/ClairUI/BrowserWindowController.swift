@@ -56,10 +56,11 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   private var statusState = StatusCapsuleState()
   private var statusTimer: Task<Void, Never>?
 
-  /// `spaces` is the app's model of Spaces, the running native layer's when
-  /// nil.
+  /// `spaces` is the app's model of Spaces, and `updateBanner` its update
+  /// banner, the running native layer's when nil.
   init(
-    browser: any ClairBrowser, spaces: SpacesModel? = nil, preferences: SidebarPreferences = SidebarPreferences(),
+    browser: any ClairBrowser, spaces: SpacesModel? = nil, updateBanner: UpdateBannerState? = nil,
+    preferences: SidebarPreferences = SidebarPreferences(),
     dragPreference: WindowDragPreference = WindowDragPreference(),
     peekPreference: PeekPreference = PeekPreference(), pinsPreferences: PinsPreferences = PinsPreferences()
   ) {
@@ -70,9 +71,10 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     self.peekPreference = peekPreference
     self.pinsPreferences = pinsPreferences
     let spaces = spaces ?? NativeLayer.current?.spaces ?? .detached
+    let updateBanner = updateBanner ?? NativeLayer.current?.updates?.bannerState ?? .detached
     let model = BrowserWindowModel(
       profileKind: browser.profileKind, sidebar: preferences.initialState, browserID: browser.browserID,
-      shownSpaceID: browser.shownSpaceID, spaces: spaces)
+      shownSpaceID: browser.shownSpaceID, spaces: spaces, updateBanner: updateBanner)
     self.model = model
     sidebarHost = NSHostingView.edgeToEdge(rootView: SidebarView(model: model, actions: nil))
     rootView = BrowserRootView(model: model, sidebar: sidebarHost)
@@ -790,6 +792,24 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   }
 
   // MARK: SidebarActions
+
+  // The update banner (add-update-banners D2, D6).
+
+  func restartToUpdate() {
+    NativeLayer.current?.updates?.restartToUpdate(confirming: false)
+  }
+
+  func closeUpdateComplete() {
+    NativeLayer.current?.updates?.closeUpdateComplete()
+  }
+
+  func updateWhatsNewChosen() {
+    guard case .complete(let version) = model.updateBanner.banner,
+      let url = UpdateBanner.releaseURL(forVersion: version)
+    else { return }
+    browser?.open(url, disposition: .newForegroundTab)
+    closeUpdateComplete()
+  }
 
   func activate(tab: TabID) {
     // A tab with a Peek shows with its Peek (add-peek D4).

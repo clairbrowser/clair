@@ -47,6 +47,13 @@ protocol SidebarActions: SpaceActions, PinActions {
   func openDownloadsPage()
   // Where the controls are, for Chromium's bubbles.
   func controlFramesChanged(_ frames: [AnchorControl: CGRect])
+  // The update banner (add-update-banners).
+  /// The banner's Restart and Update, with no version alert (D2).
+  func restartToUpdate()
+  /// Closes "Update Complete!" in every window (D3).
+  func closeUpdateComplete()
+  /// Opens the running version's release page and closes the card (D6).
+  func updateWhatsNewChosen()
 }
 
 /// The sidebar's coordinate space, which is its hosting view's.
@@ -82,6 +89,16 @@ struct SidebarView: View {
   /// The tab list's height, as laid out.
   @State private var tabListHeight: CGFloat = 0
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  /// Arc's line between a list that scrolls and what's below it: 1 pt across
+  /// the sidebar, about 4% black in Light Mode and 8% white in Dark Mode, as
+  /// measured. It sits above the update banner while one shows.
+  @ViewBuilder private var overflowLine: some View {
+    if TabList.overflows(height: tabListHeight, rows: TabList.rowsHeight(model: model)) {
+      Rectangle().fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)).frame(height: 1)
+    }
+  }
 
   var body: some View {
     // Arc's metrics: the top row at y+8, the URL field at y+46, the list
@@ -127,16 +144,22 @@ struct SidebarView: View {
       SpacePager(model: model, actions: actions, isSidebarHovered: isHovered, tabListHeight: $tabListHeight)
         .padding(.top, tabListTopPadding)
         .frame(maxHeight: .infinity, alignment: .top)
+      // The update banner's slot, between the list and the footer; its cards
+      // open upward over the list (add-update-banners D4). Later in the stack,
+      // it draws above the list.
+      if model.updateBanner.banner != .none {
+        UpdateBannerView(banner: model.updateBanner.banner, actions: actions)
+          .background(alignment: .top) { overflowLine }
+          .transition(UpdateBannerView.slotTransition(reduceMotion: reduceMotion))
+      }
       SidebarFooter(model: model, actions: actions)
         .overlay(alignment: .top) {
-          // Arc's line between a list that scrolls and the footer: 1 pt
-          // across the sidebar, about 4% black in Light Mode and 8% white
-          // in Dark Mode, as measured.
-          if TabList.overflows(height: tabListHeight, rows: TabList.rowsHeight(model: model)) {
-            Rectangle().fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)).frame(height: 1)
-          }
+          if model.updateBanner.banner == .none { overflowLine }
         }
     }
+    // The pill shows, and the complete card closes, by sliding down 15 pt and
+    // fading (add-update-banners D5).
+    .animation(.easeIn(duration: 0.12), value: model.updateBanner.banner == .none)
     // The explicit minimum keeps the sidebar at the width it's given; without
     // one, a child too wide to shrink widens it and the host centres the excess.
     .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

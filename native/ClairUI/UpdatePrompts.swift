@@ -10,8 +10,6 @@ protocol UpdatePrompting {
   func showCheckFailed(reason: String)
   /// Returns true if the user chose "Restart and Update".
   func askToRestart(forVersion version: String) -> Bool
-  /// Returns true if the user chose to restart anyway.
-  func askToCloseIncognitoWindows() -> Bool
 }
 
 /// Small alerts, the only update UI Clair shows (design D4).
@@ -28,14 +26,6 @@ struct UpdateAlerts: UpdatePrompting {
     run(
       title: "Clair \(version) is ready",
       message: "Restart Clair to finish updating. Your windows and tabs will come back.",
-      buttons: ["Restart and Update", "Later"]
-    ) == .alertFirstButtonReturn
-  }
-
-  func askToCloseIncognitoWindows() -> Bool {
-    run(
-      title: "Restart Clair and close your incognito windows?",
-      message: "Your other windows and tabs will come back, but incognito windows won't reopen.",
       buttons: ["Restart and Update", "Later"]
     ) == .alertFirstButtonReturn
   }

@@ -144,6 +144,13 @@ final class AppTests: RuntimeTestCase {
 
 @MainActor
 final class UpdateMenuTests: RuntimeTestCase {
+  override func setUp() async throws {
+    // The banner's test waits for a background update and launches three
+    // times, past run.sh's default allowance.
+    executionTimeAllowance = 420
+    try await super.setUp()
+  }
+
   func testCheckReportsUpToDate() async throws {
     try skipAutomaticCheck()
     let browser = try await startBrowser(feed: upToDateFeed)
@@ -196,6 +203,78 @@ final class UpdateMenuTests: RuntimeTestCase {
     XCTAssertTrue(restored, "Tabs before the relaunch: \(before). After: \(after)")
     let windowsAfter = try await browser.windowCount()
     XCTAssertEqual(windowsAfter, windowsBefore, "The windows didn't come back")
+  }
+
+  /// The sidebar's banners (add-update-banners): a background update shows
+  /// the pill in every window, and its Restart and Update relaunches with no
+  /// alert. The new version's first launch shows "Update Complete!", whose See
+  /// What's New opens the release page and closes it, and the next launch
+  /// doesn't show it again.
+  func testBannerRestartsAndShowsUpdateComplete() async throws {
+    let browser = try await startBrowser(feed: updateFeed)
+    let first = try await browser.open("\(page)?first")
+    let second = try await browser.open("\(page)?second", newWindow: true)
+    defer {
+      first.close()
+      second.close()
+    }
+    try require(
+      browser.updateItemExists(titled: "Update Available…", within: 180),
+      "No update was waiting after three minutes")
+
+    // 1. The pill, in each window.
+    browser.ui.activate()
+    let windows = browser.ui.windows.containing(.any, identifier: "clair.sidebar")
+    let both = await Harness.wait(for: 30) { windows.count >= 2 }
+    try require(both, "The second window didn't open")
+    for window in windows.allElementsBoundByIndex {
+      XCTAssertTrue(
+        browser.element("clair.updateBanner", in: window).waitForExistence(timeout: 10),
+        "A window has no update banner")
+    }
+
+    // 2. Hovering opens the card, and its button relaunches at once: an alert
+    // would hold the relaunch, since nothing here answers one.
+    let banner = browser.element("clair.updateBanner")
+    try require(banner.waitForExistence(timeout: 10), "There's no update banner")
+    banner.hover()
+    let restart = browser.element("clair.updateBanner.restart")
+    try require(restart.waitForExistence(timeout: 10), "Hovering the banner showed no Restart and Update")
+    let oldProcess = try browser.runningProcessID()
+    restart.click()
+    try await waitForRelaunch(of: browser, from: oldProcess, within: 120)
+    XCTAssertEqual(browser.installedVersion, fixture.updateVersion, "The update didn't install")
+
+    // 3. "Update Complete!", in the relaunched process, which `browser.ui`
+    // doesn't follow.
+    let relaunched = XCUIApplication(url: browser.appPath)
+    let complete = relaunched.descendants(matching: .any).matching(identifier: "clair.updateComplete").firstMatch
+    try require(complete.waitForExistence(timeout: 60), "The new version shows no \"Update Complete!\" card")
+
+    // 4. See What's New opens the release page in a tab.
+    let whatsNew = relaunched.descendants(matching: .any).matching(identifier: "clair.updateComplete.whatsNew")
+      .firstMatch
+    try require(whatsNew.waitForExistence(timeout: 10), "The card has no See What's New")
+    whatsNew.click()
+    let release = "/releases/tag/v\(fixture.updateVersion)"
+    var urls: [String] = []
+    let opened = await Harness.wait(for: 30) {
+      urls = try await browser.pageTargets().map(\.url)
+      return urls.contains { $0.hasSuffix(release) }
+    }
+    XCTAssertTrue(opened, "No tab opened \(release): \(urls)")
+
+    // 5. The card is gone.
+    XCTAssertTrue(complete.waitForNonExistence(timeout: 10), "See What's New didn't close the card")
+
+    // 6. It doesn't come back on the next launch.
+    try await browser.quit()
+    try await browser.start(feed: upToDateFeed)
+    browser.ui.activate()
+    try require(browser.sidebar.waitForExistence(timeout: 30), "Clair shows no sidebar after relaunching")
+    XCTAssertFalse(
+      browser.element("clair.updateComplete").waitForExistence(timeout: 5),
+      "\"Update Complete!\" came back on the next launch")
   }
 }
 

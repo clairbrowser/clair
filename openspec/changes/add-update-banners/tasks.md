@@ -54,7 +54,7 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
   6. Relaunch, and it doesn't come back.
 
   Verify by running the test locally (this Mac may run the suite), and it passes.
-- [ ] 4.2 Add a Changie fragment (`changie new`) for both banners. Verify that the fragment exists under `.changes/unreleased/`.
+- [x] 4.2 Add a Changie fragment (`changie new`) for both banners. Verify that the fragment exists under `.changes/unreleased/`.
 
 ## 5. Integration
 

@@ -43,13 +43,15 @@ tests/probe/probe.sh stop
 tests/probe/serve.sh stop
 ```
 
-- `launch-clair.sh [--port <n>] [--flag <switch>]... [url]` packages the
-  checkout's ClairUI into `build/probe/clair/` and launches it with a fresh
-  throwaway profile and the mock keychain, then prints its windows. `--flag`
-  passes a Chromium switch, such as
+- `launch-clair.sh [--port <n>] [--flag <switch>]... [--env <NAME=value>]... [url]`
+  packages the checkout's ClairUI into `build/probe/clair/` and launches it
+  with a fresh throwaway profile and the mock keychain, then prints its
+  windows. `--flag` passes a Chromium switch, such as
   `--extension-mime-request-handling=always-prompt-for-install` to let a CRX
-  from a local server ask to install. Launching again quits the previous
-  test copy, and the probe stops with it: start the probe again.
+  from a local server ask to install. `--env` sets an environment variable in
+  Clair, such as `CLAIR_TEST_FEED_URL` for a local appcast
+  (`docs/updates.md`). Launching again quits the previous test copy, and the
+  probe stops with it: start the probe again.
 - `probe.sh start [bundle id]` builds the probe once, starts it, and attaches
   it to the app (Arc, `company.thebrowser.Browser`, by default). For Clair it
   insists that the test copy runs. It also unregisters every other copy of

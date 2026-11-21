@@ -17,6 +17,8 @@ final class BrowserWindowModel {
   let browserID: BrowserID
   /// Every Space and its tabs, app-wide (add-spaces design D10).
   let spaces: SpacesModel
+  /// The sidebar's update banner, app-wide (add-update-banners D1).
+  let updateBanner: UpdateBannerState
 
   /// The Space the window shows (add-spaces design D3).
   private(set) var shownSpaceID: SpaceID
@@ -187,13 +189,14 @@ final class BrowserWindowModel {
 
   init(
     profileKind: ProfileKind, sidebar: SidebarState, browserID: BrowserID = 0, shownSpaceID: SpaceID = "",
-    spaces: SpacesModel = .detached
+    spaces: SpacesModel = .detached, updateBanner: UpdateBannerState = .detached
   ) {
     self.profileKind = profileKind
     self.sidebar = sidebar
     self.browserID = browserID
     self.shownSpaceID = shownSpaceID
     self.spaces = spaces
+    self.updateBanner = updateBanner
   }
 
   /// Shows another Space's rows, read from `spaces`.
