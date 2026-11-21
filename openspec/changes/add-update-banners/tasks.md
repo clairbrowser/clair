@@ -36,9 +36,9 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
   - the pill shows in a second window, an incognito window and the revealed hidden sidebar;
   - at the 164 pt minimum width the title fits or truncates;
   - Restart and Update relaunches with no version alert.
-- [ ] 3.3 Add the "Update Complete!" card to `UpdateBannerView`: the close button, the See What's New row, and the sparkles with their Reduce Motion fallback (D4, D5). Add the `updateWhatsNewChosen()` action, which opens the release page in a new foreground tab and closes the card (D6). Verify with a unit test in CI of the release-URL builder: `0.1.3` gives `…/releases/tag/v0.1.3`, and a version that isn't numeric gives no URL. By hand:
-  - the card matches `update-complete.jpg` in layout, apart from the Gift row and the colour cycling;
-  - the sparkles twinkle, and stop with Reduce Motion on;
+- [ ] 3.3 Add the "Update Complete!" card to `UpdateBannerView`: the close button and the See What's New row, with Reduce Motion's cross-fades (D4, D5). Add the `updateWhatsNewChosen()` action, which opens the release page in a new foreground tab and closes the card (D6). Verify with a unit test in CI of the release-URL builder: `0.1.3` gives `…/releases/tag/v0.1.3`, and a version that isn't numeric gives no URL. By hand:
+  - the card matches `update-complete.jpg` in layout, apart from the Gift row, the colour cycling and the sparkles;
+  - nothing on the card animates while it sits open, and with Reduce Motion on its transitions are cross-fades;
   - the close button closes the card in two windows;
   - See What's New opens the release page and closes the card;
   - Dark Mode is legible.

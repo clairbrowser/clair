@@ -65,7 +65,7 @@ Choosing the banner's "Restart and Update" SHALL install the waiting update and 
 - **THEN** Clair warns that relaunching will cancel the download, and if the user postpones, Clair keeps running and the pill stays
 
 ### Requirement: Update Complete card after an update
-On the first launch of a version newer than the one Clair last ran, every window's sidebar SHALL show an open "Update Complete!" card at its bottom, above the footer, with a close button and a "See What's New" row. Small sparkles SHALL twinkle along its header while it shows. It SHALL NOT show on Clair's first launch ever, on a launch of the same version, or on a launch of an older version. A waiting update's pill SHALL replace it.
+On the first launch of a version newer than the one Clair last ran, every window's sidebar SHALL show an open "Update Complete!" card at its bottom, above the footer, with a close button and a "See What's New" row. It SHALL NOT show on Clair's first launch ever, on a launch of the same version, or on a launch of an older version. A waiting update's pill SHALL replace it.
 
 #### Scenario: First launch after updating
 - **WHEN** Clair relaunches after installing an update from 0.1.2 to 0.1.3

@@ -107,8 +107,8 @@ Taken from 60 fps recordings of Arc (`arc-reference/`):
 - **Opening on hover:** a spring, `.spring(response: 0.25, dampingFraction: 0.8)`. The card scales from the pill's frame, anchored at the bottom, and its rows fade in. In Arc the card is fully shown within about 120 ms of the pointer arriving, and settles with a slight overshoot by about 300 ms.
 - **Collapsing:** `.easeOut(duration: 0.15)` back into the pill.
 - **Showing the pill** when an update starts waiting, and **closing the complete card:** the card slides down 15 pt and fades, `.easeIn(duration: 0.12)`, as Arc's does.
-- **Sparkles** on the "Update Complete!" header: 3 to 5 small four-point stars (`sparkle` glyph, 5–8 pt, accent colour) at random points along the card's top edge and around the title. Each fades and scales in and out over about 1 s, staggered, for as long as the card shows. A `TimelineView(.animation)` drives them, and they pause while the window isn't visible.
-- **Reduce Motion:** no sparkles, and the card's transitions become cross-fades.
+- **No continuous animation.** Arc twinkles sparkles along the "Update Complete!" header for as long as the card shows. Clair leaves them out, by the owner's decision, like Arc's colour cycling.
+- **Reduce Motion:** the card's transitions become cross-fades.
 
 ### D6. See What's New
 
