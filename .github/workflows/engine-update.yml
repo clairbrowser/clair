@@ -1,0 +1,84 @@
+# Keeps one engine update pull request open, from the branch engine-update,
+# for the newest ungoogled-chromium tag (automate-engine-updates D1 to D6). The
+# logic is in scripts/engine-update.sh. It acts as the engine update GitHub
+# App, because a pull request opened with a workflow's own token starts no
+# checks. It never starts an engine build or merges: the owner does.
+#
+# Started every 6 hours, or by hand: gh workflow run engine-update.yml, with
+# -f take-newest=true to move a held pull request's pin anyway.
+name: Engine update
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      take-newest:
+        description: "Move the pull request to the newest tag even when an engine build was started for its pin"
+        required: false
+        default: false
+        type: boolean
+
+# The job's own token only reads engine.yml's runs (D3). Everything else uses
+# the App's token, which only the engine-update environment can make.
+permissions:
+  actions: read
+
+concurrency:
+  group: engine-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Engine update pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Holds the App's ID and private key; limited to main.
+    environment: engine-update
+    steps:
+      - name: Get the App's token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.ENGINE_UPDATE_APP_ID }}
+          private-key: ${{ secrets.ENGINE_UPDATE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Check out main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+          persist-credentials: false
+
+      - name: Find the App's bot user
+        id: bot
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          if [[ ! "$SLUG" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::Unexpected App slug: $SLUG"
+            exit 1
+          fi
+          id="$(gh api "users/$SLUG%5Bbot%5D" --jq .id)"
+          if [[ ! "$id" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not find the user ${SLUG}[bot]"
+            exit 1
+          fi
+          {
+            echo "name=${SLUG}[bot]"
+            echo "email=$id+${SLUG}[bot]@users.noreply.github.com"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the pull request
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          ACTIONS_TOKEN: ${{ github.token }}
+          BOT_NAME: ${{ steps.bot.outputs.name }}
+          BOT_EMAIL: ${{ steps.bot.outputs.email }}
+          TAKE_NEWEST: ${{ inputs.take-newest && 'true' || 'false' }}
+        run: ./scripts/engine-update.sh

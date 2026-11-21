@@ -6,6 +6,10 @@
 # and deletes all but the 5 newest engines and those main or an open pull
 # request still needs (scripts/prune-engines.sh).
 name: Engine
+# Names the branch it builds: engine-update.yml looks for runs of engine-update
+# by this title (automate-engine-updates D1, D3), as the API doesn't give a
+# run's inputs.
+run-name: "Engine: ${{ inputs.ref }}"
 
 on:
   workflow_dispatch:
