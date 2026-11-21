@@ -6,7 +6,7 @@ Taking a new ungoogled-chromium tag starts by hand today: someone has to notice 
 
 ## What Changes
 
-- A scheduled workflow checks ungoogled-chromium's tags every 6 hours. When a tag newer than the pin exists, it opens a draft pull request that moves the pin to it and adds the release note. Nothing else changes in that pull request: syncing the files copied from ungoogled-chromium-macos stays manual.
+- A scheduled workflow checks ungoogled-chromium-macos's tags every 6 hours. Each pins ungoogled-chromium as a submodule. When the newest one pins an ungoogled-chromium tag newer than Clair's pin, it opens a draft pull request that moves the pin to that tag and adds the release note. Nothing else changes in that pull request: syncing the files copied from ungoogled-chromium-macos stays manual.
 - There is one engine update pull request at a time, on the branch `engine-update`. A newer tag, of the same major or the next, adds a commit to it, so fixes the owner pushed carry over. Once the owner has started an engine build for that pull request, the pin stays where it is until it merges, unless the owner asks for the newer tag.
 - After each CI run on that pull request, a second workflow reads the patch check's result. It marks the pull request ready when every patch applies, returns it to draft when one doesn't, and keeps one comment up to date with the patches that failed or the command that builds the engine. A fix the owner pushes re-runs CI, so the pull request turns ready by itself.
 - The patch check tries every patch in Clair's series and lists all that don't apply, where it now stops at the first.
@@ -14,7 +14,7 @@ Taking a new ungoogled-chromium tag starts by hand today: someone has to notice 
 
 Out of scope:
 - Starting the engine build. It stays the owner's decision: any pin change compiles Chromium from scratch on the owner's Mac (about 4 hours).
-- Syncing `downloads-arm64.ini`, `flags.macos.gn`, `retrieve_and_unpack_resource.py` and `patches/ungoogled-chromium-macos/` from ungoogled-chromium-macos. The pull request says whether that repository has tagged the version, and lists the steps.
+- Syncing `downloads-arm64.ini`, `flags.macos.gn`, `retrieve_and_unpack_resource.py` and `patches/ungoogled-chromium-macos/` from ungoogled-chromium-macos. The pull request links that repository's tag and its changes since the previous one, and lists the steps.
 - Fixing patches, and merging.
 - Making a pin change build incrementally.
 

@@ -3,15 +3,15 @@
 ## ADDED Requirements
 
 ### Requirement: Engine update pull request
-The repository SHALL check ungoogled-chromium's release tags on a schedule, at least once a day. When a tag newer than `main`'s pin exists and no engine update pull request is open, it SHALL open a draft pull request that only moves the pin to the newest tag and adds its release note. The check MUST NOT start an engine build or merge a pull request. It SHALL NOT open a pull request for a tag whose pull request was closed without merging.
+The repository SHALL check ungoogled-chromium-macos's tags on a schedule, at least once a day. When the newest one pins an ungoogled-chromium tag newer than `main`'s pin and no engine update pull request is open, it SHALL open a draft pull request that only moves the pin to that tag and adds its release note. It MUST NOT start an engine build or merge, and SHALL NOT open a pull request for a tag whose pull request was closed without merging.
 
 #### Scenario: Patch-level tag
-- **WHEN** ungoogled-chromium publishes a new tag for the Chromium major Clair already uses, and no engine update pull request is open
+- **WHEN** ungoogled-chromium-macos tags a newer version of the Chromium major Clair already uses, and no engine update pull request is open
 - **THEN** within a day a draft pull request exists that changes only the pinned tag and the release note
 
 #### Scenario: New major
-- **WHEN** ungoogled-chromium publishes a tag for a newer Chromium major
-- **THEN** the draft pull request says it is a new major, says whether ungoogled-chromium-macos has tagged that version, and lists the manual steps of an engine update
+- **WHEN** ungoogled-chromium-macos tags a version of a newer Chromium major
+- **THEN** the draft pull request says it is a new major, links ungoogled-chromium-macos's tag and its changes since the previous one, and lists the manual steps of an engine update
 
 #### Scenario: Declined tag
 - **WHEN** the owner closes an engine update pull request without merging it, and no newer tag exists

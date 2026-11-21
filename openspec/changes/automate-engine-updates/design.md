@@ -10,13 +10,14 @@
 - `ci.yml` runs the `Patch check` job for a pull request whose engine key changed and whose engine isn't published (about 20 minutes, hosted). `build.sh` applies Clair's series through ungoogled-chromium's `patches.py`, which stops at the first patch whose `PATCH_BIN` exits non-zero. `PATCH_BIN` is `scripts/patch-no-fuzz.sh`.
 - The `Engine check` job fails until `chromium-engine-<key>` is published, and `engine.yml` re-runs it after publishing. `main`'s ruleset requires `Script tests and lint`, `Native layer build and tests` and `Engine check`.
 - GitHub starts no workflow for events caused by a workflow's own `GITHUB_TOKEN`, so a pull request opened with it gets no CI run. Workflows on `schedule` and `workflow_run` always run the default branch's copy.
+- ungoogled-chromium-macos tags only some of ungoogled-chromium's versions: of 157's `157.0.8103.38-1`, `157.0.8103.50-1` and `157.0.8103.78-1`, it tagged only `157.0.8103.78` (and `157.0.8103.78-1.1`). Its tags name the version alone, or with a suffix (`-1.1`, `_arm64`). Each pins ungoogled-chromium as a submodule: `157.0.8103.78` pins `8c886df`, the commit of `157.0.8103.78-1`.
 - Release notes: `.changes/unreleased/` currently holds #196's fragment, `kind: Updated`, body `Update the engine to Chromium 157.0.8103.78 (ungoogled-chromium 157.0.8103.78-1)`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - A patch-level update reaches "every patch applies, build the engine" with no work from the owner.
-- A new major's pull request exists as soon as the tag does, and always shows the full list of patches left to fix.
+- A new major's pull request exists as soon as ungoogled-chromium-macos tags it, and always shows the full list of patches left to fix.
 - The owner's pushed fixes are never lost, and the bot never moves the pin under an engine build the owner has started.
 - Nothing the bot does can start a job on the owner's Mac.
 
@@ -35,6 +36,8 @@ How the bot's pull request gets CI to run:
 
 The owner chose A.
 
+Which tags to follow: ungoogled-chromium's (as first built: a new major's pull request opens before ungoogled-chromium-macos's files exist to sync, as #212 did for `158.0.8127.36-1`), ungoogled-chromium-macos's, or ungoogled-chromium's within a major and ungoogled-chromium-macos's for a new one. The owner chose ungoogled-chromium-macos's on 2026-11-21: every pull request can then be synced, at the cost of the versions that repository skips.
+
 How much of a new major the bot does: the pin only (chosen by the owner, to start), or the pin plus a copy of ungoogled-chromium-macos's files once it tags the version. The second removes most of #196's churn, but must keep Clair's edits to those files (the Rust hashes, `retrieve_and_unpack_resource.py`), so it waits until the first has run through a major.
 
 ## Decisions
@@ -50,13 +53,15 @@ Both scripts follow the repository's rules for scripts (bash 3.2, BSD userland) 
 
 ### D2. Finding the tag to move to
 
-`engine-update.sh` lists upstream's tags with `git ls-remote --tags` on the URL in `.gitmodules`, with no clone. It keeps tags matching `^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$` and uses each tag's commit (the peeled `^{}` line when the tag is annotated). Tags are ordered by comparing their five numbers.
+`engine-update.sh` follows ungoogled-chromium-macos's tags. It lists them with `git ls-remote --tags`, with no clone, and keeps those matching `^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+([-_][A-Za-z0-9._-]+)?$`. It takes the newest version among them, by its four numbers, fetches that version's tags alone (`git fetch --depth 1`), and reads the `ungoogled-chromium` gitlink of each.
 
-- The **current tag** is the newest tag whose commit is `main`'s pin. If no tag is, the run fails and says so.
-- The **target** is the newest tag, if it is newer than the current one. Otherwise the run ends: nothing to do.
+It names those commits with ungoogled-chromium's tags, listed with `git ls-remote --tags` on the URL in `.gitmodules`: tags matching `^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$`, each with its commit (the peeled `^{}` line when the tag is annotated), ordered by their five numbers.
+
+- The **current tag** is the newest ungoogled-chromium tag whose commit is `main`'s pin. If no tag is, the run fails and says so.
+- The **target** is the newest ungoogled-chromium tag on a commit that the newest ungoogled-chromium-macos version's tags pin. If none is, the run fails and names the ungoogled-chromium-macos tag. If the target isn't newer than the current tag, the run ends: nothing to do.
 - The update is **patch-level** when the target's first number equals the current tag's, and a **new major** otherwise.
 
-A tag's name reaches shell, a commit message, YAML and Markdown, so nothing but the pattern above is accepted.
+A tag's name reaches shell, a commit message, YAML and Markdown, so nothing but the patterns above is accepted.
 
 ### D3. One pull request, on the branch `engine-update`
 
@@ -74,6 +79,8 @@ A pull request is **held** once the owner has started an engine build for its cu
 
 A held pull request is released by merging it, after which the next run opens a pull request for the newer tag, or by starting `engine-update.yml` by hand with `take-newest`, which moves the pin despite the hold.
 
+An open pull request on a tag that ungoogled-chromium-macos hasn't tagged (opened before D2 followed that repository, as #212 was) is left alone while the target isn't newer than `main`'s pin. When ungoogled-chromium-macos tags that version at the same commit, it is already on the target.
+
 A declined tag is recognised by a closed, unmerged pull request from `engine-update` whose description carries that tag in a marker (D5).
 
 The bot never force-pushes, rebases or merges, and never pushes to `main`. If its push is rejected because the branch moved, the run fails and the next one tries again. If `engine-update` exists with no open pull request: when every commit it has ahead of `main` is the bot's, the bot deletes it and starts again from `main`; otherwise the run fails and names the branch, for the owner to delete or rename.
@@ -90,8 +97,8 @@ The title is the commit message. The bot owns the part of the description betwee
 
 - a marker comment naming the tag, which D3 uses to recognise a declined tag
 - the tag it moves from and to, whether it is patch-level or a new major, and a link to upstream's comparison of the two tags
-- whether ungoogled-chromium-macos has a tag for that Chromium version (`git ls-remote --tags` on its repository, tags starting with the target's version)
-- for a new major, the steps of `docs/building.md`'s "Updating the engine" as a checklist: sync the copied files, keep the Rust hashes, check the SDK
+- the ungoogled-chromium-macos tag it follows, with a link to it and to its comparison with the ungoogled-chromium-macos tag of `main`'s pin, when there is one: the files to sync are those it changed
+- for a new major, the steps of `docs/building.md`'s "Updating the engine" as a checklist, naming that tag: sync the copied files, keep the Rust hashes, check the SDK
 - that the engine build is a full one, of about 4 hours, started by the owner
 - when held on an older tag (D3), the newer tag, the reason and how to take it anyway
 - when the pull request conflicts with `main`, that CI can't run until the conflict is resolved: GitHub starts no pull request run then, so the comment of D7 would otherwise go stale without a word
@@ -128,15 +135,17 @@ The script changes the draft state only when it differs, and keeps a single comm
 
 A skipped patch can make a later one fail that builds on it, so the list can name more patches than need fixing. The comment says to fix them from the top. ungoogled-chromium's own series keeps `patch`'s defaults and still stops at its first failure: upstream tests it against its own tag.
 
-### D9. Two pull requests implement this
+### D9. Three pull requests implement this
 
 1. The patch list (D8). It changes the engine key, so it needs an engine build: in place, with nothing to compile.
 2. The two workflows and their scripts, and the docs. No engine input changes.
+3. Following ungoogled-chromium-macos's tags (D2, D5), once the first update pull request had opened for a version that repository hadn't tagged. No engine input changes.
 
 The workflows can't run before they are on `main`, so their logic is verified by the script tests, and the workflows themselves by the first runs after merging (tasks 5.x).
 
 ## Risks / Trade-offs
 
+- **Versions ungoogled-chromium-macos skips are never offered.** `157.0.8103.38-1` and `157.0.8103.50-1` would not have been. Moving the pin to one stays manual (`docs/building.md`).
 - **A security tag for the old major is skipped when a new major lands first.** With one pull request following the newest tag, an unmerged patch-level update becomes the new major's pull request. The hold in D3 keeps one whose engine build the owner has started, and upstream stops tagging the old major at that point anyway.
 - **"Ready" isn't "builds".** #196's patches applied before its compile errors showed. The comment says what ready means.
 - **The list can over-report** (D8).
