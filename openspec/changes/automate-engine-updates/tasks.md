@@ -6,7 +6,7 @@ Two pull requests implement this change (design D9): tasks 1.x, then tasks 2.x t
 
 - [x] 1.1 Give `scripts/patch-no-fuzz.sh` the `CLAIR_PATCH_FAILURES` mode (D8) and extend `scripts/patch-no-fuzz.test.sh`. Verify that the test covers: a patch that applies is applied; a patch that fails is recorded, leaves the tree unchanged and exits 0; without the variable a failing patch still exits non-zero; and a change to a hunk's outermost context line still counts as failing.
 - [x] 1.2 Make `build.sh`'s `apply_layer` set the variable for Clair's series, print one `clair-patch-failed: <path>` line per recorded patch, and exit 1 before the overlay is copied. Update `docs/building.md`'s description of the patch check. Verify, on a throwaway draft pull request that breaks one context line in each of two patches, that one `Patch check` run fails and its log names both and no others; then close it.
-- [ ] 1.3 Verify that the merge gate passes on the pull request, after the owner builds its engine (`gh workflow run engine.yml -f ref=<branch>`), and that the engine run updated the tree in place.
+- [x] 1.3 Verify that the merge gate passes on the pull request, after the owner builds its engine (`gh workflow run engine.yml -f ref=<branch>`), and that the engine run updated the tree in place.
 
 ## 2. Opening and updating the pull request
 
