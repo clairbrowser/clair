@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Relaunch preserves the browsing session
-When Clair relaunches to install an update, through "Restart and Update" or while the user is idle, it SHALL restore the windows and tabs that were open before the relaunch, whatever the user's startup setting. After "Restart and Update", in the update alert or the sidebar banner, it SHALL warn first if quitting would cancel an active download. It SHALL NOT ask about incognito windows, as in Arc: they close and are not restored. An idle install never needs that warning, because it doesn't run in those cases.
+When Clair relaunches to install an update, through "Restart and Update" or while the user is idle, it SHALL restore the windows and tabs that were open before, whatever the user's startup setting. After "Restart and Update", in the update alert or the sidebar banner, it SHALL first warn if quitting would cancel an active download. It SHALL NOT ask about incognito windows, as in Arc: they close and are not restored. An idle install doesn't run in those cases, so it needs no warning.
 
 #### Scenario: Restart and update
 - **WHEN** a user chooses "Restart and Update" while three windows with open tabs exist
