@@ -23,22 +23,22 @@ Three pull requests implement this change (design D9): tasks 1.x, then tasks 2.x
 
 - [x] 4.1 Owner: create the GitHub App, install it on this repository only, and create the `engine-update` environment limited to `main` with the App's ID and private key (D6). Verify that the environment lists `main` as its only deployment branch.
 - [x] 4.2 Rewrite `docs/building.md`'s "Updating the engine" around the pull request the bot opens, keeping the manual steps for the macOS files and the SDK, and describe the App and its environment under the repository's settings. Update `CLAUDE.md`: the engine update pull request, its branch, and that pushing to it re-runs the patch check. Verify that both describe the workflows as merged.
-- [ ] 4.3 Add the `ubuntu-latest` job to `ci.yml` that runs the two new script tests (D1). Verify that it passes, that the merge gate passes on the second pull request, and that its engine key equals `main`'s.
+- [x] 4.3 Add the `ubuntu-latest` job to `ci.yml` that runs the two new script tests (D1). Verify that it passes, that the merge gate passes on the second pull request, and that its engine key equals `main`'s.
 
 ## 5. After merging
 
-- [ ] 5.1 Start `engine-update.yml` by hand. Verify that it opens one draft pull request from `engine-update` for the newest tag, with only the pin and the fragment changed, that CI starts on it, and that a second run changes nothing.
-- [ ] 5.2 Verify that, when that pull request's patch check fails, it stays a draft and its comment lists the failing patches; and that after a push that fixes one of them, the same comment lists one fewer.
-- [ ] 5.3 Verify that, when its patch check first passes, the pull request turns ready within minutes and its comment gives the engine build command; and that no `engine.yml` run was started by anything but the owner.
-- [ ] 5.4 After the owner starts that pull request's engine build, start `engine-update.yml` by hand. Verify that its log says the pull request is held and that the branch is unchanged.
+- [x] 5.1 Start `engine-update.yml` by hand. Verify that it opens one draft pull request from `engine-update` for the newest tag, with only the pin and the fragment changed, that CI starts on it, and that a second run changes nothing.
+- [x] 5.2 Verify that, when that pull request's patch check fails, it stays a draft and its comment lists the failing patches. (Verified on #212: 8 patches, one comment edited in place.)
+
+Deferred by the owner on 2026-11-21 to the first update that ungoogled-chromium-macos has tagged (#212, once it tags 158), and not part of this change: after a push that fixes one failing patch, the same comment lists one fewer; when the patch check first passes, the pull request turns ready within minutes and its comment gives the engine build command, and no `engine.yml` run was started by anything but the owner; after the owner starts its engine build, a run of `engine-update.yml` says the pull request is held and leaves the branch unchanged.
 
 ## 6. Following ungoogled-chromium-macos's tags
 
 Task 5.1 was verified before these, with #212, which the bot opened for ungoogled-chromium's `158.0.8127.36-1`.
 
 - [x] 6.1 Make `scripts/engine-update.sh` take its target from ungoogled-chromium-macos's tags (D2) and describe that tag in the pull request (D5), and extend `scripts/engine-update.test.sh`. Verify that the test covers: a target taken from the submodule commit of the newest ungoogled-chromium-macos version's tags; tags with no suffix and with suffixes, ordered by version; an ungoogled-chromium-macos tag whose commit is on no ungoogled-chromium tag failing; an open pull request on a version ungoogled-chromium-macos hasn't tagged being left alone; and the description linking the ungoogled-chromium-macos tag and its comparison. Verify that `shellcheck -S warning` passes.
-- [ ] 6.2 Update `docs/building.md`'s "Updating the engine" and `CLAUDE.md` for ungoogled-chromium-macos's tags. Verify that the merge gate passes on the pull request and that its engine key equals `main`'s.
-- [ ] 6.3 After it merges, start `engine-update.yml` by hand. Verify that its log names the ungoogled-chromium-macos tag it follows and says there is nothing to do while that tag pins Clair's pin, and that #212 is unchanged.
+- [x] 6.2 Update `docs/building.md`'s "Updating the engine" and `CLAUDE.md` for ungoogled-chromium-macos's tags. Verify that the merge gate passes on the pull request and that its engine key equals `main`'s.
+- [x] 6.3 After it merges, start `engine-update.yml` by hand. Verify that its log names the ungoogled-chromium-macos tag it follows and says there is nothing to do while that tag pins Clair's pin, and that #212 is unchanged.
 
 ## Workflow follow-up
 
