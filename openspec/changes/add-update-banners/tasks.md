@@ -22,9 +22,10 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
   - older version: `.none`;
   - a second launch of the newer version, with the card never closed: `.none`;
   - `closeUpdateComplete()`: `.none`.
-- [ ] 2.3 Replace `offerRestart()` with `restartToUpdate(confirming:)` (D2). The menu item passes `true` and the banner `false`. Verify with `UpdateTests` cases in CI, using the existing fake prompts and host:
-  - `false` with an incognito window open relaunches without calling `askToRestart` or `askToCloseIncognitoWindows`;
-  - `true` still shows the version alert, then asks about the incognito window, and declining doesn't relaunch.
+- [ ] 2.3 Replace `offerRestart()` with `restartToUpdate(confirming:)` (D2). The menu item passes `true` and the banner `false`. Remove `askToCloseIncognitoWindows` and its alert from `UpdatePrompting` and `UpdateAlerts`, and replace `incognitoWindowsAskFirst` in `UpdateTests`. Verify with `UpdateTests` cases in CI, using the existing fake prompts and host:
+  - `false` with an incognito window open relaunches without any prompt;
+  - `true` with an incognito window open shows only the version alert, relaunches on Restart and Update, and doesn't relaunch on Later;
+  - the idle installer still doesn't relaunch while an incognito window is open.
 
 ## 3. Banner views
 

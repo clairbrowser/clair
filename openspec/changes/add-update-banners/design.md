@@ -49,10 +49,12 @@ enum UpdateBanner: Equatable {
 ### D2. Restart and Update: one path with an optional alert
 
 `offerRestart()` becomes `restartToUpdate(confirming: Bool)`:
-- The menu item calls it with `true`, so its behaviour doesn't change: the version alert (`askToRestart`), then `askToCloseIncognitoWindows` when an incognito window is open.
-- The banner calls it with `false`, which skips both. Arc doesn't ask about incognito windows either.
+- The menu item calls it with `true`, which shows the version alert (`askToRestart`) first.
+- The banner calls it with `false`, which doesn't.
 
-Both go through `host.relaunch()`, so Chromium's download warning and session restore apply unchanged. Incognito windows aren't restored, as after any relaunch. If the user postpones at the download warning, the update stays waiting and the pill stays.
+After that the two paths are identical: both call `host.relaunch()` directly. The incognito question is removed from both, as Arc asks neither. That means `askToCloseIncognitoWindows` goes from `UpdatePrompting` and `UpdateAlerts`, and with it the "Restart Clair and close your incognito windows?" alert. Chromium's download warning and session restore apply unchanged. Incognito windows aren't restored, as after any relaunch. If the user postpones at the download warning, the update stays waiting and the pill stays.
+
+The idle installer still waits while an incognito window is open (`silentRelaunchBlockers`), because nobody is there to choose to lose it. That requirement doesn't change.
 
 *Alternative:* a separate banner-only method that calls `host.relaunch()` directly. That would split the restart path in two, and the next guard added to one would be missed in the other.
 
