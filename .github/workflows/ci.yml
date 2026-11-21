@@ -85,6 +85,28 @@ jobs:
       - name: Check the appcast is well-formed
         run: xmllint --noout .sparkle/appcast.xml
 
+  # engine-update.yml and engine-update-status.yml run their scripts on
+  # ubuntu-latest, with GNU tools and mawk, so their tests run there too. Not a
+  # required check (automate-engine-updates D1).
+  engine-update-scripts:
+    name: Engine update script tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run the tests
+        run: |
+          failures=0
+          for test in scripts/engine-update.test.sh scripts/engine-update-status.test.sh; do
+            echo "==> $test"
+            "$test" || failures=$((failures + 1))
+          done
+          exit "$failures"
+
   native:
     name: Native layer build and tests
     runs-on: xcode-27

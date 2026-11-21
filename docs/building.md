@@ -184,7 +184,23 @@ New Chromium source files go in `overlay/`, at their paths in the Chromium tree,
 
 ## Updating the engine
 
-Change the pinned ungoogled-chromium tag:
+A bot opens the pull request. `.github/workflows/engine-update.yml` checks ungoogled-chromium's tags every 6 hours (`scripts/engine-update.sh`). When a tag newer than `main`'s pin exists, it opens a draft pull request from the branch `engine-update` that moves the pin to that tag and adds its release note (a Changie fragment of kind `Updated`, replacing any unreleased engine fragment on `main`), and nothing else. Its description says whether the update is patch-level or a new major, and whether ungoogled-chromium-macos has tagged the version yet. It never starts an engine build or merges.
+
+- **One pull request at a time.** A newer tag, of the same major or the next, adds a commit on top of the branch, so fixes already pushed carry over, and the pull request returns to draft. Once the owner has started an engine build for the branch's pin (an `engine.yml` run titled `Engine: engine-update`, whatever its result), the pin is **held**: the bot leaves the branch alone and says in the description which newer tag it didn't take. Merge the pull request, and the next run opens one for the newer tag, or take it now with `gh workflow run engine-update.yml -f take-newest=true`.
+- **Declining a tag.** Close the pull request without merging it. The bot opens no new one until a newer tag exists.
+- **Draft and ready.** After each CI run on the pull request's head, `.github/workflows/engine-update-status.yml` (`scripts/engine-update-status.sh`) marks it ready for review when the patch check passed, and returns it to draft when it failed. One comment lists every Clair patch that doesn't apply, or gives the command that builds the engine. Push fixes to `engine-update`: each push re-runs the patch check, and the pull request turns ready by itself once every patch applies. Ready means the patches apply, not that the engine compiles.
+- **Building.** Any pin change compiles Chromium from scratch on the owner's Mac (about 4 hours). Only the owner starts it, once the pull request is ready: `gh workflow run engine.yml -f ref=engine-update`.
+- **The branch.** The bot never force-pushes, rebases or merges. When the pull request conflicts with `main`, GitHub runs no CI on it, and the description says so: merge `main` into the branch. If `engine-update` exists with no open pull request, the bot deletes it when every commit on it is the bot's, and otherwise stops and names it, for the owner to delete or rename.
+
+A patch-level update usually needs nothing more. For a new major, or when the patch check names a macOS patch, sync the files copied from [ungoogled-chromium-macos](https://github.com/ungoogled-software/ungoogled-chromium-macos) with its tag for the same version (see `CREDITS.md`), on the `engine-update` branch: `downloads-arm64.ini`, `retrieve_and_unpack_resource.py`, `flags.macos.gn`, the patches in `patches/ungoogled-chromium-macos/` (add and remove them in `patches/series` as its own series does) and any change to the toolchain steps of its `build.sh` and `build_crubit.sh`, which `build.sh`'s `configure` stage ports. Update the commit in `CREDITS.md`. ungoogled-chromium-macos tags a version later than ungoogled-chromium, and the pull request stays a draft until its patches are synced.
+
+Every download in `downloads*.ini` must declare a hash: `retrieve_and_unpack_resource.py` refuses a file with a download that has none, before downloading anything, and `scripts/retrieve-and-unpack-resource.test.sh` checks the files in CI. Upstream pins no hash for `[rust]` and `[rustc-dev]`, so keep Clair's `sha256` lines when syncing and update them with the version: each is the one rust-lang publishes beside the archive, at its URL with `.sha256` appended.
+
+Check the Xcode that ungoogled-chromium-macos's CI builds that tag with (`BASE_XCODE_PATH` in `.github/scripts/github_prepare_xcode.sh`): it is the newest SDK known to work with that Chromium. When its major version differs from `macos-sdk-major`, set the file to it, or note in the pull request why Clair stays. Confirm the SDK version that Xcode ships rather than assuming it matches Xcode's, and that the runner has it: a new major version compiles the engine from scratch.
+
+Fix the Clair patches the comment lists from the top, using ungoogled-chromium-macos's and Helium's updates as references: a skipped patch can make a later one that builds on it fail too.
+
+To move the pin by hand instead, for a tag the bot doesn't follow:
 
 ```sh
 git -C ungoogled-chromium fetch --tags
@@ -192,13 +208,9 @@ git -C ungoogled-chromium checkout <new tag>
 git add ungoogled-chromium
 ```
 
-Then sync the files copied from [ungoogled-chromium-macos](https://github.com/ungoogled-software/ungoogled-chromium-macos) with its tag for the same version (see `CREDITS.md`): `downloads-arm64.ini`, `retrieve_and_unpack_resource.py`, `flags.macos.gn`, the patches in `patches/ungoogled-chromium-macos/` (add and remove them in `patches/series` as its own series does) and any change to the toolchain steps of its `build.sh` and `build_crubit.sh`, which `build.sh`'s `configure` stage ports. Update the commit in `CREDITS.md`.
+### The engine update App
 
-Every download in `downloads*.ini` must declare a hash: `retrieve_and_unpack_resource.py` refuses a file with a download that has none, before downloading anything, and `scripts/retrieve-and-unpack-resource.test.sh` checks the files in CI. Upstream pins no hash for `[rust]` and `[rustc-dev]`, so keep Clair's `sha256` lines when syncing and update them with the version: each is the one rust-lang publishes beside the archive, at its URL with `.sha256` appended.
-
-Check the Xcode that ungoogled-chromium-macos's CI builds that tag with (`BASE_XCODE_PATH` in `.github/scripts/github_prepare_xcode.sh`): it is the newest SDK known to work with that Chromium. When its major version differs from `macos-sdk-major`, set the file to it, or note in the pull request why Clair stays. Confirm the SDK version that Xcode ships rather than assuming it matches Xcode's, and that the runner has it: a new major version compiles the engine from scratch.
-
-Then open a pull request. If a macOS or Clair patch no longer applies, the fetch job names it. Fix that patch, using ungoogled-chromium-macos's and Helium's updates as references.
+A pull request opened with a workflow's own token starts no checks, so `engine-update.yml` acts as a GitHub App, installed on this repository only, with the repository permissions "Contents: read and write" and "Pull requests: read and write". In the repository's settings, the `engine-update` environment holds its ID (the variable `ENGINE_UPDATE_APP_ID`) and private key (the secret `ENGINE_UPDATE_APP_PRIVATE_KEY`). Its deployment branches are limited to `main`, so only workflows running from `main` can make the App's token. `main`'s ruleset still requires the merge gate from the App, and the App has no access to the `release` environment. To replace the key, generate a new one in the App's settings, update the secret and delete the old key.
 
 ## Engine build times
 

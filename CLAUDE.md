@@ -28,6 +28,7 @@ Never fetch Chromium or build it by hand on the development machine; only `engin
 - **Merge gate** (`ci.yml`, required, minutes): the `scripts/*.test.sh` tests, `shellcheck -S warning`, `actionlint`, `openspec validate --all --strict`, `ClairUI`'s build and unit tests, and the engine check. A PR that changes the engine key also runs the patch check (`./build.sh fetch prepare` on a hosted runner, about 20 minutes) unless its engine is already published, and its engine check fails until that engine is published; `engine.yml` then re-runs it.
 - **Quality checks** (`quality.yml`): run after every merge to `main`. They package the app from the engine and run the runtime suite in `tests/runtime/`. A failure opens a `quality-failure` issue; fix it from there. No release ships with quality checks failing or unfinished.
 - **Patch check** (the `Patch check` job in `ci.yml`): runs only when a PR changes the engine key and `chromium-engine-<key>` isn't published yet. No hosted workflow compiles Chromium.
+- **Engine update PR:** `engine-update.yml` checks ungoogled-chromium's tags every 6 hours and keeps one draft PR open from the branch `engine-update`, moving the pin to the newest tag with its Changie fragment, as a GitHub App. `engine-update-status.yml` marks it ready when its patch check passes, returns it to draft when it fails, and keeps one comment listing the patches that don't apply or the engine build command. Fix patches by pushing to `engine-update`: each push re-runs the patch check, and the PR turns ready by itself. Never force-push or rebase that branch, and don't start its engine build for the owner; once the owner has, the bot stops moving its pin. See "Updating the engine" in `docs/building.md`.
 - The self-hosted Mac never runs pull request jobs, especially not fork PRs. Release secrets live in the `release` environment, and engine builds and quality checks never see them. Never run `.github/scripts/prepare-runner.sh` on the self-hosted runner: it deletes Xcode versions and simulators.
 - Every macOS job and the self-hosted Mac use Xcode 27 (hosted runner label `xcode-27`).
 - Read job logs with `gh run view --job <id> --log`, or with `gh api --allow-escape-sequences repos/clairbrowser/clair/actions/jobs/<id>/logs`. Fix what they show, then push.
@@ -56,7 +57,7 @@ To compare Clair with Arc, or check a UI change by hand, use the probe tooling i
 
 ## Repository layout
 
-- `ungoogled-chromium/`: a submodule pinned to an ungoogled-chromium tag. Bump the tag to update the engine.
+- `ungoogled-chromium/`: a submodule pinned to an ungoogled-chromium tag. `engine-update.yml` opens the PR that bumps it.
 - `patches/series`: Clair's patch series, applied after ungoogled's. Paths in it are relative to `patches/`:
   - `ungoogled-chromium-macos/`: copied from ungoogled-chromium-macos
   - `helium/`: adapted from Helium (GPLv3)

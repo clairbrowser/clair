@@ -1,0 +1,54 @@
+# After each CI run on the engine update pull request, marks it ready for review
+# when every Clair patch applies and returns it to draft when one doesn't, and
+# keeps one comment up to date (automate-engine-updates D1, D7). The logic is
+# in scripts/engine-update-status.sh.
+#
+# workflow_run always runs main's copy of this workflow, and the job checks out
+# only main's copy of the script: it never checks out or runs the pull
+# request's code, and reads the Patch check's log only as data.
+name: Engine update status
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: engine-update-status
+  cancel-in-progress: false
+
+jobs:
+  status:
+    name: Draft or ready
+    # Only pull request runs from this repository's engine-update branch: a
+    # fork's branch of the same name is ignored.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'engine-update'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out main's script
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: scripts/engine-update-status.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Follow the patch check
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          # The Patch check job's timeout-minutes in ci.yml.
+          PATCH_CHECK_TIMEOUT_MINUTES: "120"
+        run: ./scripts/engine-update-status.sh
