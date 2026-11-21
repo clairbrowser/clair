@@ -26,7 +26,9 @@ done
 case "$*" in
   "api repos/o/r/pulls?state=open&head=o:engine-update&per_page=100") cat "$FAKE_GH/open.json" ;;
   "api repos/o/r/actions/runs/77/jobs?per_page=100") cat "$FAKE_GH/jobs.json" ;;
-  "api repos/o/r/actions/jobs/502/logs") cat "$FAKE_GH/patch.log" ;;
+  # Without the flag, gh refuses a log with escape sequences, as GitHub's are.
+  "api repos/o/r/actions/jobs/502/logs") echo "the response contains terminal escape sequences" >&2; exit 1 ;;
+  "api --allow-escape-sequences repos/o/r/actions/jobs/502/logs") cat "$FAKE_GH/patch.log" ;;
   "api repos/o/r/issues/300/comments?per_page=100") cat "$FAKE_GH/comments.json" ;;
   "api -X POST repos/o/r/issues/300/comments --input "*) cp "$input" "$FAKE_GH/posted.json"; echo '{}' ;;
   "api -X PATCH repos/o/r/issues/comments/"*" --input "*) cp "$input" "$FAKE_GH/patched.json"; echo '{}' ;;
@@ -120,12 +122,14 @@ cat >"$state/patch.log" <<'LOG'
 2026-11-20T10:01:01.0000000Z clair-patch-failed: clair/`id`.patch
 2026-11-20T10:01:01.0000000Z clair-patch-failed: clair/not-a-patch.txt
 LOG
+# GitHub's logs carry color codes; one wraps a failure line here.
+printf '2026-11-20T10:00:00.0000000Z \033[36;1mecho "colored"\033[0m\n2026-11-20T10:01:01.0000000Z \033[31mclair-patch-failed: helium/colored.patch\033[0m\n' >>"$state/patch.log"
 run failure
 check "patches failed: exits 0" test "$status" -eq 0
 check "patches failed: a ready pull request returns to draft, with the draft token" made_draft
-check "patches failed: the comment counts them" posted_has "**2 Clair patches don't apply** at 1111111"
-expected="$(printf -- '- `patches/clair/data-paths.patch`\n- `patches/ungoogled-chromium-macos/fix-dsymutil.patch`')"
-check "patches failed: the comment lists each once, in order, and drops names outside the pattern" \
+check "patches failed: the comment counts them" posted_has "**3 Clair patches don't apply** at 1111111"
+expected="$(printf -- '- `patches/clair/data-paths.patch`\n- `patches/ungoogled-chromium-macos/fix-dsymutil.patch`\n- `patches/helium/colored.patch`')"
+check "patches failed: the comment lists each once, in order, with color codes removed, and drops names outside the pattern" \
   test "$(jq -r .body "$state/posted.json" | grep '^- `patches/')" == "$expected"
 check "patches failed: the comment links the log" posted_has "(https://example.com/job/502)"
 check "a name from the log is never run" test ! -e pwned

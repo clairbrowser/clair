@@ -119,7 +119,12 @@ ready=false
     fi
   else
     : >"$work/failed"
-    if [[ "$patch_id" =~ ^[0-9]+$ ]] && gh api "repos/$GH_REPO/actions/jobs/$patch_id/logs" >"$work/log" 2>/dev/null; then
+    # The log holds terminal escape sequences (colored output), which gh api
+    # refuses to print without --allow-escape-sequences. They are removed
+    # before the log is read.
+    if [[ "$patch_id" =~ ^[0-9]+$ ]] &&
+      gh api --allow-escape-sequences "repos/$GH_REPO/actions/jobs/$patch_id/logs" >"$work/log-raw" 2>/dev/null; then
+      LC_ALL=C sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$work/log-raw" | LC_ALL=C tr -d '\000-\010\013-\037\177' >"$work/log"
       # "<timestamp> clair-patch-failed: <path>" lines, in order, once each.
       { grep -o 'clair-patch-failed: .*$' "$work/log" || true; } |
         sed 's/^clair-patch-failed: //; s/[[:space:]]*$//' |
