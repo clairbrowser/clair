@@ -28,9 +28,9 @@ Three pull requests implement this change (design D9): tasks 1.x, then tasks 2.x
 ## 5. After merging
 
 - [x] 5.1 Start `engine-update.yml` by hand. Verify that it opens one draft pull request from `engine-update` for the newest tag, with only the pin and the fragment changed, that CI starts on it, and that a second run changes nothing.
-- [ ] 5.2 Verify that, when that pull request's patch check fails, it stays a draft and its comment lists the failing patches; and that after a push that fixes one of them, the same comment lists one fewer.
-- [ ] 5.3 Verify that, when its patch check first passes, the pull request turns ready within minutes and its comment gives the engine build command; and that no `engine.yml` run was started by anything but the owner.
-- [ ] 5.4 After the owner starts that pull request's engine build, start `engine-update.yml` by hand. Verify that its log says the pull request is held and that the branch is unchanged.
+- [x] 5.2 Verify that, when that pull request's patch check fails, it stays a draft and its comment lists the failing patches. (Verified on #212: 8 patches, one comment edited in place.)
+
+Deferred by the owner on 2026-11-21 to the first update that ungoogled-chromium-macos has tagged (#212, once it tags 158), and not part of this change: after a push that fixes one failing patch, the same comment lists one fewer; when the patch check first passes, the pull request turns ready within minutes and its comment gives the engine build command, and no `engine.yml` run was started by anything but the owner; after the owner starts its engine build, a run of `engine-update.yml` says the pull request is held and leaves the branch unchanged.
 
 ## 6. Following ungoogled-chromium-macos's tags
 
