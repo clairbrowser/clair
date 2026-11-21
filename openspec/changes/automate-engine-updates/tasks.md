@@ -21,7 +21,7 @@ Two pull requests implement this change (design D9): tasks 1.x, then tasks 2.x t
 
 ## 4. Setup and docs
 
-- [ ] 4.1 Owner: create the GitHub App, install it on this repository only, and create the `engine-update` environment limited to `main` with the App's ID and private key (D6). Verify that the environment lists `main` as its only deployment branch.
+- [x] 4.1 Owner: create the GitHub App, install it on this repository only, and create the `engine-update` environment limited to `main` with the App's ID and private key (D6). Verify that the environment lists `main` as its only deployment branch.
 - [x] 4.2 Rewrite `docs/building.md`'s "Updating the engine" around the pull request the bot opens, keeping the manual steps for the macOS files and the SDK, and describe the App and its environment under the repository's settings. Update `CLAUDE.md`: the engine update pull request, its branch, and that pushing to it re-runs the patch check. Verify that both describe the workflows as merged.
 - [ ] 4.3 Add the `ubuntu-latest` job to `ci.yml` that runs the two new script tests (D1). Verify that it passes, that the merge gate passes on the second pull request, and that its engine key equals `main`'s.
 
