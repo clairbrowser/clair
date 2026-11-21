@@ -8,6 +8,7 @@ on:
     branches: [test/draft-token]
 
 permissions:
+  actions: read
   contents: read
   pull-requests: write
 
@@ -27,3 +28,6 @@ jobs:
           echo "draft after ready: $(gh pr view "$number" --json isDraft --jq .isDraft)"
           if gh pr ready --undo "$number"; then echo "RESULT undo: ok"; else echo "RESULT undo: refused"; fi
           echo "draft after undo: $(gh pr view "$number" --json isDraft --jq .isDraft)"
+          id="$(jq -n '{body: "scratch comment"}' | gh api -X POST "repos/$GH_REPO/issues/$number/comments" --input - --jq .id)" && echo "RESULT comment: ok" || echo "RESULT comment: refused"
+          if [[ -n "$id" ]] && jq -n '{body: "scratch comment, edited"}' | gh api -X PATCH "repos/$GH_REPO/issues/comments/$id" --input - >/dev/null; then echo "RESULT edit: ok"; else echo "RESULT edit: refused"; fi
+          gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/jobs" --jq '.jobs | length' >/dev/null && echo "RESULT jobs: ok" || echo "RESULT jobs: refused"
