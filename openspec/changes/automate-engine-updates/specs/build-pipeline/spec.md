@@ -66,7 +66,7 @@ After each merge gate run on the engine update pull request's head commit, the p
 ## MODIFIED Requirements
 
 ### Requirement: Patch check for engine changes
-A pull request that changes the engine key SHALL also run a patch check on a GitHub-hosted runner, unless `chromium-engine-<key>` is already published for its head commit's key when the run starts. The check fetches the pinned Chromium source and applies both patch series, the overlay and domain substitution, without compiling. It SHALL try every patch in Clair's series, and when any does not apply it SHALL fail and name each of them. Such a pull request SHALL NOT merge until its engine is published and its patch check, if it ran, has passed.
+A pull request that changes the engine key SHALL also run a patch check on a GitHub-hosted runner, unless `chromium-engine-<key>` for its head commit's key is published when the run starts. It applies both patch series, the overlay and domain substitution to the pinned source, without compiling. It SHALL try every patch in Clair's series and fail naming each one that does not apply. Such a pull request SHALL NOT merge until its engine is published and its patch check, if it ran, has passed.
 
 #### Scenario: Patch no longer applies
 - **WHEN** a pull request bumps the ungoogled-chromium tag and one Clair patch no longer applies

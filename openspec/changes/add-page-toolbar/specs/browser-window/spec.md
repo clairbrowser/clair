@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Chromium bubbles placed in the native window
-Chromium bubbles that remain, including permission prompts and page info, SHALL open attached to their control in the sidebar while the sidebar is shown, or to the card's top-leading corner while it is hidden or the window is in full screen. While the toolbar shows, they SHALL attach below their control in the toolbar instead, unless a page is in full screen. They SHALL work as they do in Chromium. Extension popups, and the install and remove confirmations, are not bubbles: `extensions` defines them.
+Chromium bubbles that remain, including permission prompts and page info, SHALL open attached to their control in the sidebar while it is shown, or to the card's top-leading corner while it is hidden or the window is in full screen. While the toolbar shows, they SHALL attach below their control in it instead, unless a page is in full screen. They SHALL work as they do in Chromium. Extension popups and the install and remove confirmations are not bubbles (`extensions`).
 
 #### Scenario: Permission prompt with the sidebar shown
 - **WHEN** the toolbar is off and a page asks for the user's location while the sidebar is shown
