@@ -23,11 +23,11 @@ Three pull requests implement this change (design D9): tasks 1.x, then tasks 2.x
 
 - [x] 4.1 Owner: create the GitHub App, install it on this repository only, and create the `engine-update` environment limited to `main` with the App's ID and private key (D6). Verify that the environment lists `main` as its only deployment branch.
 - [x] 4.2 Rewrite `docs/building.md`'s "Updating the engine" around the pull request the bot opens, keeping the manual steps for the macOS files and the SDK, and describe the App and its environment under the repository's settings. Update `CLAUDE.md`: the engine update pull request, its branch, and that pushing to it re-runs the patch check. Verify that both describe the workflows as merged.
-- [ ] 4.3 Add the `ubuntu-latest` job to `ci.yml` that runs the two new script tests (D1). Verify that it passes, that the merge gate passes on the second pull request, and that its engine key equals `main`'s.
+- [x] 4.3 Add the `ubuntu-latest` job to `ci.yml` that runs the two new script tests (D1). Verify that it passes, that the merge gate passes on the second pull request, and that its engine key equals `main`'s.
 
 ## 5. After merging
 
-- [ ] 5.1 Start `engine-update.yml` by hand. Verify that it opens one draft pull request from `engine-update` for the newest tag, with only the pin and the fragment changed, that CI starts on it, and that a second run changes nothing.
+- [x] 5.1 Start `engine-update.yml` by hand. Verify that it opens one draft pull request from `engine-update` for the newest tag, with only the pin and the fragment changed, that CI starts on it, and that a second run changes nothing.
 - [ ] 5.2 Verify that, when that pull request's patch check fails, it stays a draft and its comment lists the failing patches; and that after a push that fixes one of them, the same comment lists one fewer.
 - [ ] 5.3 Verify that, when its patch check first passes, the pull request turns ready within minutes and its comment gives the engine build command; and that no `engine.yml` run was started by anything but the owner.
 - [ ] 5.4 After the owner starts that pull request's engine build, start `engine-update.yml` by hand. Verify that its log says the pull request is held and that the branch is unchanged.
