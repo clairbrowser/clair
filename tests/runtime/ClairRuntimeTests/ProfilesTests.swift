@@ -486,15 +486,16 @@ final class ProfilesTests: NativeWindowTestCase {
     let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
     let (browser, home) = try await startWithWorkProfile(arguments: ["--load-extension=\(extensionPath)"])
     defer { home.close() }
+    // Home's worker (the extension is loaded into Work's profile too), while
+    // it still runs from start-up: the session keeps it from going idle.
+    let worker = try await extensionWorker(browser, named: "Clair Test Action", pageEndingWith: "counter.html?home")
+    defer { worker.close() }
     browser.ui.typeKey("1", modifierFlags: .control)
     let onHome = await browser.waitForSpace("Home")
     try require(onHome, "Ctrl+1 didn't show Home")
     let pinned = try browser.pinExtensionFromSiteControls()
     let badge = await Harness.wait(for: 15) { (pinned.value as? String) == "3" }
     try require(badge, "The pinned action doesn't show its badge")
-    // Home's worker: the extension is loaded into Work's profile too.
-    let worker = try await extensionWorker(browser, named: "Clair Test Action", pageEndingWith: "counter.html?home")
-    defer { worker.close() }
 
     browser.ui.typeKey("2", modifierFlags: .control)
     let onWork = await browser.waitForSpace("Work")
