@@ -1,0 +1,29 @@
+# Scratch, for automate-engine-updates task 3.3: can the job's GITHUB_TOKEN
+# with pull-requests: write mark a pull request ready and convert it to draft?
+# Deleted after the run.
+name: Scratch draft token
+
+on:
+  push:
+    branches: [test/draft-token]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try both
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          number="$(gh pr list --head test/draft-token --json number --jq '.[0].number')"
+          if [[ -z "$number" ]]; then echo "no pull request yet"; exit 0; fi
+          echo "draft before: $(gh pr view "$number" --json isDraft --jq .isDraft)"
+          if gh pr ready "$number"; then echo "RESULT ready: ok"; else echo "RESULT ready: refused"; fi
+          echo "draft after ready: $(gh pr view "$number" --json isDraft --jq .isDraft)"
+          if gh pr ready --undo "$number"; then echo "RESULT undo: ok"; else echo "RESULT undo: refused"; fi
+          echo "draft after undo: $(gh pr view "$number" --json isDraft --jq .isDraft)"
