@@ -119,10 +119,25 @@ clear_base() {
 # and logos, and domain substitution, applied to the tree in $1.
 apply_layer() {
   local tree="$1"
-  # Without fuzz, so a patch whose context has changed stops here. Upstream's own
-  # series keeps patch's defaults, since upstream tests it with them.
-  PATCH_BIN="$_root_dir/scripts/patch-no-fuzz.sh" \
+  # Without fuzz, so a patch whose context has changed fails. Upstream's own
+  # series keeps patch's defaults, since upstream tests it with them. Every
+  # patch is tried: patch-no-fuzz.sh records the ones that don't apply and
+  # leaves the tree as it was for them, and the build stops here, naming them
+  # all, before the overlay is copied.
+  local failed_list="$_root_dir/build/clair_patch_failures"
+  : >"$failed_list"
+  CLAIR_PATCH_FAILURES="$failed_list" PATCH_BIN="$_root_dir/scripts/patch-no-fuzz.sh" \
     python3 "$_main_repo/utils/patches.py" apply "$tree" "$_root_dir/patches"
+  if [[ -s "$failed_list" ]]; then
+    echo "These patches in patches/series don't apply (a skipped patch can make a later one fail, so fix them from the top):" >&2
+    local failed_patch
+    while IFS= read -r failed_patch; do
+      echo "clair-patch-failed: $failed_patch"
+    done <"$failed_list"
+    rm -f "$failed_list"
+    exit 1
+  fi
+  rm -f "$failed_list"
   # Add Clair's new source files. Fails and names the file if one would shadow
   # a file that Chromium or a patch already has.
   "$_root_dir/scripts/apply-overlay.sh" "$tree" "$_root_dir/overlay"
@@ -185,9 +200,9 @@ stage_prepare() {
   clear_base
 
   python3 "$_main_repo/utils/prune_binaries.py" "$_src_dir" "$_main_repo/pruning.list"
-  # Applies ungoogled-chromium's series, then (in apply_layer) Clair's
-  # patches/series. Each stops at the first patch that does not apply and
-  # names it.
+  # Applies ungoogled-chromium's series, which stops at the first patch that
+  # does not apply and names it, then (in apply_layer) Clair's patches/series,
+  # which names every patch that does not apply.
   python3 "$_main_repo/utils/patches.py" apply "$_src_dir" "$_main_repo/patches"
   mkdir -p "$_src_dir/third_party/llvm-build/Release+Asserts"
   mkdir -p "$_src_dir/third_party/rust-toolchain/bin"
