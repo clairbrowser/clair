@@ -4,7 +4,7 @@
 
 - **`UpdateController`** is app-wide. `NativeLayer` creates it once.
   - It runs Sparkle with its own user driver. When a download finishes, `updateIsWaiting(_:userInitiated:)` sets `waitingUpdate`, switches the menu item to "Update Available…" and starts the `IdleInstaller`.
-  - `offerRestart()` asks with the version alert (`UpdatePrompting.askToRestart`), then asks about incognito windows (`askToCloseIncognitoWindows`), then calls `host.relaunch()`. Chromium's relaunch warns about active downloads itself and restores the session.
+  - `offerRestart()` asks with the version alert (`UpdatePrompting.askToRestart`), then calls `host.relaunch()`. Chromium's relaunch warns about active downloads itself and restores the session.
   - `recordRunningVersion(in:)` reads and then overwrites `ClairLastRunVersion`, which holds the short version, and keeps the old value in `previousVersion`. Its comment already reserves it for this banner. `UpdateTests` covers it.
 - **Windows.** Each `BrowserWindowController` builds a `BrowserWindowModel`, and `SidebarView` renders from it. App-wide state reaches windows as `SpacesModel` does: an `@Observable` object that the controller takes from `NativeLayer.current` and passes into the model.
 - **The sidebar's bottom** is a `VStack`: `SpacePager`, with `maxHeight: .infinity`, then `SidebarFooter`, 50 pt tall. The footer's overlay draws a 1 pt line when the tab list overflows. The sidebar is 164–500 pt wide, 228 by default.
