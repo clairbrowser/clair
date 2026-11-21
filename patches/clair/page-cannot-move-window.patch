@@ -11,7 +11,7 @@
 +++ b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
 @@ -3137,12 +3137,13 @@
    return YES;
- }
+ }  // broken on purpose
  
 -// "-webkit-app-region: drag | no-drag" is implemented on Mac by excluding
 -// regions that are not draggable. (See ControlRegionView in
