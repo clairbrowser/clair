@@ -24,17 +24,27 @@ class NativeWindowTestCase: RuntimeTestCase {
 
   /// A session on the background script of the extension named `name`.
   /// Chromium's own component extensions run background scripts too, so the
-  /// worker is told apart by its extension's manifest.
-  func extensionWorker(_ browser: Browser, named name: String) async throws -> DevToolsSession {
+  /// worker is told apart by its extension's manifest. `--load-extension`
+  /// loads an extension into every profile: `pageEndingWith` picks the
+  /// worker of the profile of the page whose URL ends with it.
+  func extensionWorker(
+    _ browser: Browser, named name: String, pageEndingWith page: String? = nil
+  ) async throws -> DevToolsSession {
     let session = try await browser.browserSession()
     defer { session.close() }
     var worker: DevToolsSession?
     let started = await Harness.wait(for: 30) {
       let targets = try await session.send("Target.getTargets")
       let infos = targets["targetInfos"] as? [[String: Any]] ?? []
+      let context = page.flatMap { suffix in
+        infos.first { $0["type"] as? String == "page" && ($0["url"] as? String)?.hasSuffix(suffix) == true }?[
+          "browserContextId"] as? String
+      }
+      if page != nil && context == nil { return false }
       for info in infos where info["type"] as? String == "service_worker" {
         guard let id = info["targetId"] as? String,
-          (info["url"] as? String)?.hasPrefix("chrome-extension://") == true
+          (info["url"] as? String)?.hasPrefix("chrome-extension://") == true,
+          context == nil || info["browserContextId"] as? String == context
         else { continue }
         let candidate = try await browser.session(onTarget: id)
         if (try? await candidate.evaluate("chrome.runtime.getManifest().name")) as? String == name {
@@ -61,6 +71,36 @@ extension Browser {
   }
 
   var sidebar: XCUIElement { element("clair.sidebar") }
+
+  /// Pins the window's one extension from the Site Control Center, and
+  /// returns its pinned button.
+  @discardableResult
+  func pinExtensionFromSiteControls() throws -> XCUIElement {
+    // The site-controls button shows under the pointer, and a tile's pin badge
+    // only while the pointer is on the tile: hidden views have no element.
+    let urlField = element("clair.urlField")
+    try require(urlField.waitForExistence(timeout: 30), "The sidebar has no URL field")
+    urlField.hover()
+    let siteControls = element("clair.siteControls")
+    try require(siteControls.waitForExistence(timeout: 10), "Hovering the URL field shows no site controls")
+    siteControls.click()
+    let tile = ui.descendants(matching: .any).matching(identifier: "clair.siteControlsExtension").firstMatch
+    try require(tile.waitForExistence(timeout: 30), "The Site Control Center doesn't list the extension")
+    // A pointer that lands on the tile in one jump can miss its hover in a
+    // popover that has just opened, so move across it as a pointer would.
+    let pin = ui.buttons["Pin"].firstMatch
+    var hovered = false
+    for offset in [0.2, 0.5, 0.8] where !hovered {
+      tile.coordinate(withNormalizedOffset: CGVector(dx: offset, dy: 0.5)).hover()
+      hovered = pin.waitForExistence(timeout: 3)
+    }
+    try require(hovered, "Hovering a tile shows no pin badge")
+    pin.click()
+    ui.typeKey(.escape, modifierFlags: [])
+    let pinned = element("clair.extensionAction")
+    try require(pinned.waitForExistence(timeout: 10), "The pinned action has no button")
+    return pinned
+  }
 
   /// Whether the sidebar is in the window, shown or revealed, rather than
   /// moved out of it. XCUITest's isHittable can't see into the sidebar's
@@ -422,29 +462,7 @@ final class ExtensionActionTests: NativeWindowTestCase {
     let extensionPath = Fixture.directory.appending(path: "extensions/popup-badge").path
     let (browser, tab) = try await startWithPage(arguments: ["--load-extension=\(extensionPath)"])
     defer { tab.close() }
-    // The site-controls button shows under the pointer, and a tile's pin badge
-    // only while the pointer is on the tile: hidden views have no element.
-    let urlField = browser.element("clair.urlField")
-    try require(urlField.waitForExistence(timeout: 30), "The sidebar has no URL field")
-    urlField.hover()
-    let siteControls = browser.element("clair.siteControls")
-    try require(siteControls.waitForExistence(timeout: 10), "Hovering the URL field shows no site controls")
-    siteControls.click()
-    let tile = browser.ui.descendants(matching: .any).matching(identifier: "clair.siteControlsExtension").firstMatch
-    try require(tile.waitForExistence(timeout: 30), "The Site Control Center doesn't list the extension")
-    // A pointer that lands on the tile in one jump can miss its hover in a
-    // popover that has just opened, so move across it as a pointer would.
-    let pin = browser.ui.buttons["Pin"].firstMatch
-    var hovered = false
-    for offset in [0.2, 0.5, 0.8] where !hovered {
-      tile.coordinate(withNormalizedOffset: CGVector(dx: offset, dy: 0.5)).hover()
-      hovered = pin.waitForExistence(timeout: 3)
-    }
-    try require(hovered, "Hovering a tile shows no pin badge")
-    pin.click()
-    browser.ui.typeKey(.escape, modifierFlags: [])
-    let pinned = browser.element("clair.extensionAction")
-    try require(pinned.waitForExistence(timeout: 10), "The pinned action has no button")
+    let pinned = try browser.pinExtensionFromSiteControls()
     let badge = await Harness.wait(for: 15) { (pinned.value as? String) == "3" }
     XCTAssertTrue(badge, "The pinned action doesn't show its badge")
     // The button keeps its action's title, not the extension's name

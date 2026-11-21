@@ -62,6 +62,9 @@ class ClairExtensions : public ExtensionsContainer,
   void PopupClosedByUser();
   // The active tab changed, which changes icons and badges.
   void ActiveTabChanged();
+  // The window is about to be seen: sends ClairUI the changes it missed
+  // while it was a hidden member of its group, if any.
+  void FlushIfStale();
   // The extension's right-click menu, or nil. Good until the next call.
   NSMenu* ContextMenu(const std::string& extension_id);
 
@@ -128,6 +131,7 @@ class ClairExtensions : public ExtensionsContainer,
   void ClosePopup();
   void Changed();
   void Flush();
+  void SendSnapshot();
 
   const raw_ptr<ClairBrowserWindow> window_;
   std::unique_ptr<Popup> popup_;
@@ -137,6 +141,9 @@ class ClairExtensions : public ExtensionsContainer,
   std::unique_ptr<extensions::ExtensionContextMenuModel> context_menu_;
   MenuControllerCocoa* __strong context_menu_controller_;
   bool flush_posted_ = false;
+  // The actions changed since ClairUI's snapshot, which it takes itself when
+  // its window opens.
+  bool stale_ = false;
   base::ScopedObservation<ToolbarActionsModel, ToolbarActionsModel::Observer>
       model_observation_{this};
   base::ScopedObservation<extensions::ExtensionActionDispatcher,
