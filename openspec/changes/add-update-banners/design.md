@@ -48,13 +48,13 @@ enum UpdateBanner: Equatable {
 
 ### D2. Restart and Update: one path with an optional alert
 
-`offerRestart()` becomes `restartToUpdate(confirmingVersion: Bool)`:
-- The menu item calls it with `true`, so its behaviour doesn't change.
-- The banner calls it with `false`, which skips `askToRestart`.
+`offerRestart()` becomes `restartToUpdate(confirming: Bool)`:
+- The menu item calls it with `true`, so its behaviour doesn't change: the version alert (`askToRestart`), then `askToCloseIncognitoWindows` when an incognito window is open.
+- The banner calls it with `false`, which skips both. Arc doesn't ask about incognito windows either.
 
-Both still ask `askToCloseIncognitoWindows` when an incognito window is open, and both go through `host.relaunch()`, so Chromium's download warning and session restore apply unchanged. If the user declines either warning, the update stays waiting and the pill stays.
+Both go through `host.relaunch()`, so Chromium's download warning and session restore apply unchanged. Incognito windows aren't restored, as after any relaunch. If the user postpones at the download warning, the update stays waiting and the pill stays.
 
-*Alternative:* a separate banner-only method. That would duplicate the incognito check, which is exactly the part that must stay identical.
+*Alternative:* a separate banner-only method that calls `host.relaunch()` directly. That would split the restart path in two, and the next guard added to one would be missed in the other.
 
 ### D3. When the "Update Complete!" card shows
 

@@ -22,15 +22,14 @@ This change touches only `ClairUI`, so the engine key doesn't change and no engi
   - older version: `.none`;
   - a second launch of the newer version, with the card never closed: `.none`;
   - `closeUpdateComplete()`: `.none`.
-- [ ] 2.3 Replace `offerRestart()` with `restartToUpdate(confirmingVersion:)` (D2). The menu item passes `true` and the banner `false`. Verify with `UpdateTests` cases in CI, using the existing fake prompts and host:
-  - `false` skips `askToRestart` and relaunches;
-  - `false` with an incognito window still asks, and declining doesn't relaunch;
-  - the menu item still shows the version alert.
+- [ ] 2.3 Replace `offerRestart()` with `restartToUpdate(confirming:)` (D2). The menu item passes `true` and the banner `false`. Verify with `UpdateTests` cases in CI, using the existing fake prompts and host:
+  - `false` with an incognito window open relaunches without calling `askToRestart` or `askToCloseIncognitoWindows`;
+  - `true` still shows the version alert, then asks about the incognito window, and declining doesn't relaunch.
 
 ## 3. Banner views
 
 - [ ] 3.1 Pass the state into each window: `BrowserWindowController` takes it from `NativeLayer.current`, or a detached instance, as it does `spaces`, and `BrowserWindowModel` exposes it (D1). Verify with a unit test in CI that two window models built with one state both see a change to it.
-- [ ] 3.2 Add `UpdateBannerView` with the pill and the waiting card, and place it between `SpacePager` and `SidebarFooter`, with the card in a bottom-aligned overlay and the overflow line above the slot (D4). Include the hover spring, the collapse and the identifiers (D4, D5). The button calls a new `SidebarActions` method that `BrowserWindowController` sends to `restartToUpdate(confirmingVersion: false)`. Verify in CI that it builds and the existing tests pass. By hand:
+- [ ] 3.2 Add `UpdateBannerView` with the pill and the waiting card, and place it between `SpacePager` and `SidebarFooter`, with the card in a bottom-aligned overlay and the overflow line above the slot (D4). Include the hover spring, the collapse and the identifiers (D4, D5). The button calls a new `SidebarActions` method that `BrowserWindowController` sends to `restartToUpdate(confirming: false)`. Verify in CI that it builds and the existing tests pass. By hand:
   - the pill and the card match `banner-pill.jpg` and `banner-hover.jpg` within 1 pt, apart from the missing checkbox row;
   - the tabs don't move when the card opens;
   - the pill shows in a second window, an incognito window and the revealed hidden sidebar;

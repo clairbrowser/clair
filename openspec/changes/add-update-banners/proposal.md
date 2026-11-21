@@ -7,7 +7,7 @@ Clair downloads updates silently and installs them on quit or while the user is 
 ## What Changes
 
 - **Waiting update.** While a downloaded update waits, a pill reading "New Clair Version Available" sits at the bottom of every window's sidebar, directly above the footer. On hover it grows upward into a card with the title and a **Restart and Update** button. Moving the pointer away collapses it again.
-- **Restart and Update** relaunches Clair into the new version straight away. Clicking the button is the confirmation, so it doesn't show the version alert that the menu item shows. Clair still warns about incognito windows and active downloads, as the menu item's Restart and Update does.
+- **Restart and Update** relaunches Clair into the new version straight away. Clicking the button is the confirmation, so it doesn't show the version alert that the menu item shows. As in Arc, it doesn't ask about incognito windows either: they close, and they don't come back. Chromium still warns before cancelling an active download. The menu item's Restart and Update keeps both of its warnings.
 - **After an update.** The first launch of a newer version shows an "Update Complete!" card in the same place, with a close button and a **See What's New** row. See What's New opens the version's GitHub release page (`https://github.com/clairbrowser/clair/releases/tag/v<version>`) in a new tab and closes the card. The close button closes it. Either way it closes in every window. It shows only during that first launch: a later relaunch doesn't show it again, even if it was never closed. Small sparkles twinkle along the card's header.
 - **Differences from Arc**, all deliberate:
   - The card has no "Automatic Updates" checkbox, because Clair has no update settings (`software-updates`).
@@ -25,7 +25,7 @@ None.
 
 ### Modified Capabilities
 
-- `software-updates`: adds the sidebar's waiting-update banner, its Restart and Update, and the "Update Complete!" card after an update. The existing requirement that Clair adds no other update item applies only to the application menu, so it stays as it is.
+- `software-updates`: adds the sidebar's waiting-update banner, its Restart and Update, and the "Update Complete!" card after an update. "Relaunch preserves the browsing session" now asks about incognito windows only after the update alert's Restart and Update, not the banner's. The existing requirement that Clair adds no other update item applies only to the application menu, so it stays as it is.
 
 ## Impact
 

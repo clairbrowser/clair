@@ -1,5 +1,18 @@
 # Spec Delta
 
+## MODIFIED Requirements
+
+### Requirement: Relaunch preserves the browsing session
+When Clair relaunches to install an update, through "Restart and Update" or while the user is idle, it SHALL restore the windows and tabs that were open before the relaunch, whatever the user's startup setting. After the update alert's "Restart and Update", it SHALL warn first if quitting would lose an active download or incognito windows. After the sidebar banner's, it SHALL warn only about an active download. An idle install never needs that warning, because it doesn't run in those cases.
+
+#### Scenario: Restart and update
+- **WHEN** a user chooses "Restart and Update" while three windows with open tabs exist
+- **THEN** Clair quits, installs the update, and relaunches with the same three windows and their tabs restored
+
+#### Scenario: Active download on relaunch
+- **WHEN** a user chooses "Restart and Update" while a download is in progress
+- **THEN** Clair warns that relaunching will cancel the download, and lets the user postpone the update
+
 ## ADDED Requirements
 
 ### Requirement: Waiting update banner in the sidebar
@@ -33,15 +46,19 @@ While the pointer is over the waiting-update pill, it SHALL grow upward into a c
 - **THEN** the card collapses back into the pill
 
 ### Requirement: Restart and Update from the banner
-Choosing the banner's "Restart and Update" SHALL install the waiting update and relaunch Clair without the new version's alert, since the click is the confirmation. It SHALL still warn first when quitting would close incognito windows or cancel an active download, as the menu's "Restart and Update" does, and declining SHALL leave the update waiting.
+Choosing the banner's "Restart and Update" SHALL install the waiting update and relaunch Clair without the new version's alert, since the click is the confirmation. It SHALL NOT ask about incognito windows, as in Arc: they close and are not restored. It SHALL still warn first when quitting would cancel an active download, and declining SHALL leave the update waiting.
 
 #### Scenario: Nothing to lose
-- **WHEN** the user clicks the banner's "Restart and Update" with no incognito window and no active download
-- **THEN** Clair relaunches into the new version with its windows and tabs restored, and shows no other alert first
+- **WHEN** the user clicks the banner's "Restart and Update" with no active download
+- **THEN** Clair relaunches into the new version with its windows and tabs restored, and shows no alert first
 
 #### Scenario: Incognito window open
 - **WHEN** the user clicks the banner's "Restart and Update" while an incognito window is open
-- **THEN** Clair warns that the incognito windows will close, and if the user declines, Clair keeps running and the pill stays
+- **THEN** Clair relaunches without asking, the incognito window is not restored, and the other windows and tabs are
+
+#### Scenario: Active download
+- **WHEN** the user clicks the banner's "Restart and Update" while a download is in progress
+- **THEN** Clair warns that relaunching will cancel the download, and if the user postpones, Clair keeps running and the pill stays
 
 ### Requirement: Update Complete card after an update
 On the first launch of a version newer than the one Clair last ran, every window's sidebar SHALL show an open "Update Complete!" card at its bottom, above the footer, with a close button and a "See What's New" row. Small sparkles SHALL twinkle along its header while it shows. It SHALL NOT show on Clair's first launch ever, on a launch of the same version, or on a launch of an older version. A waiting update's pill SHALL replace it.
