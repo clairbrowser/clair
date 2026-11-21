@@ -124,16 +124,17 @@ private struct WaitingUpdateCard: View {
     Group {
       if reduceMotion {
         // The pill and the card cross-fade in place.
+        // Hover goes to the topmost view, so one handler watches both, over
+        // the pill while closed and the whole card while open.
         ZStack(alignment: .bottom) {
           card(open: false)
             .opacity(isOpen ? 0 : 1)
-            .allowsHitTesting(!isOpen)
-            .onHover { if $0 { setOpen(true) } }
           card(open: true)
             .opacity(isOpen ? 1 : 0)
             .allowsHitTesting(isOpen)
-            .onHover { if !$0 { setOpen(false) } }
         }
+        .contentShape(BannerHoverRegion(isOpen: isOpen, pillHeight: UpdateBannerView.pillHeight))
+        .onHover { setOpen($0) }
       } else {
         // The pill grows upward into the card, its bottom edge fixed.
         card(open: isOpen).onHover { setOpen($0) }
@@ -164,6 +165,18 @@ private struct WaitingUpdateCard: View {
     }
     .background { UpdateCardBackground(isOpen: open) }
     .contentShape(.rect(cornerRadius: UpdateCardBackground.cardRadius))
+  }
+}
+
+/// Where the pointer opens or keeps open the cross-fading banner: the pill at
+/// the bottom while it's closed, and the whole card while it's open.
+nonisolated private struct BannerHoverRegion: Shape {
+  var isOpen: Bool
+  var pillHeight: CGFloat = 24
+
+  func path(in rect: CGRect) -> Path {
+    let height = isOpen ? rect.height : min(rect.height, pillHeight)
+    return Path(CGRect(x: rect.minX, y: rect.maxY - height, width: rect.width, height: height))
   }
 }
 
