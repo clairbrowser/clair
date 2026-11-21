@@ -234,7 +234,12 @@ final class UpdateMenuTests: RuntimeTestCase {
     }
 
     // 2. Hovering opens the card, and its button relaunches at once: an alert
-    // would hold the relaunch, since nothing here answers one.
+    // would hold the relaunch, since nothing here answers one. The second
+    // window closes first: it may cover the first one's pill, so the pointer
+    // would land on the window in front.
+    try await second.send("Page.close")
+    let one = await Harness.wait(for: 30) { windows.count == 1 }
+    try require(one, "The second window didn't close")
     let banner = browser.element("clair.updateBanner")
     try require(banner.waitForExistence(timeout: 10), "There's no update banner")
     banner.hover()
