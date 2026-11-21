@@ -216,7 +216,10 @@ write_block() {
       echo "- **Upstream changes:** [$current...$to]($upstream_web/compare/$current...$to)"
     fi
     if list_tags_macos; then
-      macos_tags="$(grep -F -- "$version-" "$work/macos-tags" | tr '\n' ' ' | sed 's/ $//; s/ /`, `/g' || true)"
+      # Its tags name the version alone (157.0.8103.78) or with a suffix
+      # (157.0.8103.78-1.1, 157.0.8103.78_arm64).
+      macos_tags="$(awk -v v="$version" '$0 == v || index($0, v "-") == 1 || index($0, v "_") == 1' \
+        "$work/macos-tags" | tr '\n' ' ' | sed 's/ $//; s/ /`, `/g')"
       if [[ -n "$macos_tags" ]]; then
         echo "- **ungoogled-chromium-macos:** has tagged this version: \`$macos_tags\`."
       else
@@ -259,7 +262,7 @@ list_tags_macos() {
   if [[ -z "$macos_listed" ]]; then
     if git ls-remote --tags "$macos_url" >"$work/macos-ls-remote" 2>/dev/null; then
       awk '{ name = $2; sub(/^refs\/tags\//, "", name); sub(/\^\{\}$/, "", name); print name }' \
-        "$work/macos-ls-remote" | grep -E '^[0-9]+(\.[0-9]+)*-[0-9]+(\.[0-9]+)*$' | sort -u >"$work/macos-tags" || true
+        "$work/macos-ls-remote" | grep -E '^[0-9]+(\.[0-9]+){3}([-_][A-Za-z0-9._-]*)?$' | LC_ALL=C sort -u >"$work/macos-tags" || true
       macos_listed=yes
     else
       macos_listed=no

@@ -219,7 +219,7 @@ check "a pin that matches no tag: nothing is pushed" no_branch
 
 reset 157.0.8103.78-1 yes
 set_tags 99.0.1.2-1 157.0.900.500-1 157.0.8103.78-1 157.0.8103.78-2@a 157.0.8103.100-1@a 158.0.8127.36-1-beta=158.0.8127.36-1
-set_macos_tags 157.0.8103.78-1.1 157.0.8103.100-1.1
+set_macos_tags 157.0.8103.78-1.1 157.0.8103.100-1.1 157.0.8103.100_arm64 157.0.8103.10 157.0.8103.1000
 run
 check "patch-level: exits 0" test "$status" -eq 0
 check "ordering: 157.0.8103.100-1 is newer than 157.0.8103.78-2, 157.0.900.500-1 and 99.0.1.2-1" \
@@ -245,7 +245,21 @@ check "patch-level: a draft pull request is opened from $branch to main" \
   eval 'jq -e ".draft == true and .head == \"engine-update\" and .base == \"main\" and .title == \"build(engine): update to ungoogled-chromium 157.0.8103.100-1\"" "$gh_state/created.json" >/dev/null'
 check "patch-level: the description says patch-level" created_body_has "a patch-level update, within Chromium 157"
 check "patch-level: the description carries the tag marker" created_body_has "<!-- engine-update-tag: 157.0.8103.100-1 -->"
-check "patch-level: the description says ungoogled-chromium-macos has tagged it" created_body_has '`157.0.8103.100-1.1`'
+check "patch-level: the description says ungoogled-chromium-macos has tagged it, with or without a suffix" \
+  created_body_has '`157.0.8103.100-1.1`, `157.0.8103.100_arm64`'
+check "a macOS tag for another version that starts the same isn't counted" \
+  eval '! created_body_has "157.0.8103.10\`" && ! created_body_has "157.0.8103.1000"'
+
+# A macOS tag that is the bare version, as its recent tags are.
+reset 157.0.8103.78-1 yes
+set_tags 157.0.8103.78-1 157.0.8103.100-1
+set_macos_tags 157.0.8103.78 157.0.8103.100
+run
+check "a bare macOS version tag counts" created_body_has 'has tagged this version: `157.0.8103.100`.'
+
+set_macos_tags 157.0.8103.78
+run
+check "no macOS tag for the version: the description says so" created_body_has "has no tag for Chromium 157.0.8103.100 yet"
 check "patch-level: the description has no new-major steps" eval '! created_body_has "Steps for a new major"'
 check "the description has no bare @name" eval '! jq -r .body "$gh_state/created.json" | grep -qE "(^|[^\`A-Za-z0-9])@[A-Za-z0-9]"'
 check "pull requests use the App's token" gh_called "app-token | api -X POST repos/o/r/pulls"
