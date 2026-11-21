@@ -37,10 +37,16 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
 
   /// The update that's downloaded and waiting to install, if any.
   private(set) var waitingUpdate: SUAppcastItem?
+  /// The waiting update's short version, "0.1.3".
+  private var waitingVersion: String?
 
-  /// The version Clair last ran, for a later "Update Complete!" banner. Nil on
-  /// the first launch.
+  /// The version Clair last ran, which decides the "Update Complete!" card.
+  /// Nil on the first launch.
   private(set) var previousVersion: String?
+
+  /// What every window's sidebar banner shows (add-update-banners D1). This
+  /// controller is its only writer.
+  let bannerState = UpdateBannerState()
 
   init(
     host: any ClairHost, configuration: UpdateConfiguration,
@@ -89,32 +95,58 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
     display.split(separator: " ").first.map(String.init) ?? display
   }
 
-  private static var runningVersion: String {
+  static var runningVersion: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
   }
 
-  func recordRunningVersion(in defaults: UserDefaults) {
+  /// Keeps the version Clair last ran and records the running one. The first
+  /// launch of a newer version shows "Update Complete!" for that run only
+  /// (add-update-banners D3).
+  func recordRunningVersion(in defaults: UserDefaults, running: String = UpdateController.runningVersion) {
     previousVersion = defaults.string(forKey: Self.lastRunVersionKey)
-    defaults.set(Self.runningVersion, forKey: Self.lastRunVersionKey)
+    defaults.set(running, forKey: Self.lastRunVersionKey)
+    if let previousVersion,
+      SUStandardVersionComparator.default.compareVersion(previousVersion, toVersion: running) == .orderedAscending
+    {
+      Self.logger.info("Updated from \(previousVersion, privacy: .public) to \(running, privacy: .public)")
+      bannerState.banner = .complete(version: running)
+    }
+  }
+
+  /// Closes the "Update Complete!" card in every window, for the rest of this
+  /// run (add-update-banners D3).
+  func closeUpdateComplete() {
+    if case .complete = bannerState.banner {
+      bannerState.banner = .none
+    }
   }
 
   func updateIsWaiting(_ item: SUAppcastItem, userInitiated: Bool) {
+    updateIsWaiting(
+      item, version: Self.shortVersion(fromDisplayString: item.displayVersionString), userInitiated: userInitiated)
+  }
+
+  /// `version` is the item's short version, which tests give directly.
+  func updateIsWaiting(_ item: SUAppcastItem, version: String, userInitiated: Bool) {
     let alreadyWaiting = waitingUpdate != nil
     waitingUpdate = item
+    waitingVersion = version
     if !alreadyWaiting {
       Self.logger.info("Update \(item.displayVersionString, privacy: .public) is waiting to install on quit")
       host.updateWillInstallOnQuit()
       menu.setUpdateWaiting(true)
       idleInstaller.start()
+      // The waiting update replaces "Update Complete!" (add-update-banners D1).
+      bannerState.banner = .waiting(version: version)
     }
     if userInitiated {
-      offerRestart()
+      restartToUpdate(confirming: true)
     }
   }
 
   func chooseUpdateItem() {
     if waitingUpdate != nil {
-      offerRestart()
+      restartToUpdate(confirming: true)
     } else if let updater, startError == nil {
       updater.checkForUpdates()
     } else {
@@ -122,17 +154,17 @@ final class UpdateController: NSObject, SPUUpdaterDelegate {
     }
   }
 
-  private func offerRestart() {
-    guard let waitingUpdate else {
+  /// Relaunches into the waiting update, the one path behind both Restart and
+  /// Update buttons (add-update-banners D2). The menu item confirms with the
+  /// version alert first; the banner's click is the confirmation. Neither asks
+  /// about incognito windows, as in Arc: they close and don't come back.
+  /// Chromium's relaunch still warns before cancelling a download, and
+  /// restores the session.
+  func restartToUpdate(confirming: Bool) {
+    guard waitingUpdate != nil, let waitingVersion else {
       return
     }
-    let version = Self.shortVersion(fromDisplayString: waitingUpdate.displayVersionString)
-    guard prompts.askToRestart(forVersion: version) else {
-      return
-    }
-    if host.silentRelaunchBlockers().contains(.incognitoWindow),
-      !prompts.askToCloseIncognitoWindows()
-    {
+    if confirming, !prompts.askToRestart(forVersion: waitingVersion) {
       return
     }
     host.relaunch()
