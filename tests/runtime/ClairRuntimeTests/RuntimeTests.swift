@@ -240,6 +240,8 @@ final class UpdateMenuTests: RuntimeTestCase {
     try await second.send("Page.close")
     let one = await Harness.wait(for: 30) { windows.count == 1 }
     try require(one, "The second window didn't close")
+    // A click on a window that isn't key only makes it key.
+    browser.ui.activate()
     let banner = browser.element("clair.updateBanner")
     try require(banner.waitForExistence(timeout: 10), "There's no update banner")
     banner.hover()
@@ -253,6 +255,8 @@ final class UpdateMenuTests: RuntimeTestCase {
     // 3. "Update Complete!", in the relaunched process, which `browser.ui`
     // doesn't follow.
     let relaunched = XCUIApplication(url: browser.appPath)
+    // Chromium may relaunch it behind the runner's own windows.
+    relaunched.activate()
     let complete = relaunched.descendants(matching: .any).matching(identifier: "clair.updateComplete").firstMatch
     try require(complete.waitForExistence(timeout: 60), "The new version shows no \"Update Complete!\" card")
 
