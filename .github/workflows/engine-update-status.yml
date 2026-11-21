@@ -33,7 +33,19 @@ jobs:
       github.event.workflow_run.head_branch == 'engine-update'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The job's own token can't change a pull request's draft state (task 3.3),
+    # so those two calls use the App's token, from the environment limited to
+    # main. workflow_run jobs run on main.
+    environment: engine-update
     steps:
+      - name: Get the App's token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.ENGINE_UPDATE_APP_ID }}
+          private-key: ${{ secrets.ENGINE_UPDATE_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
       - name: Check out main's script
         uses: actions/checkout@v7
         with:
@@ -46,6 +58,7 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
+          DRAFT_TOKEN: ${{ steps.app.outputs.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}

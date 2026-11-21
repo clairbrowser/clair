@@ -210,7 +210,7 @@ git add ungoogled-chromium
 
 ### The engine update App
 
-A pull request opened with a workflow's own token starts no checks, so `engine-update.yml` acts as a GitHub App, installed on this repository only, with the repository permissions "Contents: read and write" and "Pull requests: read and write". In the repository's settings, the `engine-update` environment holds its ID (the variable `ENGINE_UPDATE_APP_ID`) and private key (the secret `ENGINE_UPDATE_APP_PRIVATE_KEY`). Its deployment branches are limited to `main`, so only workflows running from `main` can make the App's token. `main`'s ruleset still requires the merge gate from the App, and the App has no access to the `release` environment. To replace the key, generate a new one in the App's settings, update the secret and delete the old key.
+A pull request opened with a workflow's own token starts no checks, and a workflow's own token can't change a pull request's draft state, so `engine-update.yml`, and `engine-update-status.yml` for the draft state only, act as a GitHub App, installed on this repository only, with the repository permissions "Contents: read and write" and "Pull requests: read and write". In the repository's settings, the `engine-update` environment holds its ID (the variable `ENGINE_UPDATE_APP_ID`) and private key (the secret `ENGINE_UPDATE_APP_PRIVATE_KEY`). Its deployment branches are limited to `main`, so only workflows running from `main` can make the App's token. `main`'s ruleset still requires the merge gate from the App, and the App has no access to the `release` environment. To replace the key, generate a new one in the App's settings, update the secret and delete the old key.
 
 ## Engine build times
 

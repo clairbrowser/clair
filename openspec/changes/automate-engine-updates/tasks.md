@@ -17,7 +17,7 @@ Two pull requests implement this change (design D9): tasks 1.x, then tasks 2.x t
 
 - [x] 3.1 Add `scripts/engine-update-status.sh` (D7) and `scripts/engine-update-status.test.sh`. Verify that the test covers each row of D7's table, including a patch check that timed out; a cancelled run changing nothing; a result for a commit that is no longer the head; a log line whose patch name doesn't match the pattern being dropped; a failure whose log names no patch; the comment being edited in place and not added twice; and the draft state being left alone when it is already right. Verify that `shellcheck -S warning` passes.
 - [x] 3.2 Add `.github/workflows/engine-update-status.yml` (D1, D7). Verify that `actionlint` passes, that the job's condition excludes a run whose head repository isn't this one or whose head branch isn't `engine-update`, and that no step checks out or runs the pull request's code.
-- [ ] 3.3 Find out whether a job's `GITHUB_TOKEN` with `pull-requests: write` can mark a pull request ready and convert it to draft (D6): try both on a scratch draft pull request from a `workflow_dispatch` run on a branch, then delete the scratch workflow. Verify that the status workflow uses the App's token for those calls only if the default token was refused, and record the result in D6.
+- [x] 3.3 Find out whether a job's `GITHUB_TOKEN` with `pull-requests: write` can mark a pull request ready and convert it to draft (D6): try both on a scratch draft pull request from a `workflow_dispatch` run on a branch, then delete the scratch workflow. Verify that the status workflow uses the App's token for those calls only if the default token was refused, and record the result in D6.
 
 ## 4. Setup and docs
 
