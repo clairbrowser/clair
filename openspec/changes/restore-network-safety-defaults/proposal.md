@@ -37,5 +37,4 @@ None.
 - **Engine** (the engine key changes): a new `patches/clair/restore-network-safety-defaults.patch`, applied after ungoogled-chromium's series. It touches `chrome/browser/net/default_dns_over_https_config_source.cc` and `services/network/public/cpp/features.cc`.
 - **`ClairUI` and `ClairHost.h`:** no change.
 - **Network:** if the system's DNS server is a known DoH provider, lookups now go to that provider over HTTPS instead of plain DNS. No user's lookups move to a different DNS operator.
-- **Tests:** a runtime test for the secure DNS default.
 - **Docs:** a Changie fragment.

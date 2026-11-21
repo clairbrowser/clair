@@ -47,17 +47,11 @@ Only the pref's default changes. A user who has set the mode keeps the stored va
 
 *Alternative:* **automatic mode with a fallback DoH provider for unknown DNS servers** (`kDnsOverHttpsAutomaticModeFallbackToDoh`). That changes the operator without the user choosing it, which is what ungoogled-chromium objected to. Upstream keeps it off too.
 
-### D3. A runtime test
-
-A new `tests/runtime/ClairRuntimeTests/NetworkDefaultsTests.swift` checks a fresh profile. A page at `chrome://settings/security` reads `chrome.settingsPrivate.getPref('dns_over_https.mode')`, and the test expects `automatic`. Whether a lookup is upgraded depends on the runner's DNS server, and the provider list has no runtime readout. So the upgrade feature and the provider list are checked by reading the hunks.
-
-*Alternative:* **a C++ unit test in the engine.** Clair doesn't build Chromium's test targets, and the runtime test covers what users see.
-
 ## Risks / Trade-offs
 
 - **[A broken DoH provider]** In automatic mode, a provider whose DoH endpoint misbehaves could slow lookups. → Chromium probes the DoH servers and falls back to the system's DNS when they fail, as in Chrome.
 - **[Split DNS or a captive portal]** On a network that intercepts DNS, a known provider's address could resolve differently over DoH. → Same as Chrome. The upgrade applies only to the public providers' own addresses, Chromium turns automatic mode off on managed Macs, and the user can turn secure DNS off.
-- **[Upstream churn]** ungoogled-chromium could rewrite `doh-changes.patch` in a later release. → No-fuzz patching names any hunk that stops applying, and the runtime test catches a lost default.
+- **[Upstream churn]** ungoogled-chromium could rewrite `doh-changes.patch` in a later release. → No-fuzz patching names any hunk that stops applying.
 
 ## Migration Plan
 
