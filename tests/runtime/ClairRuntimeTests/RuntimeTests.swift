@@ -154,11 +154,11 @@ final class UpdateMenuTests: RuntimeTestCase {
 
   /// A manual check finds the update, Later leaves it waiting behind "Update
   /// Available…", and Restart and Update goes through ClairHost's relaunch: the
-  /// same windows and tabs come back, in the new version, with windows restored
-  /// (add-profiles D6).
+  /// same windows and tabs come back, in the new version. That holds with
+  /// "restore windows from previous session" off, as it is by default, which
+  /// otherwise gathers the tabs into one window (add-profiles D6).
   func testFoundUpdateInstallsAndRestoresWindows() async throws {
     try skipAutomaticCheck()
-    try Harness.setRestoreWindows(true)
     let browser = try await startBrowser(feed: updateFeed)
     let first = try await browser.open("\(page)?first")
     let second = try await browser.open("\(page)?second")

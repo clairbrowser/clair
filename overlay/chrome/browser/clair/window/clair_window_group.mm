@@ -32,6 +32,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "url/gurl.h"
 
 namespace {
@@ -62,7 +63,8 @@ std::map<std::string, std::string>& LastShownSpaces() {
 
 // --- Session restore (D6) ---
 
-// The user's setting, read once at launch.
+// The user's setting, read once at launch, or true for a launch that follows
+// Chromium's relaunch, such as an update's.
 bool g_restore_windows = false;
 // The windows session restore created, held until it has finished.
 std::vector<base::WeakPtr<ClairBrowserWindow>>& Restored() {
@@ -819,8 +821,12 @@ void ClairWindowGroup::Start() {
     return;
   }
   started = true;
+  // A relaunch, such as Restart and Update or an idle install, brings back
+  // every window whatever the setting (software-updates spec, "Relaunch
+  // preserves the browsing session").
   g_restore_windows =
-      [NSUserDefaults.standardUserDefaults boolForKey:kRestoreWindowsKey];
+      [NSUserDefaults.standardUserDefaults boolForKey:kRestoreWindowsKey] ||
+      StartupBrowserCreator::WasRestarted();
   static base::NoDestructor<base::CallbackListSubscription> subscription(
       SessionRestore::RegisterOnSessionRestoredCallback(
           base::BindRepeating(&ClairWindowGroup::SessionRestored)));
