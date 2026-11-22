@@ -89,6 +89,17 @@ The browser controls show in one of two places, chosen by the `ClairShowsToolbar
 - **Bubbles attach below the toolbar's controls (D6).** The toolbar reports its controls' frames in its own coordinate space, kept apart from the sidebar's, and `AnchorResolver` returns `.bottom` anchors for them while the toolbar shows and no page is in full screen. Extension popups open at the card's top-trailing corner, 40 pt in, whichever tile opened them (`ExtensionPopupWindow.Placement.topTrailing`).
 - **Three ways to change it (D8, D9).** View › Hide Toolbar (⇧⌘D, `ToolbarMenuTarget`, added after the engine's Hide Sidebar once `NativeLayer` has started), the toolbar's context menu and the sidebar URL field's "Show as Toolbar", and the "Location bar" row on Settings › General (`LocationBarPicker`, with drawn `LayoutThumbnail`s). Every window observes the preference through `UserDefaults.didChangeNotification`.
 
+## Bookmarks
+
+The `add-bookmarks-menu` change's `design.md` (`openspec/changes/add-bookmarks-menu/`) has the reasoning (D1–D9). Clair has one bookmark list, Chromium's Other Bookmarks, which its interface calls "Bookmarks". `chrome://bookmarks` stays the manager.
+
+- **The Bookmarks menu (D1, D7).** Chromium's menu and `BookmarkMenuBridge` stay. `InstallNativeWindowMenus` shows the menu, drops Chromium's two separators tagged `IDC_BOOKMARK_THIS_TAB`, and moves that item first, on Shift+Cmd+B; Bookmark All Tabs, Always Show Bookmarks Bar and the bookmarks side panel stay removed (`ClairIsRemovedCommand`). `MainMenuTitles` retitles `IDC_SHOW_BOOKMARK_MANAGER` "Manage Bookmarks" (Option+Cmd+B). `patches/clair/bookmarks-menu-root.patch` makes `BookmarkMenuBridge::BuildRootMenu` list Other Bookmarks' contents directly, with no Bookmarks Bar or Other Bookmarks submenu, after one separator; it's a patch because the menu is built from the bridge's private members.
+- **Bookmark This Page… and Edit Bookmark… (D2, D4).** `ClairWindowCommandHandler` titles the item from `clair::IsActivePageBookmarked` each time AppKit validates it. The native window's `ExecuteCommand` runs `IDC_BOOKMARK_THIS_TAB` itself (`clair::BookmarkActivePage`): it adds the page Chromium would bookmark (`chrome::GetURLAndTitleToBookmark`) at the end of Other Bookmarks, unless the user has bookmarked it, and calls `-[ClairWindow showBookmarkDialog:]` with a `ClairBookmark` snapshot whose `isNew` says which. Chromium's bookmark bubble never shows.
+- **The contract (D3).** `ClairBrowser.bookmarkFolders` lists Other Bookmarks and its folders depth-first, and `-updateBookmark:title:folder:`, `-removeBookmark:` and `-addBookmarkFolder:` edit them (`clair_bookmarks.mm`). An incognito or guest window uses its original profile's bookmarks, as `BookmarkModelFactory` does.
+- **The dialog (D5).** `BookmarkDialog` is a `ClairDialog` page: Name and Folder rows as its content, Remove as its leading button and Done, which Return and Esc press. The Folder popup is an `NSPopUpButton` (`BookmarkFolderPopup`), for the menu's indentation and checkmark; New Folder… swaps it for a field whose Return adds a folder, and Manage Bookmarks saves, closes and performs the main menu's Manage Bookmarks item. `BookmarkDialogState` saves through the browser however the dialog closes, except after Remove.
+- **One list, and the notice (D6).** `ClairBookmarkBarDrain`, one per original profile (the profile's user data), started by `ClairBrowserWindow` for each window, keeps the Bookmarks Bar empty: when the bookmarks load, when a node lands directly in the bar, and when an import's extensive changes end, it moves the bar's children to the top of Other Bookmarks, in order, in a task of its own. The first drain that moves something asks the profile's most recently active normal window, or the first one to open, to show `BookmarksBarNotice`, and sets the Local State pref `clair.bookmarks_bar_notice_shown`, so it shows once for the whole app.
+- **Suggestions (D8).** `ClairChromiumAutocomplete` runs every omnibox provider, bookmarks included, and shows a match's title first when Chromium marks it `swap_contents_and_description`, as the omnibox does. A row for a bookmarked page that isn't a search or an open tab is `ClairSuggestionKindBookmark`, with no icon, so `SuggestionRow` draws the `bookmark` symbol and VoiceOver reads "Bookmark".
+
 ## Where each piece lives
 
 | Piece | File |
@@ -114,7 +125,10 @@ The browser controls show in one of two places, chosen by the `ClairShowsToolbar
 | Peeks for links to other sites | `overlay/chrome/browser/clair/window/clair_pinned_link_throttle.{h,mm}`, `patches/clair/pinned-link-peek.patch` |
 | Tabs always restored at launch | `overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` (`ApplyStartupPref`), `patches/clair/always-restore.patch` |
 | Opt+Cmd+arrows freed for Spaces and Next and Previous Tab | `patches/clair/space-shortcuts.patch` |
-| Command bar suggestions (Chromium's autocomplete, no bookmarks) | `overlay/chrome/browser/clair/window/clair_autocomplete.{h,mm}` |
+| Command bar suggestions (Chromium's autocomplete, bookmarks included) | `overlay/chrome/browser/clair/window/clair_autocomplete.{h,mm}` |
+| The bookmark and folder snapshots, the bridge's bookmark calls, Bookmark This Page… | `overlay/chrome/browser/clair/window/clair_bookmarks.{h,mm}` |
+| Keeping the Bookmarks Bar empty, the notice's pref | `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` |
+| Other Bookmarks listed directly in the Bookmarks menu | `patches/clair/bookmarks-menu-root.patch` |
 | Extension actions and popups | `overlay/chrome/browser/clair/window/clair_extensions.{h,mm}` |
 | Downloads | `overlay/chrome/browser/clair/window/clair_downloads.{h,mm}` |
 | The functions hooks call, menus, password and autofill prefs | `overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` |
@@ -131,8 +145,9 @@ The browser controls show in one of two places, chosen by the `ClairShowsToolbar
 | Profiles: the dialogs, Settings › Profiles, the Advanced toggles | `native/ClairUI/ProfileDialogs.swift`, `ProfilesSettingsView.swift`, `SettingsWindow.swift` |
 | Link rules: Settings › Links' card, the dialog and its checks | `native/ClairUI/SettingsWindow.swift`, `LinkRulesDialog.swift`, `LinkRulesLogic.swift` |
 | Command bar | `native/ClairUI/CommandBarModel.swift`, `OverlayViews.swift` |
+| The bookmark dialog, the Bookmarks Bar notice, Manage Bookmarks' title | `native/ClairUI/BookmarkDialog.swift`, `BookmarksBarNotice.swift`, `MainMenuTitles.swift` |
 | Unit tests against a fake Chromium | `native/ClairUITests/` (`FakeBrowser.swift`, `FakeHost.swift`) |
-| Runtime tests on a packaged Clair | `tests/runtime/ClairRuntimeTests/NativeWindowTests.swift`, `SpacesTests.swift`, `SharedTabsTests.swift`, `ProfilesTests.swift`, `PinsTests.swift`, `LinkRulesTests.swift` |
+| Runtime tests on a packaged Clair | `tests/runtime/ClairRuntimeTests/NativeWindowTests.swift`, `SpacesTests.swift`, `SharedTabsTests.swift`, `ProfilesTests.swift`, `PinsTests.swift`, `LinkRulesTests.swift`, `BookmarksTests.swift` |
 
 ## Working on it
 

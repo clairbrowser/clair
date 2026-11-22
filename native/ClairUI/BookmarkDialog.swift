@@ -249,7 +249,9 @@ struct BookmarkDialogContent: View {
             }
           }
         } else {
-          BookmarkFieldBox(isFocused: false, horizontalPadding: 4) {
+          // NSPopUpButton insets its title by about 3 pt, so its text lines
+          // up with Name's.
+          BookmarkFieldBox(isFocused: false, horizontalPadding: 7) {
             BookmarkFolderPopup(
               folders: state.folders, selection: state.folderID,
               onChoose: { state.chooseFolder($0) },
