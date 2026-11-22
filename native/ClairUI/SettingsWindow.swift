@@ -106,7 +106,7 @@ struct GeneralSettingsView: View {
   @AppStorage(ToolbarPreference.key) private var showsToolbar = true
 
   /// A thumbnail's width in the row.
-  static let thumbnailWidth: CGFloat = 110
+  static let thumbnailWidth: CGFloat = 140
 
   var body: some View {
     Form {

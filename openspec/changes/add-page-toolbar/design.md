@@ -137,16 +137,19 @@ The Site Control Center is already a popover attached below its button, so nothi
 
 ### D9. The "Location bar" picker
 
-The row is called "Location bar", matching File › Open Location Bar (`MainMenuTitles.focusLocationTitle`). `LocationBarPicker` shows two `LayoutThumbnail`s. Each thumbnail is drawn with SwiftUI shapes in a unit space, so it's sharp at any size, and its proportions come from Clair's own constants:
-- sidebar width over the default window width (`SidebarState.defaultWidth`);
+The row is called "Location bar", matching File › Open Location Bar (`MainMenuTitles.focusLocationTitle`). `LocationBarPicker` shows two `LayoutThumbnail`s. Each is a close-up of a window's top-left corner, about 400 × 250 pt of it, so the controls themselves read: the close, minimise and zoom buttons in their colours, the sidebar toggle, back, forward and reload as their own SF Symbols, the URL field in the sidebar layout, the first tabs and the start of the page. It's drawn with SwiftUI shapes and symbols in the window's points and scaled to fit, so it's sharp at any size, and it places everything with Clair's own constants:
+- the window controls' metrics (`WindowControlsMetrics.macOS27`);
+- the sidebar's default width (`SidebarState.defaultWidth`) and the top row's places (`TopRow`);
 - `WindowLayout.shownInset`;
-- the toolbar's height.
+- the toolbar's height and leading slots (`ToolbarArrangement`).
 
-Colours are semantic: the window tint (`SidebarTint`), the card in the page's background colour (`textBackgroundColor`, as the card's own backing), the toolbar in `ToolbarFill`, and controls in `secondary`. Dark Mode and the system accent therefore just work.
+The symbols are drawn slightly larger than life so they read at Settings' size.
+
+Colours are semantic, apart from the window controls': the window tint (`SidebarTint`), the card in the page's background colour (`textBackgroundColor`, as the card's own backing), the toolbar in `ToolbarFill`, and controls in `secondary`. Dark Mode and the system accent therefore just work.
 
 Each thumbnail is a button with its label. The pair is an accessibility group labelled "Location bar", with the chosen one marked selected and both reachable by keyboard. Selection draws an accent ring and a bold label.
 
-The component takes its size from its container, so a future first-run screen can embed it larger. Settings shows it at about 110 × 70 pt per thumbnail, in a `LabeledContent` row after Default browser.
+The component takes its size from its container, so a future first-run screen can embed it larger. Settings shows it at about 140 × 90 pt per thumbnail, in a `LabeledContent` row after Default browser.
 
 *Alternative:* bitmap or PDF assets. Rejected: they don't follow the accent colour or appearance, and they drift from the real layout.
 

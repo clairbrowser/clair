@@ -25,60 +25,71 @@ enum LocationBarChoice: String, CaseIterable {
   }
 }
 
-/// A drawing of a Clair window in one layout (add-page-toolbar D9), from
-/// SwiftUI shapes in the window's own points, so it's sharp at any size and
-/// its proportions are Clair's: the sidebar's default width, the card's
-/// inset and the toolbar's height. Its colours are semantic, so it follows
-/// the appearance and the accent colour.
+/// A close-up of a Clair window's top-left corner in one layout
+/// (add-page-toolbar D9): the window controls in their colours, the browser
+/// controls' own symbols where that layout puts them, and the start of the
+/// tab list and the page. It's drawn in the window's own points, at Clair's
+/// metrics (the sidebar's default width, the card's inset, the toolbar's
+/// height and slots), and scaled to fit, so it's sharp at any size. Its
+/// colours are semantic, so it follows the appearance and the accent colour.
 struct LayoutThumbnail: View {
   let choice: LocationBarChoice
 
-  /// The window it draws, in points: its proportions are the thumbnail's.
-  static let window = CGSize(width: 760, height: 484)
-  static let cornerRadius: CGFloat = 10
-  /// The glyphs are drawn larger than life, so they read at Settings' size.
-  static let dot: CGFloat = 20
+  /// The part of the window it shows, in points from the top-left corner:
+  /// wide enough for the toolbar's reload.
+  static let viewport = CGSize(width: 404, height: 258)
+  /// The desktop showing above and left of the window, so its corner reads.
+  static let margin: CGFloat = 12
+  static let cornerRadius: CGFloat = 7
+  /// The window's own corner, as macOS 27 draws it.
+  static let windowCornerRadius: CGFloat = 16
+  /// The symbols are drawn a little larger than life, so they read at
+  /// Settings' size.
+  static let glyphSize: CGFloat = 19
+  /// The close, minimise and zoom buttons' colours.
+  static let windowControlColours: [Color] = [
+    Color(red: 1, green: 95 / 255, blue: 87 / 255),
+    Color(red: 254 / 255, green: 188 / 255, blue: 46 / 255),
+    Color(red: 40 / 255, green: 200 / 255, blue: 64 / 255),
+  ]
 
   var body: some View {
     GeometryReader { proxy in
-      let scale = proxy.size.width / Self.window.width
-      drawing
-        .frame(width: Self.window.width, height: Self.window.height, alignment: .topLeading)
-        .scaleEffect(scale, anchor: .topLeading)
+      let scale = proxy.size.width / Self.viewport.width
+      ZStack(alignment: .topLeading) {
+        Color.primary.opacity(0.06)
+        drawing.offset(x: Self.margin, y: Self.margin)
+      }
+      .frame(width: Self.viewport.width, height: Self.viewport.height, alignment: .topLeading)
+      .scaleEffect(scale, anchor: .topLeading)
     }
-    .aspectRatio(Self.window.width / Self.window.height, contentMode: .fit)
+    .aspectRatio(Self.viewport.width / Self.viewport.height, contentMode: .fit)
+    .clipShape(.rect(cornerRadius: Self.cornerRadius, style: .continuous))
     .accessibilityHidden(true)
   }
 
   private var drawing: some View {
     let sidebar = SidebarState.defaultWidth
     let inset = WindowLayout.shownInset
-    let card = CGRect(
-      x: sidebar, y: inset, width: Self.window.width - sidebar - inset, height: Self.window.height - 2 * inset)
-    let toolbar = ToolbarArrangement.height * 1.4
+    let controls = WindowControlsMetrics.macOS27
+    // The card runs off the drawing's right and bottom edges.
+    let card = CGRect(x: sidebar, y: inset, width: Self.viewport.width, height: Self.viewport.height)
+    let showsToolbar = choice == .toolbar
     return ZStack(alignment: .topLeading) {
-      RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-        .fill(Color(nsColor: Self.windowTint))
-      windowControls
-      if choice == .sidebar {
-        sidebarControls(width: sidebar)
+      Color(nsColor: Self.windowTint)
+      windowControls(centreY: controls.centreY, trailingX: controls.trailingX)
+      if !showsToolbar {
+        sidebarControls(width: sidebar, controls: controls)
       }
-      tabRows(width: sidebar, top: choice == .sidebar ? 110 : 64)
-      // The card, with the toolbar across its top in that layout.
-      ZStack(alignment: .topLeading) {
-        Rectangle().fill(Color(nsColor: .textBackgroundColor))
-        if choice == .toolbar {
-          Rectangle().fill(Color(nsColor: ToolbarFill.background)).frame(height: toolbar)
-          Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 2).offset(y: toolbar)
-          toolbarControls(width: card.width, height: toolbar)
-        }
-      }
-      .frame(width: card.width, height: card.height, alignment: .topLeading)
-      .clipShape(.rect(cornerRadius: PageCardView.cornerRadius * 1.5, style: .continuous))
-      .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
-      .offset(x: card.minX, y: card.minY)
+      // Arc's favorites start 44 pt down with the toolbar on, below the URL
+      // field without it.
+      tabRows(width: sidebar, top: showsToolbar ? 48 : 96)
+      page(width: card.width, height: card.height, showsToolbar: showsToolbar)
+        .offset(x: card.minX, y: card.minY)
     }
-    .clipShape(.rect(cornerRadius: Self.cornerRadius, style: .continuous))
+    .clipShape(
+      UnevenRoundedRectangle(topLeadingRadius: Self.windowCornerRadius, style: .continuous))
+    .shadow(color: .black.opacity(0.2), radius: 4, y: 1)
   }
 
   /// The window's own tint: the sidebar's material, light grey, or Arc's
@@ -87,53 +98,82 @@ struct LayoutThumbnail: View {
     appearance.isDark ? SidebarTint.dark : NSColor(white: 0.84, alpha: 1)
   }
 
-  private var controlFill: Color { Color.secondary.opacity(0.85) }
-
-  private func dot(_ x: CGFloat, _ y: CGFloat, size: CGFloat = dot) -> some View {
-    Circle().fill(controlFill).frame(width: size, height: size).offset(x: x - size / 2, y: y - size / 2)
+  private func glyph(_ systemImage: String, at point: CGPoint) -> some View {
+    Image(systemName: systemImage)
+      .font(.system(size: Self.glyphSize, weight: .medium))
+      .foregroundStyle(Color.primary.opacity(0.6))
+      .position(point)
   }
 
-  private var windowControls: some View {
-    ForEach(0..<3, id: \.self) { index in
-      Circle().fill(Color.secondary.opacity(0.35)).frame(width: 18, height: 18)
-        .offset(x: 13 + CGFloat(index) * 23, y: 15)
+  /// Close, minimise and zoom, in their colours, ending at the metrics'
+  /// trailing edge.
+  private func windowControls(centreY: CGFloat, trailingX: CGFloat) -> some View {
+    let diameter: CGFloat = 14
+    let pitch: CGFloat = 23
+    return ForEach(0..<3, id: \.self) { index in
+      Circle()
+        .fill(Self.windowControlColours[index])
+        .overlay(Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 1))
+        .frame(width: diameter, height: diameter)
+        .position(x: trailingX - diameter / 2 - CGFloat(2 - index) * pitch, y: centreY)
     }
   }
 
-  /// The top row's toggle, back, forward and reload, and the URL field.
-  private func sidebarControls(width: CGFloat) -> some View {
-    ZStack(alignment: .topLeading) {
-      ForEach(0..<4, id: \.self) { index in
-        dot(index == 0 ? 97 : width - 22 - CGFloat(3 - index) * 34, 24)
-      }
+  /// The top row's toggle, back, forward and reload, and the URL field, at
+  /// the sidebar's own places.
+  private func sidebarControls(width: CGFloat, controls: WindowControlsMetrics) -> some View {
+    let pitch = 32 + TopRow.gap
+    let reloadX = width - TopRow.trailing - 16
+    let y = controls.centreY
+    return ZStack(alignment: .topLeading) {
+      glyph("sidebar.left", at: CGPoint(x: TopRow.hideSidebarX(width: width, controls: controls) + 16, y: y))
+      glyph("arrow.left", at: CGPoint(x: reloadX - 2 * pitch, y: y))
+      glyph("arrow.right", at: CGPoint(x: reloadX - pitch, y: y))
+      glyph("arrow.clockwise", at: CGPoint(x: reloadX, y: y))
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color.primary.opacity(0.13))
-        .frame(width: width - 16, height: 40)
-        .offset(x: 8, y: 50)
+        .fill(Color.primary.opacity(0.1))
+        .frame(width: width - 16, height: 38)
+        .offset(x: 8, y: 46)
       Capsule().fill(Color.secondary.opacity(0.6))
-        .frame(width: width * 0.45, height: 12)
-        .offset(x: 22, y: 64)
+        .frame(width: width * 0.42, height: 11)
+        .offset(x: 22, y: 59.5)
     }
   }
 
-  /// The toolbar's toggle, back, forward and reload, its host and its site
-  /// controls, at their places on the card.
-  private func toolbarControls(width: CGFloat, height: CGFloat) -> some View {
-    ZStack(alignment: .topLeading) {
-      ForEach(Array(ToolbarArrangement.leadingCentres.enumerated()), id: \.offset) { _, x in
-        dot(x * 1.3, height / 2)
+  /// The page's card, with the toolbar across its top in that layout, its
+  /// toggle, back, forward and reload at their slots.
+  private func page(width: CGFloat, height: CGFloat, showsToolbar: Bool) -> some View {
+    let toolbar = ToolbarArrangement.height
+    let symbols = ["sidebar.left", "arrow.left", "arrow.right", "arrow.clockwise"]
+    let contentTop = showsToolbar ? toolbar : 0
+    return ZStack(alignment: .topLeading) {
+      Color(nsColor: .textBackgroundColor)
+      if showsToolbar {
+        Rectangle().fill(Color(nsColor: ToolbarFill.background)).frame(height: toolbar)
+        Rectangle().fill(Color.primary.opacity(0.1)).frame(height: 1).offset(y: toolbar)
+        ForEach(Array(zip(symbols, ToolbarArrangement.leadingCentres)), id: \.0) { symbol, x in
+          glyph(symbol, at: CGPoint(x: x, y: toolbar / 2))
+        }
       }
-      Capsule().fill(Color.secondary.opacity(0.6))
-        .frame(width: 120, height: 12)
-        .offset(x: width / 2 - 60, y: height / 2 - 6)
-      dot(width - 28, height / 2)
+      // A heading and some text, so it reads as a page.
+      VStack(alignment: .leading, spacing: 12) {
+        Capsule().fill(Color.secondary.opacity(0.35)).frame(width: 110, height: 14)
+        ForEach(0..<4, id: \.self) { index in
+          Capsule().fill(Color.secondary.opacity(0.18)).frame(width: index == 3 ? 90 : 150, height: 8)
+        }
+      }
+      .offset(x: 28, y: contentTop + 28)
     }
+    .frame(width: width, height: height, alignment: .topLeading)
+    .clipShape(
+      UnevenRoundedRectangle(topLeadingRadius: PageCardView.cornerRadius, style: .continuous))
+    .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
   }
 
   /// Three tabs, the first one active.
   private func tabRows(width: CGFloat, top: CGFloat) -> some View {
     ForEach(0..<3, id: \.self) { index in
-      let y = top + CGFloat(index) * 48
+      let y = top + CGFloat(index) * 42
       ZStack(alignment: .leading) {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
           .fill(index == 0 ? Color(nsColor: .textBackgroundColor).opacity(0.9) : Color.clear)
@@ -144,7 +184,7 @@ struct LayoutThumbnail: View {
         }
         .padding(.leading, 12)
       }
-      .frame(width: width - 16, height: 40)
+      .frame(width: width - 16, height: 36)
       .offset(x: 8, y: y)
     }
   }
@@ -191,7 +231,7 @@ struct LocationBarPicker: View {
             LayoutThumbnail(choice: choice)
               .padding(3)
               .overlay {
-                RoundedRectangle(cornerRadius: LayoutThumbnail.cornerRadius / 2 + 4, style: .continuous)
+                RoundedRectangle(cornerRadius: LayoutThumbnail.cornerRadius + 3, style: .continuous)
                   .strokeBorder(isChosen ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: isChosen ? 3 : 1)
               }
             Text(choice.label)
