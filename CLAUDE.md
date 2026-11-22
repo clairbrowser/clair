@@ -73,7 +73,7 @@ To compare Clair with Arc, or check a UI change by hand, use the probe tooling i
 - `.github/scripts/`: CI helpers (runner preparation, packing and unpacking the build directory, the smoke test).
 - `scripts/`: release tooling (appcast entries, deltas, release notes rendering, release preflight), each with a `*.test.sh`.
 - `.claude/skills/clair-review/` and `scripts/review.sh`: the whole-codebase architecture, quality and security review, run with `/clair-review` (see its `SKILL.md`). Its reports go to `build/review/`, which git ignores. Never commit or quote them: the repository is public and they describe unfixed security problems.
-- `.claude/skills/clair-fix/`: works through a finished review's work items one at a time with `/clair-fix` (see its `SKILL.md`). `scripts/review.sh work` keeps the record of each item beside the reports.
+- `.claude/skills/clair-fix/`: fixes one section report's findings one at a time, most severe first, with `/clair-fix <report.md>` (see its `SKILL.md`). `scripts/review.sh work` keeps the record of each finding beside its report.
 - `.sparkle/`: `appcast.xml`, served from `main` as Sparkle's feed.
 - `.changes/`: release notes as [Changie](https://changie.dev) fragments, configured in `.changie.yaml`. Each release's notes end up in `.changes/<version>.md` and `CHANGELOG.md`. See `.changes/README.md`.
 
