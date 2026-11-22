@@ -131,10 +131,10 @@ struct LayoutThumbnail: View {
       glyph("arrow.right", at: CGPoint(x: reloadX - pitch, y: y))
       glyph("arrow.clockwise", at: CGPoint(x: reloadX, y: y))
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color.primary.opacity(0.1))
+        .fill(Color.primary.opacity(0.22))
         .frame(width: width - 16, height: 38)
         .offset(x: 8, y: 46)
-      Capsule().fill(Color.secondary.opacity(0.6))
+      Capsule().fill(Color.secondary.opacity(0.22))
         .frame(width: width * 0.42, height: 11)
         .offset(x: 22, y: 59.5)
     }
@@ -157,7 +157,7 @@ struct LayoutThumbnail: View {
       }
       // A heading and some text, so it reads as a page.
       VStack(alignment: .leading, spacing: 12) {
-        Capsule().fill(Color.secondary.opacity(0.35)).frame(width: 110, height: 14)
+        Capsule().fill(Color.secondary.opacity(0.14)).frame(width: 110, height: 14)
         ForEach(0..<4, id: \.self) { index in
           Capsule().fill(Color.secondary.opacity(0.18)).frame(width: index == 3 ? 90 : 150, height: 8)
         }
@@ -180,7 +180,7 @@ struct LayoutThumbnail: View {
         HStack(spacing: 10) {
           RoundedRectangle(cornerRadius: 4).fill(Color.accentColor.opacity(index == 0 ? 0.9 : 0.5))
             .frame(width: 18, height: 18)
-          Capsule().fill(Color.secondary.opacity(0.4)).frame(width: width * (0.5 - CGFloat(index) * 0.08), height: 10)
+          Capsule().fill(Color.secondary.opacity(0.16)).frame(width: width * (0.5 - CGFloat(index) * 0.08), height: 10)
         }
         .padding(.leading, 12)
       }
