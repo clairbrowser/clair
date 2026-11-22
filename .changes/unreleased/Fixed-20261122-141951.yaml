@@ -1,0 +1,3 @@
+kind: Fixed
+body: A newly installed extension no longer shows twice in the sidebar or leaves an empty space beside the Site Control Center button in the toolbar, and extensions already pinned twice are shown once
+time: 2026-11-22T14:19:51.280499-05:00

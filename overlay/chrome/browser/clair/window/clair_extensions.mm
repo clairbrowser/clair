@@ -42,6 +42,7 @@
 #include "extensions/browser/extension_action_manager.h"
 #include "extensions/browser/extension_host.h"
 #include "extensions/browser/extension_host_observer.h"
+#include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/install_prompt_data.h"
 #include "extensions/browser/install_prompt_permissions.h"
 #include "extensions/browser/ui_util.h"
@@ -225,8 +226,47 @@ class ClairExtensions::Popup : public extensions::ExtensionView,
 
 // --- ClairExtensions ---------------------------------------------------------
 
+namespace {
+
+// Drops repeated IDs from the pinned extensions pref, keeping the first of
+// each. Chromium appends a pin without checking for one (its check is a
+// DCHECK), and an earlier SetPinned() could pin a new extension twice, which
+// showed it twice in the sidebar and left an empty slot in the toolbar.
+void RemoveDuplicatePins(Profile* profile) {
+  if (profile->IsOffTheRecord()) {
+    return;
+  }
+  extensions::ExtensionPrefs* prefs = extensions::ExtensionPrefs::Get(profile);
+  if (!prefs) {
+    return;
+  }
+  const extensions::ExtensionIdList pinned = prefs->GetPinnedExtensions();
+  extensions::ExtensionIdList unique;
+  for (const auto& id : pinned) {
+    if (!std::ranges::contains(unique, id)) {
+      unique.push_back(id);
+    }
+  }
+  if (unique.size() != pinned.size()) {
+    prefs->SetPinnedExtensions(unique);
+  }
+}
+
+}  // namespace
+
 ClairExtensions::ClairExtensions(ClairBrowserWindow* window) : window_(window) {
   Profile* profile = window_->browser()->GetProfile();
+  // Not from here: changing the pref notifies the model's observers, this
+  // one among them, before the window is set up.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<ClairExtensions> self) {
+                       if (self) {
+                         RemoveDuplicatePins(
+                             self->window_->browser()->GetProfile());
+                       }
+                     },
+                     weak_factory_.GetWeakPtr()));
   if (ToolbarActionsModel* model = ToolbarActionsModel::Get(profile)) {
     model_observation_.Observe(model);
   }
@@ -399,8 +439,11 @@ void ClairExtensions::ClosePopup() {
 void ClairExtensions::SetPinned(const std::string& extension_id, bool pinned) {
   ToolbarActionsModel* model =
       ToolbarActionsModel::Get(window_->browser()->GetProfile());
+  // A new extension can be pinned twice, from the install and from the
+  // action's arrival; Chromium would list it twice.
   if (model && model->HasAction(extension_id) &&
-      !model->IsActionForcePinned(extension_id)) {
+      !model->IsActionForcePinned(extension_id) &&
+      model->IsActionPinned(extension_id) != pinned) {
     model->SetActionVisibility(extension_id, pinned);
   }
 }
