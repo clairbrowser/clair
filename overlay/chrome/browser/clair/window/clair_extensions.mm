@@ -46,7 +46,6 @@
 #include "extensions/browser/install_prompt_data.h"
 #include "extensions/browser/install_prompt_permissions.h"
 #include "extensions/browser/ui_util.h"
-#include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/extension.h"
 #include "skia/ext/skia_utils_mac.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -229,9 +228,10 @@ class ClairExtensions::Popup : public extensions::ExtensionView,
 namespace {
 
 // Drops repeated IDs from the pinned extensions pref, keeping the first of
-// each. Chromium appends a pin without checking for one (its check is a
-// DCHECK), and an earlier SetPinned() could pin a new extension twice, which
-// showed it twice in the sidebar and left an empty slot in the toolbar.
+// each. Since Chromium 157 pins new extensions itself, Clair's own pin after
+// an install pinned them a second time, and Chromium appends a pin without
+// checking for one (its check is a DCHECK). They showed twice in the sidebar
+// and left an empty slot in the toolbar.
 void RemoveDuplicatePins(Profile* profile) {
   if (profile->IsOffTheRecord()) {
     return;
@@ -439,8 +439,8 @@ void ClairExtensions::ClosePopup() {
 void ClairExtensions::SetPinned(const std::string& extension_id, bool pinned) {
   ToolbarActionsModel* model =
       ToolbarActionsModel::Get(window_->browser()->GetProfile());
-  // A new extension can be pinned twice, from the install and from the
-  // action's arrival; Chromium would list it twice.
+  // Chromium appends a pin without checking for one, and would list the
+  // extension twice.
   if (model && model->HasAction(extension_id) &&
       !model->IsActionForcePinned(extension_id) &&
       model->IsActionPinned(extension_id) != pinned) {
@@ -505,22 +505,6 @@ void ClairExtensions::DismissPrompt(int prompt_id) {
   }
 }
 
-void ClairExtensions::PinNewExtension(const extensions::Extension& extension) {
-  Profile* profile = window_->browser()->GetProfile();
-  ToolbarActionsModel* model = ToolbarActionsModel::Get(profile);
-  // Not ExtensionActionManager: this runs before the extension is enabled,
-  // and it has no action for an extension that isn't.
-  if (!model || !extensions::ActionInfo::GetExtensionActionInfo(&extension)) {
-    return;
-  }
-  if (model->HasAction(extension.id())) {
-    SetPinned(extension.id(), true);
-  } else {
-    // Chromium's own post-install path waits for the action the same way.
-    pending_pins_.insert(extension.id());
-  }
-}
-
 // ExtensionsContainer:
 
 ToolbarActionViewModel* ClairExtensions::GetActionForId(
@@ -557,14 +541,6 @@ bool ClairExtensions::HasAnyExtensions() const {
 
 void ClairExtensions::OnToolbarActionAdded(
     const ToolbarActionsModel::ActionId& id) {
-  if (pending_pins_.erase(id)) {
-    // Not from here: pinning notifies the model's observers, and the model is
-    // still iterating over them. On Chromium's task runner, as Changed()
-    // explains.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&ClairExtensions::SetPinned,
-                                  weak_factory_.GetWeakPtr(), id, true));
-  }
   Changed();
 }
 
@@ -616,7 +592,6 @@ void ClairExtensions::OnExtensionUnloaded(
   if (popup_ && popup_->extension_id() == extension->id()) {
     ClosePopup();
   }
-  pending_pins_.erase(extension->id());
   Changed();
 }
 
@@ -836,7 +811,8 @@ bool ExtensionInstalled(BrowserWindowInterface* browser,
   if (!window || !window->extensions()) {
     return false;
   }
-  window->extensions()->PinNewExtension(*extension);
+  // Chromium has pinned it already (kExtensionsPinnedByDefault, on since 157,
+  // and the user's "pin by default" setting).
   return true;
 }
 

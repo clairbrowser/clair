@@ -102,7 +102,7 @@ After an extension is installed, Clair SHALL NOT show Chromium's "has been added
 - **THEN** no box, bubble or dialog appears after the extension is installed, and the window stays usable
 
 ### Requirement: New extensions pinned to the sidebar
-An extension the user has just installed through a confirmation SHALL be pinned, so its action shows as a button in the toolbar, or in the sidebar while the toolbar is off. Extensions installed without the user, such as by policy or sync, and updates to installed extensions SHALL keep their pinned state.
+An extension the user has just installed through a confirmation SHALL be pinned, so its action shows as a button in the toolbar, or in the sidebar while the toolbar is off, unless the user has turned off pinning new extensions on `chrome://extensions`. Chromium pins it, once; Clair doesn't pin it again. Extensions installed without the user, such as by policy or sync, and updates to installed extensions SHALL keep their pinned state.
 
 #### Scenario: Installing an extension with an action
 - **WHEN** the user installs an extension that has a toolbar action

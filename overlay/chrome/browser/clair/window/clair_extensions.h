@@ -9,7 +9,6 @@
 
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
 
 #include "base/functional/callback.h"
@@ -81,10 +80,6 @@ class ClairExtensions : public ExtensionsContainer,
     return weak_factory_.GetWeakPtr();
   }
 
-  // The user installed `extension` through a confirmation: pins its action,
-  // now or as soon as the toolbar model has it.
-  void PinNewExtension(const extensions::Extension& extension);
-
   // ExtensionsContainer:
   ToolbarActionViewModel* GetActionForId(const std::string& action_id) override;
   void HideActivePopup() override;
@@ -137,7 +132,6 @@ class ClairExtensions : public ExtensionsContainer,
   std::unique_ptr<Popup> popup_;
   std::map<int, base::OnceCallback<void(bool)>> prompts_;
   int next_prompt_id_ = 1;
-  std::set<std::string> pending_pins_;
   std::unique_ptr<extensions::ExtensionContextMenuModel> context_menu_;
   MenuControllerCocoa* __strong context_menu_controller_;
   bool flush_posted_ = false;

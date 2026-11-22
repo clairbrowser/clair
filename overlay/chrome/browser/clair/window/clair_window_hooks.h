@@ -149,9 +149,9 @@ std::unique_ptr<ExtensionPromptHandle> ShowExtensionRemovePrompt(
     const gfx::ImageSkia& icon,
     base::OnceCallback<void(bool accepted)> answered);
 
-// extension_install_ui_desktop.cc: pins a newly installed extension to a
-// native window's sidebar (D5). False when `browser` isn't a native window,
-// and Chromium shows its post-install box.
+// extension_install_ui_desktop.cc: a native window shows no post-install box
+// (D5); Chromium has pinned the new extension itself. False when `browser`
+// isn't a native window, and Chromium shows its box.
 bool ExtensionInstalled(BrowserWindowInterface* browser,
                         const extensions::Extension* extension);
 
