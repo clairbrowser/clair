@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Clair Test Bookmarks",
+  "version": "1.0",
+  "description": "Creates bookmarks in the Bookmarks Bar when Clair's runtime suite asks, to check that Clair moves them out (add-bookmarks-menu D6).",
+  "permissions": ["bookmarks"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

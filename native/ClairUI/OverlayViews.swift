@@ -198,6 +198,8 @@ struct SuggestionRow: View {
     case .URL: "globe"
     case .history: "clock"
     case .openTab: "square.on.square"
+    // add-bookmarks-menu D8: the shape of Dia's bookmark button.
+    case .bookmark: "bookmark"
     @unknown default: "globe"
     }
   }
@@ -208,12 +210,14 @@ struct SuggestionRow: View {
     return host == suggestion.contents ? nil : host
   }
 
-  /// The row as VoiceOver reads it: its text, its domain, and whether it
-  /// switches to an open tab.
+  /// The row as VoiceOver reads it: its text, its domain, whether it
+  /// switches to an open tab, and whether it's a bookmark, which its icon
+  /// says (add-bookmarks-menu D8).
   var accessibilityText: String {
     var parts = [suggestion.contents]
     if let domain { parts.append(domain) }
     if suggestion.hasTabMatch { parts.append("Switch to Tab") }
+    if suggestion.kind == .bookmark { parts.append("Bookmark") }
     return parts.joined(separator: ", ")
   }
 

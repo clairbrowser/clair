@@ -493,8 +493,14 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
     }
     ClairChromiumSuggestion* suggestion = [[ClairChromiumSuggestion alloc] init];
     suggestion.kind = KindOf(match, bookmark_model);
-    suggestion.contents = base::SysUTF16ToNSString(match.contents);
-    suggestion.descriptionText = base::SysUTF16ToNSString(match.description);
+    // The row's title, as the omnibox shows it first: a page's title comes
+    // in `description`, with `swap_contents_and_description` set
+    // (command-bar spec, "Suggestions from Chromium's autocomplete").
+    const bool swapped = match.swap_contents_and_description;
+    suggestion.contents = base::SysUTF16ToNSString(
+        swapped ? match.description : match.contents);
+    suggestion.descriptionText = base::SysUTF16ToNSString(
+        swapped ? match.contents : match.description);
     suggestion.destination = net::NSURLWithGURL(match.destination_url);
     suggestion.hasTabMatch = match.has_tab_match.value_or(false);
     // Searches keep the magnifier, as in Arc, and bookmarked pages show the
