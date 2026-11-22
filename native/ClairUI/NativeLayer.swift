@@ -39,6 +39,8 @@ final class NativeLayer {
   /// Clair's items in the Tab and View menus (add-pinned-tabs-and-favorites
   /// D11).
   private(set) var pinsMenu: PinsMenu?
+  /// View › Hide Toolbar's target (add-page-toolbar D8).
+  let toolbarMenu = ToolbarMenuTarget()
 
   init(host: any ClairHost) {
     self.host = host
@@ -59,6 +61,13 @@ final class NativeLayer {
     self.settings = settings
     MainMenuTitles.apply(to: NSApp.mainMenu)
     MainMenuTitles.addCopyURL(to: NSApp.mainMenu)
+    // The engine adds View › Hide Sidebar once this start returns, and Hide
+    // Toolbar goes after it.
+    DispatchQueue.main.async { [toolbarMenu] in
+      if MainMenuTitles.addToolbarItem(to: NSApp.mainMenu, target: toolbarMenu) == nil {
+        NativeLayer.logger.error("The View menu has no Hide Sidebar; View › Hide Toolbar isn't added")
+      }
+    }
     let extensionsMenu = ExtensionsMenu()
     extensionsMenu.install(in: NSApp.mainMenu)
     self.extensionsMenu = extensionsMenu

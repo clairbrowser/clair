@@ -110,7 +110,9 @@ final class PeekTests: NativeWindowTestCase {
     XCTAssertEqual(browser.tabRows.count, rows, "The Peek has a row of its own")
     XCTAssertTrue(browser.peekBadge.exists, "The parent's row shows no badge")
     XCTAssertEqual(browser.tabRow(Self.links)?.isSelected, true, "The parent's row isn't highlighted")
-    XCTAssertEqual(browser.element("clair.urlField").label, "127.0.0.1", "The URL field doesn't show the Peek's site")
+    // The Peek's own toolbar (add-page-toolbar D3).
+    let peekHost = browser.element("clair.urlField", in: browser.element("clair.peekToolbar"))
+    XCTAssertEqual(peekHost.label, "127.0.0.1", "The Peek's toolbar doesn't show the Peek's site")
     let peek = try await browser.session(endingWith: "?plain")
     defer { peek.close() }
     var parentVisibility = try await browser.visibility(of: links)

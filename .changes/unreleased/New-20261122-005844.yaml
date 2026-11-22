@@ -1,0 +1,3 @@
+kind: New
+body: Back, forward, reload, the address and pinned extensions now sit in a toolbar above the page, as Arc's "Show as Toolbar" does, on by default. View › Hide Toolbar (Shift+Cmd+D), the toolbar's menu and a new "Location bar" choice on Settings › General move them back into the sidebar
+time: 2026-11-22T00:58:44.929345-05:00

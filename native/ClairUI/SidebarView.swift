@@ -47,6 +47,11 @@ protocol SidebarActions: SpaceActions, PinActions {
   func openDownloadsPage()
   // Where the controls are, for Chromium's bubbles.
   func controlFramesChanged(_ frames: [AnchorControl: CGRect])
+  /// The toolbar's controls, in its own coordinate space (add-page-toolbar
+  /// D6).
+  func toolbarControlFramesChanged(_ frames: [AnchorControl: CGRect])
+  /// Shows or hides the toolbar in every window (add-page-toolbar D8).
+  func setToolbarShown(_ shown: Bool)
   // The update banner (add-update-banners).
   /// The banner's Restart and Update, with no version alert (D2).
   func restartToUpdate()
@@ -67,12 +72,26 @@ struct AnchorFramesKey: PreferenceKey {
   }
 }
 
+extension EnvironmentValues {
+  /// The coordinate space controls report their frames in: the sidebar's,
+  /// or the toolbar's (add-page-toolbar D6).
+  @Entry var anchorCoordinateSpace = sidebarCoordinateSpace
+}
+
 extension View {
   func anchorFrame(_ control: AnchorControl) -> some View {
-    background(
+    modifier(AnchorFrameReporter(control: control))
+  }
+}
+
+private struct AnchorFrameReporter: ViewModifier {
+  let control: AnchorControl
+  @Environment(\.anchorCoordinateSpace) private var space
+
+  func body(content: Content) -> some View {
+    content.background(
       GeometryReader { proxy in
-        Color.clear.preference(
-          key: AnchorFramesKey.self, value: [control: proxy.frame(in: .named(sidebarCoordinateSpace))])
+        Color.clear.preference(key: AnchorFramesKey.self, value: [control: proxy.frame(in: .named(space))])
       })
   }
 }
@@ -107,15 +126,17 @@ struct SidebarView: View {
       TopRow(model: model, actions: actions)
         // The row's empty space acts as the window's title bar.
         .background { TitleBarArea { actions?.titleBarDoubleClicked() } }
-      // The New Space form takes the URL field's place too, as in Arc.
-      if model.newSpaceForm == nil {
+      // The New Space form takes the URL field's place too, as in Arc. While
+      // the toolbar shows, the field and the extensions are in it
+      // (add-page-toolbar D5).
+      if model.newSpaceForm == nil && model.sidebarShowsControls {
         URLField(
           model: model, actions: actions,
           showsButtons: (isHovered && model.isWindowKey) || model.isSiteControlCenterOpen)
           .padding(.horizontal, 8)
           .padding(.top, 6)
       }
-      if !model.pinnedExtensionActions.isEmpty && model.newSpaceForm == nil {
+      if !model.pinnedExtensionActions.isEmpty && model.newSpaceForm == nil && model.sidebarShowsControls {
         ToolsRow(model: model, actions: actions)
           .padding(.horizontal, 8)
           .padding(.top, 8)
@@ -259,6 +280,8 @@ struct TopRow: View {
   /// The trailing margin, and the gap between back, forward and reload.
   static let trailing: CGFloat = 6
   static let gap: CGFloat = 2
+  /// The row's height while the toolbar holds its buttons.
+  static let strippedHeight: CGFloat = 27.5
 
   /// Where hide-sidebar starts: after the window controls, or up to 3 pt
   /// closer when the sidebar is only just wide enough, as in Arc.
@@ -272,7 +295,9 @@ struct TopRow: View {
     let reloadStop = model.reloadStop.mode
     let isLoading = reloadStop.visible == .stop
     let controls = model.isWindowFullscreen ? WindowControlsMetrics.fullScreen : model.windowControls
-    let isCompact = controls.hasCompactTopRow(width: model.sidebar.width)
+    // While the toolbar shows, the row keeps only the window controls' room,
+    // at its height, so they stay at Arc's place (add-page-toolbar D5).
+    let isCompact = model.sidebarShowsControls && controls.hasCompactTopRow(width: model.sidebar.width)
     let size = isCompact ? IconButtonSize.small : IconButtonSize.regular
     let back = IconButton(
       systemImage: "arrow.left", help: "Go back", shortcut: ["⌘", "["], isEnabled: model.canGoBack, size: size
@@ -294,7 +319,13 @@ struct TopRow: View {
         isEnabled: model.canGoForward, makeMenu: { actions?.historyMenu(.forward) }))
     .accessibilityIdentifier("clair.forward")
     // The row is centred on the window controls (design D3b).
-    if isCompact {
+    if !model.sidebarShowsControls {
+      // Arc's favorites start 44 pt from the window's top with the toolbar
+      // on (toolbar-on.jpg), 4.5 pt higher than below the full row.
+      Color.clear
+        .frame(height: Self.strippedHeight)
+        .padding(.top, max(0, controls.centreY - 16))
+    } else if isCompact {
       HStack(spacing: 0) {
         Spacer(minLength: 0)
         back
@@ -483,7 +514,10 @@ struct URLField: View {
     .contextMenu {
       if display != nil {
         Button("Copy URL") { actions?.copyURL() }
+        Divider()
       }
+      // The field shows only while the toolbar is off (add-page-toolbar D8).
+      Button("Show as Toolbar") { actions?.setToolbarShown(true) }
     }
   }
 }

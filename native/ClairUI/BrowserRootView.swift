@@ -255,6 +255,7 @@ final class BrowserRootView: NSView {
       _ = model.isWindowFullscreen
       _ = model.commandBar
       _ = model.isSidebarPopoverOpen
+      _ = model.showsPageHeader
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }
@@ -373,6 +374,7 @@ final class BrowserRootView: NSView {
     revealedBackground.frame = revealedPanel.bounds
     revealedTint.frame = revealedBackground.bounds
     card.isBare = model.isPageFullscreen
+    card.showsToolbar = model.showsPageHeader
     // Centred on the card, 3 pt below the window's top with the card 10 pt in.
     loadingIndicator.isHidden = model.isPageFullscreen
     loadingIndicator.frame = CGRect(
@@ -397,7 +399,10 @@ final class BrowserRootView: NSView {
     }
     if let findHost {
       let size = fit(findHost, maxWidth: card.width - 20)
-      findHost.frame = CGRect(x: card.maxX - size.width - 10, y: card.minY + 10, width: size.width, height: size.height)
+      // Below the toolbar while it shows (add-page-toolbar D7).
+      findHost.frame = CGRect(
+        x: card.maxX - size.width - 10, y: card.minY + self.card.contentTop + 10, width: size.width,
+        height: size.height)
     }
     if let statusHost {
       // At the Peek's corner while a Peek shows (add-peek design D11).
@@ -415,7 +420,8 @@ final class BrowserRootView: NSView {
       let size = noticeHost.fittingSize
       let margin = NoticePopupView.margin
       noticeHost.frame = CGRect(
-        x: card.maxX - 8 + margin - size.width, y: card.minY + 8 - margin, width: size.width, height: size.height)
+        x: card.maxX - 8 + margin - size.width, y: card.minY + self.card.contentTop + 8 - margin, width: size.width,
+        height: size.height)
       if noticeHost !== subviews.last {
         addSubview(noticeHost)
       }

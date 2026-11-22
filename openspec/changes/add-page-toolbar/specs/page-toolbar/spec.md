@@ -122,15 +122,19 @@ The toolbar SHALL show the pinned extensions as a single row of icon tiles, in t
 - **THEN** the popup window opens at the card's top-trailing corner, over the toolbar, as `extensions` defines
 
 ### Requirement: Toolbar in a narrow window
-When the toolbar is too narrow for all its controls with the host centred on the card, it SHALL leave controls out, as Arc does, in this order: the pinned extensions, starting with the one farthest from the site-controls button; then reload and the link icon. The host SHALL stay centred and SHALL be truncated only once those are gone. Left-out extensions SHALL stay reachable from the Site Control Center.
+When a control would come too close to the host centred on the card, the toolbar SHALL leave controls out on that side, as Arc does: at its trailing end the pinned extensions, starting with the one farthest from the site-controls button; at its leading end reload together with the link icon. The host SHALL stay centred, and SHALL be truncated only once the side that's too close has nothing left to leave out. Left-out extensions SHALL stay reachable from the Site Control Center.
+
+#### Scenario: Leading side first
+- **WHEN** two extensions are pinned, the sidebar is shown at 228 points, and the window is about 620 points wide
+- **THEN** the toolbar leaves out reload and the link icon, keeps both extensions, and shows the host whole, centred on the card
 
 #### Scenario: One extension too many
-- **WHEN** two extensions are pinned and the window is about 620 points wide
+- **WHEN** two extensions are pinned, the sidebar is shown at 228 points, and the window is about 560 points wide
 - **THEN** the toolbar leaves out the extension farther from the site-controls button and keeps the other, with the host still centred on the card
 
-#### Scenario: Narrower still
-- **WHEN** two extensions are pinned and the window is about 520 points wide
-- **THEN** the toolbar shows the sidebar toggle, back, forward, the host centred on the card and the site-controls button, without the extensions, reload or the link icon
+#### Scenario: Sidebar hidden
+- **WHEN** two extensions are pinned, the sidebar is hidden, and the window is 520 points wide
+- **THEN** the toolbar shows every control, with the host whole and centred on the card
 
 #### Scenario: Left-out extension
 - **WHEN** the toolbar has left out a pinned extension and the user opens the Site Control Center

@@ -100,9 +100,20 @@ struct PinnedExtensionsLayout: Layout {
 
 /// A pinned extension: a tile with the field's fill, which stretches to share
 /// the row. It stays dimmed and ignores a left click while its action is off
-/// for the tab; its menu still works.
+/// for the tab; its menu still works. In the toolbar it's Arc's: a 16 pt icon
+/// with a rounded highlight only under the pointer (add-page-toolbar D4).
 struct PinnedExtensionTile: View {
+  enum Style {
+    case sidebar
+    case toolbar
+  }
+
+  /// Arc's toolbar tile: about 32 × 28 under the pointer, with a 16 pt icon.
+  static let toolbarSize = CGSize(width: 32, height: 28)
+  static let toolbarIconSize: CGFloat = 16
+
   let action: any ClairExtensionAction
+  var style = Style.sidebar
   let contextMenu: () -> NSMenu?
   let run: () -> Void
 
@@ -114,7 +125,7 @@ struct PinnedExtensionTile: View {
     Button {
       if action.isEnabled { run() }
     } label: {
-      ExtensionIcon(action: action, size: PinnedExtensionsGrid.iconSize)
+      ExtensionIcon(action: action, size: style == .toolbar ? Self.toolbarIconSize : PinnedExtensionsGrid.iconSize)
         .frame(width: PinnedExtensionsGrid.tileHeight, height: PinnedExtensionsGrid.tileHeight)
         .overlay(alignment: .bottomTrailing) {
           if !action.badgeText.isEmpty {
@@ -132,7 +143,7 @@ struct PinnedExtensionTile: View {
         }
         .opacity(action.isEnabled ? 1 : 0.4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SidebarFill.field(colorScheme, hovered: isHovered), in: .rect(cornerRadius: 8, style: .continuous))
+        .background(background, in: .rect(cornerRadius: 8, style: .continuous))
         .contentShape(Rectangle())
         .contentShape(.focusEffect, .rect(cornerRadius: 8, style: .continuous))
     }
@@ -144,5 +155,12 @@ struct PinnedExtensionTile: View {
     .accessibilityLabel(action.title)
     .accessibilityValue(action.badgeText)
     .accessibilityIdentifier("clair.extensionAction")
+  }
+
+  private var background: Color {
+    switch style {
+    case .sidebar: SidebarFill.field(colorScheme, hovered: isHovered)
+    case .toolbar: isHovered ? SidebarFill.hover(colorScheme) : .clear
+    }
   }
 }

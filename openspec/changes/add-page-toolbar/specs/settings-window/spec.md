@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Location bar picker
-The General page SHALL have, below the default browser row, a row labelled "Location bar" that shows and changes the toolbar preference (`page-toolbar`). It SHALL offer two choices side by side, "Toolbar" and "Sidebar", each a drawing of a Clair window in that layout above its name. The chosen one SHALL have an accent-coloured ring and a bold name. A change SHALL apply to open windows at once.
+The General page SHALL have, below the default browser row, a row labelled "Location bar" that shows and changes the toolbar preference (`page-toolbar`). It SHALL offer two choices side by side, "Toolbar" and "Sidebar", each a drawing of the top-left corner of a Clair window in that layout above its name. The chosen one SHALL have an accent-coloured ring and a bold name. A change SHALL apply to open windows at once.
 
 #### Scenario: Default
 - **WHEN** Clair has no stored value for the toolbar preference and the user opens the General page
@@ -19,7 +19,7 @@ The General page SHALL have, below the default browser row, a row labelled "Loca
 
 #### Scenario: Drawings
 - **WHEN** the row shows
-- **THEN** the "Toolbar" drawing shows a window with a sidebar and a bar across the top of the page, and the "Sidebar" drawing shows the bar's controls in the sidebar above its tabs, both in the current appearance and accent colour
+- **THEN** the "Toolbar" drawing shows the window controls in their colours and, across the top of the page, the sidebar toggle, back, forward and reload symbols, and the "Sidebar" drawing shows those symbols and the URL field in the sidebar above its tabs, both in the current appearance and accent colour
 
 #### Scenario: VoiceOver and keyboard
 - **WHEN** VoiceOver reads the row

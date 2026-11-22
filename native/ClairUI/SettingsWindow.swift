@@ -102,6 +102,11 @@ final class DefaultBrowser {
 
 struct GeneralSettingsView: View {
   let defaultBrowser: DefaultBrowser
+  /// Where the browser controls show (add-page-toolbar D9).
+  @AppStorage(ToolbarPreference.key) private var showsToolbar = true
+
+  /// A thumbnail's width in the row.
+  static let thumbnailWidth: CGFloat = 140
 
   var body: some View {
     Form {
@@ -113,6 +118,11 @@ struct GeneralSettingsView: View {
         } label: {
           Text("Default browser")
           Text(defaultBrowser.isClair ? "Clair is your default browser." : "Clair isn't your default browser.")
+        }
+        LabeledContent(LocationBarPicker.label) {
+          LocationBarPicker(showsToolbar: $showsToolbar)
+            .frame(width: 2 * Self.thumbnailWidth + LocationBarPicker.spacing)
+            .padding(.vertical, 4)
         }
       }
     }
