@@ -237,9 +237,12 @@ struct LocationBarPicker: View {
                 RoundedRectangle(cornerRadius: LayoutThumbnail.cornerRadius + 3, style: .continuous)
                   .strokeBorder(isChosen ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: isChosen ? 3 : 1)
               }
+            // A grouped form shows a row's content in the secondary colour;
+            // the chosen name takes the label colour.
             Text(choice.label)
               .font(.callout)
               .fontWeight(isChosen ? .semibold : .regular)
+              .foregroundStyle(isChosen ? Color(nsColor: .labelColor) : Color(nsColor: .secondaryLabelColor))
           }
           .contentShape(Rectangle())
         }
