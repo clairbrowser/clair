@@ -1203,6 +1203,26 @@ final class FakeBrowser: NSObject, ClairBrowser {
     record("infobar \(infobarID) \(tabID) \(action.rawValue)")
   }
 
+  // MARK: Bookmarks (add-bookmarks-menu design D3)
+
+  var bookmarkFolders: [any ClairBookmarkFolder] { host.bookmarks.folders }
+
+  func updateBookmark(_ bookmarkID: BookmarkID, title: String, folder folderID: BookmarkFolderID) {
+    // An empty title becomes the active tab's when it shows the bookmark's
+    // URL, or else the URL.
+    let url = host.bookmarks.nodes[bookmarkID]?.url ?? ""
+    let active = allTabs.first { $0.tabID == activeTabID && $0.url?.absoluteString == url }
+    host.bookmarks.update(bookmarkID, title: title, folder: folderID, pageTitle: active?.title ?? url)
+  }
+
+  func removeBookmark(_ bookmarkID: BookmarkID) {
+    host.bookmarks.remove(bookmarkID)
+  }
+
+  func addBookmarkFolder(_ title: String) -> BookmarkFolderID {
+    host.bookmarks.addFolderAsClair(title)
+  }
+
   func requestClose() {
     host.operation {
       record("requestClose")
@@ -1262,6 +1282,8 @@ final class RecordingWindow: NSObject, ClairWindow {
   func downloadProgressDidChange(_ progress: DownloadProgress) { calls.append("progress \(progress.count)") }
   func browserDidClose() { calls.append("closed") }
   func peekDidKeepEscape(for duration: TimeInterval) { calls.append("keptEscape \(duration)") }
+  func showBookmarkDialog(_ bookmark: any ClairBookmark) { calls.append("bookmarkDialog \(bookmark.bookmarkID)") }
+  func showBookmarksBarNotice() { calls.append("bookmarksBarNotice") }
 }
 
 /// A `ClairSpacesObserver` test double that records what the host tells it.

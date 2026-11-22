@@ -20,6 +20,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #import "chrome/browser/clair/window/clair_autocomplete.h"
+#import "chrome/browser/clair/window/clair_bookmarks.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_downloads.h"
@@ -1022,6 +1023,26 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
 }
 
 // --- ClairBrowser: the window ---
+
+// --- Bookmarks (add-bookmarks-menu D3) ---
+
+- (NSArray<id<ClairBookmarkFolder>>*)bookmarkFolders {
+  return clair::BookmarkFolders(self.browser);
+}
+
+- (void)updateBookmark:(ClairBookmarkID)bookmarkID
+                 title:(NSString*)title
+                folder:(ClairBookmarkFolderID)folderID {
+  clair::UpdateBookmark(self.browser, bookmarkID, title, folderID);
+}
+
+- (void)removeBookmark:(ClairBookmarkID)bookmarkID {
+  clair::RemoveBookmark(self.browser, bookmarkID);
+}
+
+- (ClairBookmarkFolderID)addBookmarkFolder:(NSString*)title {
+  return clair::AddBookmarkFolder(self.browser, title);
+}
 
 - (void)requestClose {
   if (_browserWindow) {

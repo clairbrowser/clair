@@ -19,6 +19,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
+#include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
@@ -34,6 +35,8 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
+#include "components/bookmarks/browser/bookmark_model.h"
+#include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/top_sites.h"
@@ -130,13 +133,25 @@ class ControllerObserver : public AutocompleteController::Observer {
   ClairChromiumAutocomplete* __weak session_;
 };
 
-ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
+// Whether the user bookmarked `url` (add-bookmarks-menu D8). `model` is the
+// profile's bookmarks, or its original profile's in incognito.
+bool IsBookmarked(bookmarks::BookmarkModel* model, const GURL& url) {
+  return model && model->loaded() && bookmarks::IsBookmarkedByUser(model, url);
+}
+
+ClairSuggestionKind KindOf(const AutocompleteMatch& match,
+                           bookmarks::BookmarkModel* bookmark_model) {
   if (match.has_tab_match.value_or(false) ||
       match.type == omnibox::AutocompleteMatchType::kOpenTab) {
     return ClairSuggestionKindOpenTab;
   }
   if (AutocompleteMatch::IsSearchType(match.type)) {
     return ClairSuggestionKindSearch;
+  }
+  // add-bookmarks-menu D8: a bookmarked page looks the same whether bookmarks
+  // or history suggested it.
+  if (IsBookmarked(bookmark_model, match.destination_url)) {
+    return ClairSuggestionKindBookmark;
   }
   if (match.type == omnibox::AutocompleteMatchType::kUrlWhatYouTyped) {
     return ClairSuggestionKindURL;
@@ -178,10 +193,9 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
     if (browserWindow) {
       _browserWindow = browserWindow->GetWeakPtr();
       Profile* profile = browserWindow->browser()->GetProfile();
+      // add-bookmarks-menu D8: the omnibox's own sources, bookmarks included.
       AutocompleteControllerConfig config{
-          .provider_types =
-              AutocompleteClassifier::DefaultOmniboxProviders() &
-              ~static_cast<int>(AutocompleteProvider::Type::kBookmark)};
+          .provider_types = AutocompleteClassifier::DefaultOmniboxProviders()};
       _controller = std::make_unique<AutocompleteController>(
           std::make_unique<ChromeAutocompleteProviderClient>(profile), config);
       _observer = std::make_unique<ControllerObserver>(self);
@@ -204,6 +218,12 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
 
 - (Profile*)profile {
   return _browserWindow ? _browserWindow->browser()->GetProfile() : nullptr;
+}
+
+// The bookmarks the rows check, the original profile's in incognito.
+- (bookmarks::BookmarkModel*)bookmarkModel {
+  Profile* profile = self.profile;
+  return profile ? BookmarkModelFactory::GetForBrowserContext(profile) : nullptr;
 }
 
 - (NSString*)keyword {
@@ -239,6 +259,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
     ClairChromiumSuggestion* suggestion = (ClairChromiumSuggestion*)item;
     const Destination* destination = [self destinationOf:suggestion.suggestionID];
     auto found = suggestion.icon || suggestion.kind == ClairSuggestionKindSearch ||
+                         suggestion.kind == ClairSuggestionKindBookmark ||
                          !destination
                      ? arrived.end()
                      : arrived.find(destination->url);
@@ -433,13 +454,18 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
       break;
     }
     ClairChromiumSuggestion* suggestion = [[ClairChromiumSuggestion alloc] init];
-    suggestion.kind = ClairSuggestionKindHistory;
+    // add-bookmarks-menu D8: a bookmarked page shows the bookmark icon.
+    const bool bookmarked = IsBookmarked(self.bookmarkModel, site.url);
+    suggestion.kind =
+        bookmarked ? ClairSuggestionKindBookmark : ClairSuggestionKindHistory;
     suggestion.contents = base::SysUTF16ToNSString(
         site.title.empty() ? url_formatter::FormatUrl(site.url) : site.title);
     suggestion.descriptionText =
         base::SysUTF16ToNSString(url_formatter::FormatUrl(site.url));
     suggestion.destination = net::NSURLWithGURL(site.url);
-    suggestion.icon = [self faviconForPageURL:site.url];
+    if (!bookmarked) {
+      suggestion.icon = [self faviconForPageURL:site.url];
+    }
     suggestion.suggestionID = [self
         rememberDestination:Destination{site.url, ui::PAGE_TRANSITION_AUTO_BOOKMARK,
                                         nullptr}];
@@ -457,6 +483,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
   Profile* profile = self.profile;
   TemplateURLService* service =
       profile ? TemplateURLServiceFactory::GetForProfile(profile) : nullptr;
+  bookmarks::BookmarkModel* bookmark_model = self.bookmarkModel;
   for (const AutocompleteMatch& match : _controller->result()) {
     if (suggestions.count >= kMaxSuggestions) {
       break;
@@ -465,13 +492,16 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match) {
       continue;
     }
     ClairChromiumSuggestion* suggestion = [[ClairChromiumSuggestion alloc] init];
-    suggestion.kind = KindOf(match);
+    suggestion.kind = KindOf(match, bookmark_model);
     suggestion.contents = base::SysUTF16ToNSString(match.contents);
     suggestion.descriptionText = base::SysUTF16ToNSString(match.description);
     suggestion.destination = net::NSURLWithGURL(match.destination_url);
     suggestion.hasTabMatch = match.has_tab_match.value_or(false);
-    // Searches keep the magnifier, as in Arc.
-    if (!AutocompleteMatch::IsSearchType(match.type)) {
+    // Searches keep the magnifier, as in Arc, and bookmarked pages show the
+    // bookmark icon without waiting on the favicon database
+    // (add-bookmarks-menu D8).
+    if (suggestion.kind != ClairSuggestionKindSearch &&
+        suggestion.kind != ClairSuggestionKindBookmark) {
       suggestion.icon = [self faviconForPageURL:match.destination_url];
     }
     if (!match.associated_keyword.empty()) {

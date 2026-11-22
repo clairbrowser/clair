@@ -15,6 +15,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/common/pref_names.h"
 #import "chrome/browser/clair/ClairHost.h"
+#include "chrome/browser/clair/clair_bookmark_bar_drain.h"
 #include "chrome/browser/clair/clair_link_rule_store.h"
 #include "chrome/browser/clair/clair_native_layer.h"
 #import "chrome/browser/clair/clair_pin_store.h"
@@ -336,6 +337,9 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   ClairPinStore::RegisterPrefs(registry);
   // add-link-rules D1: the link rules, beside them.
   ClairLinkRuleStore::RegisterPrefs(registry);
+  // add-bookmarks-menu D6: whether the Bookmarks Bar notice has shown, once
+  // for the whole app.
+  ClairBookmarkBarDrain::RegisterPrefs(registry);
   // add-profiles D1: Chromium's profile picker never shows at launch, however
   // many profiles exist (ProfilePicker::AvailabilityOnStartup::kDisabled).
   registry->SetDefaultPrefValue(prefs::kBrowserProfilePickerAvailabilityOnStartup,
@@ -359,8 +363,6 @@ void ApplyPasswordAndAutofillOverrides(Profile* profile) {
 
 void InstallNativeWindowMenus() {
   NSMenu* main_menu = NSApp.mainMenu;
-  // D10: no Bookmarks menu.
-  [main_menu itemWithTag:IDC_BOOKMARKS_MENU].hidden = YES;
 
   // add-profiles D10: no Profiles menu. ProfileMenuController sets its item's
   // `hidden` on every rebuild, so the item leaves the menu bar; the controller
@@ -408,6 +410,28 @@ void InstallNativeWindowMenus() {
       if (item.tag == IDC_SAVE_PAGE) {
         save_page = item;
       }
+    }
+  }
+
+  // add-bookmarks-menu D1: the Bookmarks menu starts with Bookmark This
+  // Page… on Shift+Cmd+B, then Manage Bookmarks. Chromium's two separators
+  // around Bookmark This Tab… go: BookmarkMenuBridge deletes them at its first
+  // rebuild anyway, and leaves fixed items where they are, so the order holds.
+  // The loop above has cleared Cmd+D from the item, and Shift+Cmd+B from
+  // View > Always Show Bookmarks Bar.
+  if (NSMenu* bookmarks = [main_menu itemWithTag:IDC_BOOKMARKS_MENU].submenu) {
+    for (NSMenuItem* item in bookmarks.itemArray) {
+      if (item.separatorItem && item.tag == IDC_BOOKMARK_THIS_TAB) {
+        [bookmarks removeItem:item];
+      }
+    }
+    if (NSMenuItem* bookmark_page =
+            [bookmarks itemWithTag:IDC_BOOKMARK_THIS_TAB]) {
+      [bookmarks removeItem:bookmark_page];
+      [bookmarks insertItem:bookmark_page atIndex:0];
+      bookmark_page.keyEquivalent = @"b";
+      bookmark_page.keyEquivalentModifierMask =
+          NSEventModifierFlagCommand | NSEventModifierFlagShift;
     }
   }
 

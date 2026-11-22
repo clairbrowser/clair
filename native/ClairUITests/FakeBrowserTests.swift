@@ -447,4 +447,93 @@ struct FakeBrowserTests {
     #expect(window.calls.last == "closed")
     #expect(browser.commands.isEmpty)
   }
+
+  // MARK: Bookmarks (add-bookmarks-menu design D3)
+
+  @Test func bookmarkFoldersStartWithOtherBookmarksDepthFirst() {
+    let browser = FakeBrowser()
+    let store = browser.host.bookmarks
+    store.add("In the bar", url: "https://bar.example/", in: FakeBookmarkStore.barID)
+    store.addFolder("In the bar too", in: FakeBookmarkStore.barID)
+    let reading = store.addFolder("Reading")
+    store.add("Article", url: "https://article.example/", in: reading)
+    store.addFolder("Later", in: reading)
+    store.addFolder("Recipes")
+
+    #expect(browser.bookmarkFolders.map(\.title) == ["Other bookmarks", "Reading", "Later", "Recipes"])
+    #expect(browser.bookmarkFolders.map(\.depth) == [0, 1, 2, 1])
+    #expect(browser.bookmarkFolders.first?.folderID == FakeBookmarkStore.otherID)
+  }
+
+  @Test func updatingABookmarkRenamesAndMovesIt() {
+    let browser = FakeBrowser()
+    let store = browser.host.bookmarks
+    let reading = store.addFolder("Reading")
+    let id = store.add("Example", url: "https://example.com/")
+    store.add("Other", url: "https://other.example/", in: reading)
+
+    browser.updateBookmark(id, title: "Renamed", folder: reading)
+    #expect(store.bookmark(id)?.title == "Renamed")
+    #expect(store.bookmark(id)?.folderID == reading)
+    #expect(store.titles(in: reading) == ["Other", "Renamed"])
+
+    // Saving into the folder it's in keeps its place.
+    browser.updateBookmark(id, title: "Again", folder: reading)
+    #expect(store.titles(in: reading) == ["Other", "Again"])
+
+    // A folder that isn't Other Bookmarks' leaves it where it is.
+    browser.updateBookmark(id, title: "Again", folder: FakeBookmarkStore.barID)
+    #expect(store.bookmark(id)?.folderID == reading)
+  }
+
+  @Test func anEmptyTitleBecomesThePagesTitle() {
+    let browser = FakeBrowser()
+    let store = browser.host.bookmarks
+    let shown = store.add("Shown", url: "https://example.com/")
+    let elsewhere = store.add("Elsewhere", url: "https://elsewhere.example/")
+    browser.addTab(title: "Example Domain", url: "https://example.com/")
+
+    browser.updateBookmark(shown, title: "", folder: FakeBookmarkStore.otherID)
+    browser.updateBookmark(elsewhere, title: "", folder: FakeBookmarkStore.otherID)
+    #expect(store.bookmark(shown)?.title == "Example Domain")
+    #expect(store.bookmark(elsewhere)?.title == "https://elsewhere.example/")
+  }
+
+  @Test func removingABookmarkDeletesIt() {
+    let browser = FakeBrowser()
+    let store = browser.host.bookmarks
+    let id = store.add("Example", url: "https://example.com/")
+    browser.removeBookmark(id)
+    #expect(store.bookmark(id) == nil)
+    #expect(store.titles(in: FakeBookmarkStore.otherID).isEmpty)
+  }
+
+  @Test func unknownBookmarkIDsDoNothing() {
+    let browser = FakeBrowser()
+    let store = browser.host.bookmarks
+    let id = store.add("Example", url: "https://example.com/")
+    let folder = store.addFolder("Folder")
+    browser.removeBookmark(id)
+    browser.updateBookmark(id, title: "Back", folder: FakeBookmarkStore.otherID)
+    browser.removeBookmark(id)
+    // A folder isn't a bookmark.
+    browser.updateBookmark(folder, title: "Renamed", folder: FakeBookmarkStore.otherID)
+    browser.removeBookmark(folder)
+
+    #expect(store.titles(in: FakeBookmarkStore.otherID) == ["Folder"])
+    #expect(store.commands.count == 5)
+  }
+
+  @Test func newFoldersGoAtTheEndOfOtherBookmarks() {
+    let browser = FakeBrowser()
+    let store = browser.host.bookmarks
+    let reading = store.addFolder("Reading")
+    store.add("Example", url: "https://example.com/")
+
+    let recipes = browser.addBookmarkFolder("  Recipes ")
+    #expect(recipes != ClairBookmarkFolderIDNone)
+    #expect(store.titles(in: FakeBookmarkStore.otherID) == ["Reading", "Example", "Recipes"])
+    #expect(browser.bookmarkFolders.map(\.folderID) == [FakeBookmarkStore.otherID, reading, recipes])
+    #expect(browser.addBookmarkFolder("   ") == ClairBookmarkFolderIDNone)
+  }
 }

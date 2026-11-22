@@ -18,6 +18,7 @@
 #import "chrome/browser/app_controller_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
+#import "chrome/browser/clair/window/clair_bookmarks.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
@@ -31,12 +32,12 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/window_open_disposition.h"
 
-// Commands for D9's unavailable features, D10's removed bookmarks UI and
-// D17's passwords and autofill. Their menu items stay hidden and disabled in a
-// native window.
+// Commands for D9's unavailable features, the bookmarks UI Clair leaves out
+// (D10, add-bookmarks-menu D1) and D17's passwords and autofill. Their menu
+// items stay hidden and disabled in a native window. Bookmark This Tab… stays:
+// it is Bookmark This Page… (add-bookmarks-menu D4).
 bool ClairIsRemovedCommand(int command) {
   switch (command) {
-    case IDC_BOOKMARK_THIS_TAB:
     case IDC_BOOKMARK_ALL_TABS:
     case IDC_SHOW_BOOKMARK_BAR:
     case IDC_SHOW_BOOKMARK_SIDE_PANEL:
@@ -109,9 +110,10 @@ NSMenuItem* FindMenuItem(NSMenu* menu, NSInteger tag) {
 
 // Runs `command` for the native window's browser, as BrowserNativeWidgetMac's
 // ExecuteCommand does. In a native window, New Tab opens the command bar
-// instead (D10), and the tab commands run over the sidebar's rows of the
-// shown Space, skipping Peeks (add-peek D7, add-spaces D5). Returns whether
-// the command ran.
+// instead (D10), Bookmark This Page… opens Clair's bookmark dialog
+// (add-bookmarks-menu D4), and the tab commands run over the sidebar's rows of
+// the shown Space, skipping Peeks (add-peek D7, add-spaces D5). Returns
+// whether the command ran.
 bool ExecuteCommand(ClairBrowserWindow* window,
                     int command,
                     WindowOpenDisposition disposition,
@@ -131,6 +133,10 @@ bool ExecuteCommand(ClairBrowserWindow* window,
   }
   if (command == IDC_NEW_TAB && window->clair_window()) {
     [window->clair_window() showCommandBarWithMode:ClairCommandBarModeNewTab];
+    return true;
+  }
+  if (command == IDC_BOOKMARK_THIS_TAB) {
+    clair::BookmarkActivePage(window);
     return true;
   }
   if (ClairIsRemovedCommand(command)) {
@@ -197,6 +203,12 @@ bool ExecuteCommand(ClairBrowserWindow* window,
       break;
     case IDC_SHOW_AS_TAB:
       menu_item.hidden = YES;
+      break;
+    case IDC_BOOKMARK_THIS_TAB:
+      // add-bookmarks-menu D2: the item says what Shift+Cmd+B will do.
+      menu_item.title = clair::IsActivePageBookmarked(browser)
+                            ? @"Edit Bookmark\u2026"
+                            : @"Bookmark This Page\u2026";
       break;
     case IDC_RESTORE_TAB:
       // add-pinned-tabs-and-favorites D3: a removed pin can come back though

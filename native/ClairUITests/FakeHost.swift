@@ -101,6 +101,9 @@ final class FakeHost: NSObject, ClairHost {
   /// The link rules, in order, as `ClairLinkRuleStore` keeps them
   /// (add-link-rules design D1).
   private var rules: [FakeLinkRule] = []
+  /// The profile's bookmarks, as Chromium's `BookmarkModel` keeps them
+  /// (add-bookmarks-menu design D3, D6).
+  let bookmarks = FakeBookmarkStore()
   /// How many times ClairUI replaced the rules.
   private(set) var linkRuleSaves = 0
 
@@ -925,5 +928,134 @@ final class FakeHost: NSObject, ClairHost {
   /// Sets the rules directly, as rules stored by an earlier launch.
   func storeLinkRules(_ stored: [FakeLinkRule]) {
     rules = stored
+  }
+}
+
+/// A stand-in for Chromium's bookmark snapshot.
+final class FakeBookmark: NSObject, ClairBookmark {
+  let bookmarkID: BookmarkID
+  let title: String
+  let url: URL?
+  let folderID: BookmarkFolderID
+  let isNew: Bool
+
+  init(id: BookmarkID, title: String, url: String?, folderID: BookmarkFolderID, isNew: Bool = false) {
+    bookmarkID = id
+    self.title = title
+    self.url = url.flatMap(URL.init(string:))
+    self.folderID = folderID
+    self.isNew = isNew
+  }
+}
+
+/// A stand-in for Chromium's bookmark folder snapshot.
+final class FakeBookmarkFolder: NSObject, ClairBookmarkFolder {
+  let folderID: BookmarkFolderID
+  let title: String
+  let depth: Int
+
+  init(id: BookmarkFolderID, title: String, depth: Int) {
+    folderID = id
+    self.title = title
+    self.depth = depth
+  }
+}
+
+/// A stand-in for a profile's `BookmarkModel`, with the rules of
+/// add-bookmarks-menu design D3: Other Bookmarks and its folders are the
+/// folders a bookmark can be saved in, new folders go at the end of Other
+/// Bookmarks, and an unknown ID does nothing. Tests seed it with `add`.
+final class FakeBookmarkStore {
+  /// Chromium's IDs for its permanent folders.
+  static let barID: BookmarkFolderID = 1
+  static let otherID: BookmarkFolderID = 2
+
+  struct Node {
+    let id: Int64
+    var title: String
+    /// A bookmark's URL, or nil for a folder.
+    var url: String?
+    var parent: Int64
+  }
+
+  private(set) var nodes: [Int64: Node] = [:]
+  private var children: [Int64: [Int64]] = [barID: [], otherID: []]
+  private var nextID: Int64 = 3
+  /// Every change ClairUI asked for, in order, such as "remove 4".
+  private(set) var commands: [String] = []
+
+  /// Adds a bookmark at the end of `folder` and returns its ID.
+  @discardableResult
+  func add(_ title: String, url: String, in folder: BookmarkFolderID = otherID) -> BookmarkID {
+    insert(Node(id: nextID, title: title, url: url, parent: folder))
+  }
+
+  /// Adds a folder at the end of `folder` and returns its ID.
+  @discardableResult
+  func addFolder(_ title: String, in folder: BookmarkFolderID = otherID) -> BookmarkFolderID {
+    let id = insert(Node(id: nextID, title: title, url: nil, parent: folder))
+    children[id] = []
+    return id
+  }
+
+  private func insert(_ node: Node) -> Int64 {
+    nodes[node.id] = node
+    children[node.parent, default: []].append(node.id)
+    nextID += 1
+    return node.id
+  }
+
+  /// A bookmark's snapshot, or nil for an unknown ID or a folder.
+  func bookmark(_ id: BookmarkID, isNew: Bool = false) -> FakeBookmark? {
+    guard let node = nodes[id], let url = node.url else { return nil }
+    return FakeBookmark(id: id, title: node.title, url: url, folderID: node.parent, isNew: isNew)
+  }
+
+  /// The children of a folder, in order: titles of bookmarks and folders.
+  func titles(in folder: BookmarkFolderID) -> [String] {
+    (children[folder] ?? []).compactMap { nodes[$0]?.title }
+  }
+
+  /// D3's `bookmarkFolders`: Other Bookmarks, then its folders depth-first.
+  var folders: [any ClairBookmarkFolder] {
+    var result: [any ClairBookmarkFolder] = []
+    func walk(_ id: Int64, depth: Int, title: String) {
+      result.append(FakeBookmarkFolder(id: id, title: title, depth: depth))
+      for child in children[id] ?? [] where nodes[child]?.url == nil {
+        walk(child, depth: depth + 1, title: nodes[child]?.title ?? "")
+      }
+    }
+    walk(Self.otherID, depth: 0, title: "Other bookmarks")
+    return result
+  }
+
+  /// D3's -updateBookmark:title:folder:. `pageTitle` is what an empty title
+  /// becomes.
+  func update(_ id: BookmarkID, title: String, folder: BookmarkFolderID, pageTitle: String) {
+    commands.append("update \(id) \(title) \(folder)")
+    guard var node = nodes[id], node.url != nil else { return }
+    node.title = title.isEmpty ? pageTitle : title
+    if folder != node.parent, folders.contains(where: { $0.folderID == folder }) {
+      children[node.parent]?.removeAll { $0 == id }
+      children[folder, default: []].append(id)
+      node.parent = folder
+    }
+    nodes[id] = node
+  }
+
+  /// D3's -removeBookmark:.
+  func remove(_ id: BookmarkID) {
+    commands.append("remove \(id)")
+    guard let node = nodes[id], node.url != nil else { return }
+    children[node.parent]?.removeAll { $0 == id }
+    nodes[id] = nil
+  }
+
+  /// D3's -addBookmarkFolder:.
+  func addFolderAsClair(_ title: String) -> BookmarkFolderID {
+    commands.append("addFolder \(title)")
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return ClairBookmarkFolderIDNone }
+    return addFolder(trimmed)
   }
 }
