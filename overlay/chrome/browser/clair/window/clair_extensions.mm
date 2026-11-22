@@ -42,7 +42,6 @@
 #include "extensions/browser/extension_action_manager.h"
 #include "extensions/browser/extension_host.h"
 #include "extensions/browser/extension_host_observer.h"
-#include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/install_prompt_data.h"
 #include "extensions/browser/install_prompt_permissions.h"
 #include "extensions/browser/ui_util.h"
@@ -225,48 +224,8 @@ class ClairExtensions::Popup : public extensions::ExtensionView,
 
 // --- ClairExtensions ---------------------------------------------------------
 
-namespace {
-
-// Drops repeated IDs from the pinned extensions pref, keeping the first of
-// each. Since Chromium 157 pins new extensions itself, Clair's own pin after
-// an install pinned them a second time, and Chromium appends a pin without
-// checking for one (its check is a DCHECK). They showed twice in the sidebar
-// and left an empty slot in the toolbar.
-void RemoveDuplicatePins(Profile* profile) {
-  if (profile->IsOffTheRecord()) {
-    return;
-  }
-  extensions::ExtensionPrefs* prefs = extensions::ExtensionPrefs::Get(profile);
-  if (!prefs) {
-    return;
-  }
-  const extensions::ExtensionIdList pinned = prefs->GetPinnedExtensions();
-  extensions::ExtensionIdList unique;
-  for (const auto& id : pinned) {
-    if (!std::ranges::contains(unique, id)) {
-      unique.push_back(id);
-    }
-  }
-  if (unique.size() != pinned.size()) {
-    prefs->SetPinnedExtensions(unique);
-  }
-}
-
-}  // namespace
-
 ClairExtensions::ClairExtensions(ClairBrowserWindow* window) : window_(window) {
   Profile* profile = window_->browser()->GetProfile();
-  // Not from here: changing the pref notifies the model's observers, this
-  // one among them, before the window is set up.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(
-                     [](base::WeakPtr<ClairExtensions> self) {
-                       if (self) {
-                         RemoveDuplicatePins(
-                             self->window_->browser()->GetProfile());
-                       }
-                     },
-                     weak_factory_.GetWeakPtr()));
   if (ToolbarActionsModel* model = ToolbarActionsModel::Get(profile)) {
     model_observation_.Observe(model);
   }
