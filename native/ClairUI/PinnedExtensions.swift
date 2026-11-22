@@ -171,13 +171,12 @@ struct ToolbarExtensionButton: View {
   let contextMenu: () -> NSMenu?
   let run: () -> Void
 
-  static let iconSize: CGFloat = 16
-
   var body: some View {
     IconButton(help: action.title, height: IconButtonSize.toolbarHeight) {
       if action.isEnabled { run() }
     } label: {
-      ExtensionActionGlyph(action: action, iconSize: Self.iconSize, boxSize: IconButtonSize.toolbarHeight)
+      ExtensionActionGlyph(
+        action: action, iconSize: IconButtonSize.toolbarExtensionGlyph, boxSize: IconButtonSize.toolbarHeight)
     }
     .overlay(RowClickCatcher(onMiddleClick: {}, menuItems: [], menuProvider: contextMenu))
     .accessibilityValue(action.badgeText)
