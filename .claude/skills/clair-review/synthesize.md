@@ -29,28 +29,8 @@ Write `REPORT.md` in the run directory. Lead each part with its conclusion.
 7. **Readiness for the next features.** The answers to `focus.md`, combined across sections: for each feature it names, what exists to build on, what has to change first, and the profile-isolation guarantees as they stand today.
 8. **Pre-release freeze list.** Everything that becomes expensive to change once Clair is installed, with a verdict on each: keep, or change before release.
 9. **Test suite cost.** Where the runtime suite's time goes and the ranked options for cutting it.
-10. **Recommended order of work.** A sequence the owner could follow, as work items in the format below. `/clair-fix` takes them one at a time in this order, so each item is one pull request's worth: group findings that one change fixes, and split a finding whose fix has parts that can land separately. Leave out findings a verifier refuted and Info findings with nothing to fix. Put anything touching release secrets or the CI runner first.
+10. **Recommended order of work.** A sequence the owner could follow, naming the findings each step settles. Group findings that one change fixes. Leave out findings a verifier refuted and Info findings with nothing to fix. Put anything touching release secrets or the CI runner first. `/clair-fix` does not read this list: it takes one section report's findings by severity, so this order is advice for the owner.
 11. **Limits.** What the review did not cover, including skipped sections and anything left unverified.
-
-## Work items
-
-`scripts/review.sh` reads the work items from `REPORT.md` literally: the heading and the four lines under it.
-
-```markdown
-### W01 Short title that says what gets done
-- Findings: S04-02, S04-05
-- Route: direct fix | OpenSpec change
-- Private: yes | no
-- After: W03 | none
-
-What to change and where, in a paragraph, and how to tell that it worked.
-```
-
-- Number the items `W01`, `W02` and so on in the order they should be done, and use each number once.
-- `Route` follows `CLAUDE.md`'s rule: an OpenSpec change for new behaviour, a breaking contract or data-format change, an architecture or security change; a direct fix for restoring specified behaviour, tests, documentation and configuration.
-- `Private: yes` marks work that must be finished before any public issue, branch or pull request mentions it, because the repository is public: anything touching release secrets, signing, the update feed's integrity or the CI runner.
-- `After` names one item that has to land first, or `none`. Use it only for a real dependency, since an item waits until the one it names has merged.
-- An uncertain finding can be an item of its own whose work is to settle it.
 
 Keep the IDs from the section reports so every statement can be traced back. Do not soften findings to make the summary read well, and do not raise a severity beyond what the evidence and the verifier support.
 

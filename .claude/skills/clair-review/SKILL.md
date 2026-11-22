@@ -16,7 +16,7 @@ The owner is rationing usage across several sessions. That shapes three rules:
 
 - **One step per invocation.** Do the step `next` names, report, and stop. The owner runs `/clair-review` again when ready. The pilot is the one exception, described below.
 - **Never retry inside an invocation.** If a reviewer comes back without a complete report, say so and stop. The script offers the work once more on the next run and blocks it after two attempts.
-- **Never skip ahead.** If `next` says `blocked` or `drift`, stop and explain. Do not dispatch anything else.
+- **Never skip ahead.** If `next` says `blocked`, stop and explain. Do not dispatch anything else.
 
 Arguments: `$ARGUMENTS`
 
@@ -115,20 +115,16 @@ When it returns, read only the Summary part of `REPORT.md`, relay it to the owne
 
 ### `done`
 
-Say that the review is complete and where `REPORT.md` is, and that `/clair-fix` takes the report's work items one at a time once the owner has read it.
+Say that the review is complete and where `REPORT.md` is, and that `/clair-fix <report.md>` fixes a section report's findings one at a time, most severe first, once the owner has put that report directly in `build/review/`.
 
 ### `blocked <key>`
 
 That piece of work failed twice. Say which, and that the owner can look at the partial file in the run directory, then either `/clair-review retry <key>` to try again or `/clair-review skip <id>` to go on without the section. If a rate limit or a permission prompt caused it, say so, because retrying before that is fixed will fail the same way.
 
-### `drift <why>`
-
-The checkout no longer matches the commit the run is reviewing, so later sections would review different code from earlier ones. Say what differs. The owner can check the reviewed commit out again, or run `/clair-review rebase-run` to accept the new commit, which re-runs only the sections whose files changed.
-
 ## Rules that hold throughout
 
 - **Reports are private.** The repository is public and the reports describe unfixed security problems. They live in `build/review/`, which git ignores. Never commit them, quote them in a commit message, pull request or issue, or copy them anywhere else.
-- **The review changes nothing.** Do not fix what the reports find and do not open issues. When the run is done, the owner decides what gets done, and the separate `/clair-fix` skill carries out the report's work items one at a time. Anything touching release secrets or the CI runner is fixed first and privately.
+- **The review changes nothing.** Do not fix what the reports find and do not open issues. When the run is done, the owner decides what gets done, and the separate `/clair-fix` skill fixes a section report's findings one at a time. Anything touching release secrets or the CI runner is fixed first and privately.
 - **Do not start an engine build during a run.** It would change the Chromium tree under the reviewers. `preflight` checks that the tree matches the commit; nothing re-checks it mid-run.
 
 ## Setting up a machine
