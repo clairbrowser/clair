@@ -49,6 +49,38 @@ final class PageCardView: NSView {
   /// The Peek's card: the shadow outside, the masked container inside.
   private let peekCard = NSView()
   let peekContainer = FlippedView()
+  /// The toolbar across the card's top, while the window shows it
+  /// (add-page-toolbar D2): inside the container, so a Peek shrinks and
+  /// washes it with the page (D3).
+  var toolbar: NSView? {
+    didSet {
+      oldValue?.removeFromSuperview()
+      if let toolbar { container.addSubview(toolbar, positioned: .below, relativeTo: toolbarLine) }
+      needsLayout = true
+    }
+  }
+  /// The Peek's own toolbar, across the top of its card (D3).
+  var peekToolbar: NSView? {
+    didSet {
+      oldValue?.removeFromSuperview()
+      if let peekToolbar { peekContainer.addSubview(peekToolbar) }
+      needsLayout = true
+    }
+  }
+  /// Whether the card and the Peek show their toolbars.
+  var showsToolbar = false {
+    didSet {
+      if showsToolbar != oldValue { needsLayout = true }
+    }
+  }
+  /// Arc's line below the toolbar, over the page's top row.
+  private let toolbarLine = DynamicFillView(color: ToolbarFill.line)
+  private let peekToolbarLine = DynamicFillView(color: ToolbarFill.line)
+
+  /// Where the page starts in the card: below the toolbar while it shows
+  /// (add-page-toolbar D7). Overlays at the card's top go below it.
+  var contentTop: CGFloat { showsToolbar && !isBare ? ToolbarArrangement.height : 0 }
+
   /// The Peek's buttons, beside its top-trailing corner.
   var peekControls: NSView? {
     didSet {
@@ -124,6 +156,7 @@ final class PageCardView: NSView {
     pageHolder.wantsLayer = true
     container.addSubview(pageHolder)
     container.addSubview(dragStrip)
+    container.addSubview(toolbarLine)
     stillView.isHidden = true
     container.addSubview(wash)
     container.addSubview(peekClickCatcher)
@@ -144,6 +177,7 @@ final class PageCardView: NSView {
     peekContainer.setAccessibilityRole(.group)
     peekContainer.setAccessibilityLabel("Peek")
     peekContainer.setAccessibilityIdentifier("clair.peek")
+    peekContainer.addSubview(peekToolbarLine)
     peekCard.addSubview(peekContainer)
     addSubview(peekCard)
     updatePeekVisibility()
@@ -306,7 +340,7 @@ final class PageCardView: NSView {
     // Only in the card while it shows: a hidden view can stay in the
     // accessibility tree. Over the page, under the Peek's wash.
     if shows, stillView.superview == nil {
-      container.addSubview(stillView, positioned: .below, relativeTo: wash)
+      container.addSubview(stillView, positioned: .below, relativeTo: toolbar ?? toolbarLine)
     } else if !shows {
       stillView.removeFromSuperview()
     }
@@ -336,8 +370,10 @@ final class PageCardView: NSView {
     cardScaler.frame = bounds
     container.frame = cardScaler.bounds
     layer?.shadowPath = isBare ? nil : cardShadowPath(peeking: isPeeking)
-    pageHolder.frame = container.bounds
-    stillView.frame = container.bounds
+    let top = contentTop
+    layoutToolbar(toolbar, line: toolbarLine, in: container.bounds, height: top)
+    pageHolder.frame = container.bounds.divided(atDistance: top, from: .minYEdge).remainder
+    stillView.frame = pageHolder.frame
     if isPeeking {
       parentPageView?.frame = pageHolder.bounds
       if let scalerLayer = cardScaler.layer {
@@ -373,17 +409,38 @@ final class PageCardView: NSView {
         }
       }
       dragStrip.isHidden = true
-      layoutSurface(in: peekContainer.bounds)
+      let peekTop = peekToolbar == nil ? 0 : top
+      layoutToolbar(peekToolbar, line: peekToolbarLine, in: peekContainer.bounds, height: peekTop)
+      layoutSurface(in: peekContainer.bounds.divided(atDistance: peekTop, from: .minYEdge).remainder)
     } else {
       layoutSurface(in: pageHolder.bounds)
       if let pageView, !pageView.isHidden {
-        var strip = pageView.frame
+        // The page's frame is in the holder's coordinates, the strip's in
+        // the container's: the strip follows the page below the toolbar.
+        var strip = pageView.frame.offsetBy(dx: pageHolder.frame.minX, dy: pageHolder.frame.minY)
         strip.size.height = min(strip.height, PageTopWindowDrag.stripHeight)
         dragStrip.frame = strip
         dragStrip.isHidden = false
       } else {
         dragStrip.isHidden = true
       }
+    }
+  }
+
+  /// Puts a toolbar across the top of `bounds` with its line below it, over
+  /// the page's top row, or hides both. Hidden, they leave the accessibility
+  /// tree, so the sidebar's controls are the only ones it finds.
+  private func layoutToolbar(_ toolbar: NSView?, line: DynamicFillView, in bounds: CGRect, height: CGFloat) {
+    let shows = height > 0 && toolbar != nil
+    toolbar?.isHidden = !shows
+    line.isHidden = !shows
+    guard shows, let toolbar else { return }
+    toolbar.frame = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: height)
+    line.frame = CGRect(x: bounds.minX, y: bounds.minY + height, width: bounds.width, height: 1)
+    if line.superview === peekContainer, line !== peekContainer.subviews.last {
+      // Above the Peek's page, its infobars and its crashed view.
+      peekContainer.addSubview(toolbar)
+      peekContainer.addSubview(line)
     }
   }
 

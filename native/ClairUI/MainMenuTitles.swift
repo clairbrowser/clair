@@ -40,6 +40,37 @@ enum MainMenuTitles {
     return nil
   }
 
+  /// The engine's View › Hide Sidebar, which `clair_window_hooks.mm` adds.
+  static let toggleSidebarAction = NSSelectorFromString("toggleSidebar:")
+
+  /// Adds View › Hide Toolbar (Shift+Cmd+D) after the engine's Hide Sidebar,
+  /// as in Arc (add-page-toolbar D8), once, and returns it. Chromium binds
+  /// Shift+Cmd+D only through Bookmark All Tabs, which Clair hides and
+  /// clears.
+  @discardableResult
+  static func addToolbarItem(to menu: NSMenu?, target: ToolbarMenuTarget) -> NSMenuItem? {
+    guard let menu else { return nil }
+    for item in menu.items {
+      guard let submenu = item.submenu else { continue }
+      if let existing = submenu.items.first(where: { $0.action == ToolbarMenuTarget.action }) {
+        return existing
+      }
+      if let sidebar = submenu.items.firstIndex(where: { $0.action == toggleSidebarAction }) {
+        let toolbar = NSMenuItem(
+          title: ToolbarPreference.menuTitle(isOn: target.preference.isOn), action: ToolbarMenuTarget.action,
+          keyEquivalent: "d")
+        toolbar.keyEquivalentModifierMask = [.command, .shift]
+        toolbar.target = target
+        submenu.insertItem(toolbar, at: sidebar + 1)
+        return toolbar
+      }
+      if let found = addToolbarItem(to: submenu, target: target) {
+        return found
+      }
+    }
+    return nil
+  }
+
   static func apply(to menu: NSMenu?) {
     guard let menu else { return }
     for item in menu.items {
@@ -48,5 +79,28 @@ enum MainMenuTitles {
       }
       apply(to: item.submenu)
     }
+  }
+}
+
+/// View › Hide Toolbar's target (add-page-toolbar D8): it turns the
+/// preference over, and titles the item from it.
+final class ToolbarMenuTarget: NSObject, NSMenuItemValidation {
+  static let action = #selector(ToolbarMenuTarget.toggleToolbar(_:))
+
+  let preference: ToolbarPreference
+
+  init(preference: ToolbarPreference = ToolbarPreference()) {
+    self.preference = preference
+  }
+
+  @objc func toggleToolbar(_ sender: Any?) {
+    preference.isOn.toggle()
+  }
+
+  func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == Self.action {
+      menuItem.title = ToolbarPreference.menuTitle(isOn: preference.isOn)
+    }
+    return true
   }
 }

@@ -70,6 +70,14 @@ enum Harness {
     try require(result.status == 0, "Couldn't set ClairRestoreWindows: \(result.output)")
   }
 
+  /// Shows the toolbar above the page or keeps the browser controls in the
+  /// sidebar, as Settings › General does (add-page-toolbar D8). On when
+  /// unset; written before launch, as the restore setting is.
+  static func setShowsToolbar(_ on: Bool) throws {
+    let result = try run("/usr/bin/defaults", ["write", bundleID, "ClairShowsToolbar", "-bool", on ? "YES" : "NO"])
+    try require(result.status == 0, "Couldn't set ClairShowsToolbar: \(result.output)")
+  }
+
   /// Clears what an earlier test left behind: running copies of Clair and
   /// Autoupdate, Sparkle's state, and Clair's data. run.sh refuses to run
   /// anywhere this could reach someone's real data.

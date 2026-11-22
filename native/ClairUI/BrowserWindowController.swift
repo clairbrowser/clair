@@ -30,9 +30,15 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   let model: BrowserWindowModel
   let rootView: BrowserRootView
   private let sidebarHost: NSHostingView<SidebarView>
+  /// The toolbar above the page, and the Peek's (add-page-toolbar D2, D3).
+  private let toolbarHost: NSHostingView<PageToolbar>
+  private let peekToolbarHost: NSHostingView<PageToolbar>
   private let preferences: SidebarPreferences
   /// The sidebar's controls, in its hosting view's coordinates.
   private var controlFrames: [AnchorControl: CGRect] = [:]
+  /// The toolbar's controls, in its hosting view's coordinates, apart from
+  /// the sidebar's, whose stale frames mustn't win (add-page-toolbar D6).
+  private var toolbarFrames: [AnchorControl: CGRect] = [:]
   private var extensionPopup: ExtensionPopupWindow?
   /// The window's dialogs (add-clair-dialogs D1), for every dialog on it.
   private(set) lazy var dialogs = ClairDialogPresenter(window: window)
@@ -44,6 +50,8 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   private let dragPreference: WindowDragPreference
   /// Whether Shift+click opens a Peek (add-peek design D10).
   private let peekPreference: PeekPreference
+  /// Whether the browser controls show in the toolbar (add-page-toolbar D8).
+  let toolbarPreference: ToolbarPreference
   /// The collapse of pinned sections and the favorites box
   /// (add-pinned-tabs-and-favorites D11).
   let pinsPreferences: PinsPreferences
@@ -62,7 +70,8 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     browser: any ClairBrowser, spaces: SpacesModel? = nil, updateBanner: UpdateBannerState? = nil,
     preferences: SidebarPreferences = SidebarPreferences(),
     dragPreference: WindowDragPreference = WindowDragPreference(),
-    peekPreference: PeekPreference = PeekPreference(), pinsPreferences: PinsPreferences = PinsPreferences()
+    peekPreference: PeekPreference = PeekPreference(), pinsPreferences: PinsPreferences = PinsPreferences(),
+    toolbarPreference: ToolbarPreference = ToolbarPreference()
   ) {
     self.browser = browser
     self.window = browser.window
@@ -70,17 +79,28 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     self.dragPreference = dragPreference
     self.peekPreference = peekPreference
     self.pinsPreferences = pinsPreferences
+    self.toolbarPreference = toolbarPreference
     let spaces = spaces ?? NativeLayer.current?.spaces ?? .detached
     let updateBanner = updateBanner ?? NativeLayer.current?.updates?.bannerState ?? .detached
     let model = BrowserWindowModel(
       profileKind: browser.profileKind, sidebar: preferences.initialState, browserID: browser.browserID,
-      shownSpaceID: browser.shownSpaceID, spaces: spaces, updateBanner: updateBanner)
+      shownSpaceID: browser.shownSpaceID, spaces: spaces, updateBanner: updateBanner,
+      showsToolbar: toolbarPreference.isOn)
     self.model = model
     sidebarHost = NSHostingView.edgeToEdge(rootView: SidebarView(model: model, actions: nil))
+    toolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, content: .tab, actions: nil))
+    peekToolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, content: .peek, actions: nil))
     rootView = BrowserRootView(model: model, sidebar: sidebarHost)
     super.init()
     Self.all.add(self)
     sidebarHost.rootView = SidebarView(model: model, actions: self)
+    for host in [toolbarHost, peekToolbarHost] {
+      host.rootView = PageToolbar(model: model, content: host.rootView.content, actions: self)
+      // The toolbar is laid out by the card, not sized by its content.
+      host.sizingOptions = []
+    }
+    rootView.card.toolbar = toolbarHost
+    rootView.card.peekToolbar = peekToolbarHost
     rootView.onScrimClick = { [weak self] in self?.model.commandBar?.cancel() }
     rootView.onCopyURL = { [weak self] in self?.copyURL() }
     rootView.canCopyURL = { [weak self] in
@@ -128,10 +148,31 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       ) { [weak self] _ in
         MainActor.assumeIsolated { self?.refreshPinPreferences() }
       })
+    // Every way of changing the toolbar preference reaches every window
+    // (add-page-toolbar D8). Posted on the thread that changed the defaults:
+    // the main thread for Clair's own changes.
+    observers.append(
+      NotificationCenter.default.addObserver(
+        forName: UserDefaults.didChangeNotification, object: nil, queue: nil
+      ) { [weak self] _ in
+        if Thread.isMainThread {
+          MainActor.assumeIsolated { self?.refreshToolbarPreference() }
+        } else {
+          DispatchQueue.main.async { self?.refreshToolbarPreference() }
+        }
+      })
     model.setExtensionActions(browser.extensionActions)
     model.setDownloads(browser.downloads, progress: browser.downloadProgress)
     stillDidChange()
     activeTabDidChange(browser.activeTabID)
+  }
+
+  /// Reads the toolbar preference again; only a change touches the model.
+  func refreshToolbarPreference() {
+    let isOn = toolbarPreference.isOn
+    if model.showsToolbar != isOn {
+      model.showsToolbar = isOn
+    }
   }
 
   private func observeWindow() {
@@ -590,6 +631,9 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       model.peekConfirm.hide()
     }
     shownPeek = shown
+    if model.shownPeek != shown {
+      model.shownPeek = shown
+    }
     if let shown {
       rootView.card.show(page: browser?.pageView(for: shown.peekID), behind: browser?.pageView(for: shown.parentID))
     } else {
@@ -721,15 +765,31 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
 
   func anchor(for kind: AnchorKind, indicator: TabIndicators, extensionID: String?) -> BubbleAnchor {
     rootView.layoutSubtreeIfNeeded()
+    return anchorResolver.anchor(for: kind, indicator: indicator, extensionID: extensionID)
+  }
+
+  /// The controls' frames, each source's in window coordinates, and where
+  /// the window shows them now.
+  var anchorResolver: AnchorResolver {
     var controls: [AnchorControl: CGRect] = [:]
     for (control, frame) in controlFrames {
       controls[control] = sidebarHost.convert(frame, to: nil)
     }
-    let resolver = AnchorResolver(
+    var toolbarControls: [AnchorControl: CGRect] = [:]
+    for (control, frame) in toolbarFrames {
+      toolbarControls[control] = toolbarHost.convert(frame, to: nil)
+    }
+    return AnchorResolver(
       sidebarInPlace: model.sidebar.isShownInPlace && !model.isPageFullscreen && !isWindowFullscreen,
       controls: controls,
-      card: rootView.convert(rootView.card.frame, to: nil))
-    return resolver.anchor(for: kind, indicator: indicator, extensionID: extensionID)
+      card: rootView.convert(rootView.card.frame, to: nil),
+      toolbarShown: isToolbarShown, toolbarControls: toolbarControls)
+  }
+
+  /// Whether the toolbar shows above the page: not while a page is in full
+  /// screen.
+  private var isToolbarShown: Bool {
+    model.showsPageHeader && !model.isPageFullscreen
   }
 
   private var isWindowFullscreen: Bool {
@@ -744,7 +804,16 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     extensionPopup?.dismiss(notify: false)
     let anchorRect = self.anchor(for: anchor, indicator: [], extensionID: extensionID).rect
     let name = model.extensionActions.first { $0.extensionID == extensionID }?.name ?? ""
-    let popup = ExtensionPopupWindow(page: view, size: size, name: name, parent: window, anchor: anchorRect) { [weak self] in
+    // While the toolbar shows, every popup opens at the same place over it,
+    // as in Arc; its tile still closes it (add-page-toolbar D6).
+    var placement = ExtensionPopupWindow.Placement.besideAnchor
+    if isToolbarShown {
+      let card = rootView.convert(rootView.card.frame, to: nil)
+      placement = .topTrailing(NSPoint(x: card.maxX - ExtensionPopupWindow.toolbarInset, y: card.maxY))
+    }
+    let popup = ExtensionPopupWindow(
+      page: view, size: size, name: name, parent: window, anchor: anchorRect, placement: placement
+    ) { [weak self] in
       self?.extensionPopup = nil
       self?.browser?.extensionPopupDidClose()
     }
@@ -968,6 +1037,16 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
 
   func controlFramesChanged(_ frames: [AnchorControl: CGRect]) {
     controlFrames = frames
+  }
+
+  func toolbarControlFramesChanged(_ frames: [AnchorControl: CGRect]) {
+    toolbarFrames = frames
+  }
+
+  func setToolbarShown(_ shown: Bool) {
+    toolbarPreference.isOn = shown
+    // Every window hears the change; this one needn't wait for it.
+    refreshToolbarPreference()
   }
 
   // MARK: SpaceActions (add-spaces D10)

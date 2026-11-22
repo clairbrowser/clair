@@ -35,3 +35,7 @@ An extension's popup SHALL open in a small titled window whose only enabled cont
 #### Scenario: Page grows after it opens
 - **WHEN** the popup page's content grows after the window has opened
 - **THEN** the window grows to fit it, keeping its top-leading corner where it is, and stays on screen
+
+#### Scenario: Page resizes over the toolbar
+- **WHEN** the toolbar is shown and the popup page's content changes size after the window has opened
+- **THEN** the window fits it, keeping its top-trailing corner where it is, as in Arc, and stays on screen

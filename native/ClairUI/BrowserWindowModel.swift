@@ -116,6 +116,34 @@ final class BrowserWindowModel {
     return peeks
   }
 
+  // --- where the browser controls show (add-page-toolbar D1) ---
+  /// The toolbar preference, as the window last read it.
+  var showsToolbar = true
+  /// The panes the card shows: always one until split view.
+  var paneCount = 1
+  var headerPolicy: PageHeaderPolicy { PageHeaderPolicy(showsToolbar: showsToolbar, paneCount: paneCount) }
+  /// Whether the page shows its header, the toolbar. Views read this, not
+  /// the preference.
+  var showsPageHeader: Bool { headerPolicy.panesShowHeader }
+  /// Whether the sidebar shows the browser controls.
+  var sidebarShowsControls: Bool { headerPolicy.sidebarShowsControls }
+
+  /// The Peek the card shows over its parent, if any (add-peek D4).
+  var shownPeek: TabListLogic.ShownPeek?
+
+  /// The tab whose state the tab's toolbar shows: the parent while a Peek
+  /// covers it, else the active tab.
+  var toolbarTab: (any ClairTab)? {
+    guard let shownPeek, !isShowingStill else { return activeTab }
+    return allTabs.first { $0.tabID == shownPeek.parentID }
+  }
+
+  /// The Peek's tab, which its own toolbar shows.
+  var peekTab: (any ClairTab)? {
+    guard let shownPeek else { return nil }
+    return allTabs.first { $0.tabID == shownPeek.peekID }
+  }
+
   /// What the URL field shows, or nil for its placeholder.
   var urlFieldText: String? { URLDisplay.text(for: activeTab) }
   /// Whether back, forward and reload can act on the page the card shows.
@@ -189,9 +217,10 @@ final class BrowserWindowModel {
 
   init(
     profileKind: ProfileKind, sidebar: SidebarState, browserID: BrowserID = 0, shownSpaceID: SpaceID = "",
-    spaces: SpacesModel = .detached, updateBanner: UpdateBannerState = .detached
+    spaces: SpacesModel = .detached, updateBanner: UpdateBannerState = .detached, showsToolbar: Bool = true
   ) {
     self.profileKind = profileKind
+    self.showsToolbar = showsToolbar
     self.sidebar = sidebar
     self.browserID = browserID
     self.shownSpaceID = shownSpaceID

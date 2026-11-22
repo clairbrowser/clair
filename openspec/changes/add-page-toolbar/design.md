@@ -89,14 +89,14 @@ The background is a fixed grey: 238 in Light Mode, which Arc shows on white, bla
 Layout, using Arc's metrics:
 - **Leading group:** buttons centred at 21, 57.75, 94.75 and 132 pt from the card's leading edge.
 - **Trailing group:** site controls centred 21 pt from the card's trailing edge, where Arc has its split-view button. To its left come the pinned extensions, then the indicators, each 36 pt further left: the distance between Arc's site-controls and split-view buttons (57.25 − 21.25). The pinned extensions are in pinned order, the first leftmost.
-- **Host:** a custom SwiftUI `Layout`, `ToolbarLayout`, always keeps the host text centred on the card. When the controls on either side would come too close to it, the layout leaves controls out in Arc's order (`toolbar-narrow-620.jpg`, `toolbar-narrow-520.jpg`):
-  1. the pinned extensions, starting with the one farthest from site controls;
-  2. then reload and the link icon;
-  3. only then does it truncate the host.
+- **Host:** a custom SwiftUI `Layout`, `ToolbarLayout`, always keeps the host text centred on the card. Its maths are `ToolbarArrangement`, which is unit-tested like `PinnedExtensionsGrid`. Each side leaves out its own controls once one would come within 8 pt of the host's hover background, as Arc does (`toolbar-narrow-620.jpg`, `toolbar-narrow-520.jpg`):
+  1. the trailing side leaves out pinned extensions, starting with the one farthest from site controls;
+  2. the leading side leaves out reload together with the link icon;
+  3. only once a side has nothing left to leave out is the host truncated, keeping its centre.
 
-  It's unit-tested like `PinnedExtensionsGrid`.
+  With Arc's slots (back and forward before reload, split view after site controls), these rules give exactly Arc's two captures. Clair's slots differ: the toggle adds a leading slot, and nothing follows site controls. So with the 228 pt sidebar shown, Clair's leading side runs out of room first. Below a window of about 684 pt it leaves out reload and the link icon. Below about 572 pt the host starts to truncate. Below about 568 pt the farther of two extensions goes. With the sidebar hidden, nothing is left out at Clair's 500 pt minimum window width.
 
-The background has the same window drag and double-click handling as the sidebar's top row: `WindowDragGesture`, `TitleBarArea` and `.allowsWindowActivationEvents(true)`. It doesn't depend on `WindowDragPreference`. Buttons sit above the background, so they get the clicks.
+The background has the sidebar top row's window drag and double-click handling: `TitleBarArea`, whose view moves the window on a press, takes the first click in a window that isn't key, and calls the title-bar double-click. It doesn't depend on `WindowDragPreference`. Buttons sit above the background, so they get the clicks. A `RowClickCatcher` over the background and the host takes only right-clicks and Control-clicks, for the toolbar's menu.
 
 ### D5. The sidebar with the toolbar shown
 
@@ -116,8 +116,8 @@ The toolbar reports its controls' frames with the same `AnchorFramesKey`, in its
 - **Otherwise:** today's rule.
 
 Extension popups don't attach to their tile while the toolbar shows. Arc opens every one at the same place, whichever tile opened it (`arc-reference/screenshots/toolbar-extension-popup.jpg` and `-2.jpg`): the window's top-trailing corner at the card's top edge, 40 pt in from the card's trailing edge, over the toolbar. In this case `showExtensionPopup` gives `ExtensionPopupWindow` two things:
-- that corner, as a new placement next to `placeBesideAnchor`, kept on screen;
-- the tile's rect as its anchor, so a click on the tile still closes the popup.
+- that corner, as a new placement next to `placeBesideAnchor`, kept on screen, and kept when the page resizes the popup, as Arc keeps it for popups of every width;
+- the tile's rect as its anchor, so a click on the tile closes the popup while the tile shows. A popup that reaches over its tile, as most do here and in Arc, takes that click itself: a click elsewhere, Esc or its close button closes it.
 
 The Site Control Center is already a popover attached below its button, so nothing changes there.
 
@@ -129,7 +129,7 @@ The Site Control Center is already a popover attached below its button, so nothi
 
 `ToolbarPreference` follows `WindowDragPreference`: the key is `ClairShowsToolbar`, its registered default is `true`, and it's read through `UserDefaults`. Windows observe `UserDefaults.didChangeNotification` and update `BrowserWindowModel`, so every way of changing it reaches every window at once. The three ways:
 
-- **View menu:** `MainMenuTitles.addToolbarItem(to:)` adds "Hide Toolbar" (⇧⌘D) after the engine's Hide Sidebar. It finds the View menu by the item whose action is `toggleSidebar:`. Its target is a `ClairUI` object whose `validateMenuItem` flips the title to "Show Toolbar". It's added when `NativeLayer` starts, as Copy URL is.
+- **View menu:** `MainMenuTitles.addToolbarItem(to:)` adds "Hide Toolbar" (⇧⌘D) after the engine's Hide Sidebar. It finds the View menu by the item whose action is `toggleSidebar:`. Its target is a `ClairUI` object whose `validateMenuItem` flips the title to "Show Toolbar". The engine adds Hide Sidebar right after `NativeLayer` starts (`InstallNativeWindowMenus`), so the item is added on the main queue's next turn after the start.
 - **Context menu:** while the toolbar shows, right-clicking the toolbar (its host or its blank areas) opens the menu with Copy URL and "Hide Toolbar". While it's off, the menu is the sidebar URL field's, with Copy URL and "Show as Toolbar". The toolbar's buttons keep their own menus: the history menus and the extension menu.
 - **Settings › General:** `LocationBarPicker` binds the key with `@AppStorage`.
 
@@ -142,7 +142,7 @@ The row is called "Location bar", matching File › Open Location Bar (`MainMenu
 - `WindowLayout.shownInset`;
 - the toolbar's height.
 
-Colours are semantic: the window tint (`SidebarTint`), the card in the window background colour, and controls in `secondary`. Dark Mode and the system accent therefore just work.
+Colours are semantic: the window tint (`SidebarTint`), the card in the page's background colour (`textBackgroundColor`, as the card's own backing), the toolbar in `ToolbarFill`, and controls in `secondary`. Dark Mode and the system accent therefore just work.
 
 Each thumbnail is a button with its label. The pair is an accessibility group labelled "Location bar", with the chosen one marked selected and both reachable by keyboard. Selection draws an accent ring and a bold label.
 

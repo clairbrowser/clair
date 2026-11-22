@@ -218,8 +218,9 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
     XCTAssertEqual(native, 1, "The pop-up opened in a native window")
   }
 
-  /// The window's anatomy: the window controls at Arc's place with the top row
-  /// lined up with them, before and after a title change
+  /// The window's anatomy: the window controls at Arc's place, and the
+  /// toolbar across the card's top with its controls at Arc's places
+  /// (add-page-toolbar), before and after a title change
   /// (place-traffic-lights-with-appkit); selecting a row shows its page in the
   /// card; the row's favicon, speaker and title sit where they were checked
   /// against Arc (design D12, D18); and the page follows the card's size.
@@ -239,33 +240,16 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
       second.close()
     }
 
-    func checkControls(_ when: String) {
-      let sidebar = browser.sidebar.frame
-      let close = browser.nativeWindow.buttons[XCUIIdentifierCloseWindow]
-      // A window that can go full screen has a full-screen button for zoom.
-      let fullScreen = browser.nativeWindow.buttons[XCUIIdentifierFullScreenWindow]
-      let zoom = fullScreen.exists ? fullScreen : browser.nativeWindow.buttons[XCUIIdentifierZoomWindow]
-      let hideSidebar = browser.element("clair.hideSidebar")
-      guard close.exists, zoom.exists, hideSidebar.exists else {
-        XCTFail("The window controls or the hide-sidebar button are missing \(when)")
-        return
-      }
-      XCTAssertEqual(close.frame.minX - sidebar.minX, 12, accuracy: 1.5, "The close button's x \(when)")
-      XCTAssertEqual(close.frame.minY - sidebar.minY, 16, accuracy: 1.5, "The close button's y \(when)")
-      XCTAssertEqual(hideSidebar.frame.midY, close.frame.midY, accuracy: 1, "The top row isn't centred on the window controls \(when)")
-      XCTAssertGreaterThanOrEqual(hideSidebar.frame.minX, zoom.frame.maxX, "The hide-sidebar button overlaps the zoom button \(when)")
-    }
-
-    // The window controls.
+    // The window controls and the toolbar.
     let listed = await browser.waitForTabs { $0.count >= 2 }
     try require(listed, "The sidebar doesn't list both tabs: \(browser.tabTitles)")
-    checkControls("at first")
+    browser.checkToolbar("at first")
     _ = try await second.evaluate("document.title = 'A different title'; 1")
     let retitled = await browser.waitForTabs { $0.contains("A different title") }
     try require(retitled, "The page's new title didn't reach the sidebar")
     // Give AppKit's title bar a moment to lay out for the new window title.
     try await Task.sleep(for: .seconds(1))
-    checkControls("after a title change")
+    browser.checkToolbar("after a title change")
 
     // The newest tab is at the top; selecting the row below shows its page.
     XCTAssertEqual(browser.tabTitles.first, "A different title", "The newest tab isn't at the top")
@@ -311,6 +295,104 @@ final class NativeWindowStructureTests: NativeWindowTestCase {
       return abs(width - Double(browser.card.frame.width)) <= 2
     }
     XCTAssertTrue(resized, "The page's viewport doesn't match the card after a resize")
+    // The page starts below the toolbar.
+    let height = try await audio.evaluate("innerHeight") as? Double ?? 0
+    XCTAssertEqual(
+      height, Double(browser.card.frame.height) - 32, accuracy: 2, "The page's viewport doesn't start below the toolbar")
+  }
+
+  /// With the toolbar off, the sidebar's top row holds the browser controls,
+  /// lined up with the window controls (place-traffic-lights-with-appkit),
+  /// and the page fills the card.
+  func testBrowserWindowLayoutWithoutTheToolbar() async throws {
+    try Harness.setShowsToolbar(false)
+    let (browser, tab) = try await startWithPage()
+    defer { tab.close() }
+    let listed = await browser.waitForTabs { !$0.isEmpty }
+    try require(listed, "The sidebar lists no tab")
+    browser.checkTopRow("without the toolbar")
+    XCTAssertFalse(browser.element("clair.toolbar").exists, "The window shows the toolbar")
+    XCTAssertTrue(
+      browser.element("clair.urlField", in: browser.sidebar).exists, "The sidebar has no URL field without the toolbar")
+    let height = try await tab.evaluate("innerHeight") as? Double ?? 0
+    XCTAssertEqual(height, Double(browser.card.frame.height), accuracy: 2, "The page doesn't fill the card")
+  }
+}
+
+extension Browser {
+  var windowControls: (close: XCUIElement, zoom: XCUIElement) {
+    let close = nativeWindow.buttons[XCUIIdentifierCloseWindow]
+    // A window that can go full screen has a full-screen button for zoom.
+    let fullScreen = nativeWindow.buttons[XCUIIdentifierFullScreenWindow]
+    return (close, fullScreen.exists ? fullScreen : nativeWindow.buttons[XCUIIdentifierZoomWindow])
+  }
+
+  /// The window controls at Arc's place from the sidebar's top-leading
+  /// corner.
+  func checkWindowControls(_ when: String) {
+    let sidebar = sidebar.frame
+    let (close, zoom) = windowControls
+    guard close.exists, zoom.exists else {
+      XCTFail("The window controls are missing \(when)")
+      return
+    }
+    XCTAssertEqual(close.frame.minX - sidebar.minX, 12, accuracy: 1.5, "The close button's x \(when)")
+    XCTAssertEqual(close.frame.minY - sidebar.minY, 16, accuracy: 1.5, "The close button's y \(when)")
+  }
+
+  /// The sidebar's top row with the toolbar off: centred on the window
+  /// controls, after the zoom button.
+  func checkTopRow(_ when: String) {
+    checkWindowControls(when)
+    let (close, zoom) = windowControls
+    let hideSidebar = element("clair.hideSidebar", in: sidebar)
+    guard close.exists, hideSidebar.exists else {
+      XCTFail("The sidebar has no hide-sidebar button \(when)")
+      return
+    }
+    XCTAssertEqual(hideSidebar.frame.midY, close.frame.midY, accuracy: 1, "The top row isn't centred on the window controls \(when)")
+    XCTAssertGreaterThanOrEqual(hideSidebar.frame.minX, zoom.frame.maxX, "The hide-sidebar button overlaps the zoom button \(when)")
+  }
+
+  /// The toolbar across the card's top, 32 pt tall, with the sidebar toggle,
+  /// back, forward and reload at Arc's places from the card's leading edge,
+  /// the site controls 21 pt from its trailing edge, and the host centred;
+  /// the sidebar keeps only the window controls (add-page-toolbar).
+  func checkToolbar(_ when: String) {
+    checkWindowControls(when)
+    let toolbar = element("clair.toolbar")
+    guard toolbar.exists else {
+      XCTFail("The window shows no toolbar \(when)")
+      return
+    }
+    let card = card.frame
+    XCTAssertEqual(toolbar.frame.minX, card.minX, accuracy: 1, "The toolbar's leading edge \(when)")
+    XCTAssertEqual(toolbar.frame.minY, card.minY, accuracy: 1, "The toolbar's top \(when)")
+    XCTAssertEqual(toolbar.frame.width, card.width, accuracy: 1, "The toolbar's width \(when)")
+    XCTAssertEqual(toolbar.frame.height, 32, accuracy: 1, "The toolbar's height \(when)")
+    for (identifier, x) in [
+      ("clair.hideSidebar", 21.0), ("clair.back", 57.75), ("clair.forward", 94.75), ("clair.reload", 132),
+    ] {
+      let control = element(identifier, in: toolbar)
+      guard control.exists else {
+        XCTFail("The toolbar has no \(identifier) \(when)")
+        continue
+      }
+      XCTAssertEqual(control.frame.midX - card.minX, x, accuracy: 1, "\(identifier)'s place in the toolbar \(when)")
+      XCTAssertEqual(control.frame.midY - card.minY, 16, accuracy: 1, "\(identifier) isn't centred in the toolbar \(when)")
+    }
+    let siteControls = element("clair.siteControls", in: toolbar)
+    XCTAssertTrue(siteControls.exists, "The toolbar has no site controls \(when)")
+    if siteControls.exists {
+      XCTAssertEqual(card.maxX - siteControls.frame.midX, 21, accuracy: 1, "The site controls' place \(when)")
+    }
+    let host = element("clair.urlField", in: toolbar)
+    XCTAssertTrue(host.exists, "The toolbar has no host \(when)")
+    if host.exists {
+      XCTAssertEqual(host.frame.midX, card.midX, accuracy: 1, "The host isn't centred on the card \(when)")
+    }
+    XCTAssertFalse(element("clair.urlField", in: sidebar).exists, "The sidebar still has a URL field \(when)")
+    XCTAssertFalse(element("clair.hideSidebar", in: sidebar).exists, "The sidebar still has a toggle \(when)")
   }
 }
 
@@ -398,8 +480,9 @@ final class NavigationTests: NativeWindowTestCase {
 
     // The back menu lists the history session's pages, nearest first.
     back.rightClick()
-    // The back menu, not the menu bar's History menu, which lists the same pages.
-    let menu = browser.sidebar.descendants(matching: .menu).firstMatch
+    // The back menu, not the menu bar's History menu, which lists the same
+    // pages: the toolbar's, in the card, by default.
+    let menu = browser.nativeWindow.descendants(matching: .menu).firstMatch
     try require(menu.waitForExistence(timeout: 10), "Right-clicking back opened no menu")
     let first = menu.menuItems["Clair link page"]
     try require(first.waitForExistence(timeout: 10), "The back menu doesn't list the first page")
@@ -816,5 +899,99 @@ final class CommandBarTests: NativeWindowTestCase {
     }
     // At least a 6 pt square's worth, so stray antialiasing doesn't count.
     return CGFloat(count) >= 36 * scale * scale
+  }
+}
+
+/// Turning the toolbar on and off (add-page-toolbar task 5.3).
+@MainActor
+final class ToolbarTests: NativeWindowTestCase {
+  /// Every native window, by its frame (SharedTabsTests' `NativeWindow`).
+  private func windows(_ browser: Browser) -> [XCUIElement] {
+    browser.ui.windows.containing(.any, identifier: "clair.sidebar").allElementsBoundByIndex
+  }
+
+  private func toolbarShows(in window: XCUIElement) -> Bool {
+    window.descendants(matching: .any).matching(identifier: "clair.toolbar").firstMatch.exists
+  }
+
+  private func sidebarHasURLField(in window: XCUIElement) -> Bool {
+    let sidebar = window.descendants(matching: .any).matching(identifier: "clair.sidebar").firstMatch
+    return sidebar.descendants(matching: .any).matching(identifier: "clair.urlField").firstMatch.exists
+  }
+
+  /// Waits until every native window shows the toolbar, or none does with
+  /// the sidebar's URL field back.
+  private func waitForToolbar(_ shown: Bool, in browser: Browser) async -> Bool {
+    await Harness.wait(for: 10) {
+      let all = self.windows(browser)
+      return all.count >= 2
+        && all.allSatisfy { self.toolbarShows(in: $0) == shown && self.sidebarHasURLField(in: $0) == !shown }
+    }
+  }
+
+  /// Shift+Cmd+D hides the toolbar in both windows and opens no bookmark UI;
+  /// View's item then reads Show Toolbar, and the keys bring it back.
+  func testShiftCmdDTogglesTheToolbarInEveryWindow() async throws {
+    let (browser, tab) = try await startWithPage()
+    defer { tab.close() }
+    let other = try await browser.open(url("index.html?second"), newWindow: true)
+    defer { other.close() }
+    let both = await waitForToolbar(true, in: browser)
+    try require(both, "Two windows don't both show the toolbar")
+    let windowCount = browser.ui.windows.count
+
+    browser.cardPoint(0.5, 0.5).click()
+    browser.ui.typeKey("d", modifierFlags: [.command, .shift])
+    let hidden = await waitForToolbar(false, in: browser)
+    XCTAssertTrue(hidden, "Shift+Cmd+D didn't move the controls into every window's sidebar")
+    try await Task.sleep(for: .seconds(1))
+    XCTAssertEqual(browser.ui.windows.count, windowCount, "Shift+Cmd+D opened a window")
+    XCTAssertFalse(browser.ui.sheets.firstMatch.exists, "Shift+Cmd+D opened a sheet")
+    XCTAssertFalse(browser.ui.dialogs.firstMatch.exists, "Shift+Cmd+D opened a bookmark dialog")
+
+    browser.ui.menuBars.menuBarItems["View"].click()
+    XCTAssertTrue(
+      browser.ui.menuBars.menuItems["Show Toolbar"].waitForExistence(timeout: 5), "View doesn't offer Show Toolbar")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+
+    browser.ui.typeKey("d", modifierFlags: [.command, .shift])
+    let shown = await waitForToolbar(true, in: browser)
+    XCTAssertTrue(shown, "Shift+Cmd+D again didn't bring the toolbar back")
+  }
+
+  /// Choosing Sidebar on Settings › General moves the controls into the
+  /// sidebar of every window, and Toolbar brings them back.
+  func testTheLocationBarRowInSettings() async throws {
+    let (browser, tab) = try await startWithPage()
+    defer { tab.close() }
+    let other = try await browser.open(url("index.html?second"), newWindow: true)
+    defer { other.close() }
+    let both = await waitForToolbar(true, in: browser)
+    try require(both, "Two windows don't both show the toolbar")
+
+    browser.ui.typeKey(",", modifierFlags: .command)
+    let general = browser.ui.windows["General"]
+    try require(general.waitForExistence(timeout: 15), "Settings didn't open on General")
+    let row = general.descendants(matching: .any).matching(identifier: "clair.locationBar").firstMatch
+    try require(row.waitForExistence(timeout: 10), "General has no Location bar row")
+    XCTAssertEqual(row.label, "Location bar", "The row's group isn't labelled Location bar")
+    let toolbar = general.descendants(matching: .any).matching(identifier: "clair.locationBar.toolbar").firstMatch
+    let sidebar = general.descendants(matching: .any).matching(identifier: "clair.locationBar.sidebar").firstMatch
+    XCTAssertTrue(toolbar.isSelected, "Toolbar isn't the chosen layout at first")
+    XCTAssertFalse(sidebar.isSelected, "Sidebar is chosen at first")
+
+    _ = await Harness.wait(for: 5) { sidebar.isHittable }
+    sidebar.click()
+    let moved = await waitForToolbar(false, in: browser)
+    XCTAssertTrue(moved, "Choosing Sidebar didn't move the controls into every window's sidebar")
+    let chosen = await Harness.wait(for: 5) { sidebar.isSelected && !toolbar.isSelected }
+    XCTAssertTrue(chosen, "Sidebar isn't marked chosen")
+
+    // The windows lay out again as the controls move; wait for the row to
+    // take clicks.
+    _ = await Harness.wait(for: 5) { toolbar.isHittable }
+    toolbar.click()
+    let back = await waitForToolbar(true, in: browser)
+    XCTAssertTrue(back, "Choosing Toolbar didn't bring the toolbar back")
   }
 }

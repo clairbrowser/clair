@@ -5,25 +5,45 @@
 import AppKit
 
 /// An extension's popup page, in a small titled window that first opens beside
-/// the sidebar button that opened it (arc-extension-experience D6). It's a
+/// the sidebar button that opened it (arc-extension-experience D6), or, while
+/// the toolbar shows, at a fixed place over it (add-page-toolbar D6). It's a
 /// child window rather than an NSPopover, whose material tints the page it
 /// hosts (Crest found on macOS 27). A click elsewhere, Esc, its close button,
 /// or the browser window moving dismisses it.
 final class ExtensionPopupWindow: NSWindow {
   static let gap: CGFloat = 6
   static let screenMargin: CGFloat = 8
+  /// Arc's popups from the toolbar: the window's top-trailing corner at the
+  /// card's top edge, this far in from its trailing edge, whichever tile
+  /// opened it.
+  static let toolbarInset: CGFloat = 40
+
+  /// Where the popup first opens.
+  enum Placement: Equatable {
+    /// Beside the button that opened it.
+    case besideAnchor
+    /// With its frame's top-trailing corner here, in the parent window's
+    /// coordinates.
+    case topTrailing(NSPoint)
+  }
 
   private weak var parentWindowRef: NSWindow?
-  /// The button, in the parent window's coordinates.
+  /// The button, in the parent window's coordinates. A click on it only
+  /// closes the popup.
   private let anchor: NSRect
+  private let placement: Placement
   private var onDismiss: (() -> Void)?
   private var monitor: Any?
   /// Set while dismiss() closes the window, so close() doesn't start it again.
   private var isDismissing = false
 
-  init(page: NSView, size: NSSize, name: String, parent: NSWindow, anchor: NSRect, onDismiss: @escaping () -> Void) {
+  init(
+    page: NSView, size: NSSize, name: String, parent: NSWindow, anchor: NSRect, placement: Placement = .besideAnchor,
+    onDismiss: @escaping () -> Void
+  ) {
     self.parentWindowRef = parent
     self.anchor = anchor
+    self.placement = placement
     self.onDismiss = onDismiss
     super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable], backing: .buffered, defer: false)
     isReleasedWhenClosed = false
@@ -46,7 +66,14 @@ final class ExtensionPopupWindow: NSWindow {
 
   func present() {
     guard let parent = parentWindowRef else { return }
-    placeBesideAnchor()
+    switch placement {
+    case .besideAnchor:
+      placeBesideAnchor()
+    case .topTrailing(let corner):
+      let screenCorner = parent.convertPoint(toScreen: corner)
+      let visible = (parent.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
+      setFrame(Self.frame(size: frame.size, topTrailing: screenCorner, visible: visible), display: true)
+    }
     parent.addChildWindow(self, ordered: .above)
     makeKeyAndOrderFront(nil)
     monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]) {
@@ -88,11 +115,17 @@ final class ExtensionPopupWindow: NSWindow {
   }
 
   /// The page resized itself: the window keeps its top-leading corner, which
-  /// may not be beside the button any more if the user dragged it.
+  /// may not be beside the button any more if the user dragged it, or, over
+  /// the toolbar, its top-trailing corner, as Arc's popups do.
   func resize(to size: NSSize) {
     let outer = frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
-    let frame = NSRect(x: frame.minX, y: frame.maxY - outer.height, width: outer.width, height: outer.height)
-    setFrame(onScreen(frame, on: screen), display: true)
+    setFrame(onScreen(Self.resized(frame, to: outer, placement: placement), on: screen), display: true)
+  }
+
+  /// `frame` resized to `size`, keeping the corner its placement keeps.
+  static func resized(_ frame: NSRect, to size: NSSize, placement: Placement) -> NSRect {
+    let x = placement == .besideAnchor ? frame.minX : frame.maxX - size.width
+    return NSRect(x: x, y: frame.maxY - size.height, width: size.width, height: size.height)
   }
 
   /// Puts the popup beside the button.
@@ -105,11 +138,21 @@ final class ExtensionPopupWindow: NSWindow {
     setFrame(onScreen(frame, on: parent.screen), display: true)
   }
 
+  /// A popup of `size` with its top-trailing corner at `corner`, on screen
+  /// coordinates, kept inside `visible`.
+  static func frame(size: NSSize, topTrailing corner: NSPoint, visible: NSRect) -> NSRect {
+    let frame = NSRect(x: corner.x - size.width, y: corner.y - size.height, width: size.width, height: size.height)
+    return clamp(frame, to: visible)
+  }
+
   private func onScreen(_ frame: NSRect, on screen: NSScreen?) -> NSRect {
-    let visible = (screen ?? NSScreen.main)?.visibleFrame ?? .infinite
+    Self.clamp(frame, to: (screen ?? NSScreen.main)?.visibleFrame ?? .infinite)
+  }
+
+  private static func clamp(_ frame: NSRect, to visible: NSRect) -> NSRect {
     var frame = frame
-    frame.origin.x = min(max(frame.minX, visible.minX + Self.screenMargin), visible.maxX - Self.screenMargin - frame.width)
-    frame.origin.y = min(max(frame.minY, visible.minY + Self.screenMargin), visible.maxY - Self.screenMargin - frame.height)
+    frame.origin.x = min(max(frame.minX, visible.minX + screenMargin), visible.maxX - screenMargin - frame.width)
+    frame.origin.y = min(max(frame.minY, visible.minY + screenMargin), visible.maxY - screenMargin - frame.height)
     return frame
   }
 

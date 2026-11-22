@@ -5,7 +5,7 @@
 import ClairHost
 import CoreGraphics
 
-/// A control in the sidebar that Chromium's bubbles attach to.
+/// A control in the sidebar or the toolbar that Chromium's bubbles attach to.
 enum AnchorControl: Hashable {
   case siteControls
   /// An indicator, by its TabIndicators raw value.
@@ -14,10 +14,11 @@ enum AnchorControl: Hashable {
   case downloads
 }
 
-/// Where a Chromium bubble attaches (design D7): to its control in the sidebar
-/// while the sidebar is shown in place, or else to the card's top-leading
-/// corner. A revealed sidebar slides away when the pointer leaves, which would
-/// orphan a bubble, so it never anchors one.
+/// Where a Chromium bubble attaches (design D7): below its control in the
+/// toolbar while the toolbar shows (add-page-toolbar D6); else to its control
+/// in the sidebar while the sidebar is shown in place, or else to the card's
+/// top-leading corner. A revealed sidebar slides away when the pointer
+/// leaves, which would orphan a bubble, so it never anchors one.
 struct AnchorResolver {
   /// Chromium's kNoToolbarLeftOffset, from the card's leading edge.
   static let fallbackInset: CGFloat = 40
@@ -29,9 +30,19 @@ struct AnchorResolver {
   var controls: [AnchorControl: CGRect]
   /// The card's frame, in window coordinates.
   var card: CGRect
+  /// Whether the toolbar shows above the page: not while a page is in full
+  /// screen.
+  var toolbarShown = false
+  /// The toolbar's controls' frames, in window coordinates.
+  var toolbarControls: [AnchorControl: CGRect] = [:]
 
   func anchor(for kind: AnchorKind, indicator: TabIndicators, extensionID: String?) -> BubbleAnchor {
-    if sidebarInPlace, let rect = controlRect(for: kind, indicator: indicator, extensionID: extensionID) {
+    if toolbarShown,
+      let rect = controlRect(for: kind, indicator: indicator, extensionID: extensionID, in: toolbarControls)
+    {
+      return BubbleAnchor(rect: rect, edge: .bottom)
+    }
+    if sidebarInPlace, let rect = controlRect(for: kind, indicator: indicator, extensionID: extensionID, in: controls) {
       return BubbleAnchor(rect: rect, edge: .trailing)
     }
     return fallback
@@ -42,7 +53,9 @@ struct AnchorResolver {
     BubbleAnchor(rect: CGRect(x: card.minX + Self.fallbackInset, y: card.maxY, width: 0, height: 0), edge: .bottom)
   }
 
-  private func controlRect(for kind: AnchorKind, indicator: TabIndicators, extensionID: String?) -> CGRect? {
+  private func controlRect(
+    for kind: AnchorKind, indicator: TabIndicators, extensionID: String?, in controls: [AnchorControl: CGRect]
+  ) -> CGRect? {
     switch kind {
     case .siteControls:
       return controls[.siteControls]
