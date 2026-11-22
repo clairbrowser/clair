@@ -72,6 +72,12 @@ pane's header keeps back, forward, the host and ×.
   highlight is the same 32 × 24 (64 × 48 px), with corners of about 6 pt and
   a fill of about 5% black (226 over the toolbar's 238). Every toolbar button
   but the link icon and the host is this size.
+- **Glyphs** (ink boxes, probed 2026-11-22): sidebar toggle 16.5 × 13
+  (sidebar hidden), back and forward 13 × 10.5, reload 12.5 × 15, link
+  12.5 × 12.5, site controls 16 × 16, extension icons 16 × 16. They match SF
+  Symbols drawn by SwiftUI at 14 pt (toggle, back, forward, reload), 12 pt
+  (link) and 18 pt regular (site controls): smaller than the sidebar's, whose
+  toggle in Arc measures 18.5 × 14.5, SF Symbols' 16 pt.
 - **Sidebar shown** (from the card's leading edge): back 20.75, forward
   57.75, reload 95. They're 37 pt apart.
 - **Sidebar hidden** (card at x = 10): the sidebar toggle at 21, back

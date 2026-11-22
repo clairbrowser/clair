@@ -15,6 +15,17 @@ enum IconButtonSize {
   /// The page toolbar's buttons' height, at `regular`'s width: Arc's toolbar
   /// buttons and their hover highlight are 32 × 24 (add-page-toolbar).
   static let toolbarHeight: CGFloat = 24
+  /// The page toolbar's glyphs, smaller than the sidebar's 16: Arc's toolbar
+  /// toggle, back, forward and reload ink match SF Symbols at 14 pt, and its
+  /// link icon at 12 (add-page-toolbar arc-reference, measured 2026-11-22).
+  static let toolbarGlyph: CGFloat = 14
+  static let toolbarLinkGlyph: CGFloat = 12
+  /// Arc's toolbar extension icons are 16 × 16, and its site-controls glyph's
+  /// ink is SF Symbols' at 18 pt (regular).
+  static let toolbarExtensionGlyph: CGFloat = 16
+  static let toolbarSiteControlsGlyph: CGFloat = 18
+  /// The permission indicators' red glyphs.
+  static let toolbarIndicatorGlyph: CGFloat = 12
 }
 
 /// The hover background every sidebar icon button draws: a rounded fill that

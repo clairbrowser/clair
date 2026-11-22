@@ -91,7 +91,7 @@ struct PageToolbar: View {
       if arrangement.link != nil {
         IconButton(
           systemImage: "link", help: "Copy URL", shortcut: ["⇧", "⌘", "C"], size: 22,
-          height: IconButtonSize.toolbarHeight, glyphSize: URLFieldButton.linkGlyphSize
+          height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarLinkGlyph
         ) { actions?.copyURL() }
           .accessibilityIdentifier("clair.copyURL")
           .toolbarRole(.link)
@@ -99,7 +99,7 @@ struct PageToolbar: View {
       ForEach(Array(indicators.enumerated()), id: \.element.0.rawValue) { index, element in
         let (indicator, symbol, label) = element
         IconButton(
-          systemImage: symbol, help: label, height: IconButtonSize.toolbarHeight, glyphSize: 12,
+          systemImage: symbol, help: label, height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarIndicatorGlyph,
           glyphWeight: .regular, foreground: .red
         ) {
           actions?.showSiteControls(indicator: indicator)
@@ -151,14 +151,14 @@ struct PageToolbar: View {
       // Dia does (dia-reference/).
       IconButton(
         systemImage: "sidebar.left", help: model.sidebar.isHidden ? "Show sidebar" : "Hide sidebar",
-        shortcut: ["⌘", "S"], height: IconButtonSize.toolbarHeight
+        shortcut: ["⌘", "S"], height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarGlyph
       ) { actions?.toggleSidebar() }
         .accessibilityIdentifier("clair.hideSidebar")
         .toolbarRole(.leading(0))
     }
     IconButton(
       systemImage: "arrow.left", help: "Go back", shortcut: ["⌘", "["], isEnabled: canGoBack,
-      height: IconButtonSize.toolbarHeight
+      height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarGlyph
     ) {
       actions?.goBack()
     }
@@ -167,7 +167,7 @@ struct PageToolbar: View {
     .toolbarRole(.leading(first))
     IconButton(
       systemImage: "arrow.right", help: "Go forward", shortcut: ["⌘", "]"], isEnabled: canGoForward,
-      height: IconButtonSize.toolbarHeight
+      height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarGlyph
     ) {
       actions?.goForward()
     }
@@ -183,8 +183,8 @@ struct PageToolbar: View {
         actions?.reloadOrStop()
       } label: {
         ZStack {
-          SymbolGlyph(systemImage: "arrow.clockwise").opacity(isLoading ? 0 : 1)
-          SymbolGlyph(systemImage: "xmark").opacity(isLoading ? 1 : 0)
+          SymbolGlyph(systemImage: "arrow.clockwise", size: IconButtonSize.toolbarGlyph).opacity(isLoading ? 0 : 1)
+          SymbolGlyph(systemImage: "xmark", size: IconButtonSize.toolbarGlyph).opacity(isLoading ? 1 : 0)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.1), value: isLoading)
       }
@@ -222,7 +222,8 @@ struct PageToolbar: View {
     @Bindable var model = model
     return IconButton(
       systemImage: "slider.horizontal.2.square", help: "Site Control Center", isEnabled: enabled,
-      height: IconButtonSize.toolbarHeight, glyphSize: URLFieldButton.siteControlsGlyphSize, glyphWeight: .regular
+      height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarSiteControlsGlyph,
+      glyphWeight: .regular
     ) {
       model.isSiteControlCenterOpen = true
     }
