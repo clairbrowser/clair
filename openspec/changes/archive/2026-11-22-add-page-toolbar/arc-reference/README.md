@@ -21,7 +21,7 @@ Keep these screenshots. They move with the change when it's archived.
 | settings-advanced.jpg | Arc's Settings › Advanced. "Allow window dragging from the top of webpages" is on. "Show full URL when Toolbar is enabled" is off; it's the setting behind the host menu's Show Full URL. Arc has no toolbar row in Settings. |
 | toolbar-command-bar.jpg | Cmd+L with the toolbar on: the command bar opens centred in the window, as with the toolbar off. It doesn't attach to the toolbar. |
 | toolbar-extensions.jpg | Two pinned extensions, uBlock Origin Lite (with a "1" badge) and Dark Reader, left of the site-controls button, in a 960 pt window. |
-| toolbar-extension-hover.jpg | The pointer on Dark Reader's icon: a rounded grey highlight about 32 × 28 behind it. No tooltip showed within 2 s. |
+| toolbar-extension-hover.jpg | The pointer on Dark Reader's icon: a rounded grey highlight behind it, 32 × 24 like every toolbar button's (first read as about 32 × 28). No tooltip showed within 2 s. |
 | toolbar-extension-popup.jpg | uBlock's popup: a small titled window over the toolbar, its top-trailing corner at the card's top edge, 40 pt in from the card's trailing edge. |
 | toolbar-extension-popup-2.jpg | Dark Reader's popup, from the other icon, opens with its top-trailing corner at exactly the same place. Arc doesn't attach popups to their icon. |
 | toolbar-narrow-620.jpg | The window at 620 pt: uBlock, the extension farther from site controls, is left out, and the host stays centred on the card. |
@@ -67,6 +67,11 @@ pane's header keeps back, forward, the host and ×.
 - **Line:** 1 pt below the toolbar, about 5% black, drawn over the page's
   top row. It reads 242 over white, 226 over #eee, and HN's orange × 0.95.
 - **Glyph centres:** all sit on one line, 16 pt below the card's top.
+- **Buttons** (probed 2026-11-22): back, forward and reload report 32 × 24 pt
+  accessibility frames, 4 pt below the card's top, and reload's hover
+  highlight is the same 32 × 24 (64 × 48 px), with corners of about 6 pt and
+  a fill of about 5% black (226 over the toolbar's 238). Every toolbar button
+  but the link icon and the host is this size.
 - **Sidebar shown** (from the card's leading edge): back 20.75, forward
   57.75, reload 95. They're 37 pt apart.
 - **Sidebar hidden** (card at x = 10): the sidebar toggle at 21, back

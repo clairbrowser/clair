@@ -91,34 +91,27 @@ struct PageToolbar: View {
       if arrangement.link != nil {
         IconButton(
           systemImage: "link", help: "Copy URL", shortcut: ["⇧", "⌘", "C"], size: 22,
-          glyphSize: URLFieldButton.linkGlyphSize
+          height: IconButtonSize.toolbarHeight, glyphSize: URLFieldButton.linkGlyphSize
         ) { actions?.copyURL() }
           .accessibilityIdentifier("clair.copyURL")
           .toolbarRole(.link)
       }
       ForEach(Array(indicators.enumerated()), id: \.element.0.rawValue) { index, element in
         let (indicator, symbol, label) = element
-        Button {
+        IconButton(
+          systemImage: symbol, help: label, height: IconButtonSize.toolbarHeight, glyphSize: 12,
+          glyphWeight: .regular, foreground: .red
+        ) {
           actions?.showSiteControls(indicator: indicator)
-        } label: {
-          Image(systemName: symbol)
-            .font(.system(size: 12))
-            .foregroundStyle(Color.red)
-            .modifier(IconButtonChrome(size: ToolbarArrangement.buttonSize))
         }
-        .buttonStyle(.plain)
-        .tooltip(label)
-        .accessibilityLabel(label)
         .anchorFrame(.indicator(indicator.rawValue))
         .toolbarRole(.indicator(index))
       }
       ForEach(Array(extensions.enumerated()), id: \.element.extensionID) { index, action in
         if arrangement.extensions.indices.contains(index), arrangement.extensions[index] != nil {
-          PinnedExtensionTile(
-            action: action, style: .toolbar,
-            contextMenu: { actions?.contextMenu(forExtension: action.extensionID) }
+          ToolbarExtensionButton(
+            action: action, contextMenu: { actions?.contextMenu(forExtension: action.extensionID) }
           ) { actions?.runExtension(action.extensionID, pinned: true) }
-            .frame(width: PinnedExtensionTile.toolbarSize.width, height: PinnedExtensionTile.toolbarSize.height)
             .anchorFrame(.extensionAction(action.extensionID))
             .toolbarRole(.pinnedExtension(index))
         }
@@ -158,18 +151,24 @@ struct PageToolbar: View {
       // Dia does (dia-reference/).
       IconButton(
         systemImage: "sidebar.left", help: model.sidebar.isHidden ? "Show sidebar" : "Hide sidebar",
-        shortcut: ["⌘", "S"]
+        shortcut: ["⌘", "S"], height: IconButtonSize.toolbarHeight
       ) { actions?.toggleSidebar() }
         .accessibilityIdentifier("clair.hideSidebar")
         .toolbarRole(.leading(0))
     }
-    IconButton(systemImage: "arrow.left", help: "Go back", shortcut: ["⌘", "["], isEnabled: canGoBack) {
+    IconButton(
+      systemImage: "arrow.left", help: "Go back", shortcut: ["⌘", "["], isEnabled: canGoBack,
+      height: IconButtonSize.toolbarHeight
+    ) {
       actions?.goBack()
     }
     .overlay(HistoryButtonCatcher(isEnabled: canGoBack, makeMenu: { actions?.historyMenu(.back) }))
     .accessibilityIdentifier("clair.back")
     .toolbarRole(.leading(first))
-    IconButton(systemImage: "arrow.right", help: "Go forward", shortcut: ["⌘", "]"], isEnabled: canGoForward) {
+    IconButton(
+      systemImage: "arrow.right", help: "Go forward", shortcut: ["⌘", "]"], isEnabled: canGoForward,
+      height: IconButtonSize.toolbarHeight
+    ) {
       actions?.goForward()
     }
     .overlay(HistoryButtonCatcher(isEnabled: canGoForward, makeMenu: { actions?.historyMenu(.forward) }))
@@ -178,7 +177,8 @@ struct PageToolbar: View {
     if arrangement.reload != nil {
       IconButton(
         help: isLoading ? "Stop loading this page" : "Reload this page",
-        shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: tab != nil && reloadStop.isEnabled
+        shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: tab != nil && reloadStop.isEnabled,
+        height: IconButtonSize.toolbarHeight
       ) {
         actions?.reloadOrStop()
       } label: {
@@ -222,7 +222,7 @@ struct PageToolbar: View {
     @Bindable var model = model
     return IconButton(
       systemImage: "slider.horizontal.2.square", help: "Site Control Center", isEnabled: enabled,
-      glyphSize: URLFieldButton.siteControlsGlyphSize, glyphWeight: .regular
+      height: IconButtonSize.toolbarHeight, glyphSize: URLFieldButton.siteControlsGlyphSize, glyphWeight: .regular
     ) {
       model.isSiteControlCenterOpen = true
     }
