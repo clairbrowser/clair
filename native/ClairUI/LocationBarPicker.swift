@@ -131,7 +131,7 @@ struct LayoutThumbnail: View {
       glyph("arrow.right", at: CGPoint(x: reloadX - pitch, y: y))
       glyph("arrow.clockwise", at: CGPoint(x: reloadX, y: y))
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color.primary.opacity(0.22))
+        .fill(Color.primary.opacity(0.15))
         .frame(width: width - 16, height: 38)
         .offset(x: 8, y: 46)
       Capsule().fill(Color.secondary.opacity(0.22))
