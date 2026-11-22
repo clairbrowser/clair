@@ -35,6 +35,8 @@ enum LocationBarChoice: String, CaseIterable {
 struct LayoutThumbnail: View {
   let choice: LocationBarChoice
 
+  @Environment(\.colorScheme) private var colorScheme
+
   /// The part of the window it shows, in points from the top-left corner:
   /// wide enough for the toolbar's reload.
   static let viewport = CGSize(width: 404, height: 258)
@@ -131,7 +133,8 @@ struct LayoutThumbnail: View {
       glyph("arrow.right", at: CGPoint(x: reloadX - pitch, y: y))
       glyph("arrow.clockwise", at: CGPoint(x: reloadX, y: y))
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color.primary.opacity(0.15))
+        // A little stronger in Dark Mode, where it would otherwise fade.
+        .fill(Color.primary.opacity(colorScheme == .dark ? 0.2 : 0.15))
         .frame(width: width - 16, height: 38)
         .offset(x: 8, y: 46)
       Capsule().fill(Color.secondary.opacity(0.22))
