@@ -24,7 +24,7 @@
   return @"156.0.8078.73-1";
 }
 - (ClairRelaunchBlockers)silentRelaunchBlockers {
-  return ClairRelaunchBlockersIncognitoWindow | ClairRelaunchBlockersCapturingTab;
+  return ClairRelaunchBlockersIncognitoWindow | ClairRelaunchBlockersUnloadPrompt;
 }
 - (void)relaunch {
 }

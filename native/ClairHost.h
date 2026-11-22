@@ -44,17 +44,24 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Why relaunching Clair now, without asking, would interrupt the user. Each
-// set bit is one reason; none set means a silent relaunch is safe.
+// set bit is one reason; none set means a silent relaunch is safe. The reasons
+// and values are Chromium's `smart_restart::RestartabilityState::
+// SmartRestartStateFactor`, which the host returns as they are; a bit Chromium
+// adds later passes through unnamed.
 typedef NS_OPTIONS(NSUInteger, ClairRelaunchBlockers) {
   ClairRelaunchBlockersNone = 0,
+  // An incognito or guest window is open; it doesn't come back after a
+  // relaunch.
+  ClairRelaunchBlockersIncognitoWindow = 1 << 0,
+  // A page the user has interacted with has a `beforeunload` handler, so
+  // quitting could ask "Leave site?".
+  ClairRelaunchBlockersUnloadPrompt = 1 << 1,
   // A download is in progress; quitting would cancel it.
-  ClairRelaunchBlockersDownloadInProgress = 1 << 0,
-  // An incognito window is open; it doesn't come back after a relaunch.
-  ClairRelaunchBlockersIncognitoWindow = 1 << 1,
-  // A tab is playing sound.
-  ClairRelaunchBlockersAudibleTab = 1 << 2,
-  // A tab is capturing the camera, microphone or screen.
-  ClairRelaunchBlockersCapturingTab = 1 << 3,
+  ClairRelaunchBlockersDownloadInProgress = 1 << 2,
+  // Audio is playing.
+  ClairRelaunchBlockersAudioPlaying = 1 << 3,
+  // A web app window is open.
+  ClairRelaunchBlockersAppWindow = 1 << 4,
 } NS_SWIFT_NAME(RelaunchBlockers);
 
 // A tab's ID: Chromium's tab handle, stable for the tab's lifetime and never
