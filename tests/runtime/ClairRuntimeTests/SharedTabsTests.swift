@@ -164,7 +164,9 @@ final class SharedTabsTests: NativeWindowTestCase {
     XCTAssertEqual(windowA.activeRow, "Counter a", "A doesn't keep the tab's row highlighted")
     XCTAssertEqual(windowA.urlField.label, "Search or Enter URL…", "A's URL field isn't empty")
     XCTAssertFalse(windowA.element("clair.back").isEnabled, "A's back button is on")
-    XCTAssertFalse(windowA.element("clair.reload").isEnabled, "A's reload button is on")
+    // A narrow window's toolbar leaves reload out (add-page-toolbar D4).
+    let reload = windowA.element("clair.reload")
+    XCTAssertFalse(reload.exists && reload.isEnabled, "A's reload button is on")
     XCTAssertFalse(windowA.element("clair.forward").isEnabled, "A's forward button is on")
 
     // A click in A takes it back; B keeps the still now.

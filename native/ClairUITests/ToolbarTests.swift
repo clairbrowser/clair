@@ -347,12 +347,11 @@ struct ToolbarPopupPlacementTests {
       placement: .topTrailing(corner)
     ) { dismissals += 1 }
     popup.present()
+    // Where the placement puts it on this screen, which may move it to stay
+    // on screen.
     let screenCorner = parent.convertPoint(toScreen: corner)
     let visible = try #require(parent.screen ?? NSScreen.main).visibleFrame
-    if visible.insetBy(dx: 8, dy: 8).contains(NSRect(x: screenCorner.x - 260, y: screenCorner.y - 260, width: 260, height: 260)) {
-      #expect(popup.frame.maxX == screenCorner.x)
-      #expect(popup.frame.maxY == screenCorner.y)
-    }
+    #expect(popup.frame == ExtensionPopupWindow.frame(size: popup.frame.size, topTrailing: screenCorner, visible: visible))
     popup.dismiss()
     #expect(dismissals == 1)
   }
