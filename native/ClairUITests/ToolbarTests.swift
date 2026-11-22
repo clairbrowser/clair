@@ -464,3 +464,26 @@ struct LocationBarPickerTests {
     #expect(height > 2 * thumbnail)
   }
 }
+
+/// Every toolbar button but the link is Arc's 32 × 24 (add-page-toolbar): the
+/// shared `IconButton` at the toolbar's height.
+@MainActor struct ToolbarButtonSizeTests {
+  private func size(of view: some View) -> CGSize {
+    NSHostingView(rootView: view).fittingSize
+  }
+
+  @Test func toolbarButtonsAreArcsSize() {
+    let button = IconButton(systemImage: "arrow.clockwise", help: "Reload", height: IconButtonSize.toolbarHeight) {}
+    #expect(size(of: button) == CGSize(width: 32, height: 24))
+  }
+
+  @Test func theLinkIsAsTallAsTheOthers() {
+    let link = IconButton(systemImage: "link", help: "Copy URL", size: 22, height: IconButtonSize.toolbarHeight) {}
+    #expect(size(of: link) == CGSize(width: 22, height: 24))
+  }
+
+  @Test func sidebarButtonsStaySquare() {
+    #expect(size(of: IconButton(systemImage: "arrow.clockwise", help: "Reload") {}) == CGSize(width: 32, height: 32))
+    #expect(size(of: IconButton(systemImage: "link", help: "Copy URL", size: IconButtonSize.small) {}) == CGSize(width: 28, height: 28))
+  }
+}

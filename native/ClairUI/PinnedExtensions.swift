@@ -98,22 +98,40 @@ struct PinnedExtensionsLayout: Layout {
   }
 }
 
-/// A pinned extension: a tile with the field's fill, which stretches to share
-/// the row. It stays dimmed and ignores a left click while its action is off
-/// for the tab; its menu still works. In the toolbar it's Arc's: a 16 pt icon
-/// with a rounded highlight only under the pointer (add-page-toolbar D4).
-struct PinnedExtensionTile: View {
-  enum Style {
-    case sidebar
-    case toolbar
-  }
-
-  /// Arc's toolbar tile: about 32 × 28 under the pointer, with a 16 pt icon.
-  static let toolbarSize = CGSize(width: 32, height: 28)
-  static let toolbarIconSize: CGFloat = 16
-
+/// A pinned extension's icon in a square box, its badge at the box's
+/// bottom-trailing corner, and dimmed while its action is off for the tab.
+/// The sidebar's tile and the toolbar's button both draw it.
+struct ExtensionActionGlyph: View {
   let action: any ClairExtensionAction
-  var style = Style.sidebar
+  var iconSize: CGFloat
+  var boxSize: CGFloat
+
+  var body: some View {
+    ExtensionIcon(action: action, size: iconSize)
+      .frame(width: boxSize, height: boxSize)
+      .overlay(alignment: .bottomTrailing) {
+        if !action.badgeText.isEmpty {
+          let background = ExtensionBadgeColors.background(action.badgeBackgroundColor)
+          Text(action.badgeText)
+            .font(.system(size: 8, weight: .regular))
+            .foregroundStyle(
+              Color(
+                nsColor: ExtensionBadgeColors.text(
+                  action.badgeTextColor, background: action.badgeBackgroundColor)))
+            .padding(.horizontal, 3)
+            .background(Color(nsColor: background), in: .capsule)
+            .accessibilityIdentifier("clair.extensionBadge")
+        }
+      }
+      .opacity(action.isEnabled ? 1 : 0.4)
+  }
+}
+
+/// A pinned extension in the sidebar: a tile with the field's fill, which
+/// stretches to share the row. It stays dimmed and ignores a left click while
+/// its action is off for the tab; its menu still works.
+struct PinnedExtensionTile: View {
+  let action: any ClairExtensionAction
   let contextMenu: () -> NSMenu?
   let run: () -> Void
 
@@ -125,27 +143,13 @@ struct PinnedExtensionTile: View {
     Button {
       if action.isEnabled { run() }
     } label: {
-      ExtensionIcon(action: action, size: style == .toolbar ? Self.toolbarIconSize : PinnedExtensionsGrid.iconSize)
-        .frame(width: PinnedExtensionsGrid.tileHeight, height: PinnedExtensionsGrid.tileHeight)
-        .overlay(alignment: .bottomTrailing) {
-          if !action.badgeText.isEmpty {
-            let background = ExtensionBadgeColors.background(action.badgeBackgroundColor)
-            Text(action.badgeText)
-              .font(.system(size: 8, weight: .regular))
-              .foregroundStyle(
-                Color(
-                  nsColor: ExtensionBadgeColors.text(
-                    action.badgeTextColor, background: action.badgeBackgroundColor)))
-              .padding(.horizontal, 3)
-              .background(Color(nsColor: background), in: .capsule)
-              .accessibilityIdentifier("clair.extensionBadge")
-          }
-        }
-        .opacity(action.isEnabled ? 1 : 0.4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(background, in: .rect(cornerRadius: 8, style: .continuous))
-        .contentShape(Rectangle())
-        .contentShape(.focusEffect, .rect(cornerRadius: 8, style: .continuous))
+      ExtensionActionGlyph(
+        action: action, iconSize: PinnedExtensionsGrid.iconSize, boxSize: PinnedExtensionsGrid.tileHeight
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(SidebarFill.field(colorScheme, hovered: isHovered), in: .rect(cornerRadius: 8, style: .continuous))
+      .contentShape(Rectangle())
+      .contentShape(.focusEffect, .rect(cornerRadius: 8, style: .continuous))
     }
     .buttonStyle(.plain)
     .foregroundStyle(IconButtonStyle.grey(isWindowKey: isWindowKey))
@@ -156,11 +160,27 @@ struct PinnedExtensionTile: View {
     .accessibilityValue(action.badgeText)
     .accessibilityIdentifier("clair.extensionAction")
   }
+}
 
-  private var background: Color {
-    switch style {
-    case .sidebar: SidebarFill.field(colorScheme, hovered: isHovered)
-    case .toolbar: isHovered ? SidebarFill.hover(colorScheme) : .clear
+/// A pinned extension in the page toolbar: the toolbar's `IconButton`, as its
+/// other buttons are, with Arc's 16 pt icon (add-page-toolbar D4). The button
+/// stays enabled, so its highlight and menu work while the action is off for
+/// the tab; a left click then does nothing, as the sidebar's tile.
+struct ToolbarExtensionButton: View {
+  let action: any ClairExtensionAction
+  let contextMenu: () -> NSMenu?
+  let run: () -> Void
+
+  static let iconSize: CGFloat = 16
+
+  var body: some View {
+    IconButton(help: action.title, height: IconButtonSize.toolbarHeight) {
+      if action.isEnabled { run() }
+    } label: {
+      ExtensionActionGlyph(action: action, iconSize: Self.iconSize, boxSize: IconButtonSize.toolbarHeight)
     }
+    .overlay(RowClickCatcher(onMiddleClick: {}, menuItems: [], menuProvider: contextMenu))
+    .accessibilityValue(action.badgeText)
+    .accessibilityIdentifier("clair.extensionAction")
   }
 }

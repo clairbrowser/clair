@@ -12,6 +12,9 @@ enum IconButtonSize {
   static let small: CGFloat = 28
   /// The tab row's speaker and close buttons.
   static let tab: CGFloat = 26
+  /// The page toolbar's buttons' height, at `regular`'s width: Arc's toolbar
+  /// buttons and their hover highlight are 32 × 24 (add-page-toolbar).
+  static let toolbarHeight: CGFloat = 24
 }
 
 /// The hover background every sidebar icon button draws: a rounded fill that
@@ -19,6 +22,8 @@ enum IconButtonSize {
 /// label uses it directly, since a menu can't be an `IconButton`.
 struct IconButtonChrome: ViewModifier {
   var size: CGFloat
+  /// The height, when it isn't `size`: the page toolbar's are shorter.
+  var height: CGFloat?
   var cornerRadius: CGFloat = 6
 
   @State private var isHovered = false
@@ -26,7 +31,7 @@ struct IconButtonChrome: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .frame(width: size, height: size)
+      .frame(width: size, height: height ?? size)
       .background(Color.primary.opacity(isHovered && isEnabled ? 0.08 : 0), in: .rect(cornerRadius: cornerRadius))
       .animation(sidebarHoverFade, value: isHovered)
       .contentShape(Rectangle())
@@ -42,6 +47,7 @@ struct IconButton<Label: View>: View {
   var shortcut: [String]
   var isEnabled: Bool
   var size: CGFloat
+  var height: CGFloat?
   var cornerRadius: CGFloat
   /// Whether the glyph dims while the window isn't key. The tab row's buttons
   /// don't: the row has its own inactive styling.
@@ -55,13 +61,14 @@ struct IconButton<Label: View>: View {
 
   init(
     help: String, shortcut: [String] = [], isEnabled: Bool = true, size: CGFloat = IconButtonSize.regular,
-    cornerRadius: CGFloat = 6, dimsWhenInactive: Bool = true, foreground: Color? = nil,
+    height: CGFloat? = nil, cornerRadius: CGFloat = 6, dimsWhenInactive: Bool = true, foreground: Color? = nil,
     action: @escaping () -> Void, @ViewBuilder label: () -> Label
   ) {
     self.help = help
     self.shortcut = shortcut
     self.isEnabled = isEnabled
     self.size = size
+    self.height = height
     self.cornerRadius = cornerRadius
     self.dimsWhenInactive = dimsWhenInactive
     self.foreground = foreground
@@ -71,7 +78,7 @@ struct IconButton<Label: View>: View {
 
   var body: some View {
     Button(action: action) {
-      label.modifier(IconButtonChrome(size: size, cornerRadius: cornerRadius))
+      label.modifier(IconButtonChrome(size: size, height: height, cornerRadius: cornerRadius))
     }
     .buttonStyle(.plain)
     .foregroundStyle(style)
@@ -135,12 +142,13 @@ struct SymbolGlyph: View {
 extension IconButton where Label == SymbolGlyph {
   init(
     systemImage: String, help: String, shortcut: [String] = [], isEnabled: Bool = true,
-    size: CGFloat = IconButtonSize.regular, cornerRadius: CGFloat = 6, glyphSize: CGFloat = 16,
-    glyphWeight: Font.Weight = .medium, dimsWhenInactive: Bool = true, action: @escaping () -> Void
+    size: CGFloat = IconButtonSize.regular, height: CGFloat? = nil, cornerRadius: CGFloat = 6,
+    glyphSize: CGFloat = 16, glyphWeight: Font.Weight = .medium, dimsWhenInactive: Bool = true,
+    foreground: Color? = nil, action: @escaping () -> Void
   ) {
     self.init(
-      help: help, shortcut: shortcut, isEnabled: isEnabled, size: size, cornerRadius: cornerRadius,
-      dimsWhenInactive: dimsWhenInactive, action: action
+      help: help, shortcut: shortcut, isEnabled: isEnabled, size: size, height: height, cornerRadius: cornerRadius,
+      dimsWhenInactive: dimsWhenInactive, foreground: foreground, action: action
     ) {
       SymbolGlyph(systemImage: systemImage, size: glyphSize, weight: glyphWeight)
     }
