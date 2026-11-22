@@ -321,15 +321,17 @@ extension RuntimeTestCase {
 
 /// The waiting update installs after an idle period, unless something would be
 /// interrupted (D4). Nothing here touches the mouse or keyboard except to open
-/// and close the incognito window, since input restarts the idle clock.
+/// and close the incognito window, since input restarts the idle clock. Clicks
+/// in pages go through the DevTools protocol, which the Mac doesn't count as
+/// input.
 @MainActor
 final class IdleInstallTests: RuntimeTestCase {
   private let idleSeconds = 20
 
   override func setUp() async throws {
-    // This waits for the update, three blockers' idle periods and a relaunch,
-    // about seven minutes, past run.sh's default allowance.
-    executionTimeAllowance = 600
+    // This waits for the update, four blockers' idle periods and a relaunch,
+    // about eight minutes, past run.sh's default allowance.
+    executionTimeAllowance = 720
     try await super.setUp()
   }
 
@@ -393,13 +395,25 @@ final class IdleInstallTests: RuntimeTestCase {
     _ = try await URLSession.shared.data(from: finish)
     try await assertStaysRunning(browser, reason: "an audible tab")
 
+    // A page that would ask "Leave site?" (follow-chromium-restart-check D3):
+    // it holds the install rather than asking.
+    let asking = try await browser.open("\(fixture.baseURL)/pages/beforeunload.html")
+    defer { asking.close() }
+    // The page asks only after a click.
+    _ = try await asking.evaluate("document.body.id = 'body'; 1")
+    try await asking.click("body")
+    _ = try await audio.evaluate("stopTone()")
+    try await assertStaysRunning(browser, reason: "a page that would ask before leaving")
+    XCTAssertFalse(browser.ui.buttons["Leave"].exists, "The idle install asked before leaving a page")
+
     // An incognito window.
     browser.ui.activate()
     try require(browser.ui.windows.firstMatch.waitForExistence(timeout: 30), "Clair shows no window")
     browser.ui.typeKey("n", modifierFlags: [.command, .shift])
     let opened = await Harness.wait(for: 30) { browser.ui.windows.count >= 2 }
     try require(opened, "No incognito window opened")
-    _ = try await audio.evaluate("stopTone()")
+    // Its handler stays until the page is left, so the page goes elsewhere.
+    _ = try await asking.evaluate("window.guard = false; location.href = '\(page)'; 1")
     try await assertStaysRunning(browser, reason: "an incognito window")
 
     let process = try browser.runningProcessID()

@@ -60,9 +60,9 @@ struct EntryPointTests {
 
   @Test func layerReachesChromiumOnlyThroughTheHost() {
     let host = FakeHost()
-    host.blockers = [.downloadInProgress, .audibleTab]
+    host.blockers = [.downloadInProgress, .audioPlaying]
     let layer = NativeLayer(host: host)
-    #expect(layer.host.silentRelaunchBlockers() == [.downloadInProgress, .audibleTab])
+    #expect(layer.host.silentRelaunchBlockers() == [.downloadInProgress, .audioPlaying])
     layer.host.relaunch()
     #expect(host.relaunchCount == 1)
   }

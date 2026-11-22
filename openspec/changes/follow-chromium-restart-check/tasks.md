@@ -13,9 +13,9 @@ This change edits `overlay/` and `native/ClairHost.h`, so the engine key changes
 
 ## 2. Runtime test and docs
 
-- [ ] 2.1 In `IdleInstallTests.testIdleInstallWaitsForEveryBlocker`, add a phase for a page that would ask before leaving (D3): open `pages/beforeunload.html`, give it a user gesture through the DevTools protocol (no real input, which would restart the idle clock), start it before the previous phase ends, hold for three idle periods, and stop it with `window.guard = false` before the last phase ends. Check that no "Leave site?" dialog appears while it holds. Raise `executionTimeAllowance` to cover the extra phase. Verify: Quality passes on the branch.
-- [ ] 2.2 Update `docs/updates.md`: the idle install's reasons in "How an update reaches a user" step 5, and the paragraph on "Leave site?" pages, which now hold an idle install instead of stopping it with a dialog. Verify: both read as the spec's requirement does.
-- [ ] 2.3 Add a Changie fragment (`changie new`) for the idle install waiting on pages that would ask before leaving, and no longer on silent captures. Verify that the fragment exists under `.changes/unreleased/`.
+- [ ] 2.1 In `IdleInstallTests.testIdleInstallWaitsForEveryBlocker`, add a phase for a page that would ask before leaving (D3): open `pages/beforeunload.html`, give it a user gesture through the DevTools protocol (no real input, which would restart the idle clock), start it before the previous phase ends, hold for three idle periods, and stop it before the last phase ends by setting `window.guard = false` and leaving the page: Chromium counts a registered handler whatever it would return. Check that no "Leave site?" dialog appears while it holds. Raise `executionTimeAllowance` to cover the extra phase. Verify: Quality passes on the branch.
+- [x] 2.2 Update `docs/updates.md`: the idle install's reasons in "How an update reaches a user" step 5, and the paragraph on "Leave site?" pages, which now hold an idle install instead of stopping it with a dialog. Verify: both read as the spec's requirement does.
+- [x] 2.3 Add a Changie fragment (`changie new`) for the idle install waiting on pages that would ask before leaving, and no longer on silent captures. Verify that the fragment exists under `.changes/unreleased/`.
 
 ## Workflow follow-up
 

@@ -244,7 +244,7 @@ struct UpdateControllerTests {
   /// Chromium's quit flow asks about downloads itself.
   @Test func otherBlockersDontAsk() {
     let updates = controller()
-    host.blockers = [.downloadInProgress, .audibleTab, .capturingTab]
+    host.blockers = [.downloadInProgress, .audioPlaying, .unloadPrompt]
     updates.updateIsWaiting(item, version: "0.1.3", userInitiated: false)
     updates.chooseUpdateItem()
     #expect(prompts.log == ["restart 0.1.3"])
@@ -270,7 +270,7 @@ struct UpdateControllerTests {
 
   @Test func anIdleInstallWaitsForEveryBlocker() {
     let updates = controller()
-    let blockers: [RelaunchBlockers] = [.downloadInProgress, .incognitoWindow, .audibleTab, .capturingTab]
+    let blockers: [RelaunchBlockers] = [.incognitoWindow, .unloadPrompt, .downloadInProgress, .audioPlaying, .appWindow]
     for blocker in blockers {
       host.blockers = blocker
       updates.installWhileIdle()

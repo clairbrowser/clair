@@ -18,7 +18,6 @@
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/process/process.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
@@ -39,17 +38,13 @@
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
+#include "chrome/browser/lifetime/restartability_monitor.h"
 #include "chrome/browser/mac/clair_update_relaunch.h"
-#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
-#include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/web_contents.h"
@@ -158,36 +153,25 @@ ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
 
 - (ClairRelaunchBlockers)silentRelaunchBlockers {
   CHECK([NSThread isMainThread]);
-  ClairRelaunchBlockers blockers = ClairRelaunchBlockersNone;
-  if (DownloadCoreService::BlockingShutdownCountAllProfiles() > 0) {
-    blockers |= ClairRelaunchBlockersDownloadInProgress;
-  }
-  scoped_refptr<MediaStreamCaptureIndicator> capture =
-      MediaCaptureDevicesDispatcher::GetInstance()
-          ->GetMediaStreamCaptureIndicator();
-  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
-      [&](BrowserWindowInterface* browser) {
-        // Incognito and guest windows don't come back after a relaunch.
-        if (browser->GetProfile()->IsOffTheRecord()) {
-          blockers |= ClairRelaunchBlockersIncognitoWindow;
-        }
-        TabStripModel* tabs = browser->GetTabStripModel();
-        for (int i = 0; i < tabs->count(); ++i) {
-          content::WebContents* contents = tabs->GetWebContentsAt(i);
-          if (contents->IsCurrentlyAudible()) {
-            blockers |= ClairRelaunchBlockersAudibleTab;
-          }
-          if (capture && (capture->IsCapturingUserMedia(contents) ||
-                          capture->IsBeingMirrored(contents) ||
-                          capture->IsCapturingTab(contents) ||
-                          capture->IsCapturingWindow(contents) ||
-                          capture->IsCapturingDisplay(contents))) {
-            blockers |= ClairRelaunchBlockersCapturingTab;
-          }
-        }
-        return true;
-      });
-  return blockers;
+  // Chromium's default restart check, which it runs before restarting to
+  // apply an update (follow-chromium-restart-check D1). Its reasons are
+  // ClairRelaunchBlockers' bits; no window open isn't a reason to wait.
+  using Factor = smart_restart::RestartabilityState;
+  static_assert(static_cast<NSUInteger>(ClairRelaunchBlockersIncognitoWindow) ==
+                static_cast<NSUInteger>(Factor::kIncognito));
+  static_assert(static_cast<NSUInteger>(ClairRelaunchBlockersUnloadPrompt) ==
+                static_cast<NSUInteger>(Factor::kBeforeUnloadHandler));
+  static_assert(
+      static_cast<NSUInteger>(ClairRelaunchBlockersDownloadInProgress) ==
+      static_cast<NSUInteger>(Factor::kDownload));
+  static_assert(static_cast<NSUInteger>(ClairRelaunchBlockersAudioPlaying) ==
+                static_cast<NSUInteger>(Factor::kMedia));
+  static_assert(static_cast<NSUInteger>(ClairRelaunchBlockersAppWindow) ==
+                static_cast<NSUInteger>(Factor::kAppWindow));
+  uint32_t factors = smart_restart::RestartabilityMonitor::ComputeCurrentState()
+                         .GetRestartabilityStateFactor();
+  factors &= ~static_cast<uint32_t>(Factor::kTotalBrowserCountZero);
+  return static_cast<ClairRelaunchBlockers>(factors);
 }
 
 - (void)relaunch {
