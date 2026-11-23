@@ -76,6 +76,8 @@ struct Destination {
   // The match it shows, for -deleteSuggestion:. Empty for the empty-query
   // rows, which don't come from the controller.
   std::optional<AutocompleteMatch> match;
+  // The icon of the engine it offers to search with Tab, if any.
+  GURL keyword_icon_url;
 };
 
 }  // namespace
@@ -90,13 +92,16 @@ struct Destination {
 @property(nonatomic) BOOL hasTabMatch;
 @property(nonatomic, copy, nullable) NSString* keyword;
 @property(nonatomic, copy, nullable) NSString* keywordName;
+@property(nonatomic, nullable) NSImage* keywordIcon;
 @property(nonatomic) BOOL canDelete;
 @end
 
 @implementation ClairChromiumSuggestion
 
-// The same suggestion, with the same ID, showing `icon`.
-- (ClairChromiumSuggestion*)suggestionWithIcon:(NSImage*)icon {
+// The same suggestion, with the same ID, showing `icon` and offering its
+// engine with `keywordIcon`.
+- (ClairChromiumSuggestion*)suggestionWithIcon:(NSImage*)icon
+                                   keywordIcon:(NSImage*)keywordIcon {
   ClairChromiumSuggestion* suggestion = [[ClairChromiumSuggestion alloc] init];
   suggestion.suggestionID = _suggestionID;
   suggestion.kind = _kind;
@@ -107,6 +112,7 @@ struct Destination {
   suggestion.hasTabMatch = _hasTabMatch;
   suggestion.keyword = _keyword;
   suggestion.keywordName = _keywordName;
+  suggestion.keywordIcon = keywordIcon;
   suggestion.canDelete = _canDelete;
   return suggestion;
 }
@@ -173,6 +179,8 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   BOOL _stopped;
   NSString* _keyword;
   NSString* _keywordName;
+  NSImage* _keywordIcon;
+  GURL _keywordIconURL;
   NSArray<id<ClairSuggestion>>* _lastSuggestions;
   BOOL _lastFinished;
   // The rows' favicons, as the omnibox keeps them: cached ones come back at
@@ -180,6 +188,8 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   std::unique_ptr<FaviconCache> _favicons;
   // Favicons that arrived since the rows were last published, by page URL.
   std::map<GURL, gfx::Image> _arrivedFavicons;
+  // Search engines' icons that arrived since then, by icon URL.
+  std::map<GURL, gfx::Image> _arrivedEngineIcons;
   BOOL _faviconsPending;
 }
 
@@ -235,7 +245,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
 }
 
 - (NSImage*)keywordIcon {
-  return nil;
+  return _keywordIcon;
 }
 
 - (const Destination*)destinationOf:(NSInteger)suggestionID {
@@ -244,30 +254,50 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   return found == _destinations.end() ? nullptr : &found->second;
 }
 
-// Republishes the rows with the favicons that arrived, keeping their IDs,
-// which tells ClairUI that only icons changed.
+// Republishes the rows with the favicons and engine icons that arrived,
+// keeping their IDs, which tells ClairUI that only icons changed.
 - (void)showArrivedFavicons {
   _faviconsPending = NO;
   std::map<GURL, gfx::Image> arrived;
   arrived.swap(_arrivedFavicons);
+  std::map<GURL, gfx::Image> arrivedEngineIcons;
+  arrivedEngineIcons.swap(_arrivedEngineIcons);
   if (_stopped) {
     return;
   }
-  NSMutableArray<id<ClairSuggestion>>* suggestions = [NSMutableArray array];
   BOOL changed = NO;
+  // The engine in keyword mode, which ClairUI reads on the next update.
+  if (_keyword && !_keywordIcon) {
+    if (auto found = arrivedEngineIcons.find(_keywordIconURL);
+        found != arrivedEngineIcons.end()) {
+      _keywordIcon = found->second.AsNSImage();
+      changed = YES;
+    }
+  }
+  NSMutableArray<id<ClairSuggestion>>* suggestions = [NSMutableArray array];
   for (id<ClairSuggestion> item in _lastSuggestions) {
     ClairChromiumSuggestion* suggestion = (ClairChromiumSuggestion*)item;
     const Destination* destination = [self destinationOf:suggestion.suggestionID];
-    auto found = suggestion.icon || suggestion.kind == ClairSuggestionKindSearch ||
-                         suggestion.kind == ClairSuggestionKindBookmark ||
-                         !destination
-                     ? arrived.end()
-                     : arrived.find(destination->url);
-    if (found == arrived.end()) {
+    NSImage* icon = suggestion.icon;
+    NSImage* keywordIcon = suggestion.keywordIcon;
+    if (destination && !icon && suggestion.kind != ClairSuggestionKindSearch &&
+        suggestion.kind != ClairSuggestionKindBookmark) {
+      if (auto found = arrived.find(destination->url); found != arrived.end()) {
+        icon = found->second.AsNSImage();
+      }
+    }
+    if (destination && !keywordIcon && suggestion.keyword) {
+      if (auto found = arrivedEngineIcons.find(destination->keyword_icon_url);
+          found != arrivedEngineIcons.end()) {
+        keywordIcon = found->second.AsNSImage();
+      }
+    }
+    if (icon == suggestion.icon && keywordIcon == suggestion.keywordIcon) {
       [suggestions addObject:suggestion];
       continue;
     }
-    [suggestions addObject:[suggestion suggestionWithIcon:found->second.AsNSImage()]];
+    [suggestions addObject:[suggestion suggestionWithIcon:icon
+                                              keywordIcon:keywordIcon]];
     changed = YES;
   }
   if (changed) {
@@ -275,13 +305,8 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   }
 }
 
-// Collects the favicons that arrive in one turn of the run loop, and then
-// shows them in a single update.
-- (void)favicon:(const gfx::Image&)favicon arrivedForPageURL:(const GURL&)url {
-  if (_stopped || favicon.IsEmpty()) {
-    return;
-  }
-  _arrivedFavicons[url] = favicon;
+// Shows the icons that arrive in one turn of the run loop in a single update.
+- (void)scheduleArrivedFavicons {
   if (_faviconsPending) {
     return;
   }
@@ -291,6 +316,40 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
       FROM_HERE, base::BindOnce(^{
         [weakSelf showArrivedFavicons];
       }));
+}
+
+- (void)favicon:(const gfx::Image&)favicon arrivedForPageURL:(const GURL&)url {
+  if (_stopped || favicon.IsEmpty()) {
+    return;
+  }
+  _arrivedFavicons[url] = favicon;
+  [self scheduleArrivedFavicons];
+}
+
+- (void)engineIcon:(const gfx::Image&)icon arrivedForIconURL:(const GURL&)url {
+  if (_stopped || icon.IsEmpty()) {
+    return;
+  }
+  _arrivedEngineIcons[url] = icon;
+  [self scheduleArrivedFavicons];
+}
+
+// A search engine's icon from the profile's favicon database, as the omnibox
+// shows it for keyword search, or nil. One not cached yet is fetched, and
+// shows when it arrives; an engine whose site was never visited has none.
+- (NSImage*)iconForEngineIconURL:(const GURL&)iconURL {
+  if (!_favicons || !iconURL.is_valid()) {
+    return nil;
+  }
+  const GURL url = iconURL;
+  ClairChromiumAutocomplete* __weak weakSelf = self;
+  const gfx::Image cached = _favicons->GetFaviconForIconUrl(
+      iconURL,
+      base::BindOnce(^(const gfx::Image& icon) {
+        [weakSelf engineIcon:icon arrivedForIconURL:url];
+      }),
+      /*notify_on_empty=*/false);
+  return cached.IsEmpty() ? nil : cached.AsNSImage();
 }
 
 // The page's favicon from the profile's favicon database, or nil. One not
@@ -372,12 +431,16 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
               : nullptr;
   _keyword = keyword;
   _keywordName = engine ? base::SysUTF16ToNSString(engine->short_name()) : keyword;
+  _keywordIconURL = engine ? engine->favicon_url() : GURL();
+  _keywordIcon = [self iconForEngineIconURL:_keywordIconURL];
   [self queryText:text];
 }
 
 - (void)clearKeywordWithText:(NSString*)text {
   _keyword = nil;
   _keywordName = nil;
+  _keywordIcon = nil;
+  _keywordIconURL = GURL();
   [self queryText:text];
 }
 
@@ -510,6 +573,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
         suggestion.kind != ClairSuggestionKindBookmark) {
       suggestion.icon = [self faviconForPageURL:match.destination_url];
     }
+    GURL keywordIconURL;
     if (!match.associated_keyword.empty()) {
       suggestion.keyword = base::SysUTF16ToNSString(match.associated_keyword);
       TemplateURL* engine =
@@ -518,11 +582,16 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
       suggestion.keywordName =
           engine ? base::SysUTF16ToNSString(engine->short_name())
                  : suggestion.keyword;
+      // command-bar spec, "Site search keywords": the engine's icon.
+      if (engine) {
+        keywordIconURL = engine->favicon_url();
+        suggestion.keywordIcon = [self iconForEngineIconURL:keywordIconURL];
+      }
     }
     suggestion.canDelete = match.SupportsDeletion();
     suggestion.suggestionID = [self
         rememberDestination:Destination{match.destination_url, match.transition,
-                                        nullptr, match}];
+                                        nullptr, match, keywordIconURL}];
     [suggestions addObject:suggestion];
   }
   [self publish:suggestions finished:_controller->done()];
@@ -655,6 +724,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   _controller.reset();
   _favicons.reset();
   _arrivedFavicons.clear();
+  _arrivedEngineIcons.clear();
   _delegate = nil;
 }
 

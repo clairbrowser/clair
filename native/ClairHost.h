@@ -737,6 +737,10 @@ NS_SWIFT_NAME(ClairSuggestion)
 @property(nonatomic, readonly, copy, nullable) NSString *keyword;
 // That engine's name, such as "Wikipedia", or nil.
 @property(nonatomic, readonly, copy, nullable) NSString *keywordName;
+// That engine's icon, which the field shows while its search is offered, or
+// nil when the profile has none for it (yet: one that loads later comes in a
+// new update of the same suggestions).
+@property(nonatomic, readonly, nullable) NSImage *keywordIcon;
 // Whether -deleteSuggestion: can delete it, such as a page from history or
 // an earlier search. Always NO in the empty-query list.
 @property(nonatomic, readonly) BOOL canDelete;
@@ -852,7 +856,8 @@ NS_SWIFT_UI_ACTOR
 NS_SWIFT_NAME(ClairAutocomplete)
 @protocol ClairAutocomplete <NSObject>
 // The search engine in keyword mode, after -acceptKeywordOfSuggestion:, or
-// nil. Its name and icon show in the field.
+// nil. Its name and icon show in the field. An icon that loads later comes
+// with a new update of the suggestions.
 @property(nonatomic, readonly, copy, nullable) NSString *keyword;
 @property(nonatomic, readonly, copy, nullable) NSString *keywordName;
 @property(nonatomic, readonly, nullable) NSImage *keywordIcon;

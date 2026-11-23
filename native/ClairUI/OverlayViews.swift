@@ -46,9 +46,20 @@ struct CommandBarView: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
-        Image(systemName: "magnifyingglass")
-          .font(.system(size: 16, weight: .regular))
-          .frame(width: 18, height: 18)
+        // The engine's icon replaces the magnifier while its search is
+        // offered and in keyword mode, as in Arc.
+        if let icon = model.fieldIcon {
+          Image(nsImage: icon)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: 16, height: 16)
+            .frame(width: 18, height: 18)
+            .accessibilityIdentifier("clair.commandBarEngineIcon")
+        } else {
+          Image(systemName: "magnifyingglass")
+            .font(.system(size: 16, weight: .regular))
+            .frame(width: 18, height: 18)
+        }
         if let keywordName = model.keywordName {
           Text(keywordName)
             .font(.system(size: 13, weight: .semibold))

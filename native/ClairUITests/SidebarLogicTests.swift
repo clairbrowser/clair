@@ -274,6 +274,47 @@ struct CommandBarTests {
     #expect(model.text == "wiki")
   }
 
+  /// As in Arc, the engine's icon replaces the magnifier while its search is
+  /// offered and in keyword mode (command-bar spec, "Site search keywords").
+  @Test func fieldShowsTheOfferedEnginesIcon() {
+    let icon = NSImage(size: NSSize(width: 16, height: 16))
+    let rows = [
+      FakeSuggestion(id: 1, kind: .URL, contents: "wiki", destination: "https://wiki/"),
+      FakeSuggestion(
+        id: 2, kind: .search, contents: "wiki", destination: "https://search.example/?q=wiki", keyword: "wiki",
+        keywordName: "Wikipedia", keywordIcon: icon),
+    ]
+    let (browser, model, _) = open(.newTab)
+    model.setText("wiki")
+    browser.autocomplete?.post(rows)
+    #expect(model.fieldIcon == nil)
+    model.moveSelection(by: 1)
+    #expect(model.fieldIcon === icon)
+    #expect(model.acceptKeyword())
+    #expect(model.fieldIcon === icon)
+    model.setText("")
+    #expect(model.deleteBackwardInEmptyField())
+    // The field reads "wiki" again, so its search is offered again.
+    #expect(model.keywordIcon == nil)
+    #expect(model.fieldIcon === icon)
+    browser.autocomplete?.post([rows[0]])
+    #expect(model.fieldIcon == nil)
+  }
+
+  /// An engine icon that loads after Tab shows when the session next reports.
+  @Test func keywordModeIconArrivesLater() {
+    let (browser, model, _) = open(.newTab)
+    model.setText("wiki")
+    browser.autocomplete?.post(suggestions)
+    model.moveSelection(by: 2)
+    #expect(model.acceptKeyword())
+    #expect(model.fieldIcon == nil)
+    let icon = NSImage(size: NSSize(width: 16, height: 16))
+    browser.autocomplete?.keywordIcon = icon
+    browser.autocomplete?.post([])
+    #expect(model.fieldIcon === icon)
+  }
+
   @Test func tabWithoutAKeywordDoesNothing() {
     let (browser, model, _) = open(.newTab)
     browser.autocomplete?.post(suggestions)
