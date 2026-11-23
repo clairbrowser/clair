@@ -86,15 +86,16 @@ enum PinsLogic {
     return pins.filter { $0.tabID != ClairTabIDNone && $0.tabID == highlighted }
   }
 
-  /// Whether the divider shows: while the Space has Today tabs.
-  static func showsDivider(todayRowCount: Int) -> Bool {
-    todayRowCount > 0
+  /// Whether the divider shows: while the Space has Today tabs, in a window
+  /// with a pinned section (not incognito or guest ones).
+  static func showsDivider(todayRowCount: Int, showsPins: Bool) -> Bool {
+    showsPins && todayRowCount > 0
   }
 
   /// Whether Clear shows on the divider: while the pointer is over the
-  /// sidebar and there are Today tabs.
-  static func showsClear(todayRowCount: Int, isSidebarHovered: Bool) -> Bool {
-    isSidebarHovered && showsDivider(todayRowCount: todayRowCount)
+  /// sidebar and the divider shows.
+  static func showsClear(todayRowCount: Int, showsPins: Bool, isSidebarHovered: Bool) -> Bool {
+    isSidebarHovered && showsDivider(todayRowCount: todayRowCount, showsPins: showsPins)
   }
 
   // MARK: Tab names (tab-names spec)

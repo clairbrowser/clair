@@ -404,7 +404,7 @@ struct CommandBarDeletionTests {
 /// well as the list's height.
 struct TabListOverflowTests {
   private func rows(_ tabs: Int, pins: Int = 0) -> CGFloat {
-    TabList.rowsHeight(pinCount: pins, tabCount: tabs)
+    TabList.rowsHeight(pinCount: pins, tabCount: tabs, showsPins: true)
   }
 
   @Test func followsTheTabCountAtAFixedHeight() {
@@ -430,6 +430,21 @@ struct TabListOverflowTests {
     #expect(rows(2) == TabRow.pitch * 3 + TodayDivider.height)
     #expect(rows(0) == TabRow.pitch)
     #expect(!TabList.overflows(height: TabList.contentHeight(rows: rows(2)), rows: rows(2)))
+  }
+
+  @Test func countsNoDividerWithoutAPinnedSection() {
+    #expect(TabList.rowsHeight(pinCount: 0, tabCount: 2, showsPins: false) == TabRow.pitch * 3)
+  }
+
+  @Test func expandingSlidesOnlyAListThatFits() {
+    let expanded = rows(3, pins: 2)
+    let room = TabList.contentHeight(rows: expanded)
+    #expect(TabList.revealHeight(hiddenPins: 2, expandedRows: expanded, room: room) == TabRow.pitch * 2)
+    // A list that will scroll, scrolled or not, expands at once: sliding it
+    // would leave a gap at its bottom or move rows the user isn't looking at.
+    #expect(TabList.revealHeight(hiddenPins: 2, expandedRows: expanded, room: room - 20) == 0)
+    // Not laid out yet.
+    #expect(TabList.revealHeight(hiddenPins: 2, expandedRows: expanded, room: 0) == 0)
   }
 
   @Test func notBeforeTheListIsLaidOut() {
