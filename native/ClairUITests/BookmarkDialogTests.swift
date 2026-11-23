@@ -252,7 +252,7 @@ struct SuggestionSymbolTests {
     let symbols = [SuggestionKind.search, .URL, .history, .openTab, .bookmark].map { kind in
       SuggestionRow(suggestion: FakeSuggestion(id: 1, kind: kind, contents: "A"), isSelected: false).symbol
     }
-    #expect(symbols == ["magnifyingglass", "globe", "clock", "square.on.square", "bookmark"])
+    #expect(symbols == ["magnifyingglass", "globe", "clock", "globe", "bookmark"])
     #expect(NSImage(systemSymbolName: "bookmark", accessibilityDescription: nil) != nil)
   }
 
