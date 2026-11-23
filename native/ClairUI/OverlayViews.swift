@@ -47,12 +47,12 @@ struct CommandBarView: View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
         // The engine's icon replaces the magnifier while its search is
-        // offered and in keyword mode, as in Arc.
+        // offered and in keyword mode, as in Arc, which draws it in the
+        // magnifier's place about 1.15 times its rows' favicons.
         if let icon = model.fieldIcon {
           Image(nsImage: icon)
             .resizable()
             .interpolation(.high)
-            .frame(width: 16, height: 16)
             .frame(width: 18, height: 18)
             .accessibilityIdentifier("clair.commandBarEngineIcon")
         } else {
