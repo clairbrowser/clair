@@ -1,0 +1,3 @@
+kind: Changed
+body: New profiles search with Google and show its suggestions as you type, in place of ungoogled-chromium's No Search. Choose another search engine in chrome://settings/search, and turn suggestions off with "Autocomplete searches and URLs" in chrome://settings/syncSetup
+time: 2026-11-22T22:17:47.489076-05:00

@@ -161,10 +161,23 @@ final class Browser {
     return launchArguments
   }
 
-  /// Starts Clair and waits until it answers over DevTools.
+  /// The default profile's preferences file.
+  var preferencesFile: URL { dataDirectory.appending(path: "Default/Preferences") }
+
+  /// Starts Clair and waits until it answers over DevTools. Unless
+  /// `searchSuggestions` is set, a profile Clair hasn't created yet starts
+  /// with search suggestions off, so the command bar's rows don't depend on
+  /// Google (restore-google-search, task 3.1).
   func start(
-    feed: String? = nil, idleSeconds: Int = 3600, arguments: [String] = []
+    feed: String? = nil, idleSeconds: Int = 3600, arguments: [String] = [],
+    searchSuggestions: Bool = false
   ) async throws {
+    if !searchSuggestions, !FileManager.default.fileExists(atPath: preferencesFile.path) {
+      try FileManager.default.createDirectory(
+        at: preferencesFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+      let preferences = ["search": ["suggest_enabled": false]]
+      try JSONSerialization.data(withJSONObject: preferences).write(to: preferencesFile)
+    }
     ui.launchArguments = try launchArguments() + arguments
     ui.launchEnvironment["CLAIR_TEST_UPDATE_IDLE_SECONDS"] = String(idleSeconds)
     if let feed {
@@ -450,16 +463,7 @@ final class DevToolsSession {
     do {
       try await task.send(.string(String(decoding: data, as: UTF8.self)))
       while true {
-        let reply = try await task.receive()
-        let text: Data
-        switch reply {
-        case .string(let string): text = Data(string.utf8)
-        case .data(let data): text = data
-        @unknown default: continue
-        }
-        guard let object = try JSONSerialization.jsonObject(with: text) as? [String: Any],
-          object["id"] as? Int == id
-        else {
+        guard let object = try await receiveMessage(), object["id"] as? Int == id else {
           continue
         }
         if let error = object["error"] as? [String: Any] {
@@ -470,6 +474,46 @@ final class DevToolsSession {
     } catch is URLError, is CancellationError {
       throw HarnessError("\(method) got no reply within \(Self.replyAllowance)")
     }
+  }
+
+  /// Waits for the next `method` event whose parameters satisfy `condition`,
+  /// and returns them. It reads the events that arrived since the last
+  /// command, in order, so enable their domain first and send no command
+  /// while they're expected: a command's wait skips them. Past `allowance`,
+  /// it cancels the connection, as a command's wait does.
+  func waitForEvent(
+    _ method: String, within allowance: Duration = .seconds(30),
+    where condition: ([String: Any]) -> Bool = { _ in true }
+  ) async throws -> [String: Any] {
+    let task = task
+    let watchdog = Task {
+      try await Task.sleep(for: allowance)
+      task.cancel(with: .goingAway, reason: nil)
+    }
+    defer { watchdog.cancel() }
+    do {
+      while true {
+        guard let object = try await receiveMessage(), object["method"] as? String == method,
+          let parameters = object["params"] as? [String: Any], condition(parameters)
+        else {
+          continue
+        }
+        return parameters
+      }
+    } catch is URLError, is CancellationError {
+      throw HarnessError("No matching \(method) event within \(allowance)")
+    }
+  }
+
+  /// The next message, decoded, or nil for one that isn't a JSON object.
+  private func receiveMessage() async throws -> [String: Any]? {
+    let text: Data
+    switch try await task.receive() {
+    case .string(let string): text = Data(string.utf8)
+    case .data(let data): text = data
+    @unknown default: return nil
+    }
+    return try JSONSerialization.jsonObject(with: text) as? [String: Any]
   }
 
   /// Navigates and waits until the document has loaded.
