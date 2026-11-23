@@ -206,9 +206,10 @@ struct PinsLogicTests {
   }
 
   @Test func sidebarDragsCarryTextOfTheirOwnType() {
-    // Data alone would make a list row's drag a file promise, which the
-    // favorites don't accept; a page's plain text isn't of this type.
-    #expect(SidebarDragItem.type.conforms(to: .utf8PlainText))
+    // The app's Info.plist declares the type as text (package.sh, checked by
+    // package.test.sh); a test host doesn't, so only this holds here: a
+    // page's plain text isn't of the type.
+    #expect(SidebarDragItem.type.identifier == "dev.joshuapark.clair.sidebar-item")
     #expect(!UTType.utf8PlainText.conforms(to: SidebarDragItem.type))
     #expect(SidebarDragItem(payload: SidebarDragItem.tab(7).payload) == .tab(7))
     #expect(SidebarDragItem(payload: SidebarDragItem.pin("p").payload) == .pin("p"))
