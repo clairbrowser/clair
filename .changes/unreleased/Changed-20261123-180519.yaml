@@ -1,0 +1,3 @@
+kind: Changed
+body: A pinned tab's menu no longer has Remove Pin, which sat beside Unpin Tab. The × over a pinned tab still removes it
+time: 2026-11-23T18:05:19.551677-05:00

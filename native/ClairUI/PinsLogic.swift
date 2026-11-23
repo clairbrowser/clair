@@ -243,7 +243,6 @@ enum PinsLogic {
     case unpin
     case closeTab
     case closeTabsBelow
-    case removePin
     case removeFavorite
   }
 
@@ -292,7 +291,6 @@ enum PinsLogic {
       nil,
       MenuItem(title: "Pin to Favorites", command: .pinToFavorites),
       MenuItem(title: "Unpin Tab", command: .unpin),
-      MenuItem(title: "Remove Pin", command: .removePin),
     ]
     return items
   }
