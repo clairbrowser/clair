@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <vector>
 
 #include "base/functional/bind.h"
@@ -16,6 +17,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/strings/strcat.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/cancelable_task_tracker.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
@@ -38,6 +40,8 @@
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/favicon/content/content_favicon_driver.h"
+#include "components/favicon/core/favicon_service.h"
+#include "components/favicon_base/favicon_types.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/top_sites.h"
 #include "components/keyed_service/core/service_access_type.h"
@@ -76,8 +80,9 @@ struct Destination {
   // The match it shows, for -deleteSuggestion:. Empty for the empty-query
   // rows, which don't come from the controller.
   std::optional<AutocompleteMatch> match;
-  // The icon of the engine it offers to search with Tab, if any.
-  GURL keyword_icon_url;
+  // The site of the engine it offers to search with Tab, which keys its
+  // icon, if any.
+  GURL keyword_site;
 };
 
 }  // namespace
@@ -180,7 +185,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   NSString* _keyword;
   NSString* _keywordName;
   NSImage* _keywordIcon;
-  GURL _keywordIconURL;
+  GURL _keywordSite;
   NSArray<id<ClairSuggestion>>* _lastSuggestions;
   BOOL _lastFinished;
   // The rows' favicons, as the omnibox keeps them: cached ones come back at
@@ -188,8 +193,15 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   std::unique_ptr<FaviconCache> _favicons;
   // Favicons that arrived since the rows were last published, by page URL.
   std::map<GURL, gfx::Image> _arrivedFavicons;
-  // Search engines' icons that arrived since then, by icon URL.
+  // Search engines' icons that arrived since then, by site.
   std::map<GURL, gfx::Image> _arrivedEngineIcons;
+  // Search engines' icons found this session, by site, and the sites whose
+  // icon was looked up.
+  std::map<GURL, gfx::Image> _engineIcons;
+  std::set<GURL> _engineIconLookups;
+  // For looking up an engine's icon by its site's host.
+  favicon::FaviconService* _faviconService;
+  std::unique_ptr<base::CancelableTaskTracker> _faviconTracker;
   BOOL _faviconsPending;
 }
 
@@ -212,9 +224,11 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
       _controller->AddObserver(_observer.get());
       // Read-only, so an incognito window shows the favicons its regular
       // profile has, as the omnibox does, and records nothing.
+      _faviconService = FaviconServiceFactory::GetForProfile(
+          profile, ServiceAccessType::EXPLICIT_ACCESS);
+      _faviconTracker = std::make_unique<base::CancelableTaskTracker>();
       _favicons = std::make_unique<FaviconCache>(
-          FaviconServiceFactory::GetForProfile(
-              profile, ServiceAccessType::EXPLICIT_ACCESS),
+          _faviconService,
           HistoryServiceFactory::GetForProfile(
               profile, ServiceAccessType::EXPLICIT_ACCESS));
     }
@@ -268,7 +282,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   BOOL changed = NO;
   // The engine in keyword mode, which ClairUI reads on the next update.
   if (_keyword && !_keywordIcon) {
-    if (auto found = arrivedEngineIcons.find(_keywordIconURL);
+    if (auto found = arrivedEngineIcons.find(_keywordSite);
         found != arrivedEngineIcons.end()) {
       _keywordIcon = found->second.AsNSImage();
       changed = YES;
@@ -287,7 +301,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
       }
     }
     if (destination && !keywordIcon && suggestion.keyword) {
-      if (auto found = arrivedEngineIcons.find(destination->keyword_icon_url);
+      if (auto found = arrivedEngineIcons.find(destination->keyword_site);
           found != arrivedEngineIcons.end()) {
         keywordIcon = found->second.AsNSImage();
       }
@@ -326,30 +340,72 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   [self scheduleArrivedFavicons];
 }
 
-- (void)engineIcon:(const gfx::Image&)icon arrivedForIconURL:(const GURL&)url {
-  if (_stopped || icon.IsEmpty()) {
+- (void)engineIcon:(const gfx::Image&)icon arrivedForSite:(const GURL&)site {
+  // The first one found wins: the icon by URL and the host's may both come.
+  if (_stopped || icon.IsEmpty() || _engineIcons.contains(site)) {
     return;
   }
-  _arrivedEngineIcons[url] = icon;
+  _engineIcons[site] = icon;
+  _arrivedEngineIcons[site] = icon;
   [self scheduleArrivedFavicons];
 }
 
-// A search engine's icon from the profile's favicon database, as the omnibox
-// shows it for keyword search, or nil. One not cached yet is fetched, and
-// shows when it arrives; an engine whose site was never visited has none.
-- (NSImage*)iconForEngineIconURL:(const GURL&)iconURL {
-  if (!_favicons || !iconURL.is_valid()) {
+// The site that keys `engine`'s icon: its search page's origin.
+- (GURL)siteOfEngine:(const TemplateURL*)engine {
+  TemplateURLService* service =
+      self.profile ? TemplateURLServiceFactory::GetForProfile(self.profile)
+                   : nullptr;
+  if (!engine || !service) {
+    return GURL();
+  }
+  const GURL search = engine->GenerateSearchURL(service->search_terms_data());
+  return search.SchemeIsHTTPOrHTTPS() ? search.DeprecatedGetOriginAsURL()
+                                      : GURL();
+}
+
+// A search engine's icon from the profile's favicon database, or nil. Like
+// the omnibox, it looks the engine's favicon URL up first; as in Arc, it
+// then takes any favicon of the engine's host, since a site often keeps its
+// icon elsewhere than the engine says (duckduckgo.com/favicon.ico is
+// /static-assets/favicons/favicon.ico). One not found yet shows when it
+// arrives; an engine whose site was never visited has none.
+- (NSImage*)iconForEngine:(const TemplateURL*)engine site:(const GURL&)site {
+  if (!site.is_valid() || !_favicons) {
     return nil;
   }
-  const GURL url = iconURL;
+  if (auto found = _engineIcons.find(site); found != _engineIcons.end()) {
+    return found->second.AsNSImage();
+  }
+  if (!_engineIconLookups.insert(site).second) {
+    return nil;
+  }
+  const GURL key = site;
   ClairChromiumAutocomplete* __weak weakSelf = self;
-  const gfx::Image cached = _favicons->GetFaviconForIconUrl(
-      iconURL,
-      base::BindOnce(^(const gfx::Image& icon) {
-        [weakSelf engineIcon:icon arrivedForIconURL:url];
-      }),
-      /*notify_on_empty=*/false);
-  return cached.IsEmpty() ? nil : cached.AsNSImage();
+  if (engine->favicon_url().is_valid()) {
+    const gfx::Image cached = _favicons->GetFaviconForIconUrl(
+        engine->favicon_url(),
+        base::BindOnce(^(const gfx::Image& icon) {
+          [weakSelf engineIcon:icon arrivedForSite:key];
+        }),
+        /*notify_on_empty=*/false);
+    if (!cached.IsEmpty()) {
+      _engineIcons[site] = cached;
+      return cached.AsNSImage();
+    }
+  }
+  if (_faviconService) {
+    // 16 pt at 2x.
+    _faviconService->GetRawFaviconForPageURL(
+        site, {favicon_base::IconType::kFavicon}, 32, /*fallback_to_host=*/true,
+        base::BindOnce(^(const favicon_base::FaviconRawBitmapResult& result) {
+          if (result.is_valid()) {
+            [weakSelf engineIcon:gfx::Image::CreateFrom1xPNGBytes(result.bitmap_data)
+                  arrivedForSite:key];
+          }
+        }),
+        _faviconTracker.get());
+  }
+  return nil;
 }
 
 // The page's favicon from the profile's favicon database, or nil. One not
@@ -431,8 +487,8 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
               : nullptr;
   _keyword = keyword;
   _keywordName = engine ? base::SysUTF16ToNSString(engine->short_name()) : keyword;
-  _keywordIconURL = engine ? engine->favicon_url() : GURL();
-  _keywordIcon = [self iconForEngineIconURL:_keywordIconURL];
+  _keywordSite = [self siteOfEngine:engine];
+  _keywordIcon = [self iconForEngine:engine site:_keywordSite];
   [self queryText:text];
 }
 
@@ -440,7 +496,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   _keyword = nil;
   _keywordName = nil;
   _keywordIcon = nil;
-  _keywordIconURL = GURL();
+  _keywordSite = GURL();
   [self queryText:text];
 }
 
@@ -573,7 +629,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
         suggestion.kind != ClairSuggestionKindBookmark) {
       suggestion.icon = [self faviconForPageURL:match.destination_url];
     }
-    GURL keywordIconURL;
+    GURL keywordSite;
     if (!match.associated_keyword.empty()) {
       suggestion.keyword = base::SysUTF16ToNSString(match.associated_keyword);
       TemplateURL* engine =
@@ -584,14 +640,14 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
                  : suggestion.keyword;
       // command-bar spec, "Site search keywords": the engine's icon.
       if (engine) {
-        keywordIconURL = engine->favicon_url();
-        suggestion.keywordIcon = [self iconForEngineIconURL:keywordIconURL];
+        keywordSite = [self siteOfEngine:engine];
+        suggestion.keywordIcon = [self iconForEngine:engine site:keywordSite];
       }
     }
     suggestion.canDelete = match.SupportsDeletion();
     suggestion.suggestionID = [self
         rememberDestination:Destination{match.destination_url, match.transition,
-                                        nullptr, match, keywordIconURL}];
+                                        nullptr, match, keywordSite}];
     [suggestions addObject:suggestion];
   }
   [self publish:suggestions finished:_controller->done()];
@@ -725,6 +781,9 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   _favicons.reset();
   _arrivedFavicons.clear();
   _arrivedEngineIcons.clear();
+  // Cancels the host lookups in flight.
+  _faviconTracker.reset();
+  _faviconService = nullptr;
   _delegate = nil;
 }
 
