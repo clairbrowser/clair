@@ -259,6 +259,11 @@ final class BookmarksTests: NativeWindowTestCase {
     folder.menuItems["New Folder…"].click()
     let newFolder = browser.dialogElement("clair.bookmarkNewFolderName")
     try require(newFolder.waitForExistence(timeout: 5), "New Folder… didn't show its field")
+    let focusedField = browser.dialog.descendants(matching: .any).matching(
+      NSPredicate(format: "identifier == 'clair.bookmarkNewFolderName' AND hasKeyboardFocus == true")
+    ).firstMatch
+    let focused = await Harness.wait(for: 5) { focusedField.exists }
+    try require(focused, "New Folder… didn't move keyboard focus to its field")
     browser.ui.typeText("Recipes\n")
     let selected = await Harness.wait(for: 5) {
       browser.dialogElement("clair.bookmarkFolder").value as? String == "Recipes"

@@ -1,0 +1,3 @@
+kind: Fixed
+body: In the bookmark dialog, choosing New Folder… always puts the cursor in the new folder's name field, so typing no longer renames the bookmark instead
+time: 2026-11-23T00:24:16.362149-05:00
