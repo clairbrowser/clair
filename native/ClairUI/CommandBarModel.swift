@@ -2,8 +2,8 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
+import AppKit
 import ClairHost
-import Foundation
 import Observation
 
 /// The command bar's state and keyboard handling (design D11), on one
@@ -21,6 +21,8 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
   private(set) var selection = 0
   /// The search engine in keyword mode, as its name.
   private(set) var keywordName: String?
+  /// The search engine's icon in keyword mode, once it has loaded.
+  private(set) var keywordIcon: NSImage?
   /// Set once the bar closed; it does nothing more.
   private(set) var isClosed = false
 
@@ -46,6 +48,18 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
 
   var selectedSuggestion: (any ClairSuggestion)? {
     suggestions.indices.contains(selection) ? suggestions[selection] : nil
+  }
+
+  /// The icon that replaces the field's magnifier, as in Arc: the engine's,
+  /// in keyword mode or while the selected suggestion offers its search.
+  var fieldIcon: NSImage? {
+    if keyword != nil {
+      return keywordIcon
+    }
+    guard let suggestion = selectedSuggestion, suggestion.keyword != nil else {
+      return nil
+    }
+    return suggestion.keywordIcon
   }
 
   /// Whether the selected suggestion offers "Search <engine>" with Tab.
@@ -108,6 +122,7 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
     rest = rest.trimmingCharacters(in: .whitespaces)
     keyword = offered
     keywordName = suggestion.keywordName ?? offered
+    keywordIcon = suggestion.keywordIcon
     text = rest
     selectionAfterDeletion = nil
     session?.acceptKeyword(ofSuggestion: suggestion.suggestionID, text: rest)
@@ -146,6 +161,7 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
     }
     self.keyword = nil
     keywordName = nil
+    keywordIcon = nil
     text = keyword
     selectionAfterDeletion = nil
     session?.clearKeyword(text: keyword)
@@ -169,6 +185,9 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
 
   func autocomplete(_ session: any ClairAutocomplete, didUpdate suggestions: [any ClairSuggestion], finished: Bool) {
     guard !isClosed else { return }
+    if keyword != nil, let icon = session.keywordIcon {
+      keywordIcon = icon
+    }
     // The same rows with their favicons: the selection stays where it is.
     let onlyIcons = suggestions.map(\.suggestionID) == self.suggestions.map(\.suggestionID)
     self.suggestions = suggestions

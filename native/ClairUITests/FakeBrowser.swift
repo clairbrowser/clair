@@ -147,12 +147,13 @@ final class FakeSuggestion: NSObject, ClairSuggestion {
   let hasTabMatch: Bool
   let keyword: String?
   let keywordName: String?
+  var keywordIcon: NSImage?
   let canDelete: Bool
 
   init(
     id: Int, kind: SuggestionKind = .history, contents: String, description: String = "",
     destination: String? = nil, hasTabMatch: Bool = false, keyword: String? = nil, keywordName: String? = nil,
-    canDelete: Bool = false
+    keywordIcon: NSImage? = nil, canDelete: Bool = false
   ) {
     self.canDelete = canDelete
     suggestionID = id
@@ -163,6 +164,7 @@ final class FakeSuggestion: NSObject, ClairSuggestion {
     self.hasTabMatch = hasTabMatch
     self.keyword = keyword
     self.keywordName = keywordName
+    self.keywordIcon = keywordIcon
   }
 }
 
@@ -259,7 +261,8 @@ final class FakeAutocomplete: NSObject, ClairAutocomplete {
   weak var delegate: (any ClairAutocompleteDelegate)?
   private(set) var keyword: String?
   private(set) var keywordName: String?
-  let keywordIcon: NSImage? = nil
+  /// Tests set it to stand in for the engine's icon arriving later.
+  var keywordIcon: NSImage?
 
   private(set) var queries: [String] = []
   private(set) var opened: [(suggestionID: Int, disposition: OpenDisposition)] = []
@@ -287,6 +290,7 @@ final class FakeAutocomplete: NSObject, ClairAutocomplete {
     }
     keyword = suggestion.keyword
     keywordName = suggestion.keywordName
+    keywordIcon = suggestion.keywordIcon
     queries.append(text)
   }
 
@@ -294,6 +298,7 @@ final class FakeAutocomplete: NSObject, ClairAutocomplete {
     guard !isStopped else { return }
     keyword = nil
     keywordName = nil
+    keywordIcon = nil
     queries.append(text)
   }
 
