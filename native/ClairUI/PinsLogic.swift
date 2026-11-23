@@ -194,7 +194,7 @@ enum PinsLogic {
 
   /// Where a row dropped before list item `destination` goes, in a list of
   /// `pinCount` pinned rows, then `boundaryCount` rows that are neither (the
-  /// divider and "New Tab"), then the Today rows of `today`. `movingPin` is
+  /// row of the divider and "New Tab"), then the Today rows of `today`. `movingPin` is
   /// the index of a pinned row being moved within the list, which no longer
   /// counts once it's lifted; `movingTodayRow` the same for a Today row.
   static func listDrop(

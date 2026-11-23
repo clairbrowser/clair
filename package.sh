@@ -220,6 +220,20 @@ fi
 if [[ -z "$identity" ]]; then
   plist_set ClairNonOfficialPackage bool true
 fi
+# The type ClairUI's sidebar rows and tiles carry while dragged
+# (SidebarDragItem.type), declared as an exported type must be, as text: a
+# list row dragged with a type that's only data carries a file promise, which
+# drops outside the list, such as on the favorites, don't accept.
+declarations=UTExportedTypeDeclarations
+/usr/libexec/PlistBuddy -c "Print :$declarations" "$info" >/dev/null 2>&1 ||
+  /usr/libexec/PlistBuddy -c "Add :$declarations array" "$info"
+/usr/libexec/PlistBuddy \
+  -c "Add :$declarations:0 dict" \
+  -c "Add :$declarations:0:UTTypeIdentifier string dev.joshuapark.clair.sidebar-item" \
+  -c "Add :$declarations:0:UTTypeDescription string Clair sidebar item" \
+  -c "Add :$declarations:0:UTTypeConformsTo array" \
+  -c "Add :$declarations:0:UTTypeConformsTo:0 string public.utf8-plain-text" \
+  "$info"
 
 # --- signing ------------------------------------------------------------------------
 # Inside out, each bundle with its own identifier (see ungoogled-chromium-macos

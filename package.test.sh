@@ -78,7 +78,10 @@ make_engine() {
   plist "$app/Contents/Info.plist" "$id" Clair
   /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 156.0.8078.73" \
     -c "Add :CFBundleVersion string 8078.73" \
-    -c "Add :LSMinimumSystemVersion string 15.6" "$app/Contents/Info.plist"
+    -c "Add :LSMinimumSystemVersion string 15.6" \
+    -c "Add :UTExportedTypeDeclarations array" \
+    -c "Add :UTExportedTypeDeclarations:0 dict" \
+    -c "Add :UTExportedTypeDeclarations:0:UTTypeIdentifier string org.chromium.extension" "$app/Contents/Info.plist"
   if [[ "${3-icon}" == icon ]]; then
     /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string app" "$app/Contents/Info.plist"
     mkdir -p "$app/Contents/Resources"
@@ -198,6 +201,16 @@ if [[ "$(plist_value "$info" ClairNonOfficialPackage)" == true ]]; then
   check "marks an ad hoc package as non-official" pass
 else
   check "marks an ad hoc package as non-official" fail
+fi
+
+declared="$(plutil -extract UTExportedTypeDeclarations json -o - "$info" 2>/dev/null)"
+if [[ "$declared" == *'"UTTypeIdentifier":"dev.joshuapark.clair.sidebar-item"'* \
+    && "$declared" == *'"UTTypeConformsTo":["public.utf8-plain-text"]'* \
+    && "$declared" == *'"UTTypeIdentifier":"org.chromium.extension"'* ]]; then
+  check "declares the sidebar drag type, keeping the engine's types" pass
+else
+  check "declares the sidebar drag type, keeping the engine's types" fail
+  echo "         $declared"
 fi
 
 if [[ -f "$app/Contents/Frameworks/ClairUI.framework/Versions/A/ClairUI" && -f "$app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle" ]]; then
