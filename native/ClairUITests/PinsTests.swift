@@ -119,6 +119,14 @@ struct PinsLogicTests {
     #expect(!PinsLogic.showsClear(todayRowCount: 0, showsPins: true, isSidebarHovered: true))
   }
 
+  @Test func theHeaderOffersCollapsingWithPinsOrWhileCollapsed() {
+    #expect(PinsLogic.offersCollapse(pinCount: 2, collapsed: false))
+    #expect(!PinsLogic.offersCollapse(pinCount: 0, collapsed: false))
+    // The last pin unpinned while collapsed: the chevron stays, pointing
+    // sideways, so the section can be expanded again.
+    #expect(PinsLogic.offersCollapse(pinCount: 0, collapsed: true))
+  }
+
   @Test func incognitoAndGuestWindowsShowNoDividerOrClear() {
     // No pinned section there, so nothing to divide and nothing Clear does.
     #expect(!PinsLogic.showsDivider(todayRowCount: 2, showsPins: false))

@@ -72,6 +72,7 @@ struct SpaceHeaderView: View {
   @State private var draft = ""
   @State private var isHovered = false
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   /// Where the name starts while the chevron shows.
   static let chevronLeading: CGFloat = 44
@@ -129,8 +130,10 @@ struct SpaceHeaderView: View {
     // pill, the chevron at x=20.5 and the name slid from x=17 to x=45; the
     // chevron stays, pointing sideways, while the pinned tabs are collapsed.
     .padding(.leading, showsChevron ? Self.chevronLeading : Self.leading)
-    .animation(Self.chevronSlide, value: showsChevron)
+    .animation(reduceMotion ? nil : Self.chevronSlide, value: showsChevron)
     .padding(.trailing, showsMore ? Self.trailingWithMore : Self.trailing)
+    // The name makes room for the More button as the button fades in.
+    .animation(reduceMotion ? nil : sidebarHoverFade, value: showsMore)
     .frame(height: Self.height)
     .background {
       if isHovered && edit == nil && onToggleCollapse != nil {
@@ -145,7 +148,7 @@ struct SpaceHeaderView: View {
     .gesture(TapGesture().onEnded { onToggleCollapse?() }, isEnabled: edit == nil && onToggleCollapse != nil)
     .overlay(alignment: .leading) {
       ZStack(alignment: .leading) { chevron }
-        .animation(Self.chevronSlide, value: showsChevron)
+        .animation(reduceMotion ? nil : Self.chevronSlide, value: showsChevron)
     }
     .overlay(alignment: .trailing) {
       if edit == nil && space != nil {
@@ -193,7 +196,10 @@ struct SpaceHeaderView: View {
     }
     .padding(.trailing, Self.moreTrailing)
     .opacity(showsMore ? 1 : 0)
-    .animation(sidebarHoverFade, value: showsMore)
+    .animation(reduceMotion ? nil : sidebarHoverFade, value: showsMore)
+    // Out of VoiceOver's way while it isn't showing; right-clicking the
+    // header offers the same menu.
+    .accessibilityHidden(!showsMore)
     .accessibilityIdentifier("clair.spaceMore")
   }
 

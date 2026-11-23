@@ -135,6 +135,10 @@ While the Space has pinned tabs, hovering the Space header SHALL show a chevron 
 - **WHEN** a Space has no pinned tabs and the pointer is over its header
 - **THEN** the header shows no chevron
 
+#### Scenario: The last pinned tab unpinned while collapsed
+- **WHEN** the user unpins a collapsed Space's last pinned tab
+- **THEN** the header still shows the chevron pointing sideways, and clicking it expands the section
+
 #### Scenario: After a relaunch
 - **WHEN** the user collapsed the pinned section of "Work", quits and relaunches
 - **THEN** "Work"'s pinned section is still collapsed

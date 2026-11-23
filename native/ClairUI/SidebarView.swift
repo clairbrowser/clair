@@ -717,11 +717,12 @@ struct SpacePage: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if model.showsSpaces {
+        let collapsed = space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false
         SpaceHeaderView(
-          model: model, space: space, actions: actions,
-          pinsCollapsed: space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false,
+          model: model, space: space, actions: actions, pinsCollapsed: collapsed,
           // No chevron or hover pill without pinned tabs, as in Arc.
-          onToggleCollapse: pins.isEmpty ? nil : { [weak actions] in actions?.togglePinnedSection() })
+          onToggleCollapse: PinsLogic.offersCollapse(pinCount: pins.count, collapsed: collapsed)
+            ? { [weak actions] in actions?.togglePinnedSection() } : nil)
       }
       TabList(
         model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, room: listHeight + spaceBelow,
