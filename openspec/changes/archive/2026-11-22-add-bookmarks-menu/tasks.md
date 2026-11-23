@@ -13,7 +13,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 
 ## 1. Contract and fakes
 
-- [ ] 1.1 Add D3 to `native/ClairHost.h`, documented as the header documents the rest:
+- [x] 1.1 Add D3 to `native/ClairHost.h`, documented as the header documents the rest:
   - `ClairBookmarkID` and `ClairBookmarkFolderID`;
   - `ClairBookmark` and `ClairBookmarkFolder`;
   - `ClairSuggestionKindBookmark`;
@@ -21,7 +21,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - `-[ClairWindow showBookmarkDialog:]` and `-[ClairWindow showBookmarksBarNotice]`.
 
   Verify that the header compiles in `ClairHostObjCxxTests.mm` in CI.
-- [ ] 1.2 Give `FakeHost` a seedable bookmark store that behaves as D3 describes: updating with an empty title, removing by ID, an unknown ID doing nothing, folders in the popup's order with Other Bookmarks first, and new folders added to Other Bookmarks. Verify with new cases in `FakeBrowserTests` in CI.
+- [x] 1.2 Give `FakeHost` a seedable bookmark store that behaves as D3 describes: updating with an empty title, removing by ID, an unknown ID doing nothing, folders in the popup's order with Other Bookmarks first, and new folders added to Other Bookmarks. Verify with new cases in `FakeBrowserTests` in CI.
 
 ## 2. Engine
 
@@ -37,16 +37,16 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
 - [x] 2.5 Add `patches/clair/bookmarks-menu-root.patch`, listed in `patches/series`, to `BookmarkMenuBridge::BuildRootMenu` (D7). It lists Other Bookmarks' contents directly in the menu, with no Bookmarks Bar or Other Bookmarks submenu, keeping the Managed and Mobile submenus while they have content, under one separator. Its header says why it isn't a hook. Verify that the patch check applies it, and with the runtime test in 3.4.
 - [x] 2.6 Add `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` and start it for each original profile (D6), with its sources in the `BUILD.gn` hunk. Register the local-state pref `clair.bookmarks_bar_notice_shown` in `clair::RegisterLocalStatePrefs`, and call `showBookmarksBarNotice` after the first drain that moves something, in the most recently active window or the first one to open (D6). Verify with the runtime tests in 3.4: the seeded Bookmarks Bar is drained at launch and the notice shows, and a bookmark created in the bar by a new test extension with the `bookmarks` permission, in `tests/runtime/extensions/`, moves to Other Bookmarks with no notice.
 - [x] 2.7 Use `DefaultOmniboxProviders()` unmasked in `clair_autocomplete.mm`, and update its header comment. Return `ClairSuggestionKindBookmark` from `KindOf` for bookmarked matches that aren't searches or open tabs, and skip the favicon lookup for them (D8). Verify with the runtime test in 3.6.
-- [ ] 2.8 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
+- [x] 2.8 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
 - [x] 2.9 Update `docs/native-window.md`: describe the Bookmarks menu, the dialog and how it opens, and the Bookmarks Bar notice (D1 to D7), change the command bar row's "no bookmarks", and add rows for the bridge calls, the dialog, the Bookmarks Bar drain and the patch in "Where each piece lives". Verify that every file it names exists.
 
 ## 3. ClairUI and runtime tests
 
-- [ ] 3.1 Add `BookmarkDialog.swift` and `BrowserWindowController.showBookmarkDialog(_:)` (D4, D5): the title, the Name and Folder rows, the indented folder popup with its checkmark, New Folder…'s field and ×, Manage Bookmarks, Remove, and Done on Return and Esc. Verify:
+- [x] 3.1 Add `BookmarkDialog.swift` and `BrowserWindowController.showBookmarkDialog(_:)` (D4, D5): the title, the Name and Folder rows, the indented folder popup with its checkmark, New Folder…'s field and ×, Manage Bookmarks, Remove, and Done on Return and Esc. Verify:
   - with `BookmarkDialog` cases in CI against `FakeHost`, one for each scenario of `bookmarks`' requirements from "Bookmark dialog" to "New folder in the bookmark dialog";
   - by hand against `dia-reference/screenshots/edit.jpg`, `folder-popup.jpg` and `new-folder.jpg`, in Light and Dark Mode: the controls' order, alignment and sizes match the README's measurements within a few points, and the card is Clair's.
-- [ ] 3.2 Add `BookmarksBarNotice.swift` with the Heads Up page, and `showBookmarksBarNotice` to `BrowserWindowController`, presenting it (D6). Verify with a unit test in CI against `FakeHost` that it has the title, the message and one OK button chosen by Return and Esc.
-- [ ] 3.3 Retitle `IDC_SHOW_BOOKMARK_MANAGER` to "Manage Bookmarks" in `MainMenuTitles.apply` (D1). Verify with a `MainMenuTitles` unit test in CI that the item is retitled by tag and other items keep their titles.
+- [x] 3.2 Add `BookmarksBarNotice.swift` with the Heads Up page, and `showBookmarksBarNotice` to `BrowserWindowController`, presenting it (D6). Verify with a unit test in CI against `FakeHost` that it has the title, the message and one OK button chosen by Return and Esc.
+- [x] 3.3 Retitle `IDC_SHOW_BOOKMARK_MANAGER` to "Manage Bookmarks" in `MainMenuTitles.apply` (D1). Verify with a `MainMenuTitles` unit test in CI that the item is retitled by tag and other items keep their titles.
 - [x] 3.4 Add a Harness helper that writes `Default/Bookmarks` before launch (D9), and `tests/runtime/ClairRuntimeTests/BookmarksTests.swift`, with tests for the menu:
   - with the seeded bookmarks, the Heads Up dialog shows at launch, and Return closes it;
   - after a relaunch, it doesn't show again;
@@ -69,7 +69,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - ⌘D still pins the tab and adds no bookmark.
 
   Verify by running them locally, and they pass.
-- [ ] 3.6 Give `SuggestionRow` the `bookmark` symbol for `.bookmark` (D8). Verify with a unit test in CI that each kind maps to its symbol. Then add runtime tests for suggestions:
+- [x] 3.6 Give `SuggestionRow` the `bookmark` symbol for `.bookmark` (D8). Verify with a unit test in CI that each kind maps to its symbol. Then add runtime tests for suggestions:
   - a seeded, never-visited bookmark with a unique title is listed when its title is typed, shows the bookmark icon, and choosing it opens the page;
   - a visited, bookmarked page with a favicon (`tests/runtime/pages/favicon.html`) is listed once, with the bookmark icon;
   - with that page open in a tab, its "Switch to Tab" row doesn't show the bookmark icon.
@@ -86,7 +86,7 @@ Read `design.md` in full before starting. Verify every Chromium call it names ag
   - ⇧⌘D still reaches the toolbar toggle if `add-page-toolbar` has landed.
 
   Verify that each check passes, and note anything that differs in the PR.
-- [ ] 4.3 Run the merge gate, and start `quality.yml` on the branch with the last push. Verify that CI and the quality checks pass.
+- [x] 4.3 Run the merge gate, and start `quality.yml` on the branch with the last push. Verify that CI and the quality checks pass.
 
 ## Workflow follow-up
 

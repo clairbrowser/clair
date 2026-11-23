@@ -201,17 +201,6 @@ Tab-modal dialogs SHALL show over the card of the tab they belong to, including 
 - **WHEN** HTTPS-first can't upgrade a site the user opens and falls back to HTTP, asking first
 - **THEN** its "Ask before HTTP" dialog shows over that tab's card, and Clair keeps running
 
-### Requirement: No bookmarks in the interface
-Clair SHALL NOT show bookmarks in its interface: there SHALL be no Bookmarks menu, bookmarks bar, bookmark star or bookmark bubble, and their shortcuts Shift+Cmd+B and Opt+Cmd+B SHALL do nothing. Cmd+D SHALL pin or unpin the tab (`pinned-tabs`), as in Arc. Bookmarks already in the profile SHALL be kept, and `chrome://bookmarks` SHALL still open when typed in the command bar.
-
-#### Scenario: Menu bar
-- **WHEN** the user looks through the menu bar
-- **THEN** there is no Bookmarks menu, and the View menu has no "Always Show Bookmarks Bar" item
-
-#### Scenario: Bookmark shortcut
-- **WHEN** the user presses Cmd+D on a Today tab
-- **THEN** the tab is pinned, and no bookmark is created
-
 ### Requirement: Features the native window doesn't host
 Chromium features with no place in the native window SHALL be unavailable rather than broken. Their menu items SHALL be hidden, and invoking them by shortcut, page API or extension API SHALL neither crash Clair nor leave UI behind. These include side panels, tab search, Chrome Labs, the EyeDropper, tab group UI, the app menu and the profile menu.
 
