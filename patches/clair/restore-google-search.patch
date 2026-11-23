@@ -9,10 +9,12 @@
 # client parameters, and the Lens, image and contextual search fields.
 
 # Reverts ungoogled-chromium replace-google-search-engine-with-nosearch.patch, its one hunk, with the
-# literal addresses above in place of Chromium's.
+# literal addresses above in place of Chromium's. It keeps that patch's new_tab_url line, so the New
+# Tab page stays ungoogled-chromium's plain one rather than Chromium's Google page, whose Lens and
+# voice search buttons can't work.
 --- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 +++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
-@@ -173,11 +173,19 @@
+@@ -173,10 +173,19 @@
      },
  
      "google": {
@@ -20,7 +22,6 @@
 -      "keyword": "nosearch",
 -      "favicon_url": "about:blank",
 -      "search_url": "http://{searchTerms}",
--      "new_tab_url": "about:blank",
 +      "name": "Google",
 +      "keyword": "google.com",
 +      "favicon_url": "https://www.google.com/images/branding/product/ico/googleg_alldp.ico",
@@ -34,9 +35,9 @@
 +        "https://www.google.com/s#q={searchTerms}",
 +        "https://www.google.com/s?q={searchTerms}"
 +      ],
+       "new_tab_url": "about:blank",
        "type": "SEARCH_ENGINE_GOOGLE",
        "preconnect_to_search_url" : "ALLOWED",
-       "prefetch_likely_navigations" : "ALLOWED",
 # Reverts ungoogled-chromium inox-patchset/0006-modify-default-prefs.patch, kSearchSuggestEnabled hunk.
 --- a/chrome/browser/profiles/profile.cc
 +++ b/chrome/browser/profiles/profile.cc

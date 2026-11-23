@@ -45,6 +45,7 @@ The revert puts back Chromium's Google entry with these changes:
 - `alternate_urls`: the same five forms, on `https://www.google.com/`, so Chromium still recognizes Google results pages.
 - Removed: `image_url`, `image_translate_*`, `contextual_search_url`, `image_url_post_params` and `search_intent_params`. They lead to Lens and image search, which stay off.
 - Kept: ID 1, name "Google", keyword `google.com`, `favicon_url`, `base_builtin_resource_id` and `type`.
+- Kept from "No Search": `new_tab_url` set to `about:blank`. Without a `new_tab_url`, Chromium shows its Google New Tab page for a Google engine: the logo, a search box, and voice search and Lens buttons that can't work here. With it, the New Tab page stays ungoogled-chromium's, as before this change. The revert leaves that line as context.
 
 Without the `{google:…}` tracking and experiment parameters (`RLZ`, `assistedQueryStats`, `searchFieldtrialParameter`, `sourceId`, `searchClient`, `currentPageUrl`, `cursorPosition`, `sessionToken`, `pageClassification` and so on), neither URL carries more than `search-engine` allows.
 
