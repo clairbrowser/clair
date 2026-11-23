@@ -164,3 +164,62 @@ struct DraggedTile: View {
     .environment(\.colorScheme, colorScheme)
   }
 }
+
+/// The area above the Space header while a profile has no favorites and the
+/// "Drag to add Favorites" box doesn't show (show-favorites-drop-zone D1): a
+/// sidebar drag entering it opens the drop zone, as in Arc, and a drop there
+/// makes the first favorite. Like `FavoritesDropArea`, clicks go through it.
+struct FavoritesDropTrigger: NSViewRepresentable {
+  let onEnter: () -> Void
+  let onDrop: (SidebarDragItem) -> Void
+
+  func makeNSView(context: Context) -> FavoritesDropTriggerView {
+    let view = FavoritesDropTriggerView()
+    view.trigger = self
+    return view
+  }
+
+  func updateNSView(_ view: FavoritesDropTriggerView, context: Context) {
+    view.trigger = self
+  }
+}
+
+final class FavoritesDropTriggerView: NSView {
+  var trigger: FavoritesDropTrigger?
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    registerForDraggedTypes([NSPasteboard.PasteboardType(SidebarDragItem.type.identifier)])
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+  // Clicks, hovers and the window drag go to the views beneath.
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    guard item(of: sender) != nil else { return [] }
+    trigger?.onEnter()
+    return operation(sender)
+  }
+
+  override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    operation(sender)
+  }
+
+  override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+    guard let item = item(of: sender), let trigger else { return false }
+    trigger.onDrop(item)
+    return true
+  }
+
+  private func item(of sender: any NSDraggingInfo) -> SidebarDragItem? {
+    sender.draggingPasteboard.string(forType: NSPasteboard.PasteboardType(SidebarDragItem.type.identifier))
+      .flatMap(SidebarDragItem.init(payload:))
+  }
+
+  // A move, which every sidebar drag allows, draws no badge.
+  private func operation(_ sender: any NSDraggingInfo) -> NSDragOperation {
+    sender.draggingSourceOperationMask.contains(.move) ? .move : .generic
+  }
+}
