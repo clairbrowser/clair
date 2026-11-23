@@ -712,7 +712,8 @@ struct SpacePage: View {
         SpaceHeaderView(
           model: model, space: space, actions: actions,
           pinsCollapsed: space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false,
-          onToggleCollapse: { [weak actions] in actions?.togglePinnedSection() })
+          // No chevron or hover pill without pinned tabs, as in Arc.
+          onToggleCollapse: pins.isEmpty ? nil : { [weak actions] in actions?.togglePinnedSection() })
       }
       TabList(model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, actions: actions)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tabListHeight?.wrappedValue = $0 }
@@ -924,17 +925,18 @@ struct TabList: View {
     rows + slack
   }
 
-  /// The rows' height: "New Tab", the pinned and Today rows, and the divider.
-  static func rowsHeight(pinCount: Int, tabCount: Int, divider: Bool) -> CGFloat {
-    TabRow.pitch * CGFloat(pinCount + tabCount + 1) + (divider ? TodayDivider.height : 0)
+  /// The rows' height: "New Tab", the pinned and Today rows, and the divider
+  /// while there are Today rows.
+  static func rowsHeight(pinCount: Int, tabCount: Int) -> CGFloat {
+    let divider = PinsLogic.showsDivider(todayRowCount: tabCount)
+    return TabRow.pitch * CGFloat(pinCount + tabCount + 1) + (divider ? TodayDivider.height : 0)
   }
 
   static func rowsHeight(model: BrowserWindowModel) -> CGFloat {
     let todayRows = TabListLogic.rowCount(model.tabs)
     let pins = PinsLogic.visiblePins(
       model.pins, collapsed: model.isPinnedSectionCollapsed, highlighted: model.highlightedTab)
-    return rowsHeight(
-      pinCount: pins.count, tabCount: todayRows, divider: PinsLogic.showsDivider(todayRowCount: todayRows))
+    return rowsHeight(pinCount: pins.count, tabCount: todayRows)
   }
 
   /// Whether a list this tall is shorter than its rows, so it scrolls. It
@@ -952,7 +954,8 @@ struct TabList: View {
     let highlighted = model.highlightedTab
     let moveTargets = model.showsSpaces ? SpacesLogic.moveTargets(from: model.shownSpaceID, in: model.spaces.spaces) : []
     let visiblePins = PinsLogic.visiblePins(pins, collapsed: model.isPinnedSectionCollapsed, highlighted: highlighted)
-    let showsDivider = !visiblePins.isEmpty || !pins.isEmpty ? PinsLogic.showsDivider(todayRowCount: rows.count) : false
+    // Under the Space header, pinned tabs or not, as in Arc.
+    let showsDivider = PinsLogic.showsDivider(todayRowCount: rows.count)
     let boundary = (showsDivider ? 1 : 0) + 1
     let items: [Item] =
       visiblePins.map { .pin($0) } + (showsDivider ? [.divider] : []) + [.newTab] + rows.map { .tab($0) }
@@ -999,7 +1002,7 @@ struct TabList: View {
     // the rows don't fit.
     .frame(
       maxHeight: Self.contentHeight(
-        rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count, divider: showsDivider)))
+        rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count)))
     .accessibilityIdentifier("clair.tabList")
   }
 

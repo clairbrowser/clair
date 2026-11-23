@@ -75,6 +75,9 @@ struct SpaceHeaderView: View {
 
   /// Where the name starts while the chevron shows.
   static let chevronLeading: CGFloat = 44
+  /// Arc's, recorded at 60 fps: the pill shows and goes at once, while the
+  /// name slides aside, and back, in about 85 ms as the chevron fades.
+  static let chevronSlide = Animation.easeInOut(duration: 0.085)
 
   private var showsChevron: Bool {
     onToggleCollapse != nil && edit == nil && (isHovered || pinsCollapsed)
@@ -107,10 +110,11 @@ struct SpaceHeaderView: View {
         Spacer(minLength: 0)
       }
     }
-    // Arc's header under the pointer: a pill, the chevron at x=20.5 and the
-    // name moved from x=17 to x=45; the chevron stays, pointing sideways, while the
-    // pinned tabs are collapsed.
+    // Arc's header under the pointer, while the Space has pinned tabs: a
+    // pill, the chevron at x=20.5 and the name slid from x=17 to x=45; the
+    // chevron stays, pointing sideways, while the pinned tabs are collapsed.
     .padding(.leading, showsChevron ? Self.chevronLeading : Self.leading)
+    .animation(Self.chevronSlide, value: showsChevron)
     .padding(.trailing, 13)
     .frame(height: Self.height)
     .background {
@@ -122,21 +126,8 @@ struct SpaceHeaderView: View {
     }
     .contentShape(Rectangle())
     .overlay(alignment: .leading) {
-      if let onToggleCollapse, showsChevron {
-        Button(action: onToggleCollapse) {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 12.5, weight: .bold))
-            .foregroundStyle(.secondary)
-            .rotationEffect(.degrees(pinsCollapsed ? -90 : 0))
-            .frame(width: 12, height: Self.height)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.leading, 20)
-        .tooltip(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
-        .accessibilityLabel(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
-        .accessibilityIdentifier("clair.pinnedChevron")
-      }
+      ZStack(alignment: .leading) { chevron }
+        .animation(Self.chevronSlide, value: showsChevron)
     }
     .onHover { isHovered = $0 }
     .padding(.bottom, Self.bottomGap)
@@ -147,6 +138,26 @@ struct SpaceHeaderView: View {
     }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("clair.spaceHeader")
+  }
+
+  /// The collapse chevron, fading in as the name slides aside.
+  @ViewBuilder private var chevron: some View {
+    if let onToggleCollapse, showsChevron {
+      Button(action: onToggleCollapse) {
+        Image(systemName: "chevron.down")
+          .font(.system(size: 12.5, weight: .bold))
+          .foregroundStyle(.secondary)
+          .rotationEffect(.degrees(pinsCollapsed ? -90 : 0))
+          .frame(width: 12, height: Self.height)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .padding(.leading, 20)
+      .tooltip(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
+      .accessibilityLabel(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
+      .accessibilityIdentifier("clair.pinnedChevron")
+      .transition(.opacity)
+    }
   }
 
   @ViewBuilder private var icon: some View {

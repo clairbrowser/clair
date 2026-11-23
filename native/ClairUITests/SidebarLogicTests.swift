@@ -404,7 +404,7 @@ struct CommandBarDeletionTests {
 /// well as the list's height.
 struct TabListOverflowTests {
   private func rows(_ tabs: Int, pins: Int = 0) -> CGFloat {
-    TabList.rowsHeight(pinCount: pins, tabCount: tabs, divider: pins > 0 && tabs > 0)
+    TabList.rowsHeight(pinCount: pins, tabCount: tabs)
   }
 
   @Test func followsTheTabCountAtAFixedHeight() {
@@ -421,6 +421,15 @@ struct TabListOverflowTests {
     #expect(rows(2, pins: 1) == TabRow.pitch * 4 + TodayDivider.height)
     let height = TabList.contentHeight(rows: rows(3))
     #expect(TabList.overflows(height: height, rows: rows(3, pins: 1)))
+  }
+
+  @Test func countsTheDividerWithoutPinnedTabs() {
+    // As in Arc, the divider sits under the Space header while there are
+    // Today tabs, pinned tabs or not; a list that fits its rows doesn't
+    // overflow.
+    #expect(rows(2) == TabRow.pitch * 3 + TodayDivider.height)
+    #expect(rows(0) == TabRow.pitch)
+    #expect(!TabList.overflows(height: TabList.contentHeight(rows: rows(2)), rows: rows(2)))
   }
 
   @Test func notBeforeTheListIsLaidOut() {
