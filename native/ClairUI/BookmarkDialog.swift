@@ -230,7 +230,6 @@ struct BookmarkDialogContent: View {
                 .focused($focusedField, equals: .newFolder)
                 .onSubmit { state.commitNewFolder() }
                 .onExitCommand { state.cancelNewFolder() }
-                .onAppear { focusedField = .newFolder }
                 .accessibilityLabel(BookmarkDialog.newFolderPlaceholder)
                 .accessibilityIdentifier("clair.bookmarkNewFolderName")
               Button {
@@ -263,7 +262,11 @@ struct BookmarkDialogContent: View {
     }
     .font(.system(size: 14))
     .onChange(of: state.focusRequest.count) {
-      focusedField = state.focusRequest.field
+      // New Folder…'s field exists only once this update is drawn, so
+      // focusing it now can be dropped, leaving focus in Name, where typing
+      // replaces the bookmark's name and Return closes the dialog.
+      let field = state.focusRequest.field
+      Task { @MainActor in focusedField = field }
     }
   }
 
