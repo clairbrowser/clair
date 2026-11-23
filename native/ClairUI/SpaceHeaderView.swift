@@ -78,6 +78,11 @@ struct SpaceHeaderView: View {
   /// Arc's, recorded at 60 fps: the pill shows and goes at once, while the
   /// name slides aside, and back, in about 85 ms as the chevron fades.
   static let chevronSlide = Animation.easeInOut(duration: 0.085)
+  /// Collapsing or expanding the pinned section: Arc's, recorded at 60 fps,
+  /// also about 85 ms; none with Reduce Motion.
+  static var collapseAnimation: Animation? {
+    NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : chevronSlide
+  }
 
   /// The More button: 24 pt, 6 pt in from the pill's trailing edge, as in
   /// Arc, with the name kept clear of it.

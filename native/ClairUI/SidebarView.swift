@@ -741,6 +741,23 @@ struct ExtensionIcon: View {
   }
 }
 
+/// Slides the tab list's rows down from under the Space header while the
+/// pinned section expands: `height` is the pinned rows it brings back.
+struct PinnedSectionReveal: ViewModifier, Animatable {
+  var progress: CGFloat
+  let isCollapsed: Bool
+  let height: CGFloat
+
+  var animatableData: CGFloat {
+    get { progress }
+    set { progress = newValue }
+  }
+
+  func body(content: Content) -> some View {
+    content.offset(y: isCollapsed ? 0 : -(1 - progress) * height)
+  }
+}
+
 /// The downloads button, 32 pt as in Arc's footer, with the running
 /// downloads' progress on the glyph's circle and a dot for unseen downloads.
 struct DownloadsButton: View {
@@ -1006,6 +1023,18 @@ struct TabList: View {
     .frame(
       maxHeight: Self.contentHeight(
         rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count)))
+    // Collapsing, the list slides the rows below over the pinned rows that go
+    // and shrinks with them. Expanding, it adds the rows at once, so it takes
+    // its new height at once too, and its rows slide down from under the
+    // header instead.
+    .transaction(value: model.isPinnedSectionCollapsed) { transaction in
+      if !model.isPinnedSectionCollapsed { transaction.animation = nil }
+    }
+    .modifier(
+      PinnedSectionReveal(
+        progress: model.isPinnedSectionCollapsed ? 0 : 1, isCollapsed: model.isPinnedSectionCollapsed,
+        height: TabRow.pitch * CGFloat(pins.count - PinsLogic.visiblePins(pins, collapsed: true, highlighted: highlighted).count)))
+    .clipped()
     .accessibilityIdentifier("clair.tabList")
   }
 

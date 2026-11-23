@@ -146,7 +146,11 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       NotificationCenter.default.addObserver(
         forName: PinsPreferences.collapsedDidChange, object: nil, queue: .main
       ) { [weak self] _ in
-        MainActor.assumeIsolated { self?.refreshPinPreferences() }
+        // Animated, as in Arc: the rows below slide over the pinned rows
+        // that go, and the chevron turns.
+        MainActor.assumeIsolated {
+          withAnimation(SpaceHeaderView.collapseAnimation) { self?.refreshPinPreferences() }
+        }
       })
     // Every way of changing the toolbar preference reaches every window
     // (add-page-toolbar D8). Posted on the thread that changed the defaults:
