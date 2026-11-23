@@ -58,7 +58,7 @@ Chromium already falls back to Google in every country once the entry exists. Cl
 
 ### D4. Suggestions default on through a one-hunk revert
 
-The revert of `0006-modify-default-prefs.patch`'s `profile.cc` hunk makes `kSearchSuggestEnabled` default to `true`. The rest of that patch stays. Only the default changes. A profile where the user turned suggestions off keeps its setting. The toggle stays in `chrome://settings/syncSetup` ("Autocomplete searches and URLs"), where `personalization_options` shows it.
+The revert of `0006-modify-default-prefs.patch`'s `profile.cc` hunk makes `kSearchSuggestEnabled` default to `true`. The rest of that patch stays. Only the default changes. A profile where the user turned suggestions off keeps its setting. The toggle stays in `chrome://settings/googleServices` ("Improve search suggestions"), where ungoogled-chromium leaves it; `chrome://settings/syncSetup` redirects to `chrome://settings/people`.
 
 ### D5. Suggestion requests keep Chromium's cookie behaviour
 
@@ -70,6 +70,16 @@ Suggestion requests send the profile's google.com cookies and save none from the
 - Cmd+L starts a query with the page's address (`CommandBarModel.init`). `IsQueryPotentiallyPrivate()` holds back https paths, queries and credentials, but not `http://host/path`.
 
 So `ClairChromiumAutocomplete` marks the opening query as one to leave the network out of: while the text is still exactly what the command bar opened with, `AutocompleteInput::set_omit_asynchronous_matches(true)` keeps every remote provider quiet. Once the user edits the text, queries run normally. This lives in the overlay, so `ClairHost.h` doesn't change, because the session already knows its starting text from the first `query`.
+
+### D7. The New Tab page stays ungoogled-chromium's
+
+On desktop, `NewTabURLDetails::ForProfile` in `chrome/browser/search/search.cc` picks the New Tab page by `DefaultSearchProviderIsGoogle()`: Chromium's Google page (`chrome://new-tab-page`) for Google, and the third-party page (`chrome://new-tab-page-third-party`) for any other engine. "No Search" got the third-party page, which is what Clair has shown so far. The restored entry's search URL makes Chromium treat the engine as Google, which would bring the Google logo, a search box, and voice search and Lens buttons that can't work here, and "Customize Clair".
+
+A hunk in `restore-google-search.patch` makes that function always pick the third-party page. It changes only which page opens, not `DefaultSearchProviderIsGoogle()` itself, which other Google-only features also read.
+
+Alternatives:
+- Keeping "No Search"'s `new_tab_url`. Desktop's choice doesn't read it: tried, and the Google page still showed.
+- Making `DefaultSearchProviderIsGoogle()` false for Clair's entry. That reaches every caller, including the omnibox's, for one page.
 
 ## Risks / Trade-offs
 

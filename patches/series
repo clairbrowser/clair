@@ -39,6 +39,7 @@ clair/copy-url-shortcut.patch
 clair/space-shortcuts.patch
 clair/dock-incognito.patch
 clair/restore-web-store.patch
+clair/restore-google-search.patch
 clair/restore-certificate-revocation.patch
 clair/keep-certificate-data-current.patch
 helium/store-fixups-component.patch

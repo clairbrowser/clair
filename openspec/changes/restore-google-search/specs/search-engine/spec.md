@@ -7,7 +7,7 @@ Defines a profile's default search engine and search suggestions: what a new pro
 ## ADDED Requirements
 
 ### Requirement: Google is the default search engine
-A new profile's default search engine SHALL be Google, in every country, and Clair SHALL NOT show Chromium's search engine choice screen. A search SHALL open `https://www.google.com/search` with the query in its `q` parameter, without Chromium's tracking, experiment or client parameters.
+A new profile's default search engine SHALL be Google, in every country, and Clair SHALL NOT show Chromium's search engine choice screen. A search SHALL open `https://www.google.com/search` with the query in its `q` parameter, without Chromium's tracking, experiment or client parameters. The New Tab page SHALL stay ungoogled-chromium's, with no Google logo, search box, Lens or voice search.
 
 #### Scenario: Searching from the command bar
 - **WHEN** a new profile's user types `clair browser` in the command bar and presses Return
@@ -20,6 +20,10 @@ A new profile's default search engine SHALL be Google, in every country, and Cla
 #### Scenario: Site search keyword
 - **WHEN** the user types `google.com`, presses Tab, types `Arc` and presses Return
 - **THEN** Google's results page for "Arc" opens
+
+#### Scenario: New Tab page
+- **WHEN** a new profile opens a new tab
+- **THEN** it shows the same New Tab page as with ungoogled-chromium's "No Search", with no Google logo or search box
 
 ### Requirement: Search suggestions on by default
 A new profile SHALL have search suggestions turned on. While the user types a query, the command bar SHALL include the default engine's suggestions among its rows. No suggestion request SHALL be sent before the user types, including when the command bar opens holding the current page's address.
@@ -47,5 +51,5 @@ The user SHALL be able to choose another default engine and to turn search sugge
 - **THEN** DuckDuckGo's results page for "clair browser" opens
 
 #### Scenario: Turning suggestions off
-- **WHEN** the user turns off "Autocomplete searches and URLs" in `chrome://settings/syncSetup` and types `weather` in the command bar
+- **WHEN** the user turns off "Improve search suggestions" in `chrome://settings/googleServices` and types `weather` in the command bar
 - **THEN** no request goes to `www.google.com/complete/search`, and no row is a suggestion from Google

@@ -14,8 +14,10 @@ class NativeWindowTestCase: RuntimeTestCase {
   func url(_ page: String) -> String { "\(fixture.baseURL)/pages/\(page)" }
 
   /// Starts Clair with one tab showing `page`, and returns that tab.
-  func startWithPage(_ page: String = "index.html", arguments: [String] = []) async throws -> (Browser, DevToolsSession) {
-    let browser = try await startBrowser(arguments: arguments)
+  func startWithPage(
+    _ page: String = "index.html", arguments: [String] = [], searchSuggestions: Bool = false
+  ) async throws -> (Browser, DevToolsSession) {
+    let browser = try await startBrowser(arguments: arguments, searchSuggestions: searchSuggestions)
     let tab = try await browser.open(url(page))
     browser.ui.activate()
     try require(browser.nativeWindow.waitForExistence(timeout: 30), "Clair shows no native window")
