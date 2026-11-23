@@ -47,5 +47,5 @@ The user SHALL be able to choose another default engine and to turn search sugge
 - **THEN** DuckDuckGo's results page for "clair browser" opens
 
 #### Scenario: Turning suggestions off
-- **WHEN** the user turns off "Autocomplete searches and URLs" in `chrome://settings/syncSetup` and types `weather` in the command bar
+- **WHEN** the user turns off "Improve search suggestions" in `chrome://settings/googleServices` and types `weather` in the command bar
 - **THEN** no request goes to `www.google.com/complete/search`, and no row is a suggestion from Google

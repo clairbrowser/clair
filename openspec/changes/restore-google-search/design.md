@@ -58,7 +58,7 @@ Chromium already falls back to Google in every country once the entry exists. Cl
 
 ### D4. Suggestions default on through a one-hunk revert
 
-The revert of `0006-modify-default-prefs.patch`'s `profile.cc` hunk makes `kSearchSuggestEnabled` default to `true`. The rest of that patch stays. Only the default changes. A profile where the user turned suggestions off keeps its setting. The toggle stays in `chrome://settings/syncSetup` ("Autocomplete searches and URLs"), where `personalization_options` shows it.
+The revert of `0006-modify-default-prefs.patch`'s `profile.cc` hunk makes `kSearchSuggestEnabled` default to `true`. The rest of that patch stays. Only the default changes. A profile where the user turned suggestions off keeps its setting. The toggle stays in `chrome://settings/googleServices` ("Improve search suggestions"), where ungoogled-chromium leaves it; `chrome://settings/syncSetup` redirects to `chrome://settings/people`.
 
 ### D5. Suggestion requests keep Chromium's cookie behaviour
 
