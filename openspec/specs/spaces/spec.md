@@ -17,7 +17,7 @@ Clair SHALL keep an ordered list of Spaces. Each Space SHALL have a name and an 
 - **THEN** the Spaces "Home", "Work" and "Travel" exist in that order, each with its name and icon
 
 ### Requirement: Space header
-Above the tab list, the sidebar SHALL show the current Space's icon, if it has one, and its name. Right-clicking the header SHALL open a menu offering Change Space Icon…, Rename Space…, Set Profile (`profiles`), Manage Spaces… and Delete Space. An incognito or guest window SHALL show no Space header.
+Above the tab list, the sidebar SHALL show the current Space's icon, if it has one, and its name. Right-clicking the header SHALL open a menu offering Change Space Icon…, Rename Space…, Set Profile (`profiles`), Manage Spaces… and Delete Space. Hovering the header SHALL show a More button (…) at its trailing end, as in Arc, which opens the same menu. An incognito or guest window SHALL show no Space header.
 
 #### Scenario: Header shows the Space
 - **WHEN** a window shows the Space "Work", whose icon is 💼

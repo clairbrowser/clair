@@ -79,6 +79,16 @@ struct SpaceHeaderView: View {
   /// name slides aside, and back, in about 85 ms as the chevron fades.
   static let chevronSlide = Animation.easeInOut(duration: 0.085)
 
+  /// The More button: 24 pt, 6 pt in from the pill's trailing edge, as in
+  /// Arc, with the name kept clear of it.
+  static let moreSize: CGFloat = 24
+  static let moreTrailing: CGFloat = 14
+  static let moreGlyphSize: CGFloat = 13
+  private static let trailing: CGFloat = 13
+  private static let trailingWithMore: CGFloat = moreTrailing + moreSize + 4
+
+  private var showsMore: Bool { isHovered && edit == nil && space != nil }
+
   private var showsChevron: Bool {
     onToggleCollapse != nil && edit == nil && (isHovered || pinsCollapsed)
   }
@@ -115,7 +125,7 @@ struct SpaceHeaderView: View {
     // chevron stays, pointing sideways, while the pinned tabs are collapsed.
     .padding(.leading, showsChevron ? Self.chevronLeading : Self.leading)
     .animation(Self.chevronSlide, value: showsChevron)
-    .padding(.trailing, 13)
+    .padding(.trailing, showsMore ? Self.trailingWithMore : Self.trailing)
     .frame(height: Self.height)
     .background {
       if isHovered && edit == nil && onToggleCollapse != nil {
@@ -125,9 +135,17 @@ struct SpaceHeaderView: View {
       }
     }
     .contentShape(Rectangle())
+    // A click anywhere on the header collapses or expands the pinned
+    // section, as in Arc.
+    .gesture(TapGesture().onEnded { onToggleCollapse?() }, isEnabled: edit == nil && onToggleCollapse != nil)
     .overlay(alignment: .leading) {
       ZStack(alignment: .leading) { chevron }
         .animation(Self.chevronSlide, value: showsChevron)
+    }
+    .overlay(alignment: .trailing) {
+      if edit == nil && space != nil {
+        moreButton
+      }
     }
     .onHover { isHovered = $0 }
     .padding(.bottom, Self.bottomGap)
@@ -158,6 +176,20 @@ struct SpaceHeaderView: View {
       .accessibilityIdentifier("clair.pinnedChevron")
       .transition(.opacity)
     }
+  }
+
+  /// Arc's More button, which opens the header's menu. It stays in the view
+  /// while hidden, so an open menu isn't taken away with it.
+  private var moreButton: some View {
+    IconMenu(help: "More", size: Self.moreSize) {
+      RowMenuContent(items: menuItems)
+    } label: {
+      SymbolGlyph(systemImage: "ellipsis", size: Self.moreGlyphSize, weight: .bold)
+    }
+    .padding(.trailing, Self.moreTrailing)
+    .opacity(showsMore ? 1 : 0)
+    .animation(sidebarHoverFade, value: showsMore)
+    .accessibilityIdentifier("clair.spaceMore")
   }
 
   @ViewBuilder private var icon: some View {
@@ -223,6 +255,29 @@ struct SpaceHeaderView: View {
         return item.isChecked ? .checked(item.title, {}) : .action(item.title, choose)
       case .newProfile:
         return .action(item.title) { [weak actions] in actions?.newProfile(forSpace: spaceID) }
+      }
+    }
+  }
+}
+
+/// A row's menu items as SwiftUI menu content, for a menu button that offers
+/// the same menu as right-clicking the row.
+struct RowMenuContent: View {
+  let items: [RowClickCatcher.Item]
+
+  var body: some View {
+    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+      switch item {
+      case .action(let title, let run):
+        Button(title, action: run)
+      case .checked(let title, let run):
+        Toggle(title, isOn: Binding(get: { true }, set: { _ in run() }))
+      case .disabled(let title):
+        Button(title) {}.disabled(true)
+      case .submenu(let title, let items):
+        Menu(title) { RowMenuContent(items: items) }
+      case .separator:
+        Divider()
       }
     }
   }

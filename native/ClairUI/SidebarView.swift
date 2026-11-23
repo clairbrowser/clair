@@ -246,12 +246,15 @@ enum SidebarFill {
     scheme == .dark ? Color.white.opacity(hovered ? 0.2 : 0.15) : Color.black.opacity(hovered ? 0.09 : 0.045)
   }
 
-  /// The active tab's pill, lighter and flat while the window isn't key.
+  /// The active tab's pill, lighter while the window isn't key.
   static func activePill(_ scheme: ColorScheme, isWindowKey: Bool) -> Color {
     scheme == .dark
       ? Color.white.opacity(isWindowKey ? 0.24 : 0.16)
       : Color(nsColor: .controlBackgroundColor).opacity(isWindowKey ? 0.9 : 0.7)
   }
+
+  /// The active tab's shadow, the same whether the window is key or not.
+  static let activeShadow = Color.black.opacity(0.12)
 
   /// A hovered row or button.
   static func hover(_ scheme: ColorScheme) -> Color {
@@ -1233,10 +1236,10 @@ struct TabRow: View {
     .frame(height: Self.pillHeight)
     .background {
       if isActive {
-        // Lighter and flat while the window isn't key, as in Arc.
+        // Lighter while the window isn't key, as in Arc.
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
           .fill(SidebarFill.activePill(colorScheme, isWindowKey: isWindowKey))
-          .shadow(color: .black.opacity(isWindowKey ? 0.12 : 0), radius: 2, y: 1)
+          .shadow(color: SidebarFill.activeShadow, radius: 2, y: 1)
       } else if isHovered {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous).fill(SidebarFill.hover(colorScheme))
       }

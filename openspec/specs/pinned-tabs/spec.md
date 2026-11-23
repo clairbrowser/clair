@@ -125,7 +125,7 @@ A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Ed
 - **THEN** a new Today tab at the top of the list shows the same URL, and "Docs" stays pinned
 
 ### Requirement: Collapsing the pinned section
-While the Space has pinned tabs, hovering the Space header SHALL show a chevron at its leading edge, sliding the name aside as in Arc; without pinned tabs the header shows no chevron. Clicking it, or View › Collapse Pinned Tabs, SHALL hide the pinned rows except the active one, and turn the chevron to point sideways, shown without hover. Clicking it again or View › Expand Pinned Tabs SHALL show them. Each Space SHALL remember the choice across windows and launches.
+While the Space has pinned tabs, hovering the Space header SHALL show a chevron at its leading edge, sliding the name aside as in Arc; without pinned tabs the header shows no chevron. Clicking it or anywhere else on the header, or View › Collapse Pinned Tabs, SHALL hide the pinned rows except the active one, and turn the chevron to point sideways, shown without hover. Clicking it again or View › Expand Pinned Tabs SHALL show them. Each Space SHALL remember the choice across windows and launches.
 
 #### Scenario: Collapsing
 - **WHEN** a Space has four pinned tabs, the second active, and the user clicks the chevron
