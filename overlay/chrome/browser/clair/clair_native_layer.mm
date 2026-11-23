@@ -15,6 +15,7 @@
 #include "base/apple/bundle_locations.h"
 #include "base/apple/foundation_util.h"
 #include "base/check.h"
+#include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -43,6 +44,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/search_engines/search_engines_switches.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "components/tabs/public/tab_interface.h"
@@ -621,6 +623,12 @@ void StartNativeLayer() {
     LOG(ERROR) << "ClairUI: already started";
     return;
   }
+
+  // restore-google-search D3: Google is the default in every country, so
+  // Chromium's search engine choice screen never shows. Profiles load after
+  // this, and the choice service reads the switch each time it decides.
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      switches::kDisableSearchEngineChoiceScreen);
 
   NSUserDefaults* defaults = NSUserDefaults.standardUserDefaults;
   if ([defaults boolForKey:kRelaunchedInBackgroundKey]) {

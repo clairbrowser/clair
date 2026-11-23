@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "base/functional/bind.h"
@@ -187,6 +188,9 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   NSImage* _keywordIcon;
   GURL _keywordSite;
   NSArray<id<ClairSuggestion>>* _lastSuggestions;
+  // The text of the first query, which the bar opened with (empty, or the
+  // page's address for Cmd+L). Unset until that query.
+  std::optional<std::u16string> _startingText;
   BOOL _lastFinished;
   // The rows' favicons, as the omnibox keeps them: cached ones come back at
   // once, so rows don't flicker as the user types.
@@ -429,7 +433,9 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   return suggestionID;
 }
 
-- (void)startWithText:(const std::u16string&)text inKeywordMode:(bool)keywordMode {
+- (void)startWithText:(const std::u16string&)text
+        inKeywordMode:(bool)keywordMode
+     omitAsynchronous:(bool)omitAsynchronous {
   Profile* profile = self.profile;
   if (_stopped || !_controller || !profile) {
     return;
@@ -446,6 +452,7 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
   input.set_prevent_inline_autocomplete(true);
   input.set_in_keyword_mode(keywordMode);
   input.set_allow_exact_keyword_match(keywordMode);
+  input.set_omit_asynchronous_matches(omitAsynchronous);
   _controller->Start(input);
 }
 
@@ -454,17 +461,25 @@ ClairSuggestionKind KindOf(const AutocompleteMatch& match,
     return;
   }
   std::u16string query = base::SysNSStringToUTF16(text);
+  if (!_startingText) {
+    _startingText = query;
+  }
   if (_keyword) {
     [self startWithText:base::StrCat({base::SysNSStringToUTF16(_keyword), u" ",
                                       query})
-          inKeywordMode:true];
+          inKeywordMode:true
+       omitAsynchronous:false];
     return;
   }
   if (query.empty()) {
     [self showEmptyQueryList];
     return;
   }
-  [self startWithText:query inKeywordMode:false];
+  // restore-google-search D6: nothing goes to the search engine, or any other
+  // remote source, until the user changes the text the bar opened with.
+  [self startWithText:query
+        inKeywordMode:false
+     omitAsynchronous:query == *_startingText];
 }
 
 - (void)acceptKeywordOfSuggestion:(NSInteger)suggestionID text:(NSString*)text {
