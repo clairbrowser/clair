@@ -10,6 +10,11 @@ import Observation
 /// autocomplete session of Chromium's per opening.
 @Observable
 final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
+  /// The most rows the bar lists, as Arc does (design D11): the empty
+  /// query's open tabs and most visited sites together, and a query's
+  /// results. The panel never scrolls.
+  static let maxRows = 5
+
   /// Why it's open.
   let mode: CommandBarMode
   /// What's in the field, without the keyword in keyword mode.
@@ -185,6 +190,7 @@ final class CommandBarModel: NSObject, ClairAutocompleteDelegate {
 
   func autocomplete(_ session: any ClairAutocomplete, didUpdate suggestions: [any ClairSuggestion], finished: Bool) {
     guard !isClosed else { return }
+    let suggestions = Array(suggestions.prefix(Self.maxRows))
     if keyword != nil, let icon = session.keywordIcon {
       keywordIcon = icon
     }
