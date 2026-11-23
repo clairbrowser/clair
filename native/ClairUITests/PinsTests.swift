@@ -6,6 +6,7 @@ import AppKit
 import ClairHost
 import Foundation
 import Testing
+import UniformTypeIdentifiers
 
 @testable import ClairUI
 
@@ -177,20 +178,40 @@ struct PinsLogicTests {
 
   @Test func dropsInTheListFindTheirSection() {
     let today = [FakeTab(id: 1), FakeTab(id: 2, peekID: 3), FakeTab(id: 3, peekParentID: 2), FakeTab(id: 4)]
-    // Two pinned rows, the divider and "New Tab", then three Today rows.
+    // Two pinned rows, the row of the divider and "New Tab", then three
+    // Today rows.
     func drop(_ destination: Int, pin: Int? = nil, row: Int? = nil) -> PinsLogic.ListDrop {
       PinsLogic.listDrop(
-        destination: destination, pinCount: 2, boundaryCount: 2, today: today, movingPin: pin, movingTodayRow: row)
+        destination: destination, pinCount: 2, boundaryCount: 1, today: today, movingPin: pin, movingTodayRow: row)
     }
     // A Today tab between the two pinned tabs is pinned second.
     #expect(drop(1, row: 0) == .pinned(1))
-    // A pinned tab moved past the other.
+    // A pinned tab moved past the other, to the end of the section.
     #expect(drop(2, pin: 0) == .pinned(1))
     // A pinned tab below the second Today row: Peeks counted.
-    #expect(drop(6, pin: 1) == .today(3))
+    #expect(drop(5, pin: 1) == .today(3))
+    // A pinned tab dragged out to the top of Today, below "New Tab".
+    #expect(drop(3, pin: 0) == .today(0))
     // A Today row moved to the top of Today, or to its end.
-    #expect(drop(4, row: 2) == .today(0))
-    #expect(drop(7, row: 0) == .today(3))
+    #expect(drop(3, row: 2) == .today(0))
+    #expect(drop(6, row: 0) == .today(3))
+  }
+
+  @Test func aRowDroppedAboveTheDividerPinsWhileTheSectionIsEmpty() {
+    let today = [FakeTab(id: 1), FakeTab(id: 2)]
+    // No pinned rows: the row of the divider and "New Tab", then two Today
+    // rows. Above it pins; below it is the top of Today.
+    #expect(PinsLogic.listDrop(destination: 0, pinCount: 0, boundaryCount: 1, today: today, movingTodayRow: 1) == .pinned(0))
+    #expect(PinsLogic.listDrop(destination: 1, pinCount: 0, boundaryCount: 1, today: today, movingTodayRow: 1) == .today(0))
+  }
+
+  @Test func sidebarDragsCarryTextOfTheirOwnType() {
+    // Data alone would make a list row's drag a file promise, which the
+    // favorites don't accept; a page's plain text isn't of this type.
+    #expect(SidebarDragItem.type.conforms(to: .utf8PlainText))
+    #expect(!UTType.utf8PlainText.conforms(to: SidebarDragItem.type))
+    #expect(SidebarDragItem(payload: SidebarDragItem.tab(7).payload) == .tab(7))
+    #expect(SidebarDragItem(payload: SidebarDragItem.pin("p").payload) == .pin("p"))
   }
 
   @Test func theMenusListTheirItemsInOrder() {

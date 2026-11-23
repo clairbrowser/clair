@@ -50,8 +50,10 @@ enum SidebarDragItem: Equatable {
   case pin(PinID)
 
   /// Its own type, so a page's text or link dropped on the sidebar is
-  /// ignored.
-  static let type = UTType(exportedAs: "dev.joshuapark.clair.sidebar-item", conformingTo: .data)
+  /// ignored. It's text, which `package.sh` declares too: a list row dragged
+  /// with a type that's only data carries a file promise instead, which no
+  /// drop outside the list, such as the favorites, accepts.
+  static let type = UTType(exportedAs: "dev.joshuapark.clair.sidebar-item", conformingTo: .utf8PlainText)
 
   var payload: String {
     switch self {
@@ -101,6 +103,34 @@ enum SidebarDropTarget: Equatable {
   case favorites(Int)
 }
 
+/// Takes a row or tile dropped on a view for one place, such as the Space
+/// header for the end of the pinned section: a move, so the pointer shows no
+/// "+".
+struct PinningDropDelegate: DropDelegate {
+  let isEnabled: Bool
+  let target: SidebarDropTarget
+  @Binding var isTargeted: Bool
+  weak var actions: (any SidebarActions)?
+
+  func validateDrop(info: DropInfo) -> Bool { isEnabled }
+
+  func dropEntered(info: DropInfo) { isTargeted = true }
+
+  func dropExited(info: DropInfo) { isTargeted = false }
+
+  func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+  func performDrop(info: DropInfo) -> Bool {
+    isTargeted = false
+    let actions = actions
+    let target = target
+    SidebarDragItem.load(from: info.itemProviders(for: [SidebarDragItem.type])) { item in
+      actions?.drop(item, on: target)
+    }
+    return true
+  }
+}
+
 // MARK: Favorites (favorites spec, design D11)
 
 /// The favorites grid between the URL field and the Space header: tiles of
@@ -137,9 +167,14 @@ struct FavoritesGrid: View {
     .frame(height: layout.height, alignment: .topLeading)
     .animation(.snappy(duration: 0.15), value: room)
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-    .onDrop(of: [SidebarDragItem.type], delegate: FavoritesDropDelegate(layout: { [width] in
-      FavoritesLayout(count: favorites.count, width: width)
-    }, dropIndex: $dropIndex, actions: actions))
+    .overlay {
+      FavoritesDropArea(
+        slot: { [width] in FavoritesLayout(count: favorites.count, width: width).dropIndex(at: $0) },
+        tileSize: { [width] in FavoritesLayout(count: favorites.count + 1, width: width).frame(of: $0).size },
+        icon: { [model] in model.icon(of: $0) },
+        onTarget: { [$dropIndex] in $dropIndex.wrappedValue = $0 },
+        onDrop: { [actions] item, slot in actions?.drop(item, on: .favorites(slot)) })
+    }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("clair.favorites")
   }
@@ -147,32 +182,6 @@ struct FavoritesGrid: View {
   private func peek(of pin: any ClairPin) -> (any ClairTab)? {
     guard let tab = model.tab(ofPin: pin), tab.peekID != ClairTabIDNone else { return nil }
     return model.pinTabs[tab.peekID]
-  }
-}
-
-/// Finds where a tile dropped on the grid goes.
-struct FavoritesDropDelegate: DropDelegate {
-  let layout: () -> FavoritesLayout
-  @Binding var dropIndex: Int?
-  weak var actions: (any SidebarActions)?
-
-  func dropUpdated(info: DropInfo) -> DropProposal? {
-    dropIndex = layout().dropIndex(at: info.location)
-    return DropProposal(operation: .move)
-  }
-
-  func dropExited(info: DropInfo) {
-    dropIndex = nil
-  }
-
-  func performDrop(info: DropInfo) -> Bool {
-    let index = layout().dropIndex(at: info.location)
-    dropIndex = nil
-    let actions = actions
-    SidebarDragItem.load(from: info.itemProviders(for: [SidebarDragItem.type])) { item in
-      actions?.drop(item, on: .favorites(index))
-    }
-    return true
   }
 }
 
@@ -235,6 +244,7 @@ struct FavoriteTile: View {
 /// border on a light accent tint, a star, "Drag to add Favorites" and a
 /// dismiss ×.
 struct FavoritesHintBox: View {
+  let model: BrowserWindowModel
   weak var actions: (any SidebarActions)?
 
   @State private var isTargeted = false
@@ -282,10 +292,15 @@ struct FavoritesHintBox: View {
       .padding(4)
       .accessibilityIdentifier("clair.favoritesHintDismiss")
     }
-    .onDrop(of: [SidebarDragItem.type], isTargeted: $isTargeted) { providers in
-      let actions = actions
-      SidebarDragItem.load(from: providers) { item in actions?.drop(item, on: .favorites(0)) }
-      return true
+    .overlay {
+      GeometryReader { geometry in
+        FavoritesDropArea(
+          slot: { _ in 0 },
+          tileSize: { _ in CGSize(width: geometry.size.width, height: FavoritesLayout.tileHeight) },
+          icon: { [model] in model.icon(of: $0) },
+          onTarget: { [$isTargeted] in $isTargeted.wrappedValue = $0 != nil },
+          onDrop: { [actions] item, _ in actions?.drop(item, on: .favorites(0)) })
+      }
     }
     .padding(.horizontal, FavoritesLayout.inset)
     .padding(.top, Self.topInset)
@@ -558,7 +573,8 @@ struct TodayDivider: View {
               .font(.system(size: 9, weight: .bold))
             Text("Clear").font(.system(size: 11, weight: .medium))
           }
-          .foregroundStyle(isClearHovered ? Color.primary.opacity(0.8) : Color.secondary)
+          // A little fainter than the sidebar's other secondary text.
+          .foregroundStyle(isClearHovered ? Color.primary.opacity(0.8) : Color.secondary.opacity(0.75))
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -590,7 +606,8 @@ enum PinFill {
       ? Color.white.opacity(hovered ? 0.12 : 0.08) : Color.black.opacity(hovered ? 0.10 : 0.07)
   }
 
-  static let divider = Color.primary.opacity(0.14)
+  /// The divider's hairline, a little stronger than Arc's.
+  static let divider = Color.primary.opacity(0.22)
 
   /// The Back to Pinned URL button under the pointer: Arc's hovered × or −
   /// background.

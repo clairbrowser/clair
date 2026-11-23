@@ -183,10 +183,14 @@ These come from the add-peek change (its design.md has the numbers):
 - **Drags in Clair**: on the owner's Mac the probe's `drag` reaches Clair
   with no events at all, though `click` and `hover` do, so it moves nothing
   there. Drag with the mouse's own events instead:
-  `build/probe/bin/drag x1 y1 x2 y2`, in screen points, after `activate`. It
-  moves the real pointer and needs the shell to have permission to post
-  events. The XCUITest runner has no such permission, so the probe can't do
-  this itself.
+  `build/probe/bin/drag x1 y1 x2 y2`, in screen points, after `activate`.
+  More points after the first two make it pass through each, so a drag can go
+  somewhere and back, and an odd last number is how long it holds before
+  letting go (0.3 s by default): with `drag … 2` in the background, a
+  `screencapture -C` 1.5 s later shows the drag in progress, pointer
+  included. It moves the real pointer and needs the shell to have permission
+  to post events. The XCUITest runner has no such permission, so the probe
+  can't do this itself.
 - **Never toggle the sidebar** from the probe: a new Clair window opens with
   the last chosen state, and the owner often sets the window up. Look at a
   screenshot first.

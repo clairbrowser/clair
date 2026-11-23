@@ -53,6 +53,18 @@ final class BrowserWindowModel {
     return pinTabs[pin.tabID] ?? PinsLogic.tab(of: pin)
   }
 
+  /// The icon of a dragged row or tile: its tab's favicon, or its pin's
+  /// icon.
+  func icon(of item: SidebarDragItem) -> NSImage? {
+    switch item {
+    case .tab(let tabID):
+      return tabs.first { $0.tabID == tabID }?.favicon
+    case .pin(let pinID):
+      guard let pin = (pins + favorites).first(where: { $0.pinID == pinID }) else { return nil }
+      return PinsLogic.icon(of: pin, tab: tab(ofPin: pin))
+    }
+  }
+
   /// The pin `tabID` is bound to, among the window's.
   func pin(ofTab tabID: TabID) -> (any ClairPin)? {
     guard tabID != ClairTabIDNone else { return nil }

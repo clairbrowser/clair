@@ -57,6 +57,9 @@ struct SpaceHeaderView: View {
   var pinsCollapsed = false
   /// The chevron's click; nil for a header without one.
   var onToggleCollapse: (() -> Void)?
+  /// Whether a row or tile dragged over it would pin there, which shows the
+  /// pill.
+  var isDropTarget = false
 
   static let height: CGFloat = 32
   /// Room under the header, so the name's centre sits 41 pt above the "New
@@ -136,7 +139,7 @@ struct SpaceHeaderView: View {
     .animation(reduceMotion ? nil : sidebarHoverFade, value: showsMore)
     .frame(height: Self.height)
     .background {
-      if isHovered && edit == nil && onToggleCollapse != nil {
+      if (isHovered && edit == nil && onToggleCollapse != nil) || isDropTarget {
         RoundedRectangle(cornerRadius: TabRow.cornerRadius, style: .continuous)
           .fill(SidebarFill.hover(colorScheme))
           .padding(.horizontal, 8)

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Dragging tabs in the sidebar works. A tab dropped into an empty pinned section, or on the Space header, is pinned. A pinned tab can be dragged out to the top of Today. A tab or pinned tab dropped on the favorites becomes a favorite, and over the favorites the drag shows the tile it will make, with no "+" on the pointer
+time: 2026-11-23T15:20:07.362412-05:00

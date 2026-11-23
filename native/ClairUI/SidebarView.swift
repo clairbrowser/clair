@@ -154,7 +154,7 @@ struct SidebarView: View {
         if !model.favorites.isEmpty {
           FavoritesGrid(model: model, actions: actions)
         } else if model.showsFavoritesHint {
-          FavoritesHintBox(actions: actions)
+          FavoritesHintBox(model: model, actions: actions)
         }
       }
       // The Space's header and tabs, or the New Space form, between the URL
@@ -713,16 +713,26 @@ struct SpacePage: View {
   /// the list may grow into.
   @State private var listHeight: CGFloat = 0
   @State private var spaceBelow: CGFloat = 0
+  @State private var isHeaderTargeted = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if model.showsSpaces {
-        let collapsed = space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false
+        let isShown = space?.spaceID == model.shownSpaceID
+        let collapsed = isShown ? model.isPinnedSectionCollapsed : false
         SpaceHeaderView(
           model: model, space: space, actions: actions, pinsCollapsed: collapsed,
           // No chevron or hover pill without pinned tabs, as in Arc.
           onToggleCollapse: PinsLogic.offersCollapse(pinCount: pins.count, collapsed: collapsed)
-            ? { [weak actions] in actions?.togglePinnedSection() } : nil)
+            ? { [weak actions] in actions?.togglePinnedSection() } : nil,
+          isDropTarget: isHeaderTargeted)
+        // A row or tile dropped on the header is pinned last, as Pin Tab
+        // pins, whether the section is empty or collapsed.
+        .onDrop(
+          of: [SidebarDragItem.type],
+          delegate: PinningDropDelegate(
+            isEnabled: isShown && model.showsPins, target: .pinned(pins.count), isTargeted: $isHeaderTargeted,
+            actions: actions))
       }
       TabList(
         model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, room: listHeight + spaceBelow,
@@ -941,15 +951,15 @@ struct TabList: View {
   /// One of the list's items.
   enum Item: Identifiable {
     case pin(any ClairPin)
-    case divider
-    case newTab
+    /// The divider, when it shows, and "New Tab", as one row, so the list
+    /// offers no place between them.
+    case boundary(showsDivider: Bool)
     case tab(any ClairTab)
 
     var id: String {
       switch self {
       case .pin(let pin): "pin-\(pin.pinID)"
-      case .divider: "divider"
-      case .newTab: "newTab"
+      case .boundary: "boundary"
       case .tab(let tab): "tab-\(tab.tabID)"
       }
     }
@@ -1000,9 +1010,9 @@ struct TabList: View {
     let visiblePins = PinsLogic.visiblePins(pins, collapsed: model.isPinnedSectionCollapsed, highlighted: highlighted)
     // Under the Space header, pinned tabs or not, as in Arc.
     let showsDivider = PinsLogic.showsDivider(todayRowCount: rows.count, showsPins: model.showsPins)
-    let boundary = (showsDivider ? 1 : 0) + 1
+    let boundary = 1
     let items: [Item] =
-      visiblePins.map { .pin($0) } + (showsDivider ? [.divider] : []) + [.newTab] + rows.map { .tab($0) }
+      visiblePins.map { .pin($0) } + [.boundary(showsDivider: showsDivider)] + rows.map { .tab($0) }
     List {
       ForEach(items) { item in
         row(item, peeks: peeks, highlighted: highlighted, moveTargets: moveTargets)
@@ -1025,7 +1035,11 @@ struct TabList: View {
           drop = PinsLogic.listDrop(
             destination: destination, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs,
             movingTodayRow: from - visiblePins.count - boundary)
-        case .divider, .newTab:
+        // The divider and "New Tab" can be lifted but move nothing. They
+        // aren't `moveDisabled`: the list then offers no place beside them
+        // to a row dragged from above, such as a pinned tab to the top of
+        // Today, nor to any row while the pinned section is empty.
+        case .boundary:
           return
         }
         actions?.drop(dragged, on: target(of: drop, visiblePins: visiblePins))
@@ -1094,17 +1108,19 @@ struct TabList: View {
         actions: actions
       )
       .itemProvider { SidebarDragItem.pin(pin.pinID).itemProvider() }
-    case .divider:
-      TodayDivider(
-        showsClear: PinsLogic.showsClear(
-          todayRowCount: TabListLogic.rowCount(tabs), showsPins: model.showsPins, isSidebarHovered: isSidebarHovered)
-      ) { actions?.clearToday() }
-      .moveDisabled(true)
-    case .newTab:
-      NewTabRow(isHighlighted: model.commandBar?.mode == .newTab) { actions?.newTab() }
-        // From inside a row, where it can reach the list's scroll view.
-        .background(ScrollerControlSize(size: .small))
-        .moveDisabled(true)
+    case .boundary(let showsDivider):
+      VStack(spacing: 0) {
+        if showsDivider {
+          TodayDivider(
+            showsClear: PinsLogic.showsClear(
+              todayRowCount: TabListLogic.rowCount(tabs), showsPins: model.showsPins,
+              isSidebarHovered: isSidebarHovered)
+          ) { actions?.clearToday() }
+        }
+        NewTabRow(isHighlighted: model.commandBar?.mode == .newTab) { actions?.newTab() }
+          // From inside a row, where it can reach the list's scroll view.
+          .background(ScrollerControlSize(size: .small))
+      }
     case .tab(let tab):
       TabRow(
         tab: tab, isActive: tab.tabID == highlighted, isWindowKey: model.isWindowKey,
