@@ -1,0 +1,3 @@
+kind: New
+body: 'Bookmarks are back as one list in a Bookmarks menu: Bookmark This Page… (⇧⌘B) adds the page and opens a dialog to name it, file it in a folder or remove it, and reads Edit Bookmark… on a bookmarked page; Manage Bookmarks (⌥⌘B) opens the bookmark manager; and the command bar suggests bookmarks, with a bookmark icon. Clair has no bookmarks bar, so bookmarks saved or imported there move to the Bookmarks menu, and a one-time notice says so'
+time: 2026-11-22T17:10:30.76797-05:00

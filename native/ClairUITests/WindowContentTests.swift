@@ -194,6 +194,27 @@ struct MainMenuTitlesTests {
     MainMenuTitles.apply(to: menu)
     #expect(item.title == "Open Location Bar")
   }
+
+  /// add-bookmarks-menu D1: Chromium's Open Bookmarks Manager reads "Manage
+  /// Bookmarks", found by its tag; other items keep their titles.
+  @Test func renamesTheBookmarkManager() {
+    let menu = NSMenu()
+    let bookmarks = NSMenuItem(title: "Bookmarks", action: nil, keyEquivalent: "")
+    bookmarks.submenu = NSMenu()
+    let page = NSMenuItem(title: "Bookmark This Page…", action: nil, keyEquivalent: "b")
+    page.tag = 35000
+    let manager = NSMenuItem(title: "Bookmark Manager", action: nil, keyEquivalent: "b")
+    manager.tag = MainMenuTitles.bookmarkManagerTag
+    let bookmark = NSMenuItem(title: "Example", action: nil, keyEquivalent: "")
+    bookmarks.submenu?.items = [page, manager, .separator(), bookmark]
+    menu.addItem(bookmarks)
+    MainMenuTitles.apply(to: menu)
+    #expect(manager.title == "Manage Bookmarks")
+    #expect(page.title == "Bookmark This Page…")
+    #expect(bookmark.title == "Example")
+    #expect(bookmarks.title == "Bookmarks")
+    #expect(MainMenuTitles.item(withTag: MainMenuTitles.bookmarkManagerTag, in: menu) === manager)
+  }
 }
 
 /// The page's place beside docked DevTools: Chromium's

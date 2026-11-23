@@ -1,0 +1,61 @@
+# Clair has one bookmark list, Chromium's Other Bookmarks, and keeps the
+# Bookmarks Bar empty (add-bookmarks-menu design D6, D7). The Bookmarks menu
+# lists Other Bookmarks' entries directly, where Chromium lists the bar's, with
+# no Bookmarks Bar entries and no Other Bookmarks submenu. The Managed and
+# Mobile submenus stay while they have content, all under one separator.
+#
+# This isn't a hook in the overlay because the menu is built by the bridge's
+# private AddSubmenu() and AddNodeToMenu(), and the bridge keeps pointers to the
+# items it made (bookmark_nodes_), which its updates and ClearBookmarkMenu()
+# expect to find in the root menu or its submenus. Moving items after a rebuild
+# would break that.
+
+--- a/chrome/browser/ui/cocoa/bookmarks/bookmark_menu_bridge.mm
++++ b/chrome/browser/ui/cocoa/bookmarks/bookmark_menu_bridge.mm
+@@ -130,13 +130,15 @@
+ 
+   ClearBookmarkMenu();
+ 
+-  BookmarkParentFolder bookmark_bar_folder =
+-      BookmarkParentFolder::BookmarkBarFolder();
+   BookmarkParentFolder managed_folder = BookmarkParentFolder::ManagedFolder();
++  BookmarkParentFolder other_folder = BookmarkParentFolder::OtherFolder();
++  BookmarkParentFolder mobile_folder = BookmarkParentFolder::MobileFolder();
+ 
+-  // Add at most one separator for the bookmark bar and the managed bookmarks
+-  // folder.
+-  if (HasContent(bookmark_bar_folder) || HasContent(managed_folder)) {
++  // Clair: one list (add-bookmarks-menu design D6, D7). Other Bookmarks'
++  // entries go directly in the root menu, under one separator, and Clair
++  // keeps the bookmark bar empty, so it isn't listed.
++  if (HasContent(managed_folder) || HasContent(other_folder) ||
++      HasContent(mobile_folder)) {
+     [menu_root_ addItem:[NSMenuItem separatorItem]];
+   }
+ 
+@@ -148,24 +150,11 @@
+     AddSubmenu(menu_root_, managed_folder, image, recurse);
+   }
+ 
+-  // Add entries from the bookmark bar to the root menu.
+   for (const BookmarkNode* node :
+-       bookmark_service_->GetChildren(bookmark_bar_folder)) {
++       bookmark_service_->GetChildren(other_folder)) {
+     AddNodeToMenu(node, menu_root_, recurse);
+   }
+ 
+-  BookmarkParentFolder other_folder = BookmarkParentFolder::OtherFolder();
+-  BookmarkParentFolder mobile_folder = BookmarkParentFolder::MobileFolder();
+-
+-  // Add at most one separator for the "Other Bookmarks" and "Mobile Bookmarks"
+-  // folders.
+-  if (HasContent(other_folder) || HasContent(mobile_folder)) {
+-    [menu_root_ addItem:[NSMenuItem separatorItem]];
+-  }
+-
+-  if (HasContent(other_folder)) {
+-    AddSubmenu(menu_root_, other_folder, folder_image_, recurse);
+-  }
+   if (HasContent(mobile_folder)) {
+     AddSubmenu(menu_root_, mobile_folder, folder_image_, recurse);
+   }

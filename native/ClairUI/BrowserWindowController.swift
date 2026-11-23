@@ -690,6 +690,17 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     QuitConfirmation.show(on: dialogs, host: host)
   }
 
+  // MARK: Bookmarks (add-bookmarks-menu D4 to D6)
+
+  func showBookmarkDialog(_ bookmark: any ClairBookmark) {
+    guard let browser else { return }
+    BookmarkDialog.show(bookmark, browser: browser, on: dialogs)
+  }
+
+  func showBookmarksBarNotice() {
+    BookmarksBarNotice.show(on: dialogs)
+  }
+
   /// Does what System Settings says a title bar double-click does.
   func titleBarDoubleClicked() {
     guard !isWindowFullscreen, !model.isPageFullscreen else { return }

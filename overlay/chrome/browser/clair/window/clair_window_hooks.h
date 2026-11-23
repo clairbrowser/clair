@@ -183,8 +183,9 @@ bool IsInNativeWindow(gfx::NativeView view);
 void RemoveUnavailableContextMenuItems(ui::SimpleMenuModel* model);
 
 // Not a hook: called once ClairUI has started. Applies D10's menu changes:
-// no Bookmarks menu, the unavailable features' items hidden, View > Hide
-// Sidebar on Cmd+S and Save Page As on Shift+Cmd+S.
+// the unavailable features' items hidden, View > Hide Sidebar on Cmd+S and
+// Save Page As on Shift+Cmd+S; and add-bookmarks-menu D1's: Bookmark This
+// Page… first in the Bookmarks menu, on Shift+Cmd+B.
 void InstallNativeWindowMenus();
 
 // Not a hook: for the native layer's quit hook (native-quit-confirmation).

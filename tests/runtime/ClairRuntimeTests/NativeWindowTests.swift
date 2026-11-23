@@ -870,9 +870,9 @@ final class CommandBarTests: NativeWindowTestCase {
       let field = try self.openCommandBar(browser, "t")
       defer { browser.ui.typeKey(.escape, modifierFlags: []) }
       field.typeText("favicon.html")
-      // A history row reads as its URL, not the page's title.
+      // A history row reads as the page's title.
       let row = browser.ui.descendants(matching: .any).matching(
-        NSPredicate(format: "identifier == 'clair.suggestion' AND label CONTAINS 'pages/favicon.html'")
+        NSPredicate(format: "identifier == 'clair.suggestion' AND label BEGINSWITH 'Clair favicon test page'")
       ).firstMatch
       guard row.waitForExistence(timeout: 10) else { return false }
       return await Harness.wait(for: 3) { Self.showsMagenta(row.screenshot().image, within: 40) }

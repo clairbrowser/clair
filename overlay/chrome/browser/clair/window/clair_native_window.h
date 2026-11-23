@@ -13,7 +13,8 @@
 class ClairBrowserWindow;
 
 // Whether `command` belongs to a feature the native window doesn't host (D9,
-// D10, D17). Its menu item is hidden, and running it does nothing.
+// D10, add-bookmarks-menu D1, D17). Its menu item is hidden, and running it
+// does nothing.
 bool ClairIsRemovedCommand(int command);
 
 // The tag of View > Hide Sidebar, which the overlay adds to the main menu

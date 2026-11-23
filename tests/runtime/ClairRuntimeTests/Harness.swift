@@ -323,6 +323,91 @@ final class Browser {
   }
 }
 
+// MARK: - Bookmarks (add-bookmarks-menu D9)
+
+/// A bookmark or folder to write into a profile's Bookmarks file, or one read
+/// back from it.
+struct BookmarkNode: Equatable {
+  var title: String
+  /// A bookmark's URL, or nil for a folder.
+  var url: String?
+  var children: [BookmarkNode] = []
+
+  static func folder(_ title: String, _ children: [BookmarkNode]) -> BookmarkNode {
+    BookmarkNode(title: title, url: nil, children: children)
+  }
+}
+
+extension Browser {
+  /// The default profile's Bookmarks file.
+  var bookmarksFile: URL { dataDirectory.appending(path: "Default/Bookmarks") }
+
+  /// Writes the default profile's Bookmarks file before Clair starts, with
+  /// `bar` in the Bookmarks Bar and `other` in Other Bookmarks. Chromium reads
+  /// it without a checksum.
+  func writeBookmarks(bar: [BookmarkNode] = [], other: [BookmarkNode] = []) throws {
+    var nextID = 4
+    func encode(_ node: BookmarkNode) -> [String: Any] {
+      defer { nextID += 1 }
+      var object: [String: Any] = [
+        "id": String(nextID), "name": node.title, "date_added": "13300000000000000",
+        "date_modified": "0", "type": node.url == nil ? "folder" : "url",
+      ]
+      if let url = node.url {
+        object["url"] = url
+      } else {
+        object["children"] = node.children.map(encode)
+      }
+      return object
+    }
+    func root(_ id: String, _ name: String, _ children: [BookmarkNode]) -> [String: Any] {
+      [
+        "id": id, "name": name, "type": "folder", "date_added": "13300000000000000", "date_modified": "0",
+        "children": children.map(encode),
+      ]
+    }
+    let file: [String: Any] = [
+      "version": 1,
+      "roots": [
+        "bookmark_bar": root("1", "Bookmarks bar", bar),
+        "other": root("2", "Other bookmarks", other),
+        "synced": root("3", "Mobile bookmarks", []),
+      ],
+    ]
+    try FileManager.default.createDirectory(
+      at: bookmarksFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted]).write(to: bookmarksFile)
+  }
+
+  /// The Bookmarks Bar's and Other Bookmarks' contents as Chromium last saved
+  /// them, a couple of seconds after a change; empty before the first save.
+  func savedBookmarks() throws -> (bar: [BookmarkNode], other: [BookmarkNode]) {
+    guard let data = try? Data(contentsOf: bookmarksFile),
+      let file = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let roots = file["roots"] as? [String: Any]
+    else { return ([], []) }
+    func decode(_ object: Any) -> BookmarkNode? {
+      guard let object = object as? [String: Any], let title = object["name"] as? String else { return nil }
+      let children = (object["children"] as? [Any] ?? []).compactMap(decode)
+      return BookmarkNode(title: title, url: object["url"] as? String, children: children)
+    }
+    return (
+      decode(roots["bookmark_bar"] as Any)?.children ?? [],
+      decode(roots["other"] as Any)?.children ?? []
+    )
+  }
+
+  /// Waits until the saved bookmarks satisfy `condition`.
+  func waitForSavedBookmarks(
+    _ seconds: TimeInterval = 15, _ condition: @escaping (_ bar: [BookmarkNode], _ other: [BookmarkNode]) -> Bool
+  ) async -> Bool {
+    await Harness.wait(for: seconds) {
+      let saved = try self.savedBookmarks()
+      return condition(saved.bar, saved.other)
+    }
+  }
+}
+
 struct HarnessError: Error, CustomStringConvertible {
   let description: String
   init(_ description: String) {

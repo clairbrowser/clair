@@ -201,6 +201,9 @@
   XCTAssertTrue(indicators & ClairTabIndicatorsCamera);
   ClairTabID none = ClairTabIDNone;
   XCTAssertEqual(none, -1);
+  ClairBookmarkFolderID no_folder = ClairBookmarkFolderIDNone;
+  XCTAssertEqual(no_folder, -1);
+  XCTAssertEqual(ClairSuggestionKindBookmark, 4);
   std::string kinds[] = {"regular", "incognito", "guest"};
   XCTAssertEqual(kinds[ClairProfileKindGuest], "guest");
   for (Protocol* protocol in @[
@@ -210,7 +213,8 @@
          @protocol(ClairExtensionAction), @protocol(ClairExtensionPrompt), @protocol(ClairInfobar),
          @protocol(ClairHistoryMenu), @protocol(ClairHistoryMenuDelegate), @protocol(ClairHistoryItem),
          @protocol(ClairSpace), @protocol(ClairSpacesObserver), @protocol(ClairProfile),
-         @protocol(ClairPin), @protocol(ClairLinkRule)
+         @protocol(ClairPin), @protocol(ClairLinkRule), @protocol(ClairBookmark),
+         @protocol(ClairBookmarkFolder)
        ]) {
     XCTAssertTrue(protocol_conformsToProtocol(protocol, @protocol(NSObject)));
   }

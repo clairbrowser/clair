@@ -89,6 +89,14 @@ typedef NSString *ClairProfileID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(ProfileI
 // (add-pinned-tabs-and-favorites design D1).
 typedef NSString *ClairPinID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(PinID);
 
+// A bookmark's ID and a bookmark folder's: Chromium's bookmark node IDs,
+// stable while Clair runs (add-bookmarks-menu design D3).
+typedef int64_t ClairBookmarkID NS_SWIFT_NAME(BookmarkID);
+typedef int64_t ClairBookmarkFolderID NS_SWIFT_NAME(BookmarkFolderID);
+
+// No bookmark folder, as when one couldn't be added.
+static const ClairBookmarkFolderID ClairBookmarkFolderIDNone = -1;
+
 @protocol ClairLinkRule;
 @protocol ClairPin;
 @protocol ClairProfile;
@@ -453,6 +461,9 @@ typedef NS_ENUM(NSInteger, ClairSuggestionKind) {
   ClairSuggestionKindHistory = 2,
   // A tab open in this profile.
   ClairSuggestionKindOpenTab = 3,
+  // A page the user bookmarked, whether bookmarks or history suggested it
+  // (add-bookmarks-menu design D8). It never has an icon of its own.
+  ClairSuggestionKindBookmark = 4,
 } NS_SWIFT_NAME(SuggestionKind);
 
 // Where a download is.
@@ -639,6 +650,35 @@ NS_SWIFT_NAME(ClairLinkRule)
 // As the user typed it, trimmed: a domain or URL, with or without a scheme.
 @property(nonatomic, readonly, copy) NSString *text;
 @property(nonatomic, readonly, copy) ClairSpaceID spaceID;
+@end
+
+// A bookmark, as a snapshot (add-bookmarks-menu design D3). Chromium implements
+// it.
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairBookmark)
+@protocol ClairBookmark <NSObject>
+@property(nonatomic, readonly) ClairBookmarkID bookmarkID;
+// The bookmark's name, which the Bookmarks menu shows.
+@property(nonatomic, readonly, copy) NSString *title;
+// The bookmarked page, or nil when it isn't a valid NSURL.
+@property(nonatomic, readonly, copy, nullable) NSURL *url;
+// The folder that holds it: Other Bookmarks or one of its folders.
+@property(nonatomic, readonly) ClairBookmarkFolderID folderID;
+// Whether Bookmark This Page… has just added it, rather than found it already
+// there. It picks the bookmark dialog's title.
+@property(nonatomic, readonly) BOOL isNew;
+@end
+
+// A folder a bookmark can be saved in, as a snapshot (add-bookmarks-menu design
+// D3). Chromium implements it.
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairBookmarkFolder)
+@protocol ClairBookmarkFolder <NSObject>
+@property(nonatomic, readonly) ClairBookmarkFolderID folderID;
+// Chromium's name for it. ClairUI calls the folder at depth 0 "Bookmarks".
+@property(nonatomic, readonly, copy) NSString *title;
+// 0 for Other Bookmarks itself, 1 for its folders, and so on.
+@property(nonatomic, readonly) NSInteger depth;
 @end
 
 // What ClairUI implements to hear about Spaces and their tabs, app-wide
@@ -1112,6 +1152,35 @@ NS_SWIFT_NAME(ClairBrowser)
 - (void)infobar:(NSInteger)infobarID ofTab:(ClairTabID)tabID didChoose:(ClairInfobarAction)action
     NS_SWIFT_NAME(infobar(_:tab:didChoose:));
 
+// --- Bookmarks (add-bookmarks-menu design D3, D6) ---
+// The bookmarks of the window's profile, or of its original profile in an
+// incognito or guest window. Clair uses one list, Chromium's Other Bookmarks,
+// and keeps the Bookmarks Bar empty. Bookmarks are added by the
+// IDC_BOOKMARK_THIS_TAB command, which then calls -[ClairWindow
+// showBookmarkDialog:]. Every call naming a bookmark or folder that no longer
+// exists, as when it was removed while the dialog was open, does nothing.
+
+// The folders a bookmark can be saved in, in the bookmark dialog's order:
+// Other Bookmarks, then its folders, depth-first in their order. The Bookmarks
+// Bar, managed bookmarks and Mobile Bookmarks aren't among them. Empty until
+// the bookmarks have loaded.
+@property(nonatomic, readonly, copy) NSArray<id<ClairBookmarkFolder>> *bookmarkFolders;
+// Renames a bookmark and moves it to the end of `folderID`, one of
+// -bookmarkFolders; a bookmark already there stays in place. An empty `title`
+// becomes the page's title: the window's active tab's when it shows the
+// bookmark's URL, or else the URL formatted for people. An unknown folder
+// leaves it where it is.
+- (void)updateBookmark:(ClairBookmarkID)bookmarkID
+                 title:(NSString *)title
+                folder:(ClairBookmarkFolderID)folderID
+    NS_SWIFT_NAME(updateBookmark(_:title:folder:));
+// Deletes a bookmark.
+- (void)removeBookmark:(ClairBookmarkID)bookmarkID NS_SWIFT_NAME(removeBookmark(_:));
+// Adds a folder named `title` at the end of Other Bookmarks and returns its
+// ID. An empty `title`, once trimmed, is ignored and returns
+// ClairBookmarkFolderIDNone, as before the bookmarks have loaded.
+- (ClairBookmarkFolderID)addBookmarkFolder:(NSString *)title NS_SWIFT_NAME(addBookmarkFolder(_:));
+
 // --- The window ---
 // The window's close button. While another regular window of the profile is
 // open, the window's tabs move to the most recently active one and no tab
@@ -1173,6 +1242,16 @@ NS_SWIFT_NAME(ClairWindow)
 // quitWithoutWarning]. Another call while that dialog shows or waits does
 // nothing.
 - (void)showQuitConfirmation;
+
+// --- Bookmarks (add-bookmarks-menu design D4, D6) ---
+// Shows the bookmark dialog for `bookmark`, which Bookmarks > Bookmark This
+// Page… or Edit Bookmark… (Shift+Cmd+B) has just added or found for the active
+// tab's page. ClairUI saves and removes it through -[ClairBrowser
+// updateBookmark:title:folder:] and -removeBookmark:.
+- (void)showBookmarkDialog:(id<ClairBookmark>)bookmark NS_SWIFT_NAME(showBookmarkDialog(_:));
+// Says, once for the whole app, that what was in a Bookmarks Bar has moved to
+// the Bookmarks menu. ClairUI owns the text.
+- (void)showBookmarksBarNotice;
 
 // --- Commands ---
 // Opens the command bar.

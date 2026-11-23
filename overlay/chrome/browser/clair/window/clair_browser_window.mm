@@ -31,6 +31,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #import "chrome/browser/clair/ClairHost.h"
+#include "chrome/browser/clair/clair_bookmark_bar_drain.h"
 #include "chrome/browser/clair/clair_native_layer.h"
 #import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
@@ -838,6 +839,8 @@ ClairBrowserWindow::ClairBrowserWindow(Browser* browser)
   clair_window_ = clair::CreateClairWindow(bridge_);
   CHECK(clair_window_) << "ClairUI returned no window for a browser";
   [bridge_ attachWindow:clair_window_];
+  // add-bookmarks-menu D6: the profile's Bookmarks Bar stays empty.
+  ClairBookmarkBarDrain::WindowOpened(this);
 
   if (auto* zoom = BrowserWindowZoomObserver::From(browser)) {
     zoom_subscription_ = zoom->RegisterZoomChangedCallback(base::BindRepeating(

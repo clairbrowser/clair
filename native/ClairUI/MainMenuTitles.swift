@@ -12,6 +12,12 @@ enum MainMenuTitles {
   /// "Location" alone is vague to most people.
   static let focusLocationTitle = "Open Location Bar"
 
+  /// Chromium's IDC_SHOW_BOOKMARK_MANAGER, Bookmarks > Open Bookmarks
+  /// Manager (Option+Cmd+B), which opens `chrome://bookmarks`
+  /// (add-bookmarks-menu D1).
+  static let bookmarkManagerTag = 40011
+  static let bookmarkManagerTitle = "Manage Bookmarks"
+
   /// Edit > Copy URL's action, which the native window's root view answers
   /// through the responder chain, showing Arc's "Copied Current URL".
   static let copyURLAction = #selector(BrowserRootView.copyCurrentURL(_:))
@@ -76,9 +82,25 @@ enum MainMenuTitles {
     for item in menu.items {
       if item.tag == focusLocationTag {
         item.title = focusLocationTitle
+      } else if item.tag == bookmarkManagerTag {
+        item.title = bookmarkManagerTitle
       }
       apply(to: item.submenu)
     }
+  }
+
+  /// The first item tagged `tag` in `menu` or its submenus.
+  static func item(withTag tag: Int, in menu: NSMenu?) -> NSMenuItem? {
+    guard let menu else { return nil }
+    for item in menu.items {
+      if item.tag == tag {
+        return item
+      }
+      if let found = self.item(withTag: tag, in: item.submenu) {
+        return found
+      }
+    }
+    return nil
   }
 }
 

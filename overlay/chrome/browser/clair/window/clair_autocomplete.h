@@ -12,7 +12,10 @@
 class ClairBrowserWindow;
 
 // One command bar session (design D11): Chromium's AutocompleteController for
-// the window's profile, with the omnibox's providers apart from bookmarks.
+// the window's profile, with the omnibox's providers, bookmarks included
+// (add-bookmarks-menu D8). A bookmarked page's row is
+// ClairSuggestionKindBookmark, with no icon, unless it's a search or switches
+// to an open tab.
 @interface ClairChromiumAutocomplete : NSObject <ClairAutocomplete>
 
 - (instancetype)initWithBrowserWindow:(ClairBrowserWindow*)browserWindow

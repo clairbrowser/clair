@@ -63,12 +63,14 @@
 
 `MainMenuTitles` in `ClairUI` retitles `IDC_SHOW_BOOKMARK_MANAGER` to "Manage Bookmarks" by tag, as it does Open Location Bar.
 
+The manager opens on Other Bookmarks, since the Bookmarks Bar it would otherwise select first is always empty (D6). `ExecuteCommand` in `clair_native_window.mm` runs `IDC_SHOW_BOOKMARK_MANAGER` as `clair::ShowBookmarkManager`, which calls Chromium's `ShowBookmarkManagerForNode` with Other Bookmarks' ID, opening `chrome://bookmarks/?id=<id>`. Like Chromium's command, it uses `GetBrowserForOpeningWebUi` and switches to an open manager tab, which then shows Other Bookmarks. Typing `chrome://bookmarks` still selects the Bookmarks Bar: changing the page's default would mean patching its TypeScript.
+
 *Alternative:* build a Bookmarks menu in `ClairUI` from the folder snapshots of D3. Rejected: it would duplicate `BookmarkMenuBridge` (lazy submenus, favicons, live updates, dispositions, managed folders) for no visible difference.
 
 ### D2. "Bookmark This Page…" or "Edit Bookmark…" from menu validation
 
 `ClairWindowCommandHandler -validateUserInterfaceItem:window:` titles the `IDC_BOOKMARK_THIS_TAB` item every time AppKit validates it, which is whenever the menu opens or a key equivalent is matched:
-- "Edit Bookmark…" when `bookmarks::IsBookmarkedByUser` is true for the active tab's last committed URL;
+- "Edit Bookmark…" when `bookmarks::IsBookmarkedByUser` is true for the page Chromium would bookmark for the active tab (`chrome::GetURLAndTitleToBookmark`, its visible URL), as `BookmarkCurrentTab` checks it;
 - "Bookmark This Page…" otherwise.
 
 The command stays `IDC_BOOKMARK_THIS_TAB`, so ⇧⌘B does what the title says: `BookmarkCurrentTab` adds nothing to a bookmarked page, and reports `already_bookmarked` true.
@@ -78,16 +80,16 @@ The title lives in the engine, not in `MainMenuTitles`, because only the engine 
 ### D3. The contract: bookmark and folder snapshots, and three browser calls
 
 `ClairHost.h` gains:
-- `typedef int64_t ClairBookmarkID` and `ClairBookmarkFolderID`, Chromium's node IDs.
+- `typedef int64_t ClairBookmarkID` and `ClairBookmarkFolderID`, Chromium's node IDs, and `ClairBookmarkFolderIDNone` (-1).
 - **`@protocol ClairBookmark`**, a snapshot with:
   - `bookmarkID`, `title`, `url`, `folderID`;
   - `isNew`: true when ⇧⌘B added it, which picks the dialog's title;
 - **`@protocol ClairBookmarkFolder`**, with `folderID`, `title` and `depth` (0 for Other Bookmarks itself, which the popup calls "Bookmarks").
 - **`ClairBrowser`**:
   - `bookmarkFolders`: the user-editable folders in the popup's order. That's Other Bookmarks, then its folders depth-first. The Bookmarks Bar is left out, since D6 keeps it empty. Managed and Mobile Bookmarks are left out too: managed bookmarks can't be edited, and ungoogled-chromium has no sync to fill Mobile.
-  - `-updateBookmark:title:folder:`: renames and moves the bookmark. An empty title becomes the page's title. An ID that no longer exists, because the bookmark was removed meanwhile, does nothing.
+  - `-updateBookmark:title:folder:`: renames the bookmark and moves it to the end of the folder, one of `bookmarkFolders`; a bookmark already there keeps its place, and an unknown folder leaves it where it is. An empty title becomes the page's title: the window's active tab's when it shows the bookmark's URL, which it does while the dialog is up, or else the URL formatted for people. An ID that no longer exists, because the bookmark was removed meanwhile, does nothing.
   - `-removeBookmark:(ClairBookmarkID)`: the dialog's Remove.
-  - `-addBookmarkFolder:(NSString *)title`: adds the folder to Other Bookmarks and returns its ID.
+  - `-addBookmarkFolder:(NSString *)title`: adds the folder at the end of Other Bookmarks and returns its ID, or `ClairBookmarkFolderIDNone` for a title that's empty once trimmed.
 - **`-[ClairWindow showBookmarkDialog:(id<ClairBookmark>)]`**, for the ⇧⌘B path.
 - **`-[ClairWindow showBookmarksBarNotice]`**, for the Bookmarks Bar notice (D6). `ClairUI` owns the text.
 
@@ -95,7 +97,7 @@ All of it is additive. `ClairUI` and the engine ship together in one app, so the
 
 ### D4. One way in: ⇧⌘B and the menu item
 
-⇧⌘B and the menu item run `IDC_BOOKMARK_THIS_TAB`. The native window's `ExecuteCommand` (`clair_native_window.mm`) handles it before Chromium does, as it already handles `IDC_NEW_TAB`. For the active tab's last committed URL, it adds a bookmark under the page's title to Other Bookmarks, with `isNew` true, unless the page is already bookmarked, in which case it takes the URL's most recently added bookmark. It then calls `showBookmarkDialog:` with that snapshot. Chromium's `BookmarkCurrentTab` would add to `GetParentForNewNodes`, the most recently modified folder, which can be the Bookmarks Bar. `ClairBrowserWindow::ShowBookmarkBubble` keeps logging, since nothing calls it any more.
+⇧⌘B and the menu item run `IDC_BOOKMARK_THIS_TAB`. The native window's `ExecuteCommand` (`clair_native_window.mm`) handles it before Chromium does, as it already handles `IDC_NEW_TAB`, through `clair::BookmarkActivePage` (`clair_bookmarks.mm`, beside the bridge's other bookmark calls). For the page Chromium would bookmark (`chrome::GetURLAndTitleToBookmark`), it adds a bookmark under the page's title at the end of Other Bookmarks, with `isNew` true, unless the user has bookmarked the page already, in which case it takes the URL's most recently added bookmark (`GetMostRecentlyAddedUserNodeForURL`). An incognito page's favicon is saved first, as `BookmarkCurrentTab` does. It then calls `showBookmarkDialog:` with that snapshot. Chromium's `BookmarkCurrentTab` would add to `GetParentForNewNodes`, the most recently modified folder, which can be the Bookmarks Bar. `ClairBrowserWindow::ShowBookmarkBubble` keeps logging, since nothing calls it any more.
 
 `BrowserWindowController.showBookmarkDialog(_:)` presents the bookmark dialog (D5) through the window's `ClairDialogPresenter`, so it queues behind any other dialog on that window.
 
@@ -124,14 +126,14 @@ Clair's interface shows one bookmark list. Chromium's model always has a Bookmar
 - the dialog's folder popup starts with it, titled "Bookmarks" (D5);
 - new bookmarks and new folders are added to it (D4, D3).
 
-**Keeping the Bookmarks Bar empty.** `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` is a `BaseBookmarkModelObserver`, one for each original profile, started where `ApplyPasswordAndAutofillOverrides` runs. It drains the bar when:
+**Keeping the Bookmarks Bar empty.** `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` is a `BaseBookmarkModelObserver`, one for each original profile that isn't a guest profile, kept as the profile's user data. `ClairBrowserWindow` starts it beside `ApplyPasswordAndAutofillOverrides`, for every window, incognito ones included (`ClairBookmarkBarDrain::WindowOpened`). It drains the bar when:
 - the model loads;
 - `BookmarkNodeAdded` or `BookmarkNodeMoved` puts a node directly in the bar;
 - `ExtensiveBookmarkChangesEnded` runs, which is when an import finishes. While `IsDoingExtensiveChanges()` is true, it waits.
 
-Draining posts a task, so it never moves nodes inside an observer callback. It moves the bar's children to Other Bookmarks with `BookmarkModel::Move`. A folder moves whole. A managed (policy) node is never in the bar, and the account-storage bar, which only sync fills, is drained the same way if it exists.
+Draining posts a task, so it never moves nodes inside an observer callback. It moves the bar's children to the top of Other Bookmarks, in their order, with `BookmarkModel::Move`, so they keep the place they had in Chromium's menu, before Other Bookmarks. A folder moves whole. A managed (policy) node is never in the bar, and the account-storage bar, which only sync fills, is drained the same way if it exists.
 
-**The notice.** It shows once for the whole app, so its flag is a local-state pref, `clair.bookmarks_bar_notice_shown`, false by default, registered in `clair::RegisterLocalStatePrefs` (`clair_window_hooks.mm`) with Clair's other local-state prefs. That hook is already called from `browser_prefs.cc`, so no Chromium file changes for it. When a drain moves at least one node and the pref is false, it calls `showBookmarksBarNotice` on the profile's most recently active normal window and sets the pref. When the profile has no window yet, as on a launch whose drain runs before the first window opens, it observes `BrowserList` and shows the notice in the first normal window that opens for the profile, setting the pref then. Incognito and guest windows never show it: the drain only runs for original profiles.
+**The notice.** It shows once for the whole app, so its flag is a local-state pref, `clair.bookmarks_bar_notice_shown`, false by default, registered in `clair::RegisterLocalStatePrefs` (`clair_window_hooks.mm`) with Clair's other local-state prefs. That hook is already called from `browser_prefs.cc`, so no Chromium file changes for it. When a drain moves at least one node and the pref is false, it calls `showBookmarksBarNotice` on the profile's most recently active normal window and sets the pref. When the profile has no normal native window, as when an extension fills the bar of a profile whose windows have closed, the drain waits, and `WindowOpened` shows the notice in the next normal window that opens for the profile, setting the pref then. No `BrowserList` observer is needed, since every native window passes through `WindowOpened`. Incognito and guest windows never show it: the drain only runs for original profiles.
 
 `ClairUI` shows it through the window's `ClairDialogPresenter`: a `ClairDialogPage`, built in its own `BookmarksBarNotice.swift`, titled "Heads Up", with the message "Clair doesn't have a bookmarks bar, so bookmarks saved or imported there are moved to the Bookmarks menu.", one default OK button, and `escapePressesDefault` true. It queues behind any other dialog on that window.
 
@@ -155,7 +157,9 @@ The patch is about ten lines and keeps Chromium's structure. Like `copy-url-shor
 
 `clair_autocomplete.mm` uses `DefaultOmniboxProviders()` unmasked. `AutocompleteResult` already removes duplicates by destination URL. In incognito, `BookmarkModelFactory` hands the provider the original profile's bookmarks, as Chromium's omnibox does.
 
-**A bookmark kind and icon.** `ClairHost.h` adds `ClairSuggestionKindBookmark = 4`. `KindOf` returns it for any match that isn't a search or an open tab and whose `destination_url` passes `bookmarks::IsBookmarkedByUser`, so a `BOOKMARK_TITLE` match and a history match for a bookmarked page look the same. For those rows, `clair_autocomplete.mm` skips the favicon lookup that #164 added for history rows, and sends `icon` as nil. `SuggestionRow` then draws the kind's SF Symbol, `bookmark`: the same shape as the bookmark button in Dia's URL bar (`dia-reference/screenshots/edit.jpg`).
+**Titles first.** Chromium's controller sets `swap_contents_and_description` on every match with a description that isn't a search, and the omnibox then shows the description, the page's title, first. `clair_autocomplete.mm` didn't, so history rows read as their URLs; it now honours the flag, so a bookmark row reads as its title, as the `command-bar` spec says of every row.
+
+**A bookmark kind and icon.** `ClairHost.h` adds `ClairSuggestionKindBookmark = 4`. `KindOf` returns it for any match that isn't a search or an open tab and whose `destination_url` passes `bookmarks::IsBookmarkedByUser`, so a `BOOKMARK_TITLE` match and a history match for a bookmarked page look the same. For those rows, `clair_autocomplete.mm` skips the favicon lookup that #164 added for history rows, and sends `icon` as nil. `SuggestionRow` then draws the kind's SF Symbol, `bookmark`: the same shape as the bookmark button in Dia's URL bar (`dia-reference/screenshots/edit.jpg`). The empty-query list's most visited sites follow the same rule. VoiceOver reads "Bookmark" at the end of the row, after "Switch to Tab"'s place, since the icon has no text.
 
 Bookmark rows, which are the ones most likely to have no entry in Chromium's favicon database, never wait on it or show a late icon. Open-tab rows keep their icon (the tab's favicon in the empty-query list, `square.on.square` otherwise), because "Switch to Tab" is about the tab. Searches keep the magnifying glass.
 
