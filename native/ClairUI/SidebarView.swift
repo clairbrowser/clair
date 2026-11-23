@@ -107,6 +107,12 @@ struct SidebarView: View {
   @State private var isHovered = false
   /// The tab list's height, as laid out.
   @State private var tabListHeight: CGFloat = 0
+  /// The height of what's above the favorites: the top row, the URL field,
+  /// the extensions and the incognito badge.
+  @State private var topHeight: CGFloat = 0
+  /// Whether a drag above the Space header opened the favorites' drop zone
+  /// (show-favorites-drop-zone D1). It closes when the drag ends (D2).
+  @State private var showsFavoritesDropZone = false
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -123,31 +129,34 @@ struct SidebarView: View {
     // Arc's metrics: the top row at y+8, the URL field at y+46, the list
     // from y+90 with rows the sidebar's width less 8 pt each side.
     VStack(alignment: .leading, spacing: 0) {
-      TopRow(model: model, actions: actions)
-        // The row's empty space acts as the window's title bar.
-        .background { TitleBarArea { actions?.titleBarDoubleClicked() } }
-      // The New Space form takes the URL field's place too, as in Arc. While
-      // the toolbar shows, the field and the extensions are in it
-      // (add-page-toolbar D5).
-      if model.newSpaceForm == nil && model.sidebarShowsControls {
-        URLField(
-          model: model, actions: actions,
-          showsButtons: (isHovered && model.isWindowKey) || model.isSiteControlCenterOpen)
-          .padding(.horizontal, 8)
-          .padding(.top, 6)
+      VStack(alignment: .leading, spacing: 0) {
+        TopRow(model: model, actions: actions)
+          // The row's empty space acts as the window's title bar.
+          .background { TitleBarArea { actions?.titleBarDoubleClicked() } }
+        // The New Space form takes the URL field's place too, as in Arc. While
+        // the toolbar shows, the field and the extensions are in it
+        // (add-page-toolbar D5).
+        if model.newSpaceForm == nil && model.sidebarShowsControls {
+          URLField(
+            model: model, actions: actions,
+            showsButtons: (isHovered && model.isWindowKey) || model.isSiteControlCenterOpen)
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
+        }
+        if !model.pinnedExtensionActions.isEmpty && model.newSpaceForm == nil && model.sidebarShowsControls {
+          ToolsRow(model: model, actions: actions)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+        }
+        if model.profileKind == .incognito && model.newSpaceForm == nil {
+          // Arc's row: 37 pt from 8 pt below the URL field.
+          IncognitoBadge()
+            .padding(.leading, 14)
+            .frame(height: 37)
+            .padding(.top, 8)
+        }
       }
-      if !model.pinnedExtensionActions.isEmpty && model.newSpaceForm == nil && model.sidebarShowsControls {
-        ToolsRow(model: model, actions: actions)
-          .padding(.horizontal, 8)
-          .padding(.top, 8)
-      }
-      if model.profileKind == .incognito && model.newSpaceForm == nil {
-        // Arc's row: 37 pt from 8 pt below the URL field.
-        IncognitoBadge()
-          .padding(.leading, 14)
-          .frame(height: 37)
-          .padding(.top, 8)
-      }
+      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topHeight = $0 }
       // The profile's favorites, which stay put as the Spaces of the profile
       // slide under them (add-pinned-tabs-and-favorites D11).
       if model.showsPins && model.newSpaceForm == nil {
@@ -155,6 +164,8 @@ struct SidebarView: View {
           FavoritesGrid(model: model, actions: actions)
         } else if model.showsFavoritesHint {
           FavoritesHintBox(model: model, actions: actions)
+        } else if showsFavoritesDropZone && canOpenFavoritesDropZone {
+          FavoritesHintBox(model: model, actions: actions, isDropZone: true)
         }
       }
       // The Space's header and tabs, or the New Space form, between the URL
@@ -191,6 +202,31 @@ struct SidebarView: View {
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents(true)
     }
+    // Above the Space header, a drag opens the favorites' drop zone and a
+    // drop makes the first favorite, as in Arc (show-favorites-drop-zone D1).
+    .overlay(alignment: .top) {
+      if canOpenFavoritesDropZone {
+        FavoritesDropTrigger(
+          onEnter: { showsFavoritesDropZone = true },
+          onDrop: { [actions] item in
+            showsFavoritesDropZone = false
+            actions?.drop(item, on: .favorites(0))
+          }
+        )
+        .frame(height: topHeight + (showsFavoritesDropZone ? FavoritesHintBox.topInset : tabListTopPadding))
+      }
+    }
+    // The drags start in SwiftUI, which reports no end, so the zone closes
+    // once the mouse button is up (D2).
+    .task(id: showsFavoritesDropZone) {
+      while showsFavoritesDropZone && !Task.isCancelled {
+        try? await Task.sleep(for: .milliseconds(100))
+        if NSEvent.pressedMouseButtons & 1 == 0 { showsFavoritesDropZone = false }
+      }
+    }
+    .onChange(of: canOpenFavoritesDropZone) { _, canOpen in
+      if !canOpen { showsFavoritesDropZone = false }
+    }
     .onHover { hovering in withAnimation(sidebarHoverFade) { isHovered = hovering } }
     .environment(\.isWindowKey, model.isWindowKey)
     .coordinateSpace(name: sidebarCoordinateSpace)
@@ -212,7 +248,15 @@ struct SidebarView: View {
   }
 
   private var showsFavoritesSection: Bool {
-    model.showsPins && model.newSpaceForm == nil && (!model.favorites.isEmpty || model.showsFavoritesHint)
+    model.showsPins && model.newSpaceForm == nil
+      && (!model.favorites.isEmpty || model.showsFavoritesHint
+        || (showsFavoritesDropZone && canOpenFavoritesDropZone))
+  }
+
+  /// Whether a drag above the Space header may open the favorites' drop
+  /// zone: the profile has no favorites, and their box doesn't show.
+  private var canOpenFavoritesDropZone: Bool {
+    model.showsPins && model.newSpaceForm == nil && model.favorites.isEmpty && !model.showsFavoritesHint
   }
 }
 

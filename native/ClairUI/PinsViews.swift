@@ -242,10 +242,14 @@ struct FavoriteTile: View {
 
 /// The box where favorites go while a profile has none: a dashed accent
 /// border on a light accent tint, a star, "Drag to add Favorites" and a
-/// dismiss ×.
+/// dismiss ×. As the drop zone a drag opens once the box is gone
+/// (show-favorites-drop-zone D3), it has no ×, a fainter border and a faint
+/// white fill, and under the drag a solid border and faded contents, as in
+/// Arc.
 struct FavoritesHintBox: View {
   let model: BrowserWindowModel
   weak var actions: (any SidebarActions)?
+  var isDropZone = false
 
   @State private var isTargeted = false
 
@@ -278,25 +282,31 @@ struct FavoritesHintBox: View {
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 16)
+    // Arc fades the drop zone's contents to about half under the drag.
+    .opacity(isDropZone && isTargeted ? 0.5 : 1)
     .frame(maxWidth: .infinity)
     .frame(height: Self.height)
-    .background(Color.accentColor.opacity(isTargeted ? 0.16 : 0.08), in: .rect(cornerRadius: 12, style: .continuous))
+    .background(fill, in: .rect(cornerRadius: 12, style: .continuous))
     .overlay {
       RoundedRectangle(cornerRadius: 12, style: .continuous)
-        .strokeBorder(Color.accentColor.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        .strokeBorder(border, style: StrokeStyle(lineWidth: 1, dash: isDropZone && isTargeted ? [] : [4, 3]))
     }
     .overlay(alignment: .topTrailing) {
-      IconButton(systemImage: "xmark", help: "Dismiss", size: 22, glyphSize: 9, glyphWeight: .bold) {
-        actions?.dismissFavoritesHint()
+      if !isDropZone {
+        IconButton(systemImage: "xmark", help: "Dismiss", size: 22, glyphSize: 9, glyphWeight: .bold) {
+          actions?.dismissFavoritesHint()
+        }
+        .padding(4)
+        .accessibilityIdentifier("clair.favoritesHintDismiss")
       }
-      .padding(4)
-      .accessibilityIdentifier("clair.favoritesHintDismiss")
     }
     .overlay {
       GeometryReader { geometry in
+        // Over the drop zone, Arc's drag shows a square tile (D4).
+        let tileWidth = isDropZone ? FavoritesLayout.tileHeight : geometry.size.width
         FavoritesDropArea(
           slot: { _ in 0 },
-          tileSize: { _ in CGSize(width: geometry.size.width, height: FavoritesLayout.tileHeight) },
+          tileSize: { _ in CGSize(width: tileWidth, height: FavoritesLayout.tileHeight) },
           icon: { [model] in model.icon(of: $0) },
           onTarget: { [$isTargeted] in $isTargeted.wrappedValue = $0 != nil },
           onDrop: { [actions] item, _ in actions?.drop(item, on: .favorites(0)) })
@@ -306,8 +316,19 @@ struct FavoritesHintBox: View {
     .padding(.top, Self.topInset)
     .padding(.bottom, Self.bottomInset)
     .accessibilityElement(children: .contain)
-    .accessibilityIdentifier("clair.favoritesHint")
+    .accessibilityIdentifier(isDropZone ? "clair.favoritesDropZone" : "clair.favoritesHint")
   }
+
+  /// The box's accent tint, or the drop zone's white, measured in Arc:
+  /// about 12 % white, and 30 % under the drag.
+  private var fill: Color {
+    guard isDropZone else { return Color.accentColor.opacity(isTargeted ? 0.16 : 0.08) }
+    return Color.white.opacity(isTargeted ? 0.3 : 0.12)
+  }
+
+  /// The drop zone's border is about 30 % accent in Arc, fainter than the
+  /// box's.
+  private var border: Color { Color.accentColor.opacity(isDropZone ? 0.3 : 0.6) }
 }
 
 // MARK: The pinned section (pinned-tabs spec)
