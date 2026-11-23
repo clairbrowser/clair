@@ -112,11 +112,25 @@ struct PinsLogicTests {
   }
 
   @Test func theDividerAndClearShowWithTodayTabs() {
-    #expect(!PinsLogic.showsDivider(todayRowCount: 0))
-    #expect(PinsLogic.showsDivider(todayRowCount: 2))
-    #expect(!PinsLogic.showsClear(todayRowCount: 2, isSidebarHovered: false))
-    #expect(PinsLogic.showsClear(todayRowCount: 2, isSidebarHovered: true))
-    #expect(!PinsLogic.showsClear(todayRowCount: 0, isSidebarHovered: true))
+    #expect(!PinsLogic.showsDivider(todayRowCount: 0, showsPins: true))
+    #expect(PinsLogic.showsDivider(todayRowCount: 2, showsPins: true))
+    #expect(!PinsLogic.showsClear(todayRowCount: 2, showsPins: true, isSidebarHovered: false))
+    #expect(PinsLogic.showsClear(todayRowCount: 2, showsPins: true, isSidebarHovered: true))
+    #expect(!PinsLogic.showsClear(todayRowCount: 0, showsPins: true, isSidebarHovered: true))
+  }
+
+  @Test func theHeaderOffersCollapsingWithPinsOrWhileCollapsed() {
+    #expect(PinsLogic.offersCollapse(pinCount: 2, collapsed: false))
+    #expect(!PinsLogic.offersCollapse(pinCount: 0, collapsed: false))
+    // The last pin unpinned while collapsed: the chevron stays, pointing
+    // sideways, so the section can be expanded again.
+    #expect(PinsLogic.offersCollapse(pinCount: 0, collapsed: true))
+  }
+
+  @Test func incognitoAndGuestWindowsShowNoDividerOrClear() {
+    // No pinned section there, so nothing to divide and nothing Clear does.
+    #expect(!PinsLogic.showsDivider(todayRowCount: 2, showsPins: false))
+    #expect(!PinsLogic.showsClear(todayRowCount: 2, showsPins: false, isSidebarHovered: true))
   }
 
   @Test func tooltipsShowTheNameAloneOrTheTitleWithTheHint() {

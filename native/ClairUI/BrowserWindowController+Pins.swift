@@ -4,6 +4,7 @@
 
 import AppKit
 import ClairHost
+import SwiftUI
 
 /// The window's pinned tabs, favorites and tab names
 /// (add-pinned-tabs-and-favorites design D4 to D6, D8, D11).
@@ -20,9 +21,15 @@ extension BrowserWindowController {
   }
 
   /// The collapse of the shown Space's pinned section and the favorites box,
-  /// from the user's preferences.
-  func refreshPinPreferences() {
-    model.isPinnedSectionCollapsed = model.showsPins && pinsPreferences.isCollapsed(model.shownSpaceID)
+  /// from the user's preferences. `animatingCollapse` animates a change of
+  /// the collapse, and nothing else, as in Arc.
+  func refreshPinPreferences(animatingCollapse: Bool = false) {
+    let collapsed = model.showsPins && pinsPreferences.isCollapsed(model.shownSpaceID)
+    if animatingCollapse && collapsed != model.isPinnedSectionCollapsed {
+      withAnimation(SpaceHeaderView.collapseAnimation) { model.isPinnedSectionCollapsed = collapsed }
+    } else {
+      model.isPinnedSectionCollapsed = collapsed
+    }
     guard model.showsPins, let profileID = model.profileID else {
       model.showsFavoritesHint = false
       return

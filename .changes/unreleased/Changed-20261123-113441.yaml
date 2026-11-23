@@ -1,0 +1,3 @@
+kind: Changed
+body: Clicking anywhere on a Space's header collapses or expands its pinned tabs, which slide under the header and back out as in Arc, and hovering the header shows a More button that opens the header's menu, as in Arc
+time: 2026-11-23T11:34:41.090992-05:00

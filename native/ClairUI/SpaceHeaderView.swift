@@ -72,9 +72,28 @@ struct SpaceHeaderView: View {
   @State private var draft = ""
   @State private var isHovered = false
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   /// Where the name starts while the chevron shows.
   static let chevronLeading: CGFloat = 44
+  /// Arc's, recorded at 60 fps: the pill shows and goes at once, while the
+  /// name slides aside, and back, in about 85 ms as the chevron fades.
+  static let chevronSlide = Animation.easeInOut(duration: 0.085)
+  /// Collapsing or expanding the pinned section: Arc's, recorded at 60 fps,
+  /// also about 85 ms; none with Reduce Motion.
+  static var collapseAnimation: Animation? {
+    NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : chevronSlide
+  }
+
+  /// The More button: 24 pt, 6 pt in from the pill's trailing edge, as in
+  /// Arc, with the name kept clear of it.
+  static let moreSize: CGFloat = 24
+  static let moreTrailing: CGFloat = 14
+  static let moreGlyphSize: CGFloat = 13
+  private static let trailing: CGFloat = 13
+  private static let trailingWithMore: CGFloat = moreTrailing + moreSize + 4
+
+  private var showsMore: Bool { isHovered && edit == nil && space != nil }
 
   private var showsChevron: Bool {
     onToggleCollapse != nil && edit == nil && (isHovered || pinsCollapsed)
@@ -107,11 +126,14 @@ struct SpaceHeaderView: View {
         Spacer(minLength: 0)
       }
     }
-    // Arc's header under the pointer: a pill, the chevron at x=20.5 and the
-    // name moved from x=17 to x=45; the chevron stays, pointing sideways, while the
-    // pinned tabs are collapsed.
+    // Arc's header under the pointer, while the Space has pinned tabs: a
+    // pill, the chevron at x=20.5 and the name slid from x=17 to x=45; the
+    // chevron stays, pointing sideways, while the pinned tabs are collapsed.
     .padding(.leading, showsChevron ? Self.chevronLeading : Self.leading)
-    .padding(.trailing, 13)
+    .animation(reduceMotion ? nil : Self.chevronSlide, value: showsChevron)
+    .padding(.trailing, showsMore ? Self.trailingWithMore : Self.trailing)
+    // The name makes room for the More button as the button fades in.
+    .animation(reduceMotion ? nil : sidebarHoverFade, value: showsMore)
     .frame(height: Self.height)
     .background {
       if isHovered && edit == nil && onToggleCollapse != nil {
@@ -121,21 +143,16 @@ struct SpaceHeaderView: View {
       }
     }
     .contentShape(Rectangle())
+    // A click anywhere on the header collapses or expands the pinned
+    // section, as in Arc.
+    .gesture(TapGesture().onEnded { onToggleCollapse?() }, isEnabled: edit == nil && onToggleCollapse != nil)
     .overlay(alignment: .leading) {
-      if let onToggleCollapse, showsChevron {
-        Button(action: onToggleCollapse) {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 12.5, weight: .bold))
-            .foregroundStyle(.secondary)
-            .rotationEffect(.degrees(pinsCollapsed ? -90 : 0))
-            .frame(width: 12, height: Self.height)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.leading, 20)
-        .tooltip(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
-        .accessibilityLabel(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
-        .accessibilityIdentifier("clair.pinnedChevron")
+      ZStack(alignment: .leading) { chevron }
+        .animation(reduceMotion ? nil : Self.chevronSlide, value: showsChevron)
+    }
+    .overlay(alignment: .trailing) {
+      if edit == nil && space != nil {
+        moreButton
       }
     }
     .onHover { isHovered = $0 }
@@ -147,6 +164,43 @@ struct SpaceHeaderView: View {
     }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("clair.spaceHeader")
+  }
+
+  /// The collapse chevron, fading in as the name slides aside.
+  @ViewBuilder private var chevron: some View {
+    if let onToggleCollapse, showsChevron {
+      Button(action: onToggleCollapse) {
+        Image(systemName: "chevron.down")
+          .font(.system(size: 12.5, weight: .bold))
+          .foregroundStyle(.secondary)
+          .rotationEffect(.degrees(pinsCollapsed ? -90 : 0))
+          .frame(width: 12, height: Self.height)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .padding(.leading, 20)
+      .tooltip(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
+      .accessibilityLabel(pinsCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs")
+      .accessibilityIdentifier("clair.pinnedChevron")
+      .transition(.opacity)
+    }
+  }
+
+  /// Arc's More button, which opens the header's menu. It stays in the view
+  /// while hidden, so an open menu isn't taken away with it.
+  private var moreButton: some View {
+    IconMenu(help: "More", size: Self.moreSize) {
+      RowMenuContent(items: menuItems)
+    } label: {
+      SymbolGlyph(systemImage: "ellipsis", size: Self.moreGlyphSize, weight: .bold)
+    }
+    .padding(.trailing, Self.moreTrailing)
+    .opacity(showsMore ? 1 : 0)
+    .animation(reduceMotion ? nil : sidebarHoverFade, value: showsMore)
+    // Out of VoiceOver's way while it isn't showing; right-clicking the
+    // header offers the same menu.
+    .accessibilityHidden(!showsMore)
+    .accessibilityIdentifier("clair.spaceMore")
   }
 
   @ViewBuilder private var icon: some View {
@@ -212,6 +266,29 @@ struct SpaceHeaderView: View {
         return item.isChecked ? .checked(item.title, {}) : .action(item.title, choose)
       case .newProfile:
         return .action(item.title) { [weak actions] in actions?.newProfile(forSpace: spaceID) }
+      }
+    }
+  }
+}
+
+/// A row's menu items as SwiftUI menu content, for a menu button that offers
+/// the same menu as right-clicking the row.
+struct RowMenuContent: View {
+  let items: [RowClickCatcher.Item]
+
+  var body: some View {
+    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+      switch item {
+      case .action(let title, let run):
+        Button(title, action: run)
+      case .checked(let title, let run):
+        Toggle(title, isOn: Binding(get: { true }, set: { _ in run() }))
+      case .disabled(let title):
+        Button(title) {}.disabled(true)
+      case .submenu(let title, let items):
+        Menu(title) { RowMenuContent(items: items) }
+      case .separator:
+        Divider()
       }
     }
   }

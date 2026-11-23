@@ -246,12 +246,15 @@ enum SidebarFill {
     scheme == .dark ? Color.white.opacity(hovered ? 0.2 : 0.15) : Color.black.opacity(hovered ? 0.09 : 0.045)
   }
 
-  /// The active tab's pill, lighter and flat while the window isn't key.
+  /// The active tab's pill, lighter while the window isn't key.
   static func activePill(_ scheme: ColorScheme, isWindowKey: Bool) -> Color {
     scheme == .dark
       ? Color.white.opacity(isWindowKey ? 0.24 : 0.16)
       : Color(nsColor: .controlBackgroundColor).opacity(isWindowKey ? 0.9 : 0.7)
   }
+
+  /// The active tab's shadow, the same whether the window is key or not.
+  static let activeShadow = Color.black.opacity(0.12)
 
   /// A hovered row or button.
   static func hover(_ scheme: ColorScheme) -> Color {
@@ -706,19 +709,33 @@ struct SpacePage: View {
   var isSidebarHovered = false
   var tabListHeight: Binding<CGFloat>?
 
+  /// The list's height and the space below it, which together are the room
+  /// the list may grow into.
+  @State private var listHeight: CGFloat = 0
+  @State private var spaceBelow: CGFloat = 0
+
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if model.showsSpaces {
+        let collapsed = space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false
         SpaceHeaderView(
-          model: model, space: space, actions: actions,
-          pinsCollapsed: space?.spaceID == model.shownSpaceID ? model.isPinnedSectionCollapsed : false,
-          onToggleCollapse: { [weak actions] in actions?.togglePinnedSection() })
+          model: model, space: space, actions: actions, pinsCollapsed: collapsed,
+          // No chevron or hover pill without pinned tabs, as in Arc.
+          onToggleCollapse: PinsLogic.offersCollapse(pinCount: pins.count, collapsed: collapsed)
+            ? { [weak actions] in actions?.togglePinnedSection() } : nil)
       }
-      TabList(model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, actions: actions)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tabListHeight?.wrappedValue = $0 }
-        // Ahead of the space below, which would otherwise take half the room.
-        .layoutPriority(1)
+      TabList(
+        model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, room: listHeight + spaceBelow,
+        actions: actions
+      )
+      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+        listHeight = height
+        tabListHeight?.wrappedValue = height
+      }
+      // Ahead of the space below, which would otherwise take half the room.
+      .layoutPriority(1)
       Spacer(minLength: 0)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { spaceBelow = $0 }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
@@ -734,6 +751,23 @@ struct ExtensionIcon: View {
     } else {
       Image(systemName: "puzzlepiece").frame(width: size, height: size)
     }
+  }
+}
+
+/// Slides the tab list's rows down from under the Space header while the
+/// pinned section expands: `height` is the pinned rows it brings back.
+struct PinnedSectionReveal: ViewModifier, Animatable {
+  var progress: CGFloat
+  let isCollapsed: Bool
+  let height: CGFloat
+
+  var animatableData: CGFloat {
+    get { progress }
+    set { progress = newValue }
+  }
+
+  func body(content: Content) -> some View {
+    content.offset(y: isCollapsed ? 0 : -(1 - progress) * height)
   }
 }
 
@@ -897,6 +931,8 @@ struct TabList: View {
   var pins: [any ClairPin] = []
   /// Whether the pointer is over the sidebar, which shows Clear.
   var isSidebarHovered = false
+  /// The height the list may grow to, 0 until it's laid out.
+  var room: CGFloat = 0
   weak var actions: (any SidebarActions)?
 
   /// Room beyond the rows, so a list that fits never scrolls.
@@ -924,17 +960,27 @@ struct TabList: View {
     rows + slack
   }
 
-  /// The rows' height: "New Tab", the pinned and Today rows, and the divider.
-  static func rowsHeight(pinCount: Int, tabCount: Int, divider: Bool) -> CGFloat {
-    TabRow.pitch * CGFloat(pinCount + tabCount + 1) + (divider ? TodayDivider.height : 0)
+  /// The rows' height: "New Tab", the pinned and Today rows, and the divider
+  /// when it shows.
+  static func rowsHeight(pinCount: Int, tabCount: Int, showsPins: Bool) -> CGFloat {
+    let divider = PinsLogic.showsDivider(todayRowCount: tabCount, showsPins: showsPins)
+    return TabRow.pitch * CGFloat(pinCount + tabCount + 1) + (divider ? TodayDivider.height : 0)
+  }
+
+  /// How far the rows start above their places as the pinned section expands
+  /// in `room`: the pinned rows it brings back, or none when the expanded
+  /// rows won't fit. Such a list scrolls, so sliding it would leave a gap at
+  /// its bottom, or move rows other than the ones the user sees.
+  static func revealHeight(hiddenPins: Int, expandedRows: CGFloat, room: CGFloat) -> CGFloat {
+    guard room > 0, contentHeight(rows: expandedRows) <= room + 0.5 else { return 0 }
+    return TabRow.pitch * CGFloat(hiddenPins)
   }
 
   static func rowsHeight(model: BrowserWindowModel) -> CGFloat {
     let todayRows = TabListLogic.rowCount(model.tabs)
     let pins = PinsLogic.visiblePins(
       model.pins, collapsed: model.isPinnedSectionCollapsed, highlighted: model.highlightedTab)
-    return rowsHeight(
-      pinCount: pins.count, tabCount: todayRows, divider: PinsLogic.showsDivider(todayRowCount: todayRows))
+    return rowsHeight(pinCount: pins.count, tabCount: todayRows, showsPins: model.showsPins)
   }
 
   /// Whether a list this tall is shorter than its rows, so it scrolls. It
@@ -952,7 +998,8 @@ struct TabList: View {
     let highlighted = model.highlightedTab
     let moveTargets = model.showsSpaces ? SpacesLogic.moveTargets(from: model.shownSpaceID, in: model.spaces.spaces) : []
     let visiblePins = PinsLogic.visiblePins(pins, collapsed: model.isPinnedSectionCollapsed, highlighted: highlighted)
-    let showsDivider = !visiblePins.isEmpty || !pins.isEmpty ? PinsLogic.showsDivider(todayRowCount: rows.count) : false
+    // Under the Space header, pinned tabs or not, as in Arc.
+    let showsDivider = PinsLogic.showsDivider(todayRowCount: rows.count, showsPins: model.showsPins)
     let boundary = (showsDivider ? 1 : 0) + 1
     let items: [Item] =
       visiblePins.map { .pin($0) } + (showsDivider ? [.divider] : []) + [.newTab] + rows.map { .tab($0) }
@@ -999,7 +1046,22 @@ struct TabList: View {
     // the rows don't fit.
     .frame(
       maxHeight: Self.contentHeight(
-        rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count, divider: showsDivider)))
+        rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count, showsPins: model.showsPins)))
+    // Collapsing, the list slides the rows below over the pinned rows that go
+    // and shrinks with them. Expanding, it adds the rows at once, so it takes
+    // its new height at once too, and its rows slide down from under the
+    // header instead.
+    .transaction(value: model.isPinnedSectionCollapsed) { transaction in
+      if !model.isPinnedSectionCollapsed { transaction.animation = nil }
+    }
+    .modifier(
+      PinnedSectionReveal(
+        progress: model.isPinnedSectionCollapsed ? 0 : 1, isCollapsed: model.isPinnedSectionCollapsed,
+        height: Self.revealHeight(
+          hiddenPins: pins.count - PinsLogic.visiblePins(pins, collapsed: true, highlighted: highlighted).count,
+          expandedRows: Self.rowsHeight(pinCount: pins.count, tabCount: rows.count, showsPins: model.showsPins),
+          room: room)))
+    .clipped()
     .accessibilityIdentifier("clair.tabList")
   }
 
@@ -1034,7 +1096,8 @@ struct TabList: View {
       .itemProvider { SidebarDragItem.pin(pin.pinID).itemProvider() }
     case .divider:
       TodayDivider(
-        showsClear: PinsLogic.showsClear(todayRowCount: TabListLogic.rowCount(tabs), isSidebarHovered: isSidebarHovered)
+        showsClear: PinsLogic.showsClear(
+          todayRowCount: TabListLogic.rowCount(tabs), showsPins: model.showsPins, isSidebarHovered: isSidebarHovered)
       ) { actions?.clearToday() }
       .moveDisabled(true)
     case .newTab:
@@ -1230,10 +1293,10 @@ struct TabRow: View {
     .frame(height: Self.pillHeight)
     .background {
       if isActive {
-        // Lighter and flat while the window isn't key, as in Arc.
+        // Lighter while the window isn't key, as in Arc.
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
           .fill(SidebarFill.activePill(colorScheme, isWindowKey: isWindowKey))
-          .shadow(color: .black.opacity(isWindowKey ? 0.12 : 0), radius: 2, y: 1)
+          .shadow(color: SidebarFill.activeShadow, radius: 2, y: 1)
       } else if isHovered {
         RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous).fill(SidebarFill.hover(colorScheme))
       }

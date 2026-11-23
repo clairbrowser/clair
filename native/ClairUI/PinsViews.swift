@@ -416,7 +416,7 @@ struct PinRow: View {
       if isActive {
         RoundedRectangle(cornerRadius: TabRow.cornerRadius, style: .continuous)
           .fill(SidebarFill.activePill(colorScheme, isWindowKey: isWindowKey))
-          .shadow(color: .black.opacity(isWindowKey ? 0.12 : 0), radius: 2, y: 1)
+          .shadow(color: SidebarFill.activeShadow, radius: 2, y: 1)
       } else if isHovered {
         RoundedRectangle(cornerRadius: TabRow.cornerRadius, style: .continuous).fill(SidebarFill.hover(colorScheme))
       }
