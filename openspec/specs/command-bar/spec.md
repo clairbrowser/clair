@@ -68,6 +68,10 @@ As the user types, the command bar SHALL list suggestions from Chromium's autoco
 - **WHEN** the user types `clair browser` and presses Return
 - **THEN** the default search engine's results page for "clair browser" opens
 
+#### Scenario: Search engine suggestions
+- **WHEN** search suggestions are on and the user types `weather`
+- **THEN** the rows include searches that the default search engine suggested, each with the search icon and the suggested query as its title, and choosing one opens the engine's results page for that query
+
 #### Scenario: Incognito
 - **WHEN** the command bar is used in an incognito window
 - **THEN** it suggests from the incognito profile's autocomplete, which includes the regular profile's bookmarks, and what is typed isn't added to the regular profile's history

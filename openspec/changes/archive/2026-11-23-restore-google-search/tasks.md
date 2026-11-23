@@ -22,10 +22,10 @@
 
 ## 3. Runtime suite, release notes and checks
 
-- [ ] 3.1 Turn search suggestions off in the profiles of runtime tests that expect exact command bar rows, through the harness's profile setup (`Harness.swift`). Verify that the command bar tests pass in the quality checks on the branch.
-- [ ] 3.2 Add runtime tests: on a new profile, searching from the command bar opens `www.google.com/search` with only `q` and `ie`, and typing `weather` lists one or more suggested searches with the search icon. Verify that they pass in the quality checks on the branch (`gh workflow run quality.yml --ref <branch>`).
-- [ ] 3.3 Add a Changie fragment (`changie new`): new profiles search Google and show its suggestions as you type, and both can be changed in Chromium's settings. Verify that it's in the PR.
-- [ ] 3.4 Run the merge gate. Verify that CI passes.
+- [x] 3.1 Turn search suggestions off in the profiles of runtime tests that expect exact command bar rows, through the harness's profile setup (`Harness.swift`). Verify that the command bar tests pass in the quality checks on the branch.
+- [x] 3.2 Add runtime tests: on a new profile, searching from the command bar opens `www.google.com/search` with only `q` and `ie`, and typing `weather` lists one or more suggested searches with the search icon. Verify that they pass in the quality checks on the branch (`gh workflow run quality.yml --ref <branch>`).
+- [x] 3.3 Add a Changie fragment (`changie new`): new profiles search Google and show its suggestions as you type, and both can be changed in Chromium's settings. Verify that it's in the PR.
+- [x] 3.4 Run the merge gate. Verify that CI passes.
 
 ## Workflow follow-up
 
