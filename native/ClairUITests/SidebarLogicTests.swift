@@ -207,6 +207,16 @@ struct CommandBarTests {
     #expect(model.selectedSuggestion?.icon != nil)
   }
 
+  /// At most five rows, with the selection kept among them (command-bar
+  /// spec, "Results with an empty query").
+  @Test func listsAtMostFiveRows() {
+    let (browser, model, _) = open(.newTab)
+    browser.autocomplete?.post((1...8).map { FakeSuggestion(id: $0, kind: .openTab, contents: "Tab \($0)") })
+    #expect(model.suggestions.map(\.suggestionID) == [1, 2, 3, 4, 5])
+    model.moveSelection(by: 10)
+    #expect(model.selection == 4)
+  }
+
   @Test func newResultsSelectTheFirstRow() {
     let (browser, model, _) = open(.newTab)
     browser.autocomplete?.post(suggestions)

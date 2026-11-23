@@ -100,11 +100,15 @@ A suggestion's icon SHALL be the page's favicon when the profile's favicon datab
 - **THEN** its "Switch to Tab" row keeps the icon an open tab's row shows, not the bookmark icon
 
 ### Requirement: Switching to an open tab
-A suggestion for a page that is already open in a tab of the same profile SHALL show "Switch to Tab", and choosing it SHALL activate that tab, in its window, instead of opening the page again.
+A suggestion for a page that is already open in a tab of the same profile SHALL show "Switch to Tab", and choosing it SHALL activate that tab, in its window, instead of opening the page again. Its icon SHALL be the page's favicon, or, for a page without one, the globe the sidebar shows, not an icon for open tabs.
 
 #### Scenario: Switching
 - **WHEN** a tab has `https://example.com/` open and the user presses Cmd+T, types `example.com` and chooses the "Switch to Tab" row
 - **THEN** that existing tab becomes active, and no tab is created
+
+#### Scenario: Open tab without a favicon
+- **WHEN** a tab that isn't active shows a page without a favicon, and the user presses Cmd+T
+- **THEN** that tab's "Switch to Tab" row shows the globe, as its sidebar row does
 
 ### Requirement: Results with an empty query
 With an empty query, the command bar SHALL list the window's other open tabs (not the active one), most recently used first, followed by the profile's most visited sites.
@@ -112,6 +116,13 @@ With an empty query, the command bar SHALL list the window's other open tabs (no
 #### Scenario: Empty command bar
 - **WHEN** the user presses Cmd+T in a window with three tabs
 - **THEN** the results list the two tabs not shown with "Switch to Tab", the most recently used first, followed by most visited sites
+
+### Requirement: Five results at most
+As in Arc, the command bar SHALL list at most five results, whatever the query, and the results SHALL NOT scroll.
+
+#### Scenario: Many tabs
+- **WHEN** the user presses Cmd+T in a window with eight tabs
+- **THEN** the results list five of the seven tabs not shown, the most recently used, and no most visited sites, without scrolling
 
 ### Requirement: Keyboard control
 Up and Down SHALL move the selection, Return SHALL choose the selected row, and Esc SHALL close the command bar. Shift+Return or Cmd+Return SHALL open the selected row in a new tab even when the command bar was opened with Cmd+L. As in Arc, the pointer SHALL NOT move the selection: the row under it SHALL show a faint grey background rather than the accent colour, and clicking a row SHALL choose it.

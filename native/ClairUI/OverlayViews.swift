@@ -128,34 +128,32 @@ struct CommandBarView: View {
       }
       if !model.suggestions.isEmpty {
         Divider().padding(.horizontal, 12)
-        ScrollView {
-          VStack(spacing: 0) {
-            ForEach(Array(model.suggestions.enumerated()), id: \.element.suggestionID) { index, suggestion in
-              SuggestionRow(
-                suggestion: suggestion,
-                isSelected: index == model.selection,
-                isHovered: hoveredSuggestionID == suggestion.suggestionID,
-                onDelete: suggestion.canDelete ? { model.delete(suggestion) } : nil
-              )
-              .onHover { inside in
-                if inside {
-                  hoveredSuggestionID = suggestion.suggestionID
-                } else if hoveredSuggestionID == suggestion.suggestionID {
-                  hoveredSuggestionID = nil
-                }
-              }
-              .onTapGesture {
-                model.select(index)
-                model.submit()
+        // At most five rows (CommandBarModel.maxRows), so the panel never
+        // scrolls, as in Arc.
+        VStack(spacing: 0) {
+          ForEach(Array(model.suggestions.enumerated()), id: \.element.suggestionID) { index, suggestion in
+            SuggestionRow(
+              suggestion: suggestion,
+              isSelected: index == model.selection,
+              isHovered: hoveredSuggestionID == suggestion.suggestionID,
+              onDelete: suggestion.canDelete ? { model.delete(suggestion) } : nil
+            )
+            .onHover { inside in
+              if inside {
+                hoveredSuggestionID = suggestion.suggestionID
+              } else if hoveredSuggestionID == suggestion.suggestionID {
+                hoveredSuggestionID = nil
               }
             }
+            .onTapGesture {
+              model.select(index)
+              model.submit()
+            }
           }
-          .padding(.horizontal, 10)
-          .padding(.top, 4)
-          .padding(.bottom, 8)
         }
-        .frame(maxHeight: 5 * Self.rowHeight + 12)
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
       }
     }
     // In Dark Mode, Arc's darker fill, about (30, 32, 32) as measured.
@@ -208,7 +206,8 @@ struct SuggestionRow: View {
     case .search: "magnifyingglass"
     case .URL: "globe"
     case .history: "clock"
-    case .openTab: "square.on.square"
+    // A tab whose page has no favicon shows the sidebar's globe.
+    case .openTab: "globe"
     // add-bookmarks-menu D8: the shape of Dia's bookmark button.
     case .bookmark: "bookmark"
     @unknown default: "globe"
