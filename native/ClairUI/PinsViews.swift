@@ -562,7 +562,7 @@ enum PinMenus {
     case .pinToFavorites: actions?.pinToFavorites(pin: pinID)
     case .unpin: actions?.unpin(pinID)
     case .closeTab: actions?.closeKeepingPin(pinID)
-    case .removePin, .removeFavorite: actions?.removePin(pinID)
+    case .removeFavorite: actions?.removePin(pinID)
     case .pin, .editPinnedPage, .replacePinnedURL, .editPinnedURL, .moveToSpace, .closeTabsBelow: break
     }
   }

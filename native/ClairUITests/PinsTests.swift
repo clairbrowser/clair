@@ -222,7 +222,7 @@ struct PinsLogicTests {
     #expect(
       pinned == [
         "Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Move to Space", "Pin to Favorites",
-        "Unpin Tab", "Remove Pin",
+        "Unpin Tab",
       ])
     let favorite = PinsLogic.favoriteMenu(isShown: true, isOpen: true, isMuted: false).compactMap { $0?.title }
     #expect(favorite == ["Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Close Tab", "Remove Favorite"])
