@@ -63,6 +63,8 @@
 
 `MainMenuTitles` in `ClairUI` retitles `IDC_SHOW_BOOKMARK_MANAGER` to "Manage Bookmarks" by tag, as it does Open Location Bar.
 
+The manager opens on Other Bookmarks, since the Bookmarks Bar it would otherwise select first is always empty (D6). `ExecuteCommand` in `clair_native_window.mm` runs `IDC_SHOW_BOOKMARK_MANAGER` as `clair::ShowBookmarkManager`, which calls Chromium's `ShowBookmarkManagerForNode` with Other Bookmarks' ID, opening `chrome://bookmarks/?id=<id>`. Like Chromium's command, it uses `GetBrowserForOpeningWebUi` and switches to an open manager tab, which then shows Other Bookmarks. Typing `chrome://bookmarks` still selects the Bookmarks Bar: changing the page's default would mean patching its TypeScript.
+
 *Alternative:* build a Bookmarks menu in `ClairUI` from the folder snapshots of D3. Rejected: it would duplicate `BookmarkMenuBridge` (lazy submenus, favicons, live updates, dispositions, managed folders) for no visible difference.
 
 ### D2. "Bookmark This Page…" or "Edit Bookmark…" from menu validation

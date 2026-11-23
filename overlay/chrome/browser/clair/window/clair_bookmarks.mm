@@ -16,7 +16,9 @@
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/webui/util/webui_util_desktop.h"
 #include "components/bookmarks/browser/bookmark_client.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
@@ -234,6 +236,16 @@ ClairBookmarkFolderID AddBookmarkFolder(Browser* browser, NSString* title) {
   const BookmarkNode* folder =
       model->AddFolder(other, other->children().size(), trimmed);
   return folder ? folder->id() : ClairBookmarkFolderIDNone;
+}
+
+void ShowBookmarkManager(Browser* browser) {
+  BrowserWindowInterface* target = webui::GetBrowserForOpeningWebUi(browser);
+  BookmarkModel* model = LoadedModel(browser);
+  if (!model) {
+    chrome::ShowBookmarkManager(target);
+    return;
+  }
+  chrome::ShowBookmarkManagerForNode(target, model->other_node()->id());
 }
 
 }  // namespace clair

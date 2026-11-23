@@ -111,7 +111,8 @@ NSMenuItem* FindMenuItem(NSMenu* menu, NSInteger tag) {
 // Runs `command` for the native window's browser, as BrowserNativeWidgetMac's
 // ExecuteCommand does. In a native window, New Tab opens the command bar
 // instead (D10), Bookmark This Page… opens Clair's bookmark dialog
-// (add-bookmarks-menu D4), and the tab commands run over the sidebar's rows of
+// (add-bookmarks-menu D4), Manage Bookmarks opens on Other Bookmarks
+// (add-bookmarks-menu D1), and the tab commands run over the sidebar's rows of
 // the shown Space, skipping Peeks (add-peek D7, add-spaces D5). Returns
 // whether the command ran.
 bool ExecuteCommand(ClairBrowserWindow* window,
@@ -137,6 +138,11 @@ bool ExecuteCommand(ClairBrowserWindow* window,
   }
   if (command == IDC_BOOKMARK_THIS_TAB) {
     clair::BookmarkActivePage(window);
+    return true;
+  }
+  if (command == IDC_SHOW_BOOKMARK_MANAGER &&
+      chrome::IsCommandEnabled(browser, command)) {
+    clair::ShowBookmarkManager(browser);
     return true;
   }
   if (ClairIsRemovedCommand(command)) {

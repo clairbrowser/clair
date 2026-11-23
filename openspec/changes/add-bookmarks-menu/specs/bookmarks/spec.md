@@ -71,11 +71,11 @@ Choosing a bookmark in the Bookmarks menu SHALL open it in the active tab of the
 - **THEN** a new tab opens on `https://example.com/`, and the previous tab keeps its page
 
 ### Requirement: Manage Bookmarks
-Manage Bookmarks, from the menu or ⌥⌘B, SHALL open `chrome://bookmarks` in a tab of the frontmost window, or switch to that page if the window already has it open. Moving, sorting and importing bookmarks SHALL happen there.
+Manage Bookmarks, from the menu or ⌥⌘B, SHALL open `chrome://bookmarks` on Other Bookmarks in a tab of the frontmost window, or switch to that page if the window already has it open, showing Other Bookmarks. Moving, sorting and importing bookmarks SHALL happen there.
 
 #### Scenario: Shortcut
 - **WHEN** the user presses ⌥⌘B
-- **THEN** `chrome://bookmarks` opens and lists the profile's bookmarks
+- **THEN** `chrome://bookmarks` opens with Other Bookmarks selected, listing the bookmarks the Bookmarks menu lists, rather than the empty Bookmarks Bar
 
 ### Requirement: Bookmark This Page
 Bookmark This Page…, from the menu or ⇧⌘B, SHALL bookmark the active tab's page under its title in Bookmarks (Other Bookmarks), then open the bookmark dialog titled "Bookmark Added". It SHALL be disabled when the active tab's page can't be bookmarked.

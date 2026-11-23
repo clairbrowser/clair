@@ -176,10 +176,12 @@ final class BookmarksTests: NativeWindowTestCase {
     browser.ui.typeKey(.escape, modifierFlags: [])
 
     browser.ui.typeKey("b", modifierFlags: [.command, .option])
+    // It opens on Other Bookmarks, ID 2 in a new profile, not the Bookmarks Bar.
     let managed = await Harness.wait(for: 15) {
-      try await browser.pageTargets().contains { $0.url.hasPrefix("chrome://bookmarks") }
+      try await browser.pageTargets().contains { $0.url == "chrome://bookmarks/?id=2" }
     }
-    XCTAssertTrue(managed, "Option+Cmd+B didn't open chrome://bookmarks")
+    let urls = (try? await browser.pageTargets().map(\.url)) ?? []
+    XCTAssertTrue(managed, "Option+Cmd+B didn't open chrome://bookmarks on Other Bookmarks: \(urls)")
   }
 
   /// Choosing a bookmark in the menu loads it in the active tab.

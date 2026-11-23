@@ -37,6 +37,11 @@ void UpdateBookmark(Browser* browser,
 void RemoveBookmark(Browser* browser, ClairBookmarkID bookmark_id);
 ClairBookmarkFolderID AddBookmarkFolder(Browser* browser, NSString* title);
 
+// D1: IDC_SHOW_BOOKMARK_MANAGER in a native window. Opens chrome://bookmarks on
+// Other Bookmarks, the folder the Bookmarks menu lists, rather than on the
+// empty Bookmarks Bar, switching to an open manager tab as Chromium does.
+void ShowBookmarkManager(Browser* browser);
+
 }  // namespace clair
 
 #endif  // CHROME_BROWSER_CLAIR_WINDOW_CLAIR_BOOKMARKS_H_
