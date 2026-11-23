@@ -31,7 +31,7 @@ Clair has no working search engine out of the box. ungoogled-chromium's `replace
 ## Impact
 
 - **Engine** (the engine key changes):
-  - `patches/clair/restore-google-search.patch` changes the Google entry in `prepopulated_engines.json` and the default in `Profile::RegisterProfilePrefs`.
+  - `patches/clair/restore-google-search.patch` changes the Google entry in `prepopulated_engines.json`, the default in `Profile::RegisterProfilePrefs`, and the New Tab page choice in `chrome/browser/search/search.cc`, so the New Tab page stays ungoogled-chromium's.
   - The choice screen is turned off, for example with Chromium's `--disable-search-engine-choice-screen` switch.
   - The command bar's autocomplete in `overlay/` sends nothing to the search engine while the text is still what Cmd+L opened with.
 - **Build scripts:** no change. `utils/domain_substitution_exclude.list` doesn't change.

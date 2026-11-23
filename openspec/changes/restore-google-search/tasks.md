@@ -4,7 +4,7 @@
 
 - [x] 1.1 Add `patches/clair/restore-google-search.patch` to `patches/series`, after `clair/restore-web-store.patch`. Give it a header saying what it restores and why the addresses are literal. Its first hunk reverts `replace-google-search-engine-with-nosearch.patch`, with a comment naming it, writing the Google entry D2 describes: `search_url`, `suggest_url` and `alternate_urls` on `https://www.google.com/` with no `{google:…}` parameters, and Lens, image and contextual search fields removed (D1, D2). Verify that the patch check applies it with no fuzz.
 - [x] 1.2 Turn Chromium's search engine choice screen off from Clair's start-up code in the overlay with `--disable-search-engine-choice-screen`, or with a one-line hunk in 1.1's patch if no hook runs before profiles load (D3). Verify that it's in the engine built in 2.3.
-- [ ] 1.3 Keep "No Search"'s `"new_tab_url": "about:blank"` in 1.1's Google entry, so the New Tab page stays ungoogled-chromium's (D2). Verify on a new profile of the rebuilt engine that a new tab shows no Google logo or search box, as on `main`.
+- [ ] 1.3 Add a hunk to `restore-google-search.patch` that makes `NewTabURLDetails::ForProfile` always open the third-party New Tab page, so it stays ungoogled-chromium's (D7). Verify on a new profile of the rebuilt engine that a new tab shows no Google logo or search box, as on `main`.
 
 ## 2. Search suggestions
 

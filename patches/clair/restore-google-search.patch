@@ -1,6 +1,6 @@
 # Restores Google as the default search engine, with search suggestions on
-# (restore-google-search, design D1, D2 and D4). Each revert names the upstream
-# patch and hunk it undoes; the rest of those patches stays applied.
+# (restore-google-search, design D1, D2, D4 and D7). Each revert names the
+# upstream patch and hunk it undoes; the rest of those patches stays applied.
 #
 # The Google entry's addresses are literal https://www.google.com/ ones, not
 # Chromium's {google:baseURL} and {google:baseSuggestURL}: those come from
@@ -9,12 +9,10 @@
 # client parameters, and the Lens, image and contextual search fields.
 
 # Reverts ungoogled-chromium replace-google-search-engine-with-nosearch.patch, its one hunk, with the
-# literal addresses above in place of Chromium's. It keeps that patch's new_tab_url line, so the New
-# Tab page stays ungoogled-chromium's plain one rather than Chromium's Google page, whose Lens and
-# voice search buttons can't work.
+# literal addresses above in place of Chromium's.
 --- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 +++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
-@@ -173,10 +173,19 @@
+@@ -173,11 +173,19 @@
      },
  
      "google": {
@@ -22,6 +20,7 @@
 -      "keyword": "nosearch",
 -      "favicon_url": "about:blank",
 -      "search_url": "http://{searchTerms}",
+-      "new_tab_url": "about:blank",
 +      "name": "Google",
 +      "keyword": "google.com",
 +      "favicon_url": "https://www.google.com/images/branding/product/ico/googleg_alldp.ico",
@@ -35,9 +34,9 @@
 +        "https://www.google.com/s#q={searchTerms}",
 +        "https://www.google.com/s?q={searchTerms}"
 +      ],
-       "new_tab_url": "about:blank",
        "type": "SEARCH_ENGINE_GOOGLE",
        "preconnect_to_search_url" : "ALLOWED",
+       "prefetch_likely_navigations" : "ALLOWED",
 # Reverts ungoogled-chromium inox-patchset/0006-modify-default-prefs.patch, kSearchSuggestEnabled hunk.
 --- a/chrome/browser/profiles/profile.cc
 +++ b/chrome/browser/profiles/profile.cc
@@ -50,3 +49,22 @@
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
  #if BUILDFLAG(IS_ANDROID)
    registry->RegisterStringPref(
+# Not a revert: keeps the New Tab page ungoogled-chromium showed with "No Search" (D7). With Google as
+# the default, Chromium would switch to its Google New Tab page, whose logo, search box, voice search
+# and Lens buttons Clair doesn't turn on.
+--- a/chrome/browser/search/search.cc
++++ b/chrome/browser/search/search.cc
+@@ -198,9 +198,10 @@
+       }
+     }
+ #else
+-    const GURL local_url(default_is_google
+-                             ? chrome::ChromeUINewTabPageURLAsGURL()
+-                             : GURL(chrome::kChromeUINewTabPageThirdPartyURL));
++    // Clair: ungoogled-chromium's New Tab page with Google too, without
++    // Chromium's Google logo, search box, voice search and Lens.
++    (void)default_is_google;
++    const GURL local_url(chrome::kChromeUINewTabPageThirdPartyURL);
+ #endif
+     return NewTabURLDetails(local_url, NEW_TAB_URL_VALID);
+   }
