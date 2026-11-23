@@ -96,7 +96,7 @@ On the selected pinned tab, hovering its row SHALL show a − button with the to
 - **THEN** its pinned URL loads again
 
 ### Requirement: Removing a pin
-On a pinned tab that isn't selected, hovering its row SHALL show an × button with the tooltip "Remove Pin", which removes the pinned tab and closes its page if open. Remove Pin in the row's menu SHALL do the same for any pinned tab. Restore Last Closed Tab SHALL bring a removed pinned tab back pinned, at its place.
+On a pinned tab that isn't selected, hovering its row SHALL show an × button with the tooltip "Remove Pin", which removes the pinned tab and closes its page if open. Restore Last Closed Tab SHALL bring a removed pinned tab back pinned, at its place.
 
 #### Scenario: × on a pinned tab
 - **WHEN** the user clicks × on the pinned tab "Docs", which isn't selected
@@ -141,7 +141,7 @@ A pinned tab's menu SHALL offer Edit Pinned Page › with "Replace Pinned URL wi
 - **THEN** Save is disabled
 
 ### Requirement: Pinned tab menu
-A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Edit Pinned Page ›, Duplicate, Move to Space (with more than one Space), Pin to Favorites, Unpin Tab and Remove Pin. Copy Link SHALL copy the page's current URL, or the pinned URL while the page is closed. Duplicate SHALL open the same URL as a new Today tab at the top.
+A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Edit Pinned Page ›, Duplicate, Move to Space (with more than one Space), Pin to Favorites and Unpin Tab, and no Remove Pin. Copy Link SHALL copy the page's current URL, or the pinned URL while the page is closed. Duplicate SHALL open the same URL as a new Today tab at the top.
 
 #### Scenario: Copy Link on a closed pinned tab
 - **WHEN** the pinned tab "Mail" has no open page and the user chooses Copy Link
@@ -150,6 +150,10 @@ A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Ed
 #### Scenario: Duplicate
 - **WHEN** the user chooses Duplicate on the pinned tab "Docs"
 - **THEN** a new Today tab at the top of the list shows the same URL, and "Docs" stays pinned
+
+#### Scenario: The menu's last items
+- **WHEN** the user right-clicks a pinned tab
+- **THEN** the menu ends with Pin to Favorites and Unpin Tab
 
 ### Requirement: Collapsing the pinned section
 While the Space has pinned tabs, hovering the Space header SHALL show a chevron at its leading edge, sliding the name aside as in Arc; without pinned tabs the header shows no chevron. Clicking it or anywhere else on the header, or View › Collapse Pinned Tabs, SHALL hide the pinned rows except the active one, and turn the chevron to point sideways, shown without hover. Clicking it again or View › Expand Pinned Tabs SHALL show them. Each Space SHALL remember the choice across windows and launches.
