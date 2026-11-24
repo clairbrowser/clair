@@ -91,6 +91,12 @@ A release SHALL be started manually, by choosing auto, patch, minor or major. Th
 ### Requirement: Release notes from Changie fragments
 Each user-facing change SHALL add a Changie fragment. A release SHALL batch the fragments into `.changes/<version>.md` and `CHANGELOG.md` and stamp the version into `version.txt`, all in the release commit. A dry run SHALL change none of these on `main`.
 
+The notes SHALL be one list with a `- <Kind>: <text>` line per fragment and no kind headings, grouped by kind in the order `New`, `Changed`, `Fixed`, `Updated`, and oldest first within a kind, with no blank line between groups.
+
+#### Scenario: Notes grouped by kind
+- **WHEN** a release is published with a `Fixed` fragment, then a `Changed` one, then a `New` one
+- **THEN** its notes list the `New` line, then the `Changed` line, then the `Fixed` line, as one list with no headings
+
 #### Scenario: Release commit
 - **WHEN** a release of `0.1.1` is published with two fragments in `.changes/unreleased/`
 - **THEN** its release commit adds both to `.changes/0.1.1.md` and `CHANGELOG.md`, removes the fragments, and sets `version.txt` to `0.1.1`

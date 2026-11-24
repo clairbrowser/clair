@@ -75,7 +75,8 @@ fi
 # lines are its "## version - date" heading and a blank line.
 notes="$(mktemp)"
 trap 'rm -f "$notes"' EXIT
-batch="$(changie batch "$version" --dry-run)" || die "changie couldn't batch the fragments"
+batch="$(changie batch "$version" --dry-run | "$script_dir/tidy-notes.sh")" ||
+  die "changie couldn't batch the fragments"
 tail -n +3 <<<"$batch" >"$notes"
 [[ -s "$notes" ]] || die "the fragments give no release notes"
 "$script_dir/render-notes.sh" "$notes" >/dev/null || die "the release notes don't render"

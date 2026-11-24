@@ -71,10 +71,12 @@ while IFS= read -r delta; do
 done < <(sed -n 's/^delta=//p' "$assets")
 
 # --- the release commit -------------------------------------------------------------
-changie batch "$version"
-changie merge
 notes="$(mktemp)" html="$(mktemp)" body="$(mktemp)"
 trap 'rm -f "$notes" "$html" "$body"' EXIT
+changie batch "$version"
+"$script_dir/tidy-notes.sh" <".changes/$version.md" >"$notes"
+cp "$notes" ".changes/$version.md"
+changie merge
 # The version file without its "## version - date" heading and the blank line after.
 tail -n +3 ".changes/$version.md" >"$notes"
 [[ -s "$notes" ]] || die ".changes/$version.md has no notes"

@@ -11,7 +11,11 @@ versionExt: md
 # .changes/unreleased/header.md before the release; batch consumes it.
 versionHeaderPath: header.md
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
-kindFormat: ""
+# Lines are grouped by kind, in the order of `kinds` below, with no heading.
+# Changie sorts by kind only when kindFormat is set, so it prints nothing
+# rather than being empty; scripts/tidy-notes.sh removes the blank lines Changie
+# still writes before each kind.
+kindFormat: '{{/* group by kind, with no heading */}}'
 changeFormat: "- {{.Kind}}: {{.Body}}"
 body:
   block: false

@@ -16,6 +16,8 @@ The release workflow batches `unreleased/` into `<version>.md`, regenerates `CHA
 - Fixed: Something that was broken
 ```
 
+The lines form one list, grouped by kind in the order `New`, `Changed`, `Fixed`, `Updated`, oldest first within a kind. Changie groups them only when `kindFormat` is set, so `.changie.yaml` gives it a template that prints nothing, and `scripts/tidy-notes.sh` removes the blank lines Changie leaves between the groups.
+
 For a free-text note above the list (e.g. `**Note**: Anything worth calling out before updating.`), write `unreleased/header.md` before releasing. The release consumes it.
 
 Lists, paragraphs, bold, italic, links, tables, task lists, and strikethrough all work. Two things are rejected, because each would reach one destination and not the other:

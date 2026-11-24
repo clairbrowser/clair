@@ -44,7 +44,8 @@ fi
 EOF
 chmod +x "$stubs/gh"
 
-# A remote with five commits, a clone to publish from, and a second clone.
+# A remote with five commits, a clone to publish from, and a second clone. With
+# "mixed", the release also has fragments of every kind, made out of kind order.
 setup() {
   rm -rf "$workdir/remote.git" "$workdir/repo" "$workdir/other" "$workdir/dist" "$workdir/gh.log" "$workdir/gh-state.log" "$workdir/body.md"
   git init -q --bare -b main "$workdir/remote.git"
@@ -69,6 +70,14 @@ setup() {
 </rss>
 XML
   printf 'kind: New\nbody: First release\ntime: 2026-01-01T00:00:00.000000000Z\n' >"$repo/.changes/unreleased/New-1.yaml"
+  if [[ "${1-}" == mixed ]]; then
+    local fragment kind
+    for fragment in Fixed:1 Updated:2 Changed:3 New:4 Fixed:5; do
+      kind="${fragment%:*}"
+      printf 'kind: %s\nbody: %s\ntime: 2026-01-01T00:00:%02d.000000000Z\n' "$kind" "$fragment" "${fragment#*:}" \
+        >"$repo/.changes/unreleased/$kind-${fragment#*:}.yaml"
+    done
+  fi
   git -C "$repo" add -A
   git -C "$repo" commit -q -m "commit 1"
   local i
@@ -176,6 +185,25 @@ if [[ "$(git -C "$workdir/remote.git" show main:version.txt)" == 0.1.0 ]]; then
   check "version.txt holds the version" pass
 else
   check "version.txt holds the version" fail
+fi
+
+# --- notes grouped by kind ----------------------------------------------------------
+setup mixed
+run
+expected="$(printf '%s\n' "## 0.1.0 - $(date +%Y-%m-%d)" "" "- New: First release" "- New: New:4" "- Changed: Changed:3" \
+  "- Fixed: Fixed:1" "- Fixed: Fixed:5" "- Updated: Updated:2")"
+if [[ "$(git -C "$workdir/remote.git" show main:.changes/0.1.0.md)" == "$expected" ]]; then
+  check "the notes list New, Changed, Fixed and Updated, oldest first, as one list" pass
+else
+  check "the notes list New, Changed, Fixed and Updated, oldest first, as one list" fail
+  git -C "$workdir/remote.git" show main:.changes/0.1.0.md | sed 's/^/         | /'
+fi
+items="$(git -C "$workdir/remote.git" show main:.sparkle/appcast.xml | grep -o '<li>[^<]*</li>' | tr '\n' ',')"
+if [[ "$items" == "<li>New: First release</li>,<li>New: New:4</li>,<li>Changed: Changed:3</li>,<li>Fixed: Fixed:1</li>,<li>Fixed: Fixed:5</li>,<li>Updated: Updated:2</li>," ]]; then
+  check "the appcast lists them in the same order, as one tight list" pass
+else
+  check "the appcast lists them in the same order, as one tight list" fail
+  echo "         $items"
 fi
 
 # --- main moved -------------------------------------------------------------------
