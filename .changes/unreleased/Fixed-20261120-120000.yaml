@@ -1,3 +1,0 @@
-kind: Fixed
-body: A tab opened in a profile's window before it shows a Space now joins one of that profile's Spaces, instead of having no row in any sidebar
-time: 2026-11-20T12:00:00.000000-05:00

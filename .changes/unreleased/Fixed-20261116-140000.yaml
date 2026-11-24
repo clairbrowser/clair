@@ -1,3 +1,0 @@
-kind: Fixed
-body: Cmd+W and the File menu's tab commands work while a page's alert is showing, so a page that shows alerts in a loop can't keep its tab open
-time: 2026-11-16T14:00:00.000000-05:00

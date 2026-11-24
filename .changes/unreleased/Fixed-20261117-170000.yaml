@@ -1,3 +1,0 @@
-kind: Fixed
-body: An extension's popup that's still loading when its window closes now closes with the window, instead of crashing Clair
-time: 2026-11-17T17:00:00-05:00

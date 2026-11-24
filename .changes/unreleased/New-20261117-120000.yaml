@@ -1,3 +1,0 @@
-kind: New
-body: 'Clair now turns off store extensions that Google has pulled as malware, for breaking the store''s policy or as unwanted, as Chrome does, and a dialog names any found to contain malware. Store update checks now go to Google''s update service at update.googleapis.com, and send no more than before'
-time: 2026-11-17T12:00:00-05:00

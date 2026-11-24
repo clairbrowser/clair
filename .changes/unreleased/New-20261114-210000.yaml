@@ -1,3 +1,0 @@
-kind: New
-body: 'Pinned tabs: each Space keeps the sites you return to above its Today tabs. Pin a tab with Cmd+D or by dragging it, and its page can close while the pin stays; the − button and Cmd+W close the page, × removes the pin, and Reopen Closed Tab brings a removed pin back. A pinned tab you navigated away from shows its pinned page''s icon, which takes you back, and Edit Pinned Page changes its URL. The chevron by the Space''s name collapses the section, and Clear on the divider, or Shift+Cmd+K, closes the Today tabs'
-time: 2026-11-14T21:00:00-05:00

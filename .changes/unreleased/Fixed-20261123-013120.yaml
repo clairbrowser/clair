@@ -1,3 +1,0 @@
-kind: Fixed
-body: The sidebar draws the divider under the Space header even without pinned tabs, shows the collapse chevron only when there are pinned tabs, slides it in on hover as Arc does, and shows the line above the footer only while the tab list scrolls
-time: 2026-11-23T01:31:20.464401-05:00

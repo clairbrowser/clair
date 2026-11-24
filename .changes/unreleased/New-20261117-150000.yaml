@@ -1,3 +1,0 @@
-kind: New
-body: 'Clair now checks certificates against Chromium''s list of revoked certificates, as Chrome does, so a site whose certificate has been revoked shows a certificate error. Clair fetches the list from Google''s update service at update.googleapis.com, over HTTPS, about a minute after launch and every five hours, and downloads it when it changes. Each check sends only the list''s version, the browser version and the platform, with no language or identifiers'
-time: 2026-11-17T15:00:00-05:00
