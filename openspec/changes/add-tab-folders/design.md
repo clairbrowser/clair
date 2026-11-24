@@ -20,10 +20,10 @@ Arc's behavior is in `arc-reference/README.md`.
 
 ## Decisions
 
-### D1. Folders are records in the pin store, in format version 2
+### D1. Folders are records in the pin store, which stays at version 1
 
 ```
-clair.pins  { "version": 2,
+clair.pins  { "version": 1,
               "spaces":   { "<space uuid>":  ["<pin or folder uuid>", …] },  // the pinned section, in order
               "profiles": { "<profile dir>": ["<pin uuid>", …] },            // favorites, unchanged
               "folders":  { "<folder uuid>": { "name": "…",
@@ -34,7 +34,7 @@ clair.pins  { "version": 2,
 
 - **A Space's list holds items**, each a pin or a folder ID. A folder's own list holds pin IDs only (one level, the spec's rule). A pin is in exactly one list: a Space's, a folder's or a profile's.
 - **`parent` goes.** A folder's `pins` list carries the order a `parent` field couldn't, and two sources of truth could disagree.
-- **Version 1 loads as version 2** with no folders and `parent` ignored, and is written back as 2. Clair isn't released, so nothing needs to read version 2 back as 1.
+- **The version stays 1.** A store written before this change is already valid: its Space lists hold only pin IDs, which are items, and a missing `folders` means none. Loading ignores `parent`, and saving no longer writes it. Clair isn't released, so no older engine reads the new keys, and a version bump would only mark a change that needs no conversion.
 - **The open state is in the record** (D3), so the engine, which runs the tab commands, knows which tabs a closed folder hides.
 - **`ClairPinStore` gains** `CreateFolder`, `RenameFolder`, `SetFolderOpen`, `MoveItem` (a pin or folder to a Space's list, or a pin into a folder, at an index), `DuplicateFolder` (copies records and icon files), `RemoveFolder(remember)` and `FoldersIn`. `PinContainer` gains a folder ID, so a pin's place is a Space, a folder or a profile. Observers still hear `OnPinsChanged` for the folder's Space.
 - **Alternative: folders in `ClairUI`'s user defaults, grouping the store's pin IDs.** Rejected: the order of folders among pins would then live in two stores, the engine's tab commands couldn't skip closed folders, and every move, removal, restore and Space deletion would have to update both.
@@ -120,6 +120,6 @@ Both are absent in incognito and guest windows, which show no Space header. The 
 
 - **[A drop on a row may not reach an AppKit view inside a `List` row]** → task 1.1 checks it before anything is built on it, and D5 has a fallback.
 - **[A folder dragged in the `List` lifts only its own row]** → its tabs' rows stay in place until the drop, then move with it. Arc's own lifted folder wasn't observed; the hand check compares them.
-- **[Version 2 can't be read by an older engine]** → Clair isn't released, and an older build isn't run against a newer profile in practice.
+- **[An older engine reading a store with folders would drop the folders' pins, which are in no Space list]** → Clair isn't released, and an older build isn't run against a newer profile in practice.
 - **[A restored folder with several open tabs reopens only the last page]** → the others stay in Chromium's recently closed list, so Restore Last Closed Tab again brings each back, binding to its pin.
 - **[The open state is app-wide, unlike Arc's]** → stated in the spec; changing to per window later only moves the flag.

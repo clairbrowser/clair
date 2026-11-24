@@ -12,13 +12,13 @@ Suggested order: 1.1 first, since D5 depends on it; then 1.2 and 1.3; then 2 and
 
 ## 2. Engine
 
-- [ ] 2.1 Extend `ClairPinStore` (D1): format version 2 with `folders` and item lists, version 1 loaded as 2, `PinContainer` with a folder, and `CreateFolder`, `RenameFolder`, `SetFolderOpen`, `MoveItem`, `DuplicateFolder` (with icon files), `RemoveFolder` and `FoldersIn`. Verify with the runtime tests in 3.9: folders, their order, names, tabs and open state survive a relaunch and a crash, and a version 1 store from before the change loads with its pins.
+- [ ] 2.1 Extend `ClairPinStore` (D1): `folders` and item lists in the existing version 1 format, `parent` no longer written, `PinContainer` with a folder, and `CreateFolder`, `RenameFolder`, `SetFolderOpen`, `MoveItem`, `DuplicateFolder` (with icon files), `RemoveFolder` and `FoldersIn`. Verify with the runtime tests in 3.9: folders, their order, names, tabs and open state survive a relaunch and a crash, and a store written before the change loads with its pins.
 - [ ] 2.2 Bridge the D2 calls and snapshots, and send `pinnedItemsDidChange:inSpace:` for every folder change. Verify with the runtime tests in 3.9.
 - [ ] 2.3 Make `ClairSpaceTabs`' rows and the next-tab rule follow D9, and Ctrl+Shift+PageUp/Down stay within a folder. Verify with the runtime tests in 3.9: Cmd+number and Opt+Cmd+Down skip a closed folder's tabs and count an open one's, and closing a tab passes over a closed folder's tabs.
 - [ ] 2.4 Implement `deleteFolder:`, `closeTabsInFolder:` and the restores of D7, in the store's removals and `ExecuteTabCommand`'s `IDC_RESTORE_TAB`. Verify with the runtime tests in 3.9: a deleted folder with no open tab comes back in place; one with an open tab comes back with that page; a pin removed from a folder comes back into it, and to the end of the section once the folder is gone.
 - [ ] 2.5 Implement `turnFolderIntoSpace:` (D8), `moveFolder:toSpace:atIndex:` within and across profiles, and `duplicateFolder:` (D11). Remove a Space's folders with it, and count them in the deletion's confirmation. Verify with the runtime tests in 3.9.
 - [ ] 2.6 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
-- [ ] 2.7 Update `docs/native-window.md`'s "Pins and favorites" section with folders: the store's version 2 format, items and places, the open flag, the rows, and folder removals. Verify that every file and decision it names exists.
+- [ ] 2.7 Update `docs/native-window.md`'s "Pins and favorites" section with folders: the store's `folders` and item lists, items and places, the open flag, the rows, and folder removals. Verify that every file and decision it names exists.
 
 ## 3. ClairUI
 
