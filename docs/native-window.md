@@ -45,7 +45,7 @@ The archived `share-tabs-across-windows` change's `design.md` (`openspec/changes
 
 The `add-profiles` change's `design.md` (`openspec/changes/add-profiles/`) has the reasoning (D1–D13). A profile is a Chromium profile, and each Space uses one (`"profile"` in `clair.spaces`, the default profile when absent or gone). `ClairProfiles` lists, creates, renames and deletes profiles through `ProfileAttributesStorage` and `ProfileManager`, and pushes them to the host's observers; Clair stores nothing else about them. Chromium's profile picker is off by default (`kBrowserProfilePickerAvailabilityOnStartup`), and its Profiles menu and "Warn Before Quitting" item leave the menu bar (`InstallNativeWindowMenus`).
 
-The `native-quit-confirmation` change's `design.md` (`openspec/changes/archive/2026-11-15-native-quit-confirmation/`) has the reasoning (D1–D5) for the quit dialog. While "Warn before quitting" (`browser.confirm_to_quit`) is on, `patches/clair/quit-confirmation.patch` has `-confirmQuitIfNeeded` call `clair::MaybeConfirmKeyboardQuit` for Cmd+Q (which Chromium runs as `IDC_EXIT`, never through the menu) and `-terminate:` call `clair::MaybeConfirmQuit` for a click on Clair › Quit Clair (`clair_native_layer.mm`). Both ask only with a native window open and no download in progress. `clair::ShowQuitConfirmation` (`clair_window_hooks.mm`) calls `-[ClairWindow showQuitConfirmation]` on the key or most recently active window, and ClairUI's `QuitConfirmation` answers through `-[ClairHost quitWithoutWarning]`. While ClairUI runs, Chromium's hold-to-quit panel never shows.
+The `native-quit-confirmation` change's `design.md` (`openspec/changes/archive/2026-11-15-native-quit-confirmation/`) has the reasoning (D1–D5) for the quit dialog. While "Warn before quitting" (`browser.confirm_to_quit`) is on, `engine/patches/clair/quit-confirmation.patch` has `-confirmQuitIfNeeded` call `clair::MaybeConfirmKeyboardQuit` for Cmd+Q (which Chromium runs as `IDC_EXIT`, never through the menu) and `-terminate:` call `clair::MaybeConfirmQuit` for a click on Clair › Quit Clair (`clair_native_layer.mm`). Both ask only with a native window open and no download in progress. `clair::ShowQuitConfirmation` (`clair_window_hooks.mm`) calls `-[ClairWindow showQuitConfirmation]` on the key or most recently active window, and ClairUI's `QuitConfirmation` answers through `-[ClairHost quitWithoutWarning]`. While ClairUI runs, Chromium's hold-to-quit panel never shows.
 
 - **The group and its members (D3).** One Chromium `Browser` has one profile, so what the user sees as one window is a `ClairWindowGroup`: at most one browser per profile, each with its own `ClairBrowserWindow`, `ClairNativeWindow` and `ClairWindow`, one shown and the rest ordered out. A browser joins the group that creates it (`ClairWindowGroup::EnsureMember`), or else starts one; incognito and guest windows are groups of one.
 - **The swap (D3).** Showing a Space of another profile (`ClairBrowserWindow::ShowSpace`, `ClairWindowGroup::ShowSpace`) finds or creates the member for its profile, which shows the Space; `SwapTo` gives it the group's frame, tells `ClairUI` (the bridge's `swappedInFrom:`, so the incoming window slides from the group's earlier Space and takes the outgoing window's sidebar and an open Manage Spaces), shows it and makes it key, and orders the old member out, in one run-loop turn without window animation. `Show()` or `Activate()` on a hidden member, as for a link from another app, switches the group to it.
@@ -74,7 +74,7 @@ The `add-link-rules` change's `design.md` (`openspec/changes/archive/2026-11-15-
 
 - **The store (D1).** `ClairLinkRuleStore` keeps the rules in order in Local State (`clair.link_rules`), each with an ID, a match (`contains`, `exact` or `prefix`), the text as typed, trimmed, and a Space. It keeps only valid rules: a known match, a text that reads as a URL, a Space that exists, and no repeat of an earlier rule's match and text. It observes `ClairSpaceStore` and drops a Space's rules when the Space goes, which also covers a profile removed with its Spaces; reading drops them too, in case Clair stopped in between.
 - **The matcher (D3).** `ReadLinkRuleText` trims a text, rejects one that is empty or holds whitespace, puts `https://` in front when it has no `scheme://`, and requires a valid `http` or `https` URL with a host. `LinkRuleMatches` compares a link's spec without its fragment, and without its scheme when the rule's text had none, so `http` and `https` match alike: "URLs containing" looks for the raw text, ignoring case; "this exact URL" compares with the text read as a URL; "URLs starting with" checks that the link starts with it, so `example.com` becomes `example.com/` and doesn't match `example.com.evil.net`. The first matching rule wins (`FirstMatch`).
-- **The hook (D2).** Launch Services (`-application:openURLs:`) and Handoff (`-application:continueUserActivity:restorationHandler:`) both send links through `-[AppController openStartupTabsReplacingNTP:]`, which queues them until start-up completes. `patches/clair/link-rules.patch` calls `clair::RouteLinksFromOtherApps` there, just before `OpenStartupTabsInBrowser`: each link a rule matches opens through `ClairWindowGroup::OpenInSpace` and leaves the list, and Chromium opens the rest as it would. Links opened inside Clair never pass through it.
+- **The hook (D2).** Launch Services (`-application:openURLs:`) and Handoff (`-application:continueUserActivity:restorationHandler:`) both send links through `-[AppController openStartupTabsReplacingNTP:]`, which queues them until start-up completes. `engine/patches/clair/link-rules.patch` calls `clair::RouteLinksFromOtherApps` there, just before `OpenStartupTabsInBrowser`: each link a rule matches opens through `ClairWindowGroup::OpenInSpace` and leaves the list, and Chromium opens the rest as it would. Links opened inside Clair never pass through it.
 - **The contract (D4).** `-[ClairHost linkRules]` returns snapshots (`ClairChromiumLinkRule`), `-replaceLinkRules:` replaces them all through the store, and `-isValidLinkRuleText:` asks `ReadLinkRuleText`, so the dialog's error matches what the store keeps. There is no observer: only the dialog reads the rules, when it opens.
 - **The dialog (D5–D7).** Settings › Links ends with a card, "Choose where links open inside Clair", after a divider, whose "Link Rules…" button (`SettingsWindowController.showLinkRules()`) shows `LinkRulesDialog` on the Settings window's `ClairDialogPresenter`: a 640 pt `ClairDialog` page (`ClairDialogPage.width`) with the rows as its content, "Add Rule" as its leading button, and Cancel and Done. `LinkRulesState` holds the rows until Done, which drops empty rows and checks the rest in order (valid text, an existing Space, no repeats) before `replaceLinkRules:`. Cancel with unsaved edits turns into a red "Discard Changes" (`ClairDialogButton.isDestructive` on a cancelling button), which closes on a second press. The rows' Space popups read `SpacesModel`, so a Space deleted while the dialog is open shows "Choose a Space".
 
@@ -93,7 +93,7 @@ The browser controls show in one of two places, chosen by the `ClairShowsToolbar
 
 The archived `add-bookmarks-menu` change's `design.md` (`openspec/changes/archive/2026-11-22-add-bookmarks-menu/`) has the reasoning (D1–D9). Clair has one bookmark list, Chromium's Other Bookmarks, which its interface calls "Bookmarks". `chrome://bookmarks` stays the manager.
 
-- **The Bookmarks menu (D1, D7).** Chromium's menu and `BookmarkMenuBridge` stay. `InstallNativeWindowMenus` shows the menu, drops Chromium's two separators tagged `IDC_BOOKMARK_THIS_TAB`, and moves that item first, on Shift+Cmd+B; Bookmark All Tabs, Always Show Bookmarks Bar and the bookmarks side panel stay removed (`ClairIsRemovedCommand`). `MainMenuTitles` retitles `IDC_SHOW_BOOKMARK_MANAGER` "Manage Bookmarks" (Option+Cmd+B), and `ExecuteCommand` runs it as `clair::ShowBookmarkManager`, which opens `chrome://bookmarks` on Other Bookmarks rather than the empty Bookmarks Bar. `patches/clair/bookmarks-menu-root.patch` makes `BookmarkMenuBridge::BuildRootMenu` list Other Bookmarks' contents directly, with no Bookmarks Bar or Other Bookmarks submenu, after one separator; it's a patch because the menu is built from the bridge's private members.
+- **The Bookmarks menu (D1, D7).** Chromium's menu and `BookmarkMenuBridge` stay. `InstallNativeWindowMenus` shows the menu, drops Chromium's two separators tagged `IDC_BOOKMARK_THIS_TAB`, and moves that item first, on Shift+Cmd+B; Bookmark All Tabs, Always Show Bookmarks Bar and the bookmarks side panel stay removed (`ClairIsRemovedCommand`). `MainMenuTitles` retitles `IDC_SHOW_BOOKMARK_MANAGER` "Manage Bookmarks" (Option+Cmd+B), and `ExecuteCommand` runs it as `clair::ShowBookmarkManager`, which opens `chrome://bookmarks` on Other Bookmarks rather than the empty Bookmarks Bar. `engine/patches/clair/bookmarks-menu-root.patch` makes `BookmarkMenuBridge::BuildRootMenu` list Other Bookmarks' contents directly, with no Bookmarks Bar or Other Bookmarks submenu, after one separator; it's a patch because the menu is built from the bridge's private members.
 - **Bookmark This Page… and Edit Bookmark… (D2, D4).** `ClairWindowCommandHandler` titles the item from `clair::IsActivePageBookmarked` each time AppKit validates it. The native window's `ExecuteCommand` runs `IDC_BOOKMARK_THIS_TAB` itself (`clair::BookmarkActivePage`): it adds the page Chromium would bookmark (`chrome::GetURLAndTitleToBookmark`) at the end of Other Bookmarks, unless the user has bookmarked it, and calls `-[ClairWindow showBookmarkDialog:]` with a `ClairBookmark` snapshot whose `isNew` says which. Chromium's bookmark bubble never shows.
 - **The contract (D3).** `ClairBrowser.bookmarkFolders` lists Other Bookmarks and its folders depth-first, and `-updateBookmark:title:folder:`, `-removeBookmark:` and `-addBookmarkFolder:` edit them (`clair_bookmarks.mm`). An incognito or guest window uses its original profile's bookmarks, as `BookmarkModelFactory` does.
 - **The dialog (D5).** `BookmarkDialog` is a `ClairDialog` page: Name and Folder rows as its content, Remove as its leading button and Done, which Return and Esc press. The Folder popup is an `NSPopUpButton` (`BookmarkFolderPopup`), for the menu's indentation and checkmark; New Folder… swaps it for a field whose Return adds a folder, and Manage Bookmarks saves, closes and performs the main menu's Manage Bookmarks item. `BookmarkDialogState` saves through the browser however the dialog closes, except after Remove.
@@ -104,38 +104,38 @@ The archived `add-bookmarks-menu` change's `design.md` (`openspec/changes/archiv
 
 | Piece | File |
 |---|---|
-| `BrowserWindow` and its helpers | `overlay/chrome/browser/clair/window/clair_browser_window.{h,mm}` |
-| The `NSWindow`, key equivalents, menu validation | `overlay/chrome/browser/clair/window/clair_native_window.{h,mm}` |
-| The `ClairBrowser` bridge | `overlay/chrome/browser/clair/window/clair_browser_bridge.{h,mm}` |
-| The Space store, `clair.windows` | `overlay/chrome/browser/clair/clair_space_store.{h,mm}` |
-| Profiles: listing, creating, renaming, deleting | `overlay/chrome/browser/clair/clair_profiles.{h,mm}` |
-| Window groups: members, the swap, the cover, closing, restoring windows | `overlay/chrome/browser/clair/window/clair_window_group.{h,mm}` |
-| Reopening tabs in another profile, the last-used profile | `overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
-| Each profile's tab lists per Space, tab snapshots, the host's Space calls | `overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
-| The shown Space, the next tab after a close, tab commands over the rows | `overlay/chrome/browser/clair/window/clair_browser_window.{h,mm}` |
-| Taking a tab from another window, the still and its placeholder, handing a closing window's tabs on | `overlay/chrome/browser/clair/window/clair_browser_window.{h,mm}` |
-| Keeping a moved tab's place, the placeholder mark | `overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
-| A Peek moving with its tab | `overlay/chrome/browser/clair/window/clair_peeks.{h,mm}` (`Release`, `Adopt`) |
+| `BrowserWindow` and its helpers | `engine/overlay/chrome/browser/clair/window/clair_browser_window.{h,mm}` |
+| The `NSWindow`, key equivalents, menu validation | `engine/overlay/chrome/browser/clair/window/clair_native_window.{h,mm}` |
+| The `ClairBrowser` bridge | `engine/overlay/chrome/browser/clair/window/clair_browser_bridge.{h,mm}` |
+| The Space store, `clair.windows` | `engine/overlay/chrome/browser/clair/clair_space_store.{h,mm}` |
+| Profiles: listing, creating, renaming, deleting | `engine/overlay/chrome/browser/clair/clair_profiles.{h,mm}` |
+| Window groups: members, the swap, the cover, closing, restoring windows | `engine/overlay/chrome/browser/clair/window/clair_window_group.{h,mm}` |
+| Reopening tabs in another profile, the last-used profile | `engine/overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
+| Each profile's tab lists per Space, tab snapshots, the host's Space calls | `engine/overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
+| The shown Space, the next tab after a close, tab commands over the rows | `engine/overlay/chrome/browser/clair/window/clair_browser_window.{h,mm}` |
+| Taking a tab from another window, the still and its placeholder, handing a closing window's tabs on | `engine/overlay/chrome/browser/clair/window/clair_browser_window.{h,mm}` |
+| Keeping a moved tab's place, the placeholder mark | `engine/overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
+| A Peek moving with its tab | `engine/overlay/chrome/browser/clair/window/clair_peeks.{h,mm}` (`Release`, `Adopt`) |
 | The still in the card | `native/ClairUI/PageCardView.swift` (`StillView`) |
-| Tabs' Spaces, windows' groups, pins and names in saved sessions, new tab pages left out | `overlay/chrome/browser/clair/window/clair_space_session.{h,mm}`, `patches/clair/space-session.patch` |
-| The pin store and icons | `overlay/chrome/browser/clair/clair_pin_store.{h,mm}` |
-| Binding tabs to pins, pin snapshots, the host's pin calls, Restore Last Closed Tab for pins | `overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
-| The link rule store and the matcher | `overlay/chrome/browser/clair/clair_link_rule_store.{h,mm}` |
-| Routing links from other apps | `overlay/chrome/browser/clair/clair_link_rules.{h,mm}`, `patches/clair/link-rules.patch` |
-| Peeks for links to other sites | `overlay/chrome/browser/clair/window/clair_pinned_link_throttle.{h,mm}`, `patches/clair/pinned-link-peek.patch` |
-| Tabs always restored at launch | `overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` (`ApplyStartupPref`), `patches/clair/always-restore.patch` |
-| Opt+Cmd+arrows freed for Spaces and Next and Previous Tab | `patches/clair/space-shortcuts.patch` |
-| Command bar suggestions (Chromium's autocomplete, bookmarks included) | `overlay/chrome/browser/clair/window/clair_autocomplete.{h,mm}` |
-| The bookmark and folder snapshots, the bridge's bookmark calls, Bookmark This Page… | `overlay/chrome/browser/clair/window/clair_bookmarks.{h,mm}` |
-| Keeping the Bookmarks Bar empty, the notice's pref | `overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` |
-| Other Bookmarks listed directly in the Bookmarks menu | `patches/clair/bookmarks-menu-root.patch` |
-| Extension actions and popups | `overlay/chrome/browser/clair/window/clair_extensions.{h,mm}` |
-| Downloads | `overlay/chrome/browser/clair/window/clair_downloads.{h,mm}` |
-| The functions hooks call, menus, password and autofill prefs | `overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` |
-| Tab-modal and browser-modal dialog placement over the card | `overlay/components/constrained_window/clair_native_host_mac.{h,mm}` |
-| Chromium's bubbles and dialogs kept as child windows of the native window | `overlay/ui/views/cocoa/clair_native_parent.{h,mm}` |
-| Loading `ClairUI` and creating windows | `overlay/chrome/browser/clair/clair_native_layer.{h,mm}` |
-| The hooks into Chromium's own files | `patches/clair/native-window-hook.patch` |
+| Tabs' Spaces, windows' groups, pins and names in saved sessions, new tab pages left out | `engine/overlay/chrome/browser/clair/window/clair_space_session.{h,mm}`, `engine/patches/clair/space-session.patch` |
+| The pin store and icons | `engine/overlay/chrome/browser/clair/clair_pin_store.{h,mm}` |
+| Binding tabs to pins, pin snapshots, the host's pin calls, Restore Last Closed Tab for pins | `engine/overlay/chrome/browser/clair/clair_space_tabs.{h,mm}` |
+| The link rule store and the matcher | `engine/overlay/chrome/browser/clair/clair_link_rule_store.{h,mm}` |
+| Routing links from other apps | `engine/overlay/chrome/browser/clair/clair_link_rules.{h,mm}`, `engine/patches/clair/link-rules.patch` |
+| Peeks for links to other sites | `engine/overlay/chrome/browser/clair/window/clair_pinned_link_throttle.{h,mm}`, `engine/patches/clair/pinned-link-peek.patch` |
+| Tabs always restored at launch | `engine/overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` (`ApplyStartupPref`), `engine/patches/clair/always-restore.patch` |
+| Opt+Cmd+arrows freed for Spaces and Next and Previous Tab | `engine/patches/clair/space-shortcuts.patch` |
+| Command bar suggestions (Chromium's autocomplete, bookmarks included) | `engine/overlay/chrome/browser/clair/window/clair_autocomplete.{h,mm}` |
+| The bookmark and folder snapshots, the bridge's bookmark calls, Bookmark This Page… | `engine/overlay/chrome/browser/clair/window/clair_bookmarks.{h,mm}` |
+| Keeping the Bookmarks Bar empty, the notice's pref | `engine/overlay/chrome/browser/clair/clair_bookmark_bar_drain.{h,mm}` |
+| Other Bookmarks listed directly in the Bookmarks menu | `engine/patches/clair/bookmarks-menu-root.patch` |
+| Extension actions and popups | `engine/overlay/chrome/browser/clair/window/clair_extensions.{h,mm}` |
+| Downloads | `engine/overlay/chrome/browser/clair/window/clair_downloads.{h,mm}` |
+| The functions hooks call, menus, password and autofill prefs | `engine/overlay/chrome/browser/clair/window/clair_window_hooks.{h,mm}` |
+| Tab-modal and browser-modal dialog placement over the card | `engine/overlay/components/constrained_window/clair_native_host_mac.{h,mm}` |
+| Chromium's bubbles and dialogs kept as child windows of the native window | `engine/overlay/ui/views/cocoa/clair_native_parent.{h,mm}` |
+| Loading `ClairUI` and creating windows | `engine/overlay/chrome/browser/clair/clair_native_layer.{h,mm}` |
+| The hooks into Chromium's own files | `engine/patches/clair/native-window-hook.patch` |
 | Window, layout, card and overlays | `native/ClairUI/BrowserWindowController.swift`, `BrowserRootView.swift`, `PageCardView.swift`, `WindowLayout.swift`, `OverlayViews.swift` |
 | Sidebar, tab list, URL field, extensions and downloads | `native/ClairUI/SidebarView.swift`, `TabListLogic.swift`, `URLDisplay.swift`, `AnchorResolver.swift` |
 | The toolbar: its view, layout, preference, `PageHeaderPolicy` and View-menu item | `native/ClairUI/PageToolbar.swift`, `ToolbarLayout.swift`, `ToolbarPreference.swift`, `MainMenuTitles.swift` |
@@ -160,6 +160,6 @@ Chromium code that assumes a Views `BrowserView` crashes or does nothing for a n
 
 1. Find the call site in Chromium's source and the smallest place to branch: usually where it looks up the `BrowserView`, a Views widget or a `BrowserWindowFeatures` controller that a native window doesn't create.
 2. Put the behaviour in the overlay: a function in `clair_window_hooks.{h,mm}` (or a new overlay file), which does nothing for Chromium's own windows (`clair::IsNativeWindow(browser)` or `clair::IsInNativeWindow(view)`), so the bare engine behaves as Chromium.
-3. Add a hunk to `patches/clair/native-window-hook.patch` that calls it, made against `build/base` in the runner's workspace (after ungoogled-chromium's patches, before Clair's), with any earlier Clair patch to the same file applied first. Clair's series applies with no fuzz.
+3. Add a hunk to `engine/patches/clair/native-window-hook.patch` that calls it, made against `build/base` in the runner's workspace (after ungoogled-chromium's patches, before Clair's), with any earlier Clair patch to the same file applied first. Clair's series applies with no fuzz.
 4. Explain the hunk in the patch header, with what failed without it, and add a row to D13's table in the design.
 5. Add any new overlay source to the `BUILD.gn` hunk for its directory, then build the engine and check the surface on the packaged app.

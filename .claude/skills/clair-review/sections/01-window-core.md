@@ -2,7 +2,7 @@
 
 ## What this section is
 
-The seam between Chromium and `ClairUI`. `native/ClairHost.h` is the contract: Chromium loads the `ClairUI` framework at start-up and the two sides talk only through it. The overlay files under `overlay/chrome/browser/clair/window/` replace Chromium's browser window with a native one and bridge browser state to Swift; `BrowserWindowController` and `BrowserWindowModel` are the Swift side. `native-window-hook.patch` is the largest patch Clair carries, and it decides where Chromium hands control over.
+The seam between Chromium and `ClairUI`. `native/ClairHost.h` is the contract: Chromium loads the `ClairUI` framework at start-up and the two sides talk only through it. The overlay files under `engine/overlay/chrome/browser/clair/window/` replace Chromium's browser window with a native one and bridge browser state to Swift; `BrowserWindowController` and `BrowserWindowModel` are the Swift side. `native-window-hook.patch` is the largest patch Clair carries, and it decides where Chromium hands control over.
 
 Everything else in the app sits on this seam, so a weakness here is inherited by every feature. This is also the section where C++, Objective-C++ and Swift object lifetimes meet, which is where memory-safety bugs in a browser shell tend to live.
 

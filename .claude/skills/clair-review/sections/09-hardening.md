@@ -2,7 +2,7 @@
 
 ## What this section is
 
-Chromium ships with layers of exploit mitigation: the sandbox, site isolation, control-flow integrity, the V8 sandbox, a hardened allocator, and security data that is refreshed between releases. Clair's engine is that Chromium after three sets of changes it did not write (ungoogled-chromium's patches and flags, the build patches copied from ungoogled-chromium-macos, the patches adapted from Helium) and one it did (`patches/clair/` and `overlay/`). Each of those was made for another reason: removing Google services, getting the build to pass, adding a feature. This section asks what they cost in hardening along the way.
+Chromium ships with layers of exploit mitigation: the sandbox, site isolation, control-flow integrity, the V8 sandbox, a hardened allocator, and security data that is refreshed between releases. Clair's engine is that Chromium after three sets of changes it did not write (ungoogled-chromium's patches and flags, the build patches copied from ungoogled-chromium-macos, the patches adapted from Helium) and one it did (`engine/patches/clair/` and `engine/overlay/`). Each of those was made for another reason: removing Google services, getting the build to pass, adding a feature. This section asks what they cost in hardening along the way.
 
 The files that are yours are small: the two GN flag files and the copied macOS build patches. The work is in the engine tree. You are the only reviewer who looks at every patch, and you look at each for one thing only. The other sections review their patches for what they do; you review all of them for what they weaken.
 
@@ -26,7 +26,7 @@ Nobody chose most of what you will find. A mitigation that is off because a flag
 
 **Build settings**
 - For each mitigation that is decided when the engine is compiled, give the value in Clair's build, the value an official Chrome build for Apple Silicon Macs would have, and where the difference comes from. Cover at least: `is_official_build` and what it implies, control-flow integrity (`is_cfi` and its cast and indirect-call variants) and arm64 pointer authentication and branch protection, the V8 sandbox, pointer compression and V8's own control-flow integrity, PartitionAlloc as the allocator with BackupRefPtr and its dangling-pointer checks, libc++ hardening, stack protection and automatic initialisation of locals, `DCHECK` and iterator-debugging settings, and the Rust toolchain settings that `fix-build-with-rust.patch` and `set-rustc-nightly-capability.patch` change.
-- Which flags in `flags.macos.gn` exist only because another project needed them? `fatal_linker_warnings=false`, `enable_iterator_debugging=false`, `use_sysroot=false` and `v8_use_metagen=false` each need a reason that holds for Clair.
+- Which flags in `engine/flags.macos.gn` exist only because another project needed them? `fatal_linker_warnings=false`, `enable_iterator_debugging=false`, `use_sysroot=false` and `v8_use_metagen=false` each need a reason that holds for Clair.
 - Does `gn gen --fail-on-unused-args` in `build.sh` mean a misspelt or retired hardening argument fails the build, or can one be silently ignored?
 
 **The process model**
@@ -43,13 +43,13 @@ Nobody chose most of what you will find. A mitigation that is off because a flag
 - `fix-disabling-safebrowsing.patch` finishes a removal that ungoogled starts. Does it remove only what was intended?
 
 **Every patch, for its hardening effect**
-- Walk ungoogled's series and then `patches/series` in the order they are applied. For each patch, say in a line whether it touches anything security-relevant: `sandbox/`, `content/` security checks, certificate verification or `net/`, V8, the allocator, compiler or linker flags, crash reporting, permission or policy code. Read in full the ones that do.
+- Walk ungoogled's series and then `engine/patches/series` in the order they are applied. For each patch, say in a line whether it touches anything security-relevant: `sandbox/`, `content/` security checks, certificate verification or `net/`, V8, the allocator, compiler or linker flags, crash reporting, permission or policy code. Read in full the ones that do.
 - Name these in particular: `revert-v8-sanitizer-changes.patch`, `disable-crashpad-handler.patch`, `disable-clang-version-check.patch`, `disable-symbol-order-verification.patch`, `no-unknown-warnings.patch` and `add-local-network-usage-description.patch`. What does each revert or disable, and is a check that guarded against something now gone?
 - The copied macOS patches need provenance as well: confirm each keeps its original header, and flag any that does more than fix the build.
 - A patch owned by another section is still yours for this question. Report what it weakens here, and leave what it does to its owner.
 
 **Privileged pages and bindings**
-- `CLAUDE.md` says Clair uses WebUI only for Chromium's internal pages. Verify it. Across `overlay/` and every Clair and Helium patch, list anything that adds or changes a `chrome://` page, a `WebUIController` or message handler, a Mojo interface a renderer can reach, a binder registration, or a script injected into pages. `first-run-page.patch`, the two logo-icon patches and `chrome-webstore.js` are the known candidates; section 03 reviews the store script in detail, so state only what privileges it runs with and who can reach it.
+- `CLAUDE.md` says Clair uses WebUI only for Chromium's internal pages. Verify it. Across `engine/overlay/` and every Clair and Helium patch, list anything that adds or changes a `chrome://` page, a `WebUIController` or message handler, a Mojo interface a renderer can reach, a binder registration, or a script injected into pages. `first-run-page.patch`, the two logo-icon patches and `chrome-webstore.js` are the known candidates; section 03 reviews the store script in detail, so state only what privileges it runs with and who can reach it.
 - Which origins can reach each of those, and does any accept input from ordinary web content?
 - Can web content cause a `chrome://`, `file:` or extension page to load in a surface Clair added (a peek, a pinned item, an extension popup window, a link opened from another app), and does such a page then keep the restrictions Chromium applies to it in a normal tab?
 

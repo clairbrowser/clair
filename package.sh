@@ -259,7 +259,7 @@ sign() {
   codesign --sign - --force "${args[@]}"
 }
 
-entitlements="$root/entitlements"
+entitlements="$root/resources/entitlements"
 helpers="$chromium_framework/Helpers"
 libraries="$chromium_framework/Libraries"
 hardened=(--options "restrict,library,runtime,kill")

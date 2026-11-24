@@ -106,12 +106,12 @@ jobs:
       - name: Pick the macOS SDK
         run: |
           # Build Chromium with the newest released SDK of the major version
-          # in macos-sdk-major, an engine input, so changing it builds a new
+          # in engine/macos-sdk-major, an engine input, so changing it builds a new
           # engine. Software Update replaces the Command Line Tools' SDKs, so
           # take the newest installed rather than a fixed path.
-          major="$(tr -d '[:space:]' < macos-sdk-major)"
+          major="$(tr -d '[:space:]' < engine/macos-sdk-major)"
           if [[ ! "$major" =~ ^[0-9]+$ ]]; then
-            echo "::error::macos-sdk-major holds no version: $major"
+            echo "::error::engine/macos-sdk-major holds no version: $major"
             exit 1
           fi
           best="" best_version=""

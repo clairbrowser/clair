@@ -2,7 +2,7 @@
 
 ## What this section is
 
-How the engine gets built and how Clair gets tested. `build.sh` stages the Chromium build (`fetch`, `prepare`, `configure`, `compile`); `retrieve_and_unpack_resource.py` and `downloads-arm64.ini` fetch toolchains; `utils/` and the engine scripts apply patches, the overlay and the branding; `patches/series` orders the patches. The GN flag files and the build patches copied from ungoogled-chromium-macos belong to section 09, which reviews them for what they do to Chromium's hardening. `tests/runtime` is the runtime suite (XCUITest plus the Chrome DevTools Protocol) that the quality workflow runs after every merge, and `tests/probe` is hand-driven tooling for comparing Clair with Arc.
+How the engine gets built and how Clair gets tested. `build.sh` stages the Chromium build (`fetch`, `prepare`, `configure`, `compile`); `engine/retrieve_and_unpack_resource.py` and `engine/downloads-arm64.ini` fetch toolchains; the scripts in `engine/steps/` apply patches, the overlay and the branding; `engine/patches/series` orders the patches. The GN flag files and the build patches copied from ungoogled-chromium-macos belong to section 09, which reviews them for what they do to Chromium's hardening. `tests/runtime` is the runtime suite (XCUITest plus the Chrome DevTools Protocol) that the quality workflow runs after every merge, and `tests/probe` is hand-driven tooling for comparing Clair with Arc.
 
 Two things make this section worth the time. The build fetches and runs third-party binaries, so it is a supply-chain surface. And the runtime suite has become the slowest part of the development loop, which the owner wants diagnosed.
 

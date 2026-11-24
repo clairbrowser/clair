@@ -18,7 +18,7 @@ Everything here is drawn from one geometry: the gilded ring, a thick open gold r
 | `product-logos.txt` | Every Chromium file Clair replaces, and its source and size | hand |
 | `logos/` | Rendered PNGs, at the same paths as Chromium's | `scripts/render-icon-images.sh` |
 
-The app icon itself (`Assets.car` and `app.icns`) is not committed. `./build.sh prepare` runs `scripts/replace-icon-resources.sh`, which compiles it from `AppIcon.icon` with `scripts/compile-icon.sh` into `chrome/app/theme/chromium/mac/`, then copies every `product-logos.txt` entry over its Chromium file. If a destination no longer exists in Chromium, `prepare` fails and names the path; update `product-logos.txt` for the new Chromium version.
+The app icon itself (`Assets.car` and `app.icns`) is not committed. `./build.sh prepare` runs `engine/steps/replace-icon-resources.sh`, which compiles it from `AppIcon.icon` with `engine/steps/compile-icon.sh` into `chrome/app/theme/chromium/mac/`, then copies every `product-logos.txt` entry over its Chromium file. If a destination no longer exists in Chromium, `prepare` fails and names the path; update `product-logos.txt` for the new Chromium version.
 
 ## Changing the mark
 
@@ -35,7 +35,7 @@ scripts/render-icon-images.sh resources/icon/product-logos.txt resources/icon re
 - **Font:** `make_wordmark.py` downloads Albert Sans (SIL Open Font License 1.1) from a pinned `google/fonts` commit into `resources/icon/.font-cache/`, which git ignores.
 - **Tools:** the render script needs `rsvg-convert` (`brew install librsvg`).
 
-WebUI's `chrome-product` icon is drawn from SVG paths written into Chromium's TypeScript, so no file is copied for it. `patches/helium/webui-logo-icons.patch` and `patches/clair/settings-logo-icons.patch` carry the paths from `webui-product-icon.svg`; after regenerating, replace the paths in both patches with the new ones.
+WebUI's `chrome-product` icon is drawn from SVG paths written into Chromium's TypeScript, so no file is copied for it. `engine/patches/helium/webui-logo-icons.patch` and `engine/patches/clair/settings-logo-icons.patch` carry the paths from `webui-product-icon.svg`; after regenerating, replace the paths in both patches with the new ones.
 
 Commit the regenerated files together with the geometry change.
 
@@ -46,7 +46,7 @@ Open `AppIcon.icon` in Icon Composer (Xcode 26 or later) to tune the gold gradie
 ## Checking the compiled icon
 
 ```sh
-scripts/compile-icon.sh resources/icon/AppIcon.icon /tmp/clair-icon
+engine/steps/compile-icon.sh resources/icon/AppIcon.icon /tmp/clair-icon
 iconutil -c iconset -o /tmp/clair-icon/app.iconset /tmp/clair-icon/app.icns
 open /tmp/clair-icon/app.iconset/icon_128x128@2x.png
 ```

@@ -1,0 +1,74 @@
+// Copyright 2026 The Clair Authors
+// Use of this source code is governed by the GNU General Public License,
+// version 3, found in the LICENSE file at the root of Clair's repository.
+
+#ifndef CHROME_BROWSER_CLAIR_WINDOW_CLAIR_SPACE_SESSION_H_
+#define CHROME_BROWSER_CLAIR_WINDOW_CLAIR_SPACE_SESSION_H_
+
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+class GURL;
+
+namespace content {
+class WebContents;
+}  // namespace content
+
+namespace sessions {
+struct SessionWindow;
+}  // namespace sessions
+
+namespace tabs {
+class TabInterface;
+}  // namespace tabs
+
+// add-spaces design D6: each tab's Space and its index in the Space's list
+// ride in the tab's session extra data, add-profiles design D6 adds its
+// window's group, and add-pinned-tabs-and-favorites design D2 its pin and its
+// custom name. ClairSpaceTabs writes them through
+// SessionService::AddTabExtraData when they change;
+// engine/patches/clair/space-session.patch writes them again in the session file's
+// rebuild, adds them for Reopen Closed Tab and Window, and reads them back in
+// CreateRestoredTab, before the restored tab joins a strip.
+namespace clair {
+
+inline constexpr char kSpaceSessionKey[] = "clair_space";
+inline constexpr char kOrderSessionKey[] = "clair_order";
+// add-profiles D6: the UUID of the window group the tab's window belongs to.
+inline constexpr char kWindowSessionKey[] = "clair_window";
+// add-pinned-tabs-and-favorites D2: the UUID of the pin the tab is bound to,
+// or empty, and the tab's custom name, or empty.
+inline constexpr char kPinSessionKey[] = "clair_pin";
+inline constexpr char kNameSessionKey[] = "clair_name";
+// add-profiles D6: set at restore, never saved, on the tab a window selects
+// in place of a new tab page DropNewTabPages() dropped.
+inline constexpr char kNewTabWasSelectedKey[] = "clair_new_tab_was_selected";
+
+// session_service_base.cc, in the rebuild: the tags to write for `contents`.
+std::map<std::string, std::string> SpaceSessionData(
+    content::WebContents* contents);
+
+// browser_live_tab_context.cc: adds the tags of `tab` to its extra data for
+// Reopen Closed Tab and Window.
+void AddSpaceExtraData(tabs::TabInterface* tab,
+                       std::map<std::string, std::string>* extra_data);
+
+// browser_tabrestore.cc, in CreateRestoredTab: reads the tags onto the
+// restored `contents`.
+void ReadSpaceExtraData(content::WebContents* contents,
+                        const std::map<std::string, std::string>& extra_data);
+
+// session_restore.cc, beside DropPeeks: drops the tabs on the new tab page and
+// the windows left without tabs, so the new tab page a launch opens is the
+// only one (add-profiles design D6).
+void DropNewTabPages(
+    std::vector<std::unique_ptr<sessions::SessionWindow>>* windows);
+
+// Whether `url` is the new tab page.
+bool IsNewTabPageURL(const GURL& url);
+
+}  // namespace clair
+
+#endif  // CHROME_BROWSER_CLAIR_WINDOW_CLAIR_SPACE_SESSION_H_

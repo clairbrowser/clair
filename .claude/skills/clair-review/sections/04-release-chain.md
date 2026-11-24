@@ -39,7 +39,7 @@ A browser is only as safe as its engine is recent: Chromium ships security fixes
 - Which of Clair's patches are most likely to stop applying on a bump, judged by their size and the code they touch? Each is a delay on the day a fix is needed. Section 07 reviews the patch series; report what you see from the release side.
 - Can a release that carries only an engine update ship while `main` holds half-finished work or the quality checks are failing for an unrelated reason? Is there a path for it, or does a security fix wait for `main` to be releasable?
 - After a release is published, how long until an installed copy runs it: the update check interval, what the idle installer waits for, and whether a user who never quits is ever moved to the new version?
-- The same questions, briefly, for what else is bundled or fetched at build time: Sparkle, the toolchains in `downloads-arm64.ini`, and the pinned GitHub actions.
+- The same questions, briefly, for what else is bundled or fetched at build time: Sparkle, the toolchains in `engine/downloads-arm64.ini`, and the pinned GitHub actions.
 - Does any spec state how quickly an engine fix must reach users? If none does, that is a finding for section 08 as well.
 
 **Signing and entitlements**

@@ -113,7 +113,7 @@ reset false
 jobs success failure
 cat >"$state/patch.log" <<'LOG'
 2026-11-20T10:01:00.0000000Z INFO: * Applying data-paths.patch (28/49)
-2026-11-20T10:01:01.0000000Z These patches in patches/series don't apply (a skipped patch can make a later one fail, so fix them from the top):
+2026-11-20T10:01:01.0000000Z These patches in engine/patches/series don't apply (a skipped patch can make a later one fail, so fix them from the top):
 2026-11-20T10:01:01.0000000Z clair-patch-failed: clair/data-paths.patch
 2026-11-20T10:01:01.0000000Z clair-patch-failed: ungoogled-chromium-macos/fix-dsymutil.patch
 2026-11-20T10:01:01.0000000Z clair-patch-failed: clair/data-paths.patch
@@ -128,9 +128,9 @@ run failure
 check "patches failed: exits 0" test "$status" -eq 0
 check "patches failed: a ready pull request returns to draft, with the draft token" made_draft
 check "patches failed: the comment counts them" posted_has "**3 Clair patches don't apply** at 1111111"
-expected="$(printf -- '- `patches/clair/data-paths.patch`\n- `patches/ungoogled-chromium-macos/fix-dsymutil.patch`\n- `patches/helium/colored.patch`')"
+expected="$(printf -- '- `engine/patches/clair/data-paths.patch`\n- `engine/patches/ungoogled-chromium-macos/fix-dsymutil.patch`\n- `engine/patches/helium/colored.patch`')"
 check "patches failed: the comment lists each once, in order, with color codes removed, and drops names outside the pattern" \
-  test "$(jq -r .body "$state/posted.json" | grep '^- `patches/')" == "$expected"
+  test "$(jq -r .body "$state/posted.json" | grep '^- `engine/patches/')" == "$expected"
 check "patches failed: the comment links the log" posted_has "(https://example.com/job/502)"
 check "a name from the log is never run" test ! -e pwned
 

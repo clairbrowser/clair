@@ -32,7 +32,7 @@ jobs:
       - name: Install tools
         run: brew install cmark-gfm shellcheck actionlint librsvg
 
-      # package.test.sh builds real DMGs with dmgbuild, which needs Python 3.10
+      # scripts/package.test.sh builds real DMGs with dmgbuild, which needs Python 3.10
       # or later (scripts/fetch-dmgbuild.sh).
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -63,14 +63,14 @@ jobs:
           REQUIRE_ARTWORK_TOOLS: "1"
         run: |
           failures=0
-          for test in scripts/*.test.sh ./package.test.sh; do
+          for test in scripts/*.test.sh engine/steps/*.test.sh; do
             echo "==> $test"
             "$test" || failures=$((failures + 1))
           done
           exit "$failures"
 
       - name: Lint shell scripts
-        run: shellcheck -S warning build.sh package.sh package.test.sh scripts/*.sh tests/runtime/*.sh tests/probe/*.sh tests/probe/tools/*.sh .github/scripts/*.sh
+        run: shellcheck -S warning build.sh package.sh scripts/*.sh engine/steps/*.sh tests/runtime/*.sh tests/probe/*.sh tests/probe/tools/*.sh .github/scripts/*.sh
 
       - name: Lint workflows
         run: actionlint

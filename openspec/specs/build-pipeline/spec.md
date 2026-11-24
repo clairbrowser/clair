@@ -10,7 +10,7 @@ Defines how Clair is built and checked, so that most changes are checked in minu
 The repository SHALL define an engine key: a hash computed from the contents of every input to the Chromium build, as listed in design D10. Files that are not Chromium build inputs MUST NOT affect the key.
 
 #### Scenario: Engine input changes
-- **WHEN** a commit changes a file in `patches/`
+- **WHEN** a commit changes a file in `engine/patches/`
 - **THEN** the engine key differs from the previous commit's key
 
 #### Scenario: Native-only change
@@ -73,11 +73,11 @@ A pull request that changes the engine key SHALL also run a patch check on a Git
 - **THEN** the patch check fails and names that patch
 
 #### Scenario: Several patches no longer apply
-- **WHEN** a pull request bumps the ungoogled-chromium tag and three patches in `patches/series` no longer apply
+- **WHEN** a pull request bumps the ungoogled-chromium tag and three patches in `engine/patches/series` no longer apply
 - **THEN** one run of the patch check fails and names all three
 
 #### Scenario: Context around a patch changed
-- **WHEN** one context line of a patch in `patches/series` no longer matches the source, including a hunk's outermost line
+- **WHEN** one context line of a patch in `engine/patches/series` no longer matches the source, including a hunk's outermost line
 - **THEN** the patch check fails and names that patch, because Clair's series is applied with no fuzz
 
 #### Scenario: Engine not yet built

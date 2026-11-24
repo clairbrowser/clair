@@ -63,7 +63,7 @@ Apart from what Clair's own capabilities specify (`app-identity`, `native-layer`
 Clair's patches to existing Chromium source files SHALL be limited to macOS build fixes, identity and branding, versioning, hooks, the Google services "Google services Clair turns back on" allows (restoring their code, routing their requests through it and limiting what they send), and the search defaults `search-engine` specifies. Other behaviour Clair adds SHALL live in the native layer or in new source files added to the Chromium tree.
 
 #### Scenario: Reviewing Clair's patch series
-- **WHEN** the patches in `patches/clair/` and `patches/helium/` are listed
+- **WHEN** the patches in `engine/patches/clair/` and `engine/patches/helium/` are listed
 - **THEN** each one is a build fix, an identity or branding change, a versioning change, a hook, the store and update restoration, or the default search engine and its suggestions, and none implements the updater, the update menu or the native window
 
 #### Scenario: Reviewing the store restoration
