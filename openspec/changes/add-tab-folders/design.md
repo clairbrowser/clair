@@ -14,7 +14,7 @@ Arc's behavior is in `arc-reference/README.md`.
 - The behavior in `specs/`.
 
 **Non-Goals:**
-- Folders inside folders, Change Icon…, Copy All Links, the search popover, Share Folder… and Live Folders. The format below could express nesting (a folder's parent naming a folder), but the store refuses to write it.
+- Folders inside folders, Change Icon…, Copy All Links, the search popover, Share Folder… and Live Folders. The format below could express nesting (a folder's record naming a folder of its own), but the store refuses to write it.
 - Syncing. iCloud sync comes after the MVP, so this change settles what is saved, while nothing has to be converted: D1 and D12 make every item a record a sync layer can send one by one, D13 names profiles without a Mac's directories, and D3 keeps the per-Mac state out of the records. What isn't a format is left to the sync change: the transport and its record types, a record of deletions and of changes not yet sent, applying another Mac's changes, loading without dropping or rewriting records it can't place, pairing profiles between Macs, and pin icons.
 - Arc's per-window open state. Clair keeps one state per folder on each Mac (D3).
 - Converting stores written before this change. Clair isn't released, so `clair.pins` and `clair.spaces` in their old shapes load empty (D1, D12).
@@ -42,7 +42,7 @@ clair.pins  { "version": 1,
 - **A folder's Space wins.** A pinned tab in a folder shows in that folder, in the folder's Space. Its own `space` is where it shows, at the top level, when its folder is missing. The store never leaves a tab in a missing folder itself, since deleting a folder removes its tabs (D7), but under sync one Mac can delete a folder while another moves a tab into it. With one `parent` field that tab would have no Space.
 - **A move changes one record.** Pinning, reordering, moving into or out of a folder, Move to Space of a pinned tab and Restore each rewrite only the record that moved, never its siblings. That is what lets a later sync send and merge records one by one: two Macs editing different items can't overwrite each other's edits, as they would with an ordered list per container.
   - **The exception is a folder moving to another Space** (D8, D11), which also rewrites its tabs' `space`, so it stays right for the day the folder is missing. A tab another Mac adds to the folder meanwhile keeps the old `space`, and still shows in the folder.
-- **One fact, one place.** There is no list of children next to the record's own place, as Arc has (`childrenIds` with `parentID`), so the two can't disagree. The `spaces` and `profiles` lists of the first pin store go, with its `parent` field.
+- **No lists of children.** There is no list of children next to each record's own place, as Arc has (`childrenIds` with `parentID`), so those two can't disagree. The Space of a tab in a folder is the one fact kept twice, and the rule above says which wins. The `spaces` and `profiles` lists of the first pin store go, with its `parent` field.
 - **One level is checked on write.** A record's `folder` must name a folder, and a folder has none. The store refuses any other write. On load:
   - a pinned tab whose folder is missing, or isn't a folder, lists at the top level of its own Space;
   - a record whose Space or profile is missing is dropped, with its icon, as now. Keeping such records until another Mac's Space arrives is the sync change's.
@@ -155,7 +155,7 @@ clair.profiles  { "<profile ID>": "<profile dir>" }    // "3f2a…": "Profile 1"
 ```
 
 - **Why:** a Space and a favorite name their profile by its directory (`add-profiles` D1, D2), and "Profile 1" on one Mac isn't "Profile 1" on another. Records that sync need a name for the profile that doesn't come from one Mac's folders.
-- **The ID** is a lowercase UUID that `ClairProfiles` gives each profile in `ProfileAttributesStorage` that has none: at start, and when one is added. It drops a profile's entry when the profile is removed. The default profile gets one like any other.
+- **The ID** is a lowercase UUID that `ClairProfiles` gives each profile in `ProfileAttributesStorage` that has none: at start, and when one is added. It drops a profile's entry when the profile is removed, and at start any entry whose profile is gone. The default profile gets one like any other.
 - **The map is this Mac's.** It's a Local State pref of its own, outside the records, because the directory is what differs between Macs. Local State is read before any profile loads, which the stores need, and it's where Chromium keeps its own profile list.
 - **Only what's saved changes.** A Space's `profile` in `clair.spaces` and a favorite's `profile` in `clair.pins` hold the ID. The stores translate when they load and save, through `ClairProfiles::StoredIDOf` (a directory's ID) and `DirectoryOf` (an ID's directory). In memory, in `ClairProfiles::Info` and in `ClairHost.h`, a profile is still its directory's name, so nothing outside the two stores and `ClairProfiles` changes.
 - **An ID with no directory** is a missing profile: its Space uses the fallback profile (`add-profiles` D2) and its favorites are dropped (D1). Only a damaged store has one before sync. What a Mac does with another Mac's profile, and how two Macs pair theirs, are the sync change's.

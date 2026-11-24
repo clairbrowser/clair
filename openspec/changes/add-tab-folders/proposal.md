@@ -77,5 +77,5 @@ This builds on `add-pinned-tabs-and-favorites`, `polish-sidebar-drops` and `show
   - `ClairProfiles` gives each profile an ID of its own and keeps the map to its directory in Local State. `ClairHost.h` still names a profile by its directory, so `ClairUI` doesn't change for this. It replaces `add-profiles` D1, under which Clair stored nothing about a profile.
   - Pinned sections list items, folders hold pin IDs, and removals remember a pin's folder or a whole folder. `ClairSpaceTabs`' rows and next-tab rules, Space deletion and Move to Space change. Turn into Space creates a Space and moves the folder's pins and bound tabs into it.
 - **`ClairUI`:** folder rows in the pinned list, the open state in user defaults, the inline name field, the New Folder dialog and the delete confirmation, Close This Folder, drag targets for folders, the new menu items, and the sidebar's own menu.
-- **Runtime suite:** new coverage for folders. Views the suite drives change, so the quality checks run on the branch before merging.
+- **Runtime suite:** new coverage for folders and for what the stores save. Views the suite drives change, so the quality checks run on the branch before merging.
 - **Arc references:** probed on 2026-11-23, in `arc-reference/`.
