@@ -194,6 +194,17 @@ if grep -qxF -- "- New: First release" "$repo/.changes/0.1.0.md" && grep -qxF --
 else
   check "writes the notes and the changelog, and consumes the fragments" fail
 fi
+make_repo "$repo" 5 ""
+fragment "$repo" Fixed "A fix"
+fragment "$repo" Updated "An update"
+fragment "$repo" Changed "A change"
+fragment "$repo" New "A feature"
+expected="$(printf '%s\n' "## 0.1.0 - $(date +%Y-%m-%d)" "" "- New: A feature" "- Changed: A change" "- Fixed: A fix" "- Updated: An update")"
+if [[ "$(cd "$repo" && changie batch 0.1.0 --dry-run | "$script_dir/tidy-notes.sh")" == "$expected" ]]; then
+  check "groups the notes by kind, New first, as one list" pass
+else
+  check "groups the notes by kind, New first, as one list" fail
+fi
 
 # --- inputs -----------------------------------------------------------------
 make_repo "$repo" 5 ""
