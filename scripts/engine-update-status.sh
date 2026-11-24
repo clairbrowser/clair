@@ -140,7 +140,7 @@ ready=false
       fi
       echo
       while IFS= read -r path; do
-        echo "- \`patches/$path\`"
+        echo "- \`engine/patches/$path\`"
       done <"$work/failed"
       echo
       echo "Fix them from the top: a skipped patch can make a later one that builds on it fail too. See the [Patch check log]($patch_url). Each push to \`$branch\` runs the check again, and this pull request is marked ready once every patch applies."

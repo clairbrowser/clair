@@ -13,7 +13,7 @@ Usage: ./build.sh [-d] [-k] [-j JOBS] [-s SDK_PATH] [-t SECONDS] [STAGE...]
 
 Stages (run in the order given; default: all):
   fetch      Retrieve the Chromium source into build/src
-  prepare    Prune binaries, apply all patches, copy overlay/, rebrand UI
+  prepare    Prune binaries, apply all patches, copy engine/overlay/, rebrand UI
              strings, replace the icon and logos, apply domain substitution
              and unpack platform toolchains. "fetch prepare" is the
              patch-only mode.
@@ -32,7 +32,7 @@ Options:
                build/base, so a later "update" can work in place (APFS only)
   -j JOBS      Run at most JOBS ninja jobs in parallel during compile
   -s SDK_PATH  Use this macOS SDK instead of the Xcode default. Its major
-               version must be the one in macos-sdk-major.
+               version must be the one in engine/macos-sdk-major.
   -t SECONDS   Time limit for the compile stage
   -h           Show this help
 EOF
@@ -42,6 +42,7 @@ _root_dir="$(cd "$(dirname "$0")" && pwd -P)"
 _src_dir="$_root_dir/build/src"
 _out_dir="$_src_dir/out/Default"
 _main_repo="$_root_dir/ungoogled-chromium"
+_engine_dir="$_root_dir/engine"
 _status_file="$_root_dir/build/compile_status"
 _prepared_stamp="$_src_dir/.clair_prepared"
 # In-place updates (D11): build/base is an APFS clone of build/src from before
@@ -53,7 +54,7 @@ _base_key_file="$_root_dir/build/base_key"
 _layer_file="$_root_dir/build/layer_files"
 _layer_stamp="$_root_dir/build/layer_stamp"
 _updating_file="$_root_dir/build/updating"
-_sync_tree="$_root_dir/utils/sync_tree.py"
+_sync_tree="$_engine_dir/steps/sync_tree.py"
 # Bump when the steps that make the base change (pruning, ungoogled-chromium's
 # patches, the toolchains), so existing bases are replaced.
 _base_format=1
@@ -106,7 +107,7 @@ base_key() {
     echo "format $_base_format"
     echo "clone $_clone"
     echo "ungoogled-chromium $(git -C "$_main_repo" rev-parse HEAD)"
-    cd "$_root_dir" && shasum -a 256 downloads*.ini retrieve_and_unpack_resource.py
+    cd "$_engine_dir" && shasum -a 256 downloads*.ini retrieve_and_unpack_resource.py
   } | shasum -a 256 | cut -c 1-16
 }
 
@@ -126,10 +127,10 @@ apply_layer() {
   # all, before the overlay is copied.
   local failed_list="$_root_dir/build/clair_patch_failures"
   : >"$failed_list"
-  CLAIR_PATCH_FAILURES="$failed_list" PATCH_BIN="$_root_dir/scripts/patch-no-fuzz.sh" \
-    python3 "$_main_repo/utils/patches.py" apply "$tree" "$_root_dir/patches"
+  CLAIR_PATCH_FAILURES="$failed_list" PATCH_BIN="$_engine_dir/steps/patch-no-fuzz.sh" \
+    python3 "$_main_repo/utils/patches.py" apply "$tree" "$_engine_dir/patches"
   if [[ -s "$failed_list" ]]; then
-    echo "These patches in patches/series don't apply (a skipped patch can make a later one fail, so fix them from the top):" >&2
+    echo "These patches in engine/patches/series don't apply (a skipped patch can make a later one fail, so fix them from the top):" >&2
     local failed_patch
     while IFS= read -r failed_patch; do
       echo "clair-patch-failed: $failed_patch"
@@ -140,21 +141,21 @@ apply_layer() {
   rm -f "$failed_list"
   # Add Clair's new source files. Fails and names the file if one would shadow
   # a file that Chromium or a patch already has.
-  "$_root_dir/scripts/apply-overlay.sh" "$tree" "$_root_dir/overlay"
+  "$_engine_dir/steps/apply-overlay.sh" "$tree" "$_engine_dir/overlay"
   # The native layer's contract (native/ClairHost.h) and the ungoogled-chromium
   # version, for the hook's overlay files in chrome/browser/clair/.
-  "$_root_dir/scripts/install-native-contract.sh" "$tree" "$_root_dir"
+  "$_engine_dir/steps/install-native-contract.sh" "$tree" "$_root_dir"
   # Rebrand Chrome/Chromium as Clair in UI strings and their translations.
-  python3 "$_root_dir/utils/name_substitution.py" --sub -t "$tree"
+  python3 "$_engine_dir/steps/name_substitution.py" --sub -t "$tree"
   # Replace Chromium's app icon and product logos with Clair's. Fails and names
   # the path if a destination no longer exists in this Chromium version.
-  "$_root_dir/scripts/replace-icon-resources.sh" "$tree"
+  "$_engine_dir/steps/replace-icon-resources.sh" "$tree"
   # Leaves out the files that name the Chrome Web Store. Fails and names a file
   # that is no longer in ungoogled-chromium's list.
   local substitution_list="$_root_dir/build/domain_substitution.list"
-  "$_root_dir/scripts/filter-domain-substitution.sh" \
+  "$_engine_dir/steps/filter-domain-substitution.sh" \
     "$_main_repo/domain_substitution.list" \
-    "$_root_dir/utils/domain_substitution_exclude.list" \
+    "$_engine_dir/steps/domain_substitution_exclude.list" \
     "$substitution_list"
   python3 "$_main_repo/utils/domain_substitution.py" apply \
     -r "$_main_repo/domain_regex.list" \
@@ -171,7 +172,7 @@ stamp_layer() {
 }
 
 record_layer() {
-  python3 "$_sync_tree" record --stamp "$_layer_stamp" --patches "$_root_dir/patches" "$1"
+  python3 "$_sync_tree" record --stamp "$_layer_stamp" --patches "$_engine_dir/patches" "$1"
 }
 
 stage_fetch() {
@@ -181,11 +182,11 @@ stage_fetch() {
   if $_clone; then
     # Reuses an existing clone only when it is unmodified, so a patched tree is
     # always replaced by clean source.
-    "$_root_dir/retrieve_and_unpack_resource.py" -g arm64
+    "$_engine_dir/retrieve_and_unpack_resource.py" -g arm64
   else
     # Unpacking over a patched tree would leave patch leftovers behind.
     rm -rf "$_src_dir"
-    "$_root_dir/retrieve_and_unpack_resource.py" -d -g arm64
+    "$_engine_dir/retrieve_and_unpack_resource.py" -d -g arm64
   fi
 }
 
@@ -201,15 +202,15 @@ stage_prepare() {
 
   python3 "$_main_repo/utils/prune_binaries.py" "$_src_dir" "$_main_repo/pruning.list"
   # Applies ungoogled-chromium's series, which stops at the first patch that
-  # does not apply and names it, then (in apply_layer) Clair's patches/series,
+  # does not apply and names it, then (in apply_layer) Clair's engine/patches/series,
   # which names every patch that does not apply.
   python3 "$_main_repo/utils/patches.py" apply "$_src_dir" "$_main_repo/patches"
   mkdir -p "$_src_dir/third_party/llvm-build/Release+Asserts"
   mkdir -p "$_src_dir/third_party/rust-toolchain/bin"
-  "$_root_dir/retrieve_and_unpack_resource.py" -p arm64
+  "$_engine_dir/retrieve_and_unpack_resource.py" -p arm64
   # Old versions of the downloads stay in the cache otherwise.
-  python3 "$_root_dir/scripts/prune-download-cache.py" "$_main_repo/utils" \
-    "$_root_dir/build/download_cache" "$_main_repo/downloads.ini" "$_root_dir/downloads-arm64.ini"
+  python3 "$_engine_dir/steps/prune-download-cache.py" "$_main_repo/utils" \
+    "$_root_dir/build/download_cache" "$_main_repo/downloads.ini" "$_engine_dir/downloads-arm64.ini"
 
   if $_keep_base; then
     if python3 "$_sync_tree" clone "$_src_dir" "$_base_dir"; then
@@ -266,7 +267,7 @@ stage_update() {
   touch "$_updating_file"
   # Domain substitution keeps file times, so the layer lists don't name the
   # files it changes. Its list goes in too, so a file that joins or leaves the
-  # substitution (utils/domain_substitution_exclude.list) is updated.
+  # substitution (engine/steps/domain_substitution_exclude.list) is updated.
   python3 "$_sync_tree" sync "$_next_dir" "$_src_dir" "$_layer_file" "$_layer_file.new" \
     "$_main_repo/domain_substitution.list"
   mv "$_layer_file.new" "$_layer_file"
@@ -295,17 +296,17 @@ relink_toolchains() {
 
 stage_configure() {
   relink_toolchains
-  # The engine key covers macos-sdk-major, so an engine is always compiled
+  # The engine key covers engine/macos-sdk-major, so an engine is always compiled
   # with an SDK of that major version.
   local sdk_major sdk_version
-  sdk_major="$(tr -d '[:space:]' < "$_root_dir/macos-sdk-major")"
+  sdk_major="$(tr -d '[:space:]' < "$_engine_dir/macos-sdk-major")"
   if [[ -n "$_sdk_path" ]]; then
     sdk_version="$(/usr/libexec/PlistBuddy -c 'Print :Version' "$_sdk_path/SDKSettings.plist" 2>/dev/null || true)"
   else
     sdk_version="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)"
   fi
   if [[ ! "$sdk_major" =~ ^[0-9]+$ || "${sdk_version%%.*}" != "$sdk_major" ]]; then
-    echo "The engine builds with a macOS $sdk_major SDK (macos-sdk-major), not ${sdk_version:-an unknown SDK}." >&2
+    echo "The engine builds with a macOS $sdk_major SDK (engine/macos-sdk-major), not ${sdk_version:-an unknown SDK}." >&2
     exit 1
   fi
   # mac_sdk_path is a symlink with a fixed name, so ninja doesn't see an SDK
@@ -322,7 +323,7 @@ stage_configure() {
 
   mkdir -p "$_out_dir"
   {
-    cat "$_main_repo/flags.gn" "$_root_dir/flags.macos.gn" "$_root_dir/flags.clair.gn"
+    cat "$_main_repo/flags.gn" "$_engine_dir/flags.macos.gn" "$_engine_dir/flags.clair.gn"
     echo 'target_cpu = "arm64"'
     if [[ -n "$_sdk_path" ]]; then
       echo 'mac_sdk_path = "//out/Default/sdk/selected_macos_sdk"'
@@ -364,7 +365,7 @@ stage_configure() {
   if $fresh_out || [[ ! -x third_party/rust-toolchain/bin/bindgen ]]; then
     ./tools/rust/build_bindgen.py --skip-test
   fi
-  # Crubit's cc_bindings_from_rs (rust_crubit_root in flags.macos.gn), built
+  # Crubit's cc_bindings_from_rs (rust_crubit_root in engine/flags.macos.gn), built
   # with the tree's Rust toolchain (from ungoogled-chromium-macos's
   # build_crubit.sh). It links librustc_driver and libLLVM from rustc/lib.
   local rust_dir="third_party/rust-toolchain"

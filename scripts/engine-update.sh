@@ -244,9 +244,9 @@ write_block() {
       echo
       echo "See \"Updating the engine\" in \`docs/building.md\`. Its macOS patches usually fail until they are synced, so this pull request stays a draft until then."
       echo
-      echo "- [ ] Sync \`downloads-arm64.ini\`, \`retrieve_and_unpack_resource.py\`, \`flags.macos.gn\` and \`patches/ungoogled-chromium-macos/\` (and \`patches/series\`) from ungoogled-chromium-macos's tag ${macos_tag:+\`$macos_tag\`}${macos_tag:-for $version}, with the toolchain steps of its \`build.sh\` and \`build_crubit.sh\`. Update the commit in \`CREDITS.md\`."
-      echo "- [ ] Keep Clair's \`sha256\` lines for \`[rust]\` and \`[rustc-dev]\` in \`downloads-arm64.ini\`, updated for the new toolchain."
-      echo "- [ ] Check the SDK that ungoogled-chromium-macos builds $version with against \`macos-sdk-major\`."
+      echo "- [ ] Sync \`engine/downloads-arm64.ini\`, \`engine/retrieve_and_unpack_resource.py\`, \`engine/flags.macos.gn\` and \`engine/patches/ungoogled-chromium-macos/\` (and \`engine/patches/series\`) from ungoogled-chromium-macos's tag ${macos_tag:+\`$macos_tag\`}${macos_tag:-for $version}, with the toolchain steps of its \`build.sh\` and \`build_crubit.sh\`. Update the commit in \`CREDITS.md\`."
+      echo "- [ ] Keep Clair's \`sha256\` lines for \`[rust]\` and \`[rustc-dev]\` in \`engine/downloads-arm64.ini\`, updated for the new toolchain."
+      echo "- [ ] Check the SDK that ungoogled-chromium-macos builds $version with against \`engine/macos-sdk-major\`."
       echo "- [ ] Fix the Clair patches the comment below lists, from the top."
     fi
     if [[ -n "$newer" ]]; then

@@ -16,17 +16,17 @@
 01 native/ClairUI/NativeLayer.swift
 01 native/ClairUI/BrowserWindowController.swift
 01 native/ClairUI/BrowserWindowModel.swift
-01 overlay/chrome/browser/clair/clair_native_layer.*
-01 overlay/chrome/browser/clair/clair_version.*
-01 overlay/chrome/browser/clair/window/clair_browser_window.*
-01 overlay/chrome/browser/clair/window/clair_native_window.*
-01 overlay/chrome/browser/clair/window/clair_browser_bridge.*
-01 overlay/chrome/browser/clair/window/clair_window_hooks.*
-01 overlay/ui/views/cocoa/*
-01 overlay/components/constrained_window/*
-01 patches/clair/native-layer-hook.patch
-01 patches/clair/native-window-hook.patch
-01 patches/clair/page-cannot-move-window.patch
+01 engine/overlay/chrome/browser/clair/clair_native_layer.*
+01 engine/overlay/chrome/browser/clair/clair_version.*
+01 engine/overlay/chrome/browser/clair/window/clair_browser_window.*
+01 engine/overlay/chrome/browser/clair/window/clair_native_window.*
+01 engine/overlay/chrome/browser/clair/window/clair_browser_bridge.*
+01 engine/overlay/chrome/browser/clair/window/clair_window_hooks.*
+01 engine/overlay/ui/views/cocoa/*
+01 engine/overlay/components/constrained_window/*
+01 engine/patches/clair/native-layer-hook.patch
+01 engine/patches/clair/native-window-hook.patch
+01 engine/patches/clair/page-cannot-move-window.patch
 01 docs/native-window.md
 
 # --- 02 spaces, profiles, sessions and the sidebar
@@ -50,31 +50,31 @@
 02 native/ClairUI/PinsMenu.swift
 02 native/ClairUI/PinsPreferences.swift
 02 native/ClairUI/PinsViews.swift
-02 overlay/chrome/browser/clair/clair_space_store.*
-02 overlay/chrome/browser/clair/clair_space_tabs.*
-02 overlay/chrome/browser/clair/clair_pin_store.*
-02 overlay/chrome/browser/clair/clair_profiles.*
-02 overlay/chrome/browser/clair/window/clair_window_group.*
-02 overlay/chrome/browser/clair/window/clair_space_session.*
-02 patches/clair/space-session.patch
-02 patches/clair/always-restore.patch
-02 patches/clair/space-shortcuts.patch
-02 patches/clair/data-paths.patch
-02 patches/clair/dock-incognito.patch
-02 patches/helium/change-keychain-name.patch
-02 patches/helium/change-product-dir-name.patch
+02 engine/overlay/chrome/browser/clair/clair_space_store.*
+02 engine/overlay/chrome/browser/clair/clair_space_tabs.*
+02 engine/overlay/chrome/browser/clair/clair_pin_store.*
+02 engine/overlay/chrome/browser/clair/clair_profiles.*
+02 engine/overlay/chrome/browser/clair/window/clair_window_group.*
+02 engine/overlay/chrome/browser/clair/window/clair_space_session.*
+02 engine/patches/clair/space-session.patch
+02 engine/patches/clair/always-restore.patch
+02 engine/patches/clair/space-shortcuts.patch
+02 engine/patches/clair/data-paths.patch
+02 engine/patches/clair/dock-incognito.patch
+02 engine/patches/helium/change-keychain-name.patch
+02 engine/patches/helium/change-product-dir-name.patch
 
 # --- 03 extensions and the web store
 03 native/ClairUI/ExtensionPopupWindow.swift
 03 native/ClairUI/ExtensionPromptSheets.swift
 03 native/ClairUI/ExtensionsMenu.swift
 03 native/ClairUI/PinnedExtensions.swift
-03 overlay/chrome/browser/clair/window/clair_extension_error_ui.*
-03 overlay/chrome/browser/clair/window/clair_extensions.*
-03 overlay/components/clair_store_fixups/*
-03 patches/clair/restore-web-store.patch
-03 patches/clair/no-extension-uninstall-page.patch
-03 patches/helium/store-fixups-component.patch
+03 engine/overlay/chrome/browser/clair/window/clair_extension_error_ui.*
+03 engine/overlay/chrome/browser/clair/window/clair_extensions.*
+03 engine/overlay/components/clair_store_fixups/*
+03 engine/patches/clair/restore-web-store.patch
+03 engine/patches/clair/no-extension-uninstall-page.patch
+03 engine/patches/helium/store-fixups-component.patch
 
 # --- 04 update and release chain
 04 native/ClairUI/UpdateConfiguration.swift
@@ -84,12 +84,12 @@
 04 native/ClairUI/UpdateUserDriver.swift
 04 native/ClairUI/IdleInstaller.swift
 04 native/ClairUI/AboutWindow.swift
-04 overlay/chrome/browser/mac/clair_update_relaunch.*
-04 patches/clair/update-relaunch-hook.patch
-04 patches/clair/versioning.patch
-04 patches/clair/branding.patch
+04 engine/overlay/chrome/browser/mac/clair_update_relaunch.*
+04 engine/patches/clair/update-relaunch-hook.patch
+04 engine/patches/clair/versioning.patch
+04 engine/patches/clair/branding.patch
 04 package.sh
-04 package.test.sh
+04 scripts/package.test.sh
 04 version.txt
 04 .changie.yaml
 04 scripts/append-appcast-item.*
@@ -117,7 +117,7 @@
 04 .github/scripts/select-xcode.sh
 04 .github/scripts/smoke-test.sh
 04 .github/actionlint.yaml
-04 entitlements/*
+04 resources/entitlements/*
 04 .sparkle/*
 04 docs/releasing.md
 04 docs/updates.md
@@ -136,19 +136,19 @@
 05 native/ClairUI/LinkRulesDialog.swift
 05 native/ClairUI/LinkRulesLogic.swift
 05 native/ClairUI/QuitConfirmation.swift
-05 overlay/chrome/browser/clair/clair_link_rule_store.*
-05 overlay/chrome/browser/clair/clair_link_rules.*
-05 overlay/chrome/browser/clair/window/clair_autocomplete.*
-05 overlay/chrome/browser/clair/window/clair_peeks.*
-05 overlay/chrome/browser/clair/window/clair_peek_session.*
-05 overlay/chrome/browser/clair/window/clair_pinned_link_throttle.*
-05 overlay/chrome/browser/clair/window/clair_downloads.*
-05 patches/clair/peek-session.patch
-05 patches/clair/pinned-link-peek.patch
-05 patches/clair/copy-url-shortcut.patch
-05 patches/clair/first-run-page.patch
-05 patches/clair/link-rules.patch
-05 patches/clair/quit-confirmation.patch
+05 engine/overlay/chrome/browser/clair/clair_link_rule_store.*
+05 engine/overlay/chrome/browser/clair/clair_link_rules.*
+05 engine/overlay/chrome/browser/clair/window/clair_autocomplete.*
+05 engine/overlay/chrome/browser/clair/window/clair_peeks.*
+05 engine/overlay/chrome/browser/clair/window/clair_peek_session.*
+05 engine/overlay/chrome/browser/clair/window/clair_pinned_link_throttle.*
+05 engine/overlay/chrome/browser/clair/window/clair_downloads.*
+05 engine/patches/clair/peek-session.patch
+05 engine/patches/clair/pinned-link-peek.patch
+05 engine/patches/clair/copy-url-shortcut.patch
+05 engine/patches/clair/first-run-page.patch
+05 engine/patches/clair/link-rules.patch
+05 engine/patches/clair/quit-confirmation.patch
 
 # --- 06 the rest of ClairUI and its unit tests
 06 native/ClairUI/BrowserRootView.swift
@@ -169,26 +169,19 @@
 
 # --- 07 build and test infrastructure
 07 build.sh
-07 retrieve_and_unpack_resource.py
-07 downloads-arm64.ini
+07 engine/retrieve_and_unpack_resource.py
+07 engine/downloads-arm64.ini
 07 .gitmodules
 07 .gitignore
-07 utils/*
-07 scripts/apply-overlay.*
+07 engine/steps/*
 07 scripts/clean-code-sign-clones.*
-07 scripts/compile-icon.*
 07 scripts/engine-key.*
-07 scripts/filter-domain-substitution.*
-07 scripts/install-native-contract.*
-07 scripts/patch-no-fuzz.*
 07 scripts/render-icon-images.*
-07 scripts/replace-icon-resources.*
 07 scripts/review.*
 07 scripts/run-local.*
-07 scripts/sync-tree.test.sh
-07 patches/series
-07 patches/clair/settings-logo-icons.patch
-07 patches/helium/webui-logo-icons.patch
+07 engine/patches/series
+07 engine/patches/clair/settings-logo-icons.patch
+07 engine/patches/helium/webui-logo-icons.patch
 07 tests/*
 07 docs/building.md
 07 resources/*.py
@@ -196,11 +189,11 @@
 
 # --- 09 engine hardening
 # The GN flags and the build patches copied from ungoogled-chromium-macos.
-# Section 09 also reads patches/series and every patch in it, whichever
+# Section 09 also reads engine/patches/series and every patch in it, whichever
 # section owns the patch, for its effect on Chromium's hardening only.
-09 flags.clair.gn
-09 flags.macos.gn
-09 patches/ungoogled-chromium-macos/*
+09 engine/flags.clair.gn
+09 engine/flags.macos.gn
+09 engine/patches/ungoogled-chromium-macos/*
 
 # --- 08 specs and decisions
 # Archived tasks and delta specs are history: the specs were synced into
@@ -221,4 +214,5 @@
 -  CHANGELOG.md
 -  CREDITS.md
 -  LICENSE*
+-  licenses/*
 -  ungoogled-chromium

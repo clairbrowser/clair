@@ -13,7 +13,7 @@ Clair updates itself with Sparkle 2, from `ClairUI`. It shows no Sparkle windows
    - **Quitting**: `Autoupdate` replaces the app, and the next launch runs the new version
    - **Being away**: after 30 minutes without input, Clair relaunches on its own, unless Chromium's own restart check says that would interrupt something: a download is in progress, an incognito, guest or web app window is open, audio is playing, or a page the user has interacted with would ask "Leave site?". If something blocks it, it tries again after every further 30 minutes, and starts over once there's input.
 
-Clair always reopens through Chromium's relaunch, never Sparkle's, so the app reopens once with its windows and tabs restored. It stays in the background if another app was active. Chromium's relauncher waits for `Autoupdate` to replace the app, for up to a minute (`patches/clair/update-relaunch-hook.patch`). If an install fails, the old version reopens.
+Clair always reopens through Chromium's relaunch, never Sparkle's, so the app reopens once with its windows and tabs restored. It stays in the background if another app was active. Chromium's relauncher waits for `Autoupdate` to replace the app, for up to a minute (`engine/patches/clair/update-relaunch-hook.patch`). If an install fails, the old version reopens.
 
 A site with a "Leave site?" prompt holds an idle install without asking, until its tab is closed or leaves the page. It can still stop Restart and Update: its dialog asks, and if the user stays, the update installs on the next quit.
 

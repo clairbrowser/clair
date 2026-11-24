@@ -379,7 +379,7 @@ set_up_open_pr() {
 set_up_open_pr 157.0.8103.78-1 157.0.8103.78-2
 bot_first="$(branch_head)"
 bot_fragment="$(fragment_on "$bot_first")"
-owner_commit "refs/heads/$branch" patches/fix.patch "a fix"
+owner_commit "refs/heads/$branch" engine/patches/fix.patch "a fix"
 owner_head="$(branch_head)"
 set_tags 157.0.8103.78-1 157.0.8103.78-2 157.0.8103.100-1
 run
@@ -389,7 +389,7 @@ check "newer tag on the owner's commit: a commit is added on top of it" \
 check "newer tag on the owner's commit: the pin moves" \
   test "$(pin_at "refs/heads/$branch")" == "$(commit_for 157.0.8103.100-1)"
 check "newer tag on the owner's commit: the owner's fix is kept" \
-  eval 'git -C "$origin" cat-file -e "refs/heads/$branch:patches/fix.patch"'
+  eval 'git -C "$origin" cat-file -e "refs/heads/$branch:engine/patches/fix.patch"'
 rewritten_own_fragment() {
   [[ "$(fragment_on "refs/heads/$branch")" == "$bot_fragment" ]] &&
     git -C "$origin" show "refs/heads/$branch:$bot_fragment" |
@@ -493,7 +493,7 @@ check "a leftover branch with only the bot's commits: deleted and started again 
 check "a leftover branch: the log says it was deleted" out_has "Deleting the leftover branch"
 
 set_up_open_pr 157.0.8103.78-1 157.0.8103.78-2
-owner_commit "refs/heads/$branch" patches/fix.patch "a fix"
+owner_commit "refs/heads/$branch" engine/patches/fix.patch "a fix"
 before="$(branch_head)"
 echo '[]' >"$gh_state/open.json"
 set_tags 157.0.8103.78-1 157.0.8103.78-2 157.0.8103.100-1

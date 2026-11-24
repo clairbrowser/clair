@@ -2,7 +2,7 @@
 
 Clair is a macOS web browser in the style of Arc, built on ungoogled-chromium. It targets Apple Silicon only, with macOS 15.6 as the minimum. Its interface is native AppKit/SwiftUI in Crest's style (`pauljoda/Crest`): a Swift framework, `ClairUI`, that Chromium loads at start-up, with WebUI only for Chromium's internal pages. Change 1 uses it only for Sparkle 2 updates, the update menu and the About window. The UX spike (roadmap step 2 in change 1's `proposal.md`) replaces Chromium's window with a native one.
 
-Every patch to an existing Chromium file is extra maintenance: it can conflict on each version bump and has to be fixed then. Creating or updating a patch is encouraged when it gets the behavior we want with cleaner code, but weigh that against the cost of carrying it. New source files go in `overlay/`, and the native interface in `ClairUI`.
+Every patch to an existing Chromium file is extra maintenance: it can conflict on each version bump and has to be fixed then. Creating or updating a patch is encouraged when it gets the behavior we want with cleaner code, but weigh that against the cost of carrying it. New source files go in `engine/overlay/`, and the native interface in `ClairUI`.
 
 ## Planning: OpenSpec
 
@@ -23,9 +23,9 @@ When work needs a change, following OpenSpec's own guidance:
 
 Never fetch Chromium or build it by hand on the development machine; only `engine.yml` builds it. The build is split in two (design D9–D12 of change 1):
 
-- **Engine:** the patched Chromium. `scripts/engine-key.sh` hashes its inputs (ungoogled pin, `downloads.ini`, GN flags, `patches/`, `overlay/`, `utils/`, `native/ClairHost.h`, compiled-in branding, build scripts) into a key. `engine.yml` builds it only on the owner's self-hosted Mac (label `clair-release`, M1 Pro with 32 GB, internal disk), when it's started by hand, and publishes the prerelease `chromium-engine-<key>`. The Mac keeps its workspace, so a patch fix rebuilds incrementally. To rebuild after a fix: push the branch, then `gh workflow run engine.yml -f ref=<branch>`, and read the log. That runs `main`'s `engine.yml` against the branch; when the branch changes `engine.yml` itself, add `--ref <branch>`. Start a branch's engine build, or its quality checks (`gh workflow run quality.yml --ref <branch>`), whenever its work needs one, without asking the owner first. The `engine-update` branch is the exception (see below).
+- **Engine:** the patched Chromium. `scripts/engine-key.sh` hashes its inputs (ungoogled pin, `build.sh`, everything in `engine/` except the build steps' tests, `native/ClairHost.h`, compiled-in branding) into a key. `engine.yml` builds it only on the owner's self-hosted Mac (label `clair-release`, M1 Pro with 32 GB, internal disk), when it's started by hand, and publishes the prerelease `chromium-engine-<key>`. The Mac keeps its workspace, so a patch fix rebuilds incrementally. To rebuild after a fix: push the branch, then `gh workflow run engine.yml -f ref=<branch>`, and read the log. That runs `main`'s `engine.yml` against the branch; when the branch changes `engine.yml` itself, add `--ref <branch>`. Start a branch's engine build, or its quality checks (`gh workflow run quality.yml --ref <branch>`), whenever its work needs one, without asking the owner first. The `engine-update` branch is the exception (see below).
 - **App:** `ClairUI`, packaging, signing and Sparkle. It builds in minutes against the prebuilt engine for the current key.
-- **Merge gate** (`ci.yml`, required, minutes): the `scripts/*.test.sh` tests, `shellcheck -S warning`, `actionlint`, `openspec validate --all --strict`, `ClairUI`'s build and unit tests, and the engine check. A PR that changes the engine key also runs the patch check (`./build.sh fetch prepare` on a hosted runner, about 20 minutes) unless its engine is already published, and its engine check fails until that engine is published; `engine.yml` then re-runs it.
+- **Merge gate** (`ci.yml`, required, minutes): the `scripts/*.test.sh` and `engine/steps/*.test.sh` tests, `shellcheck -S warning`, `actionlint`, `openspec validate --all --strict`, `ClairUI`'s build and unit tests, and the engine check. A PR that changes the engine key also runs the patch check (`./build.sh fetch prepare` on a hosted runner, about 20 minutes) unless its engine is already published, and its engine check fails until that engine is published; `engine.yml` then re-runs it.
 - **Quality checks** (`quality.yml`): run after every merge to `main`. They package the app from the engine and run the runtime suite in `tests/runtime/`. A failure opens a `quality-failure` issue; fix it from there. No release ships with quality checks failing or unfinished.
 - **Patch check** (the `Patch check` job in `ci.yml`): runs only when a PR changes the engine key and `chromium-engine-<key>` isn't published yet. No hosted workflow compiles Chromium.
 - **Engine update PR:** `engine-update.yml` checks ungoogled-chromium-macos's tags every 6 hours and keeps one draft PR open from the branch `engine-update`, moving the pin to the ungoogled-chromium tag that the newest one pins, with its Changie fragment, as a GitHub App. `engine-update-status.yml` marks it ready when its patch check passes, returns it to draft when it fails, and keeps one comment listing the patches that don't apply or the engine build command. Fix patches by pushing to `engine-update`: each push re-runs the patch check, and the PR turns ready by itself. Never force-push or rebase that branch, and don't start its engine build for the owner; once the owner has, the bot stops moving its pin. See "Updating the engine" in `docs/building.md`.
@@ -58,20 +58,25 @@ To compare Clair with Arc, or check a UI change by hand, use the probe tooling i
 ## Repository layout
 
 - `ungoogled-chromium/`: a submodule pinned to an ungoogled-chromium tag. `engine-update.yml` opens the PR that bumps it.
-- `patches/series`: Clair's patch series, applied after ungoogled's. Paths in it are relative to `patches/`:
+- `engine/`: everything `build.sh` adds to ungoogled-chromium. A file here is an engine input, so changing one changes the engine key.
+- `engine/patches/series`: Clair's patch series, applied after ungoogled's. Paths in it are relative to `engine/patches/`:
   - `ungoogled-chromium-macos/`: copied from ungoogled-chromium-macos
   - `helium/`: adapted from Helium (GPLv3)
   - `clair/`: Clair's own patches
 
   Keep original patch headers.
-- `overlay/`: new Chromium source files at their paths in the Chromium tree, copied in after the patches. Only new files; edits to existing files are patches.
+- `engine/overlay/`: new Chromium source files at their paths in the Chromium tree, copied in after the patches. Only new files; edits to existing files are patches.
+- `engine/flags.macos.gn`, `engine/flags.clair.gn`, `engine/downloads-arm64.ini`, `engine/macos-sdk-major` and `engine/retrieve_and_unpack_resource.py`: the GN flags, the toolchain downloads, the SDK version and the script that fetches the source and toolchains.
+- `engine/steps/`: the scripts `build.sh` runs to apply the patches, the overlay, the branding and the icon, each with a `*.test.sh`.
 - `native/`: `ClairHost.h` (the contract between Chromium and `ClairUI`), the `ClairUI` Xcode project (JSON format, `project.xcproj`, Xcode 27.2 or later) and the Swift sources and unit tests.
 - `package.sh`: turns an engine into `Clair.app`: embeds `ClairUI` and Sparkle, writes the version and Sparkle keys into `Info.plist`, signs, and builds the DMG.
 - `build.sh`: the staged engine build (`fetch`, `prepare`, `configure`, `compile`), used by `engine.yml` and the patch check. See `docs/building.md`.
 - `tests/runtime/`: the runtime suite (XCUITest and the Chrome DevTools Protocol) that `quality.yml` runs. It deletes Clair's data for the current user, so it runs on hosted runners by default, and locally only when losing that data is fine.
 - `tests/probe/`: the tooling for driving Arc and Clair side by side by hand (an XCUITest probe, a test copy of Clair, recordings and measurements). See its `README.md`.
 - `.github/scripts/`: CI helpers (runner preparation, packing and unpacking the build directory, the smoke test).
-- `scripts/`: release tooling (appcast entries, deltas, release notes rendering, release preflight), each with a `*.test.sh`.
+- `scripts/`: release, CI and development tooling (the engine key, appcast entries, deltas, release notes rendering, release preflight, `run-local.sh`), each with a `*.test.sh`. `package.sh`'s test is here too.
+- `resources/`: the icon and logos (`icon/`, an engine input), the DMG layout (`dmg/`) and the signing entitlements (`entitlements/`).
+- `licenses/`: the licenses of the projects `CREDITS.md` lists.
 - `.claude/skills/clair-review/` and `scripts/review.sh`: the whole-codebase architecture, quality and security review, run with `/clair-review` (see its `SKILL.md`). Its reports go to `build/review/`, which git ignores. Never commit or quote them: the repository is public and they describe unfixed security problems.
 - `.claude/skills/clair-fix/`: fixes one section report's findings one at a time, most severe first, with `/clair-fix <report.md>` (see its `SKILL.md`). `scripts/review.sh work` keeps the record of each finding beside its report.
 - `.sparkle/`: `appcast.xml`, served from `main` as Sparkle's feed.

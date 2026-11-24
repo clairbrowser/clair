@@ -30,23 +30,23 @@ key() {
 # Engine inputs: each one must change the key.
 covered=(
   build.sh
-  retrieve_and_unpack_resource.py
-  downloads-arm64.ini
-  flags.macos.gn
-  flags.clair.gn
-  macos-sdk-major
-  patches/series
-  patches/clair/branding.patch
-  overlay/chrome/browser/clair/clair_host.mm
-  utils/name_substitution.py
+  engine/retrieve_and_unpack_resource.py
+  engine/downloads-arm64.ini
+  engine/flags.macos.gn
+  engine/flags.clair.gn
+  engine/macos-sdk-major
+  engine/patches/series
+  engine/patches/clair/branding.patch
+  engine/overlay/chrome/browser/clair/clair_host.mm
+  engine/steps/name_substitution.py
   native/ClairHost.h
-  scripts/apply-overlay.sh
-  scripts/patch-no-fuzz.sh
-  scripts/compile-icon.sh
-  scripts/replace-icon-resources.sh
-  scripts/install-native-contract.sh
-  scripts/filter-domain-substitution.sh
-  utils/domain_substitution_exclude.list
+  engine/steps/apply-overlay.sh
+  engine/steps/patch-no-fuzz.sh
+  engine/steps/compile-icon.sh
+  engine/steps/replace-icon-resources.sh
+  engine/steps/install-native-contract.sh
+  engine/steps/filter-domain-substitution.sh
+  engine/steps/domain_substitution_exclude.list
   resources/icon/AppIcon.icon/icon.json
   resources/icon/logos/chrome/app/theme/chromium/product_logo_16.png
   resources/icon/vector_icons/chrome/app/vector_icons/product.icon
@@ -65,6 +65,8 @@ ignored=(
   resources/icon/README.md
   resources/icon/geometry.svg
   scripts/render-notes.sh
+  engine/steps/apply-overlay.test.sh
+  engine/steps/prune-download-cache.py
 )
 
 mkdir -p "$repo/scripts"
@@ -115,12 +117,12 @@ echo "# changed" >>"$repo/scripts/engine-key.sh"
   check "changing engine-key.sh itself changes the key" fail
 cp "$script_dir/engine-key.sh" "$repo/scripts/engine-key.sh"
 
-echo "new" >"$repo/patches/clair/new.patch"
-git -C "$repo" add patches/clair/new.patch
+echo "new" >"$repo/engine/patches/clair/new.patch"
+git -C "$repo" add engine/patches/clair/new.patch
 [[ "$(key)" != "$base" ]] && check "adding a patch changes the key" pass ||
   check "adding a patch changes the key" fail
-git -C "$repo" rm -q --cached patches/clair/new.patch
-rm "$repo/patches/clair/new.patch"
+git -C "$repo" rm -q --cached engine/patches/clair/new.patch
+rm "$repo/engine/patches/clair/new.patch"
 
 # --- ignored files ----------------------------------------------------------
 for path in "${ignored[@]}"; do
@@ -129,10 +131,10 @@ for path in "${ignored[@]}"; do
     check "changing $path keeps the key" fail
 done
 
-echo "untracked" >"$repo/patches/untracked.patch"
+echo "untracked" >"$repo/engine/patches/untracked.patch"
 [[ "$(key)" == "$base" ]] && check "an untracked file keeps the key" pass ||
   check "an untracked file keeps the key" fail
-rm "$repo/patches/untracked.patch"
+rm "$repo/engine/patches/untracked.patch"
 
 # --- manifest ---------------------------------------------------------------
 manifest="$("$repo/scripts/engine-key.sh" --manifest "$repo")"

@@ -7,7 +7,7 @@ Clair is ungoogled-chromium plus Clair's patches, built for Apple Silicon Macs. 
 The build is split in two (design D9–D12 of the active OpenSpec change):
 
 - **The engine**, the patched Chromium, is built only on the owner's Mac by `.github/workflows/engine.yml`, when the owner starts it: `gh workflow run engine.yml -f ref=<branch>`. That uses `main`'s copy of `engine.yml`; add `--ref <branch>` when the branch changes the workflow itself. It publishes the prerelease `chromium-engine-<key>`, where the key is a hash of the engine's inputs (`scripts/engine-key.sh --manifest` lists them). Read its log with `gh run view --log`. After each run, `scripts/prune-engines.sh` keeps the 5 newest engines and any that `main` or an open pull request needs, and deletes the rest with their tags; to get a deleted one back, run `engine.yml` on its branch again.
-- **The engine check**, the `Engine check` job in `.github/workflows/ci.yml`, compares each pull request's engine key with its base's. When they're the same (a Swift, script or docs change), it passes at once. When they differ and `chromium-engine-<key>` isn't published yet, the `Patch check` job runs `./build.sh fetch prepare` on a GitHub-hosted `xcode-27` runner (about 20 minutes); once it's published, the job is skipped, because `engine.yml` applied the same inputs to build it. Every patch in Clair's series is tried: when any doesn't apply, the job fails after the series, before the overlay is copied, and the log names each of them on a `clair-patch-failed: <path>` line. A skipped patch can make a later one that builds on it fail too, so fix them from the top. Clair's series is applied with no fuzz (`scripts/patch-no-fuzz.sh`), so a change to any context line counts as not applying; ungoogled-chromium's own series keeps `patch`'s defaults and stops at its first patch that doesn't apply. The same stage copies the overlay, compiles Clair's icon and replaces Chromium's logos (see `resources/icon/README.md`); a logo path that no longer exists in Chromium also fails the job and is named in the log. The engine check then fails until `chromium-engine-<key>` is published, and its error gives the `gh workflow run engine.yml` command to build it. Once `engine.yml` publishes an engine, it re-runs the engine check of every open pull request waiting for that key, so the pull request turns green by itself. The `Engine key` job's log lists the engine inputs the pull request changed. A new push to the same pull request cancels the checks that are running.
+- **The engine check**, the `Engine check` job in `.github/workflows/ci.yml`, compares each pull request's engine key with its base's. When they're the same (a Swift, script or docs change), it passes at once. When they differ and `chromium-engine-<key>` isn't published yet, the `Patch check` job runs `./build.sh fetch prepare` on a GitHub-hosted `xcode-27` runner (about 20 minutes); once it's published, the job is skipped, because `engine.yml` applied the same inputs to build it. Every patch in Clair's series is tried: when any doesn't apply, the job fails after the series, before the overlay is copied, and the log names each of them on a `clair-patch-failed: <path>` line. A skipped patch can make a later one that builds on it fail too, so fix them from the top. Clair's series is applied with no fuzz (`engine/steps/patch-no-fuzz.sh`), so a change to any context line counts as not applying; ungoogled-chromium's own series keeps `patch`'s defaults and stops at its first patch that doesn't apply. The same stage copies the overlay, compiles Clair's icon and replaces Chromium's logos (see `resources/icon/README.md`); a logo path that no longer exists in Chromium also fails the job and is named in the log. The engine check then fails until `chromium-engine-<key>` is published, and its error gives the `gh workflow run engine.yml` command to build it. Once `engine.yml` publishes an engine, it re-runs the engine check of every open pull request waiting for that key, so the pull request turns green by itself. The `Engine key` job's log lists the engine inputs the pull request changed. A new push to the same pull request cancels the checks that are running.
 
 To try an engine, download it with `gh release download chromium-engine-<key>`, unzip it and remove the quarantine flag first: `xattr -dr com.apple.quarantine Clair.app`.
 
@@ -38,7 +38,7 @@ Building and running have different requirements: Clair runs on macOS 15.6 or la
 | macOS SDK | The newest released SDK that Chromium's linker can read, passed with `-s`: for now the newest 26.x, since the linker can't read the macOS 27 SDK that Xcode 27 ships. The Command Line Tools include a 26.x SDK (`/Library/Developer/CommandLineTools/SDKs/`) | Xcode's own |
 | Other tools | Python 3.13 with `pip3 install PySocks httplib2`, and `brew install go ninja coreutils esbuild typescript zstd quilt` | none |
 
-`engine.yml` picks the newest installed SDK of the major version in `macos-sdk-major` itself, and `configure` refuses any other, since the engine key covers that file; to move the engine to a new SDK major version, change it. On the owner's Mac, `.github/workflows/runner-check.yml` checks the Xcode version, the Metal toolchain, the SDK, Python and the Homebrew tools, and warns when free disk is low. Software Update can replace the Command Line Tools' SDKs; when the SDK changes, the engine build deletes `out/Default` and compiles from scratch. A clean engine build takes about 4 hours on an M1 Pro (see [Engine build times](#engine-build-times)).
+`engine.yml` picks the newest installed SDK of the major version in `engine/macos-sdk-major` itself, and `configure` refuses any other, since the engine key covers that file; to move the engine to a new SDK major version, change it. On the owner's Mac, `.github/workflows/runner-check.yml` checks the Xcode version, the Metal toolchain, the SDK, Python and the Homebrew tools, and warns when free disk is low. Software Update can replace the Command Line Tools' SDKs; when the SDK changes, the engine build deletes `out/Default` and compiles from scratch. A clean engine build takes about 4 hours on an M1 Pro (see [Engine build times](#engine-build-times)).
 
 GitHub's `macos-26` runner image has Xcode 26.6 at most, so CI jobs that build `ClairUI` use the `xcode-27` image (a public preview).
 
@@ -58,10 +58,10 @@ The stages can also be run one at a time: `./build.sh fetch prepare`, then `./bu
 
 `engine.yml` builds in a workspace it keeps between runs, and passes `-k` so `prepare` keeps `build/base`: an APFS clone of the source as it is after ungoogled-chromium's patches and before Clair's. Cloning takes no extra disk space until files change. `./build.sh -k update` then brings a prepared tree up to date when only Clair's patches changed:
 
-1. It clones `build/base` to `build/next` and applies Clair's layer there: `patches/series`, the overlay, the UI string rebranding, the icon and logos, and domain substitution. A patch that doesn't apply stops the update before `build/src` changes.
+1. It clones `build/base` to `build/next` and applies Clair's layer there: `engine/patches/series`, the overlay, the UI string rebranding, the icon and logos, and domain substitution. A patch that doesn't apply stops the update before `build/src` changes.
 2. It copies into `build/src` only the files whose contents differ, using the list of files the previous layer touched (`build/layer_files`) and the files the new one touched. Files that come out the same keep their modification times, so ninja rebuilds only the targets the change affects.
 
-`update` starts from fresh source (`fetch prepare`) instead when the tree has no base, when the ungoogled-chromium pin, `downloads*.ini` or `retrieve_and_unpack_resource.py` changed, when an earlier update stopped partway, or when `build/base_key` is unreadable. The log names the reason, with the recorded and current base keys when they differ. `configure` deletes `out/Default` when the macOS SDK changes, so no objects compiled with the old SDK are linked into the new engine.
+`update` starts from fresh source (`fetch prepare`) instead when the tree has no base, when the ungoogled-chromium pin, `engine/downloads*.ini` or `engine/retrieve_and_unpack_resource.py` changed, when an earlier update stopped partway, or when `build/base_key` is unreadable. The log names the reason, with the recorded and current base keys when they differ. `configure` deletes `out/Default` when the macOS SDK changes, so no objects compiled with the old SDK are linked into the new engine.
 
 ## Building the native layer
 
@@ -80,7 +80,7 @@ How updates work, and how to test them against a local appcast, is in [updates.m
 
 `native/ClairHost.h` is the whole contract with Chromium. Swift imports it as the `ClairHost` module (`native/module.modulemap`). Chromium loads the framework, takes its principal class (`ClairUIMain`) and calls `+startWithHost:` with its host. The header is an engine input, so changing it needs a new engine; Swift sources aren't.
 
-On the Chromium side, `patches/clair/native-layer-hook.patch` calls `clair::StartNativeLayer()` once the main menu is built. The loader and Chromium's host live in `overlay/chrome/browser/clair/`, and `prepare` copies `ClairHost.h` beside them (`scripts/install-native-contract.sh`). The engine looks for `Contents/Frameworks/ClairUI.framework`; a bare engine has none, logs `ClairUI: no framework at …` and runs without it.
+On the Chromium side, `engine/patches/clair/native-layer-hook.patch` calls `clair::StartNativeLayer()` once the main menu is built. The loader and Chromium's host live in `engine/overlay/chrome/browser/clair/`, and `prepare` copies `ClairHost.h` beside them (`engine/steps/install-native-contract.sh`). The engine looks for `Contents/Frameworks/ClairUI.framework`; a bare engine has none, logs `ClairUI: no framework at …` and runs without it.
 
 ## Packaging Clair.app
 
@@ -136,7 +136,7 @@ A few things in the suite look odd, for reasons that aren't obvious:
 
 ## Editing patches
 
-Clair's patch series is `patches/series`. Paths in it are relative to `patches/`, and it is applied after ungoogled-chromium's own series, so that series has to be applied first. To edit or add a patch, use quilt (`brew install quilt`) on a fetched source tree:
+Clair's patch series is `engine/patches/series`. Paths in it are relative to `engine/patches/`, and it is applied after ungoogled-chromium's own series, so that series has to be applied first. To edit or add a patch, use quilt (`brew install quilt`) on a fetched source tree:
 
 ```sh
 ./build.sh fetch
@@ -156,7 +156,7 @@ quilt pop clair/my-change.patch
 quilt refresh
 ```
 
-To add a patch, start it where it belongs in the series. `quilt new` adds it to `patches/series` after the current patch:
+To add a patch, start it where it belongs in the series. `quilt new` adds it to `engine/patches/series` after the current patch:
 
 ```sh
 quilt new clair/my-change.patch
@@ -165,7 +165,7 @@ quilt add path/to/file.cc
 quilt refresh
 ```
 
-`git diff patches/` should show only your change, plus any hunk line numbers that quilt updated. Then rebuild the engine from a branch of this repository:
+`git diff engine/patches/` should show only your change, plus any hunk line numbers that quilt updated. Then rebuild the engine from a branch of this repository:
 
 ```sh
 git switch -c fix/my-change
@@ -180,7 +180,7 @@ The owner's Mac doesn't fetch Chromium by hand, because that's left to `engine.y
 
 ## Adding new source files: the overlay
 
-New Chromium source files go in `overlay/`, at their paths in the Chromium tree, for example `overlay/chrome/browser/clair/clair_host.mm`. `prepare` copies them in right after `patches/series` (`scripts/apply-overlay.sh`). The overlay only adds files: one whose path already exists in Chromium, or that a patch creates, fails `prepare` and is named in the log. Changes to Chromium's existing files are patches. Wiring a new file into the build (a `BUILD.gn` dependency, a call site) is a patch too, so keep that patch to the hook and put the logic in the overlay.
+New Chromium source files go in `engine/overlay/`, at their paths in the Chromium tree, for example `engine/overlay/chrome/browser/clair/clair_host.mm`. `prepare` copies them in right after `engine/patches/series` (`engine/steps/apply-overlay.sh`). The overlay only adds files: one whose path already exists in Chromium, or that a patch creates, fails `prepare` and is named in the log. Changes to Chromium's existing files are patches. Wiring a new file into the build (a `BUILD.gn` dependency, a call site) is a patch too, so keep that patch to the hook and put the logic in the overlay.
 
 ## Updating the engine
 
@@ -192,11 +192,11 @@ A bot opens the pull request. `.github/workflows/engine-update.yml` checks [ungo
 - **Building.** Any pin change compiles Chromium from scratch on the owner's Mac (about 4 hours). Only the owner starts it, once the pull request is ready: `gh workflow run engine.yml -f ref=engine-update`.
 - **The branch.** The bot never force-pushes, rebases or merges. When the pull request conflicts with `main`, GitHub runs no CI on it, and the description says so: merge `main` into the branch. If `engine-update` exists with no open pull request, the bot deletes it when every commit on it is the bot's, and otherwise stops and names it, for the owner to delete or rename.
 
-A patch-level update usually needs nothing more. For a new major, or when the patch check names a macOS patch, sync the files copied from ungoogled-chromium-macos with the tag the pull request follows (see `CREDITS.md`), on the `engine-update` branch: `downloads-arm64.ini`, `retrieve_and_unpack_resource.py`, `flags.macos.gn`, the patches in `patches/ungoogled-chromium-macos/` (add and remove them in `patches/series` as its own series does) and any change to the toolchain steps of its `build.sh` and `build_crubit.sh`, which `build.sh`'s `configure` stage ports. Update the commit in `CREDITS.md`. The pull request stays a draft until its patches are synced.
+A patch-level update usually needs nothing more. For a new major, or when the patch check names a macOS patch, sync the files copied from ungoogled-chromium-macos with the tag the pull request follows (see `CREDITS.md`), on the `engine-update` branch: `engine/downloads-arm64.ini`, `engine/retrieve_and_unpack_resource.py`, `engine/flags.macos.gn`, the patches in `engine/patches/ungoogled-chromium-macos/` (add and remove them in `engine/patches/series` as its own series does) and any change to the toolchain steps of its `build.sh` and `build_crubit.sh`, which `build.sh`'s `configure` stage ports. Update the commit in `CREDITS.md`. The pull request stays a draft until its patches are synced.
 
-Every download in `downloads*.ini` must declare a hash: `retrieve_and_unpack_resource.py` refuses a file with a download that has none, before downloading anything, and `scripts/retrieve-and-unpack-resource.test.sh` checks the files in CI. Upstream pins no hash for `[rust]` and `[rustc-dev]`, so keep Clair's `sha256` lines when syncing and update them with the version: each is the one rust-lang publishes beside the archive, at its URL with `.sha256` appended.
+Every download in `engine/downloads*.ini` must declare a hash: `engine/retrieve_and_unpack_resource.py` refuses a file with a download that has none, before downloading anything, and `engine/steps/retrieve-and-unpack-resource.test.sh` checks the files in CI. Upstream pins no hash for `[rust]` and `[rustc-dev]`, so keep Clair's `sha256` lines when syncing and update them with the version: each is the one rust-lang publishes beside the archive, at its URL with `.sha256` appended.
 
-Check the Xcode that ungoogled-chromium-macos's CI builds that tag with (`BASE_XCODE_PATH` in `.github/scripts/github_prepare_xcode.sh`): it is the newest SDK known to work with that Chromium. When its major version differs from `macos-sdk-major`, set the file to it, or note in the pull request why Clair stays. Confirm the SDK version that Xcode ships rather than assuming it matches Xcode's, and that the runner has it: a new major version compiles the engine from scratch.
+Check the Xcode that ungoogled-chromium-macos's CI builds that tag with (`BASE_XCODE_PATH` in `.github/scripts/github_prepare_xcode.sh`): it is the newest SDK known to work with that Chromium. When its major version differs from `engine/macos-sdk-major`, set the file to it, or note in the pull request why Clair stays. Confirm the SDK version that Xcode ships rather than assuming it matches Xcode's, and that the runner has it: a new major version compiles the engine from scratch.
 
 Fix the Clair patches the comment lists from the top, using ungoogled-chromium-macos's and Helium's updates as references: a skipped patch can make a later one that builds on it fail too.
 
@@ -239,6 +239,6 @@ Measured with `du` in the same workspace after the full compile:
 | Whole workspace | about 38 GB |
 | Published engine zip | 164 MB |
 
-`prepare` deletes the files in `build/download_cache` that neither ungoogled-chromium's `downloads.ini` nor `downloads-arm64.ini` names any more (`scripts/prune-download-cache.py`), so the archives an engine update replaces, such as an old Rust nightly or Chromium source archive, don't pile up. Everything under `build/src/out` is deleted whenever `prepare` runs.
+`prepare` deletes the files in `build/download_cache` that neither ungoogled-chromium's `downloads.ini` nor `engine/downloads-arm64.ini` names any more (`engine/steps/prune-download-cache.py`), so the archives an engine update replaces, such as an old Rust nightly or Chromium source archive, don't pile up. Everything under `build/src/out` is deleted whenever `prepare` runs.
 
 `build/base`, the pristine clone kept by `build.sh -k`, shares its blocks with `build/src` through APFS and adds only the files Clair's layer changes, but `du` counts it in full. `engine.yml` sizes the workspace without it and allows 50 GB for a fresh tree, plus the 30 GB reserve. That estimate is generous for an incremental build: when it refuses one, `gh workflow run engine.yml -f ref=<branch> -f skip_free_space_check=true` skips the check, and the build still stops if free space falls below 10 GB.

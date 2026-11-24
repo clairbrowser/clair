@@ -55,10 +55,10 @@ jobs:
           echo "::endgroup::"
 
           # The engine builds with the newest released SDK of the major version
-          # in macos-sdk-major. Read from GitHub: a checkout here could touch the
+          # in engine/macos-sdk-major. Read from GitHub: a checkout here could touch the
           # engine workspace.
-          sdk_major="$(curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/macos-sdk-major" | tr -d '[:space:]')"
-          [[ "$sdk_major" =~ ^[0-9]+$ ]] || fail "Can't read macos-sdk-major at $GITHUB_SHA"
+          sdk_major="$(curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/engine/macos-sdk-major" | tr -d '[:space:]')"
+          [[ "$sdk_major" =~ ^[0-9]+$ ]] || fail "Can't read engine/macos-sdk-major at $GITHUB_SHA"
           echo "::group::macOS SDKs"
           found_sdk=""
           for sdk in "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk \

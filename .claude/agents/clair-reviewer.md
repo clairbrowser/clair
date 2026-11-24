@@ -15,7 +15,7 @@ Clair has not been released, and this is the cheapest moment to find design, sec
 
 ## Where the code is
 
-Clair's own code is in this repository: new Chromium source files under `overlay/`, patches to existing Chromium files under `patches/`, and the native interface in `native/`. Read it here, at the commit `run.md` records.
+Clair's own code is in this repository: new Chromium source files under `engine/overlay/`, patches to existing Chromium files under `engine/patches/`, and the native interface in `native/`. Read it here, at the commit `run.md` records.
 
 The patched Chromium tree that this code is compiled into is at the `engine_src` path in `run.md`. Use it to see the other side of whatever Clair's code calls, overrides or patches: start from the files a patch's headers name and from the `#include` lines of an overlay file. Three things to know about that tree:
 

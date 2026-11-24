@@ -140,7 +140,7 @@ elif (( bad_machos == 0 )); then
 fi
 
 # --- other browsers' folders ------------------------------------------------------
-# Clair keeps to its own data and configuration (patches/clair/data-paths.patch and
+# Clair keeps to its own data and configuration (engine/patches/clair/data-paths.patch and
 # first-run-page.patch). A Chromium update could add these back.
 foreign_strings=(
   "Application Support/Chromium"
