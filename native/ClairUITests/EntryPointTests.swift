@@ -20,7 +20,7 @@ struct EntryPointTests {
   }
 
   @Test func bundleIdentifierIsUnderClairs() {
-    #expect(bundle.bundleIdentifier == "dev.joshuapark.Clair.ClairUI")
+    #expect(bundle.bundleIdentifier == "com.clairbrowser.clair.ClairUI")
   }
 
   @Test func startKeepsTheFirstHost() throws {

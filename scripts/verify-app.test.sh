@@ -72,45 +72,45 @@ expect() {
   fi
 }
 
-good="$(make_app "$workdir/good" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper arm64.bin)"
+good="$(make_app "$workdir/good" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper arm64.bin)"
 expect "a correct engine passes with --engine" pass "$good"
 
 app="$(make_app "$workdir/chromium" Chromium org.chromium.Chromium Chromium 13.0 org.chromium.Chromium.helper arm64.bin)"
 expect "an unbranded Chromium.app fails on its name" fail "$app" "expected Clair.app"
-expect "an unbranded Chromium.app fails on its identifier" fail "$app" "expected dev.joshuapark.Clair"
+expect "an unbranded Chromium.app fails on its identifier" fail "$app" "expected com.clairbrowser.clair"
 expect "an unbranded Chromium.app fails on CFBundleName" fail "$app" "which names Chromium"
 expect "an unbranded Chromium.app fails on helper identifiers" fail "$app" "helper"
 
-app="$(make_app "$workdir/minos" Clair dev.joshuapark.Clair Clair 13.0 dev.joshuapark.Clair.helper arm64.bin)"
+app="$(make_app "$workdir/minos" Clair com.clairbrowser.clair Clair 13.0 com.clairbrowser.clair.helper arm64.bin)"
 expect "a wrong minimum macOS version fails" fail "$app" "LSMinimumSystemVersion is '13.0'"
 
-app="$(make_app "$workdir/nomin" Clair dev.joshuapark.Clair Clair "" dev.joshuapark.Clair.helper arm64.bin)"
+app="$(make_app "$workdir/nomin" Clair com.clairbrowser.clair Clair "" com.clairbrowser.clair.helper arm64.bin)"
 expect "a missing minimum macOS version fails" fail "$app" "LSMinimumSystemVersion is ''"
 
-app="$(make_app "$workdir/helper" Clair dev.joshuapark.Clair Clair 15.6 org.chromium.Chromium.helper arm64.bin)"
+app="$(make_app "$workdir/helper" Clair com.clairbrowser.clair Clair 15.6 org.chromium.Chromium.helper arm64.bin)"
 expect "a helper with a foreign identifier fails" fail "$app" "Clair Helper.app has identifier 'org.chromium.Chromium.helper'"
 
-app="$(make_app "$workdir/universal" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper universal.bin)"
+app="$(make_app "$workdir/universal" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper universal.bin)"
 expect "a universal (x86_64 + arm64) binary fails" fail "$app" "expected only arm64"
 
-app="$(make_app "$workdir/sparkle" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper arm64.bin)"
+app="$(make_app "$workdir/sparkle" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper arm64.bin)"
 updater="$app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
 write_plist "$updater/Contents/Info.plist" org.sparkle-project.Sparkle.Updater Updater ""
 expect "Sparkle's Updater.app keeps Sparkle's identifier" pass "$app" "helper apps use"
 
-app="$(make_app "$workdir/stray" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper arm64.bin)"
+app="$(make_app "$workdir/stray" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper arm64.bin)"
 stray="$app/Contents/Frameworks/Other.framework/Updater.app"
 write_plist "$stray/Contents/Info.plist" org.sparkle-project.Sparkle.Updater Updater ""
 expect "an app outside Sparkle.framework still needs Clair's prefix" fail "$app" "Updater.app has identifier"
 
 for string in "Application Support/Chromium/NativeMessagingHosts" "Chromium Apps.localized" \
   "/Library/Google/Chrome/CloudManagementEnrollmentToken"; do
-  app="$(make_app "$workdir/foreign" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper arm64.bin)"
+  app="$(make_app "$workdir/foreign" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper arm64.bin)"
   printf '%s' "$string" >>"$app/Contents/Frameworks/Clair Framework.framework/Versions/A/Clair Framework"
   expect "a framework naming '$string' fails" fail "$app" "names another browser's location"
 done
 
-app="$(make_app "$workdir/noframework" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper arm64.bin)"
+app="$(make_app "$workdir/noframework" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper arm64.bin)"
 rm "$app/Contents/Frameworks/Clair Framework.framework/Versions/A/Clair Framework"
 expect "a package with no framework binary fails" fail "$app" "no Clair Framework binary found"
 
@@ -128,7 +128,7 @@ current_version="$(cat "$script_dir/../version.txt")"
 # make_package DIR [VERSION]: a good package's Info.plist, on a correct engine.
 make_package() {
   local app
-  app="$(make_app "$1" Clair dev.joshuapark.Clair Clair 15.6 dev.joshuapark.Clair.helper arm64.bin)"
+  app="$(make_app "$1" Clair com.clairbrowser.clair Clair 15.6 com.clairbrowser.clair.helper arm64.bin)"
   /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string ${2-$current_version}" \
     -c "Add :CFBundleVersion string 42" \
     -c "Add :SUFeedURL string $feed" \

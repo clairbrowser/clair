@@ -37,7 +37,7 @@ make_app() {
   local app="$1/Clair.app" build="$2"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
   cp "$workdir/exe" "$app/Contents/MacOS/Clair"
-  /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string dev.joshuapark.Clair" \
+  /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.clairbrowser.clair" \
     -c "Add :CFBundleExecutable string Clair" \
     -c "Add :CFBundlePackageType string APPL" \
     -c "Add :CFBundleVersion string $build" "$app/Contents/Info.plist" >/dev/null

@@ -600,7 +600,7 @@ static constexpr CGFloat kButtonsTopToTitlebarBottom = 23;
 - (void)hideWindowControlsWhileMoving {
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    os_log(os_log_create("dev.joshuapark.Clair", "Window"),
+    os_log(os_log_create("com.clairbrowser.clair", "Window"),
            "The window controls can't follow the sidebar on this macOS; "
            "hiding them while it moves.");
   });

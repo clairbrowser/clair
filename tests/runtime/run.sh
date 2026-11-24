@@ -128,7 +128,7 @@ run_tests() {
     "$@" || status=$?
 
   log show --last 2h --style compact --info \
-    --predicate 'subsystem == "dev.joshuapark.Clair" OR subsystem == "org.sparkle-project.Sparkle"' \
+    --predicate 'subsystem == "com.clairbrowser.clair" OR subsystem == "org.sparkle-project.Sparkle"' \
     >"$dir/logs/updates.log" 2>/dev/null || true
 
   if (( status != 0 )); then

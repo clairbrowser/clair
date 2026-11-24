@@ -221,7 +221,7 @@
 }
 
 - (void)testFrameworkPrincipalClassConformsToEntryPoint {
-  NSBundle* bundle = [NSBundle bundleWithIdentifier:@"dev.joshuapark.Clair.ClairUI"];
+  NSBundle* bundle = [NSBundle bundleWithIdentifier:@"com.clairbrowser.clair.ClairUI"];
   XCTAssertNotNil(bundle);
   XCTAssertTrue([bundle load]);
   Class principal = bundle.principalClass;

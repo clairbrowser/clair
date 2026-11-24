@@ -209,7 +209,7 @@ struct PinsLogicTests {
     // The app's Info.plist declares the type as text (package.sh, checked by
     // package.test.sh); a test host doesn't, so only this holds here: a
     // page's plain text isn't of the type.
-    #expect(SidebarDragItem.type.identifier == "dev.joshuapark.clair.sidebar-item")
+    #expect(SidebarDragItem.type.identifier == "com.clairbrowser.clair.sidebar-item")
     #expect(!UTType.utf8PlainText.conforms(to: SidebarDragItem.type))
     #expect(SidebarDragItem(payload: SidebarDragItem.tab(7).payload) == .tab(7))
     #expect(SidebarDragItem(payload: SidebarDragItem.pin("p").payload) == .pin("p"))

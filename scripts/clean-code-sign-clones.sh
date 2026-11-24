@@ -26,7 +26,7 @@ die() {
 }
 
 (($# <= 1)) || die "usage: clean-code-sign-clones.sh [bundle-id]"
-bundle_id="${1:-dev.joshuapark.Clair}"
+bundle_id="${1:-com.clairbrowser.clair}"
 [[ "$bundle_id" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "not a bundle ID: $bundle_id"
 command -v lsof >/dev/null || die "lsof is missing, so clones in use can't be told apart"
 

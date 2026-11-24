@@ -46,7 +46,7 @@ The environment doesn't survive a relaunch, because Launch Services starts the n
 
 Testing updates replaces the app in place, so work in a throwaway directory. Pass `--user-data-dir` and `--use-mock-keychain` so your own data and keychain aren't touched. Chromium keeps both flags across a relaunch.
 
-The rest of Sparkle's state is outside those flags, under the real bundle ID: `~/Library/Preferences/dev.joshuapark.Clair.plist` and `~/Library/Caches/dev.joshuapark.Clair`. On a Mac where you also use a real Clair, test on another user account.
+The rest of Sparkle's state is outside those flags, under the real bundle ID: `~/Library/Preferences/com.clairbrowser.clair.plist` and `~/Library/Caches/com.clairbrowser.clair`. On a Mac where you also use a real Clair, test on another user account.
 
 1. Download an engine, and package an old and a new version with the test key:
 
@@ -78,7 +78,7 @@ The rest of Sparkle's state is outside those flags, under the real bundle ID: `~
      --user-data-dir="$work/data" --use-mock-keychain --no-first-run
    ```
 
-   Within a few seconds of a first launch, the server logs requests for the appcast and the DMG, and the Clair menu reads "Update Available…". If an earlier test has already checked, Sparkle waits out the 24 hours: choose "Check for Updates…" instead, or run `defaults delete dev.joshuapark.Clair SULastCheckTime` first.
+   Within a few seconds of a first launch, the server logs requests for the appcast and the DMG, and the Clair menu reads "Update Available…". If an earlier test has already checked, Sparkle waits out the 24 hours: choose "Check for Updates…" instead, or run `defaults delete com.clairbrowser.clair SULastCheckTime` first.
 
 4. Choose "Update Available…", then "Restart and Update". Clair reopens as 0.1.1, with the same windows and tabs.
 
@@ -86,7 +86,7 @@ To watch what Sparkle does:
 
 ```sh
 log stream --level info --style compact \
-  --predicate 'subsystem == "dev.joshuapark.Clair" OR subsystem == "org.sparkle-project.Sparkle"'
+  --predicate 'subsystem == "com.clairbrowser.clair" OR subsystem == "org.sparkle-project.Sparkle"'
 ```
 
 ### Other cases

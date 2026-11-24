@@ -38,7 +38,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-bundle_id="dev.joshuapark.Clair"
+bundle_id="com.clairbrowser.clair"
 feed_url="https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml"
 product="Clair"
 
@@ -229,7 +229,7 @@ declarations=UTExportedTypeDeclarations
   /usr/libexec/PlistBuddy -c "Add :$declarations array" "$info"
 /usr/libexec/PlistBuddy \
   -c "Add :$declarations:0 dict" \
-  -c "Add :$declarations:0:UTTypeIdentifier string dev.joshuapark.clair.sidebar-item" \
+  -c "Add :$declarations:0:UTTypeIdentifier string com.clairbrowser.clair.sidebar-item" \
   -c "Add :$declarations:0:UTTypeDescription string Clair sidebar item" \
   -c "Add :$declarations:0:UTTypeConformsTo array" \
   -c "Add :$declarations:0:UTTypeConformsTo:0 string public.utf8-plain-text" \

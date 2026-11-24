@@ -19,7 +19,7 @@ import os
 /// Clair was, and its relauncher waits for the installer. So Sparkle is never
 /// told to install: Autoupdate does that when it sees Clair quit.
 final class UpdateController: NSObject, SPUUpdaterDelegate {
-  private static let logger = Logger(subsystem: "dev.joshuapark.Clair", category: "Updates")
+  private static let logger = Logger(subsystem: "com.clairbrowser.clair", category: "Updates")
   private static let lastRunVersionKey = "ClairLastRunVersion"
 
   private let host: any ClairHost

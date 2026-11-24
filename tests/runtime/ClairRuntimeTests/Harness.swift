@@ -31,7 +31,7 @@ struct Fixture: Decodable {
 
 @MainActor
 enum Harness {
-  static let bundleID = "dev.joshuapark.Clair"
+  static let bundleID = "com.clairbrowser.clair"
 
   /// Runs a tool to the end and returns its status and output.
   @discardableResult

@@ -71,7 +71,7 @@ helper() {
 
 # The engine's layout: Clair.app with Clair Framework.framework and its helpers.
 make_engine() {
-  local app="$1/Clair.app" id="${2-dev.joshuapark.Clair}"
+  local app="$1/Clair.app" id="${2-com.clairbrowser.clair}"
   rm -rf "$1"
   mkdir -p "$app/Contents/MacOS"
   cp "$workdir/exe" "$app/Contents/MacOS/Clair"
@@ -88,7 +88,7 @@ make_engine() {
     cp "$workdir/app.icns" "$app/Contents/Resources/app.icns"
   fi
   local fw="$app/Contents/Frameworks/Clair Framework.framework"
-  framework "$fw" "Clair Framework" dev.joshuapark.Clair.framework lib
+  framework "$fw" "Clair Framework" com.clairbrowser.clair.framework lib
   local helpers="$fw/Versions/A/Helpers"
   mkdir -p "$helpers" "$fw/Versions/A/Libraries"
   ln -s Versions/Current/Helpers "$fw/Helpers"
@@ -96,13 +96,13 @@ make_engine() {
   local kind
   for kind in "" "Aperitif "; do
     if [[ -z "$kind" ]]; then
-      helper "$helpers" "Clair Helper" dev.joshuapark.Clair.helper
+      helper "$helpers" "Clair Helper" com.clairbrowser.clair.helper
     else
-      helper "$helpers" "Clair Helper (Aperitif)" dev.joshuapark.Clair.helper
+      helper "$helpers" "Clair Helper (Aperitif)" com.clairbrowser.clair.helper
     fi
-    helper "$helpers" "Clair Helper (${kind}Renderer)" dev.joshuapark.Clair.helper.renderer
-    helper "$helpers" "Clair Helper (${kind}GPU)" dev.joshuapark.Clair.helper
-    helper "$helpers" "Clair Helper (${kind}Alerts)" dev.joshuapark.Clair.framework.AlertNotificationService
+    helper "$helpers" "Clair Helper (${kind}Renderer)" com.clairbrowser.clair.helper.renderer
+    helper "$helpers" "Clair Helper (${kind}GPU)" com.clairbrowser.clair.helper
+    helper "$helpers" "Clair Helper (${kind}Alerts)" com.clairbrowser.clair.framework.AlertNotificationService
   done
   local tool
   for tool in chrome_crashpad_handler app_mode_loader web_app_shortcut_copier; do
@@ -114,7 +114,7 @@ make_engine() {
 
 make_clairui() {
   rm -rf "$1"
-  framework "$1/ClairUI.framework" ClairUI dev.joshuapark.Clair.ClairUI lib
+  framework "$1/ClairUI.framework" ClairUI com.clairbrowser.clair.ClairUI lib
 }
 
 # A directory as fetch-sparkle.sh leaves it, with Sparkle's universal binaries.
@@ -204,7 +204,7 @@ else
 fi
 
 declared="$(plutil -extract UTExportedTypeDeclarations json -o - "$info" 2>/dev/null)"
-if [[ "$declared" == *'"UTTypeIdentifier":"dev.joshuapark.clair.sidebar-item"'* \
+if [[ "$declared" == *'"UTTypeIdentifier":"com.clairbrowser.clair.sidebar-item"'* \
     && "$declared" == *'"UTTypeConformsTo":["public.utf8-plain-text"]'* \
     && "$declared" == *'"UTTypeIdentifier":"org.chromium.extension"'* ]]; then
   check "declares the sidebar drag type, keeping the engine's types" pass
@@ -245,11 +245,11 @@ check "every nested bundle's signature verifies strictly" "$all_verify"
 
 identifiers=pass
 for pair in \
-    "Contents/Frameworks/Clair Framework.framework/Helpers/Clair Helper (Renderer).app=dev.joshuapark.Clair.helper.renderer" \
-    "Contents/Frameworks/Clair Framework.framework/Helpers/Clair Helper (Aperitif Alerts).app=dev.joshuapark.Clair.framework.AlertNotificationService" \
-    "Contents/Frameworks/Clair Framework.framework=dev.joshuapark.Clair.framework" \
-    "Contents/Frameworks/ClairUI.framework=dev.joshuapark.Clair.ClairUI" \
-    ".=dev.joshuapark.Clair"; do
+    "Contents/Frameworks/Clair Framework.framework/Helpers/Clair Helper (Renderer).app=com.clairbrowser.clair.helper.renderer" \
+    "Contents/Frameworks/Clair Framework.framework/Helpers/Clair Helper (Aperitif Alerts).app=com.clairbrowser.clair.framework.AlertNotificationService" \
+    "Contents/Frameworks/Clair Framework.framework=com.clairbrowser.clair.framework" \
+    "Contents/Frameworks/ClairUI.framework=com.clairbrowser.clair.ClairUI" \
+    ".=com.clairbrowser.clair"; do
   path="${pair%%=*}" expected="${pair#*=}"
   signed="$(codesign -dv "$app/$path" 2>&1 | sed -n 's/^Identifier=//p')"
   [[ "$signed" == "$expected" ]] || { identifiers=fail; echo "         $path is signed as $signed"; }
@@ -663,15 +663,15 @@ expect_refusal "refuses an identity that isn't in the keychain" "no valid signin
   --version 0.1.0 --build 7 --identity "Developer ID Application: Nobody (0000000000)" "$engine/Clair.app" "$workdir/out3"
 
 make_engine "$workdir/foreign" org.chromium.Chromium
-expect_refusal "refuses an engine with another bundle identifier" "not dev.joshuapark.Clair" \
+expect_refusal "refuses an engine with another bundle identifier" "not com.clairbrowser.clair" \
   --version 0.1.0 --build 7 --no-dmg "$workdir/foreign/Clair.app" "$workdir/out3"
 
-make_engine "$workdir/no-icon" dev.joshuapark.Clair no-icon
+make_engine "$workdir/no-icon" com.clairbrowser.clair no-icon
 expect_refusal "refuses an engine without its icon, which the volume uses" "no CFBundleIconFile" \
   --version 0.1.0 --build 7 --no-dmg "$workdir/no-icon/Clair.app" "$workdir/out3"
 
 make_engine "$workdir/twice"
-framework "$workdir/twice/Clair.app/Contents/Frameworks/ClairUI.framework" ClairUI dev.joshuapark.Clair.ClairUI lib
+framework "$workdir/twice/Clair.app/Contents/Frameworks/ClairUI.framework" ClairUI com.clairbrowser.clair.ClairUI lib
 expect_refusal "refuses an engine that already contains ClairUI.framework" "already contains ClairUI.framework" \
   --version 0.1.0 --build 7 --no-dmg "$workdir/twice/Clair.app" "$workdir/out3"
 

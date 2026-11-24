@@ -53,7 +53,7 @@ enum SidebarDragItem: Equatable {
   /// ignored. It's text, which `package.sh` declares too: a list row dragged
   /// with a type that's only data carries a file promise instead, which no
   /// drop outside the list, such as the favorites, accepts.
-  static let type = UTType(exportedAs: "dev.joshuapark.clair.sidebar-item", conformingTo: .utf8PlainText)
+  static let type = UTType(exportedAs: "com.clairbrowser.clair.sidebar-item", conformingTo: .utf8PlainText)
 
   var payload: String {
     switch self {
