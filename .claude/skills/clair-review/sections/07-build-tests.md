@@ -20,7 +20,7 @@ Only to confirm what a build script produces.
 - Every download: is it pinned to a version and checked against a hash before anything is unpacked or run? What happens on a mismatch? Are any toolchains fetched from a personal or third-party release page, and what would a compromise of that source give an attacker?
 - Unpacking: can an archive write outside its target directory?
 - Is the engine key complete? `scripts/engine-key.sh` hashes the engine's inputs. Look for a file that changes the built engine and is not in the manifest, since that would let a stale engine pass as current.
-- Is the patch series minimal and ordered so that a failure is easy to place when the engine is bumped? Section 04 asks how fast a Chromium security fix can reach users, and a patch that is hard to rebase is part of the answer. Which of Clair's own patches would be better as overlay files, given the rule that patches are for build fixes, identity, versioning and hooks only?
+- Is the patch series minimal and ordered so that a failure is easy to place when the engine is bumped? Section 04 asks how fast a Chromium security fix can reach users, and a patch that is hard to rebase is part of the answer. Which of Clair's own patches cost more to carry through a bump than they save, and would be better as overlay files or `ClairUI` code?
 - Script quality: unquoted expansions, unchecked exit codes, inputs that reach `eval`, XML or a command line unvalidated, and Bash 4 or GNU-only constructs in scripts that must run on Bash 3.2 with BSD tools. Does each script's test exercise its failure paths?
 
 **The cost of the runtime suite**
