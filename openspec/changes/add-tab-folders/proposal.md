@@ -56,7 +56,7 @@ This builds on `add-pinned-tabs-and-favorites`, `polish-sidebar-drops` and `show
 ## Impact
 
 - **`native/ClairHost.h`** changes, so the engine key changes and the engine is rebuilt.
-- **Overlay:** `ClairPinStore` gains folder records in its existing format, which a store written before the change already satisfies. Pinned sections list items, folders hold pin IDs, and removals remember a pin's folder or a whole folder. `ClairSpaceTabs`' rows and next-tab rules, Space deletion and Move to Space change. Turn into Space creates a Space and moves the folder's pins and bound tabs into it.
+- **Overlay:** `ClairPinStore` keeps every pinned tab, favorite and folder as its own record with a parent and a sort key, so a later iCloud sync can merge items one by one. Whether a folder is open is kept apart, on each Mac. Pins saved by earlier builds aren't converted. Pinned sections list items, folders hold pin IDs, and removals remember a pin's folder or a whole folder. `ClairSpaceTabs`' rows and next-tab rules, Space deletion and Move to Space change. Turn into Space creates a Space and moves the folder's pins and bound tabs into it.
 - **`ClairUI`:** folder rows in the pinned list, the open state in user defaults, the inline name field, the New Folder dialog and the delete confirmation, Close This Folder, drag targets for folders, the new menu items, and the sidebar's own menu.
 - **Runtime suite:** new coverage for folders. Views the suite drives change, so the quality checks run on the branch before merging.
 - **Arc references:** probed on 2026-11-23, in `arc-reference/`.

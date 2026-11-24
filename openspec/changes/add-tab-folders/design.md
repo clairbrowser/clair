@@ -2,7 +2,7 @@
 
 ## Context
 
-Pinned tabs and favorites are records in `ClairPinStore` (`add-pinned-tabs-and-favorites` D1), in the Local State pref `clair.pins`: a Space's pinned section is a flat list of pin IDs, and each record has a `parent` field reserved for folders, always empty. `ClairSpaceTabs` lists a bound pinned tab with its pin and computes the rows the tab commands and the next-tab rule use (D2, D4). `ClairHost.h` gives `ClairUI` a Space's pins as a flat array (`pinsInSpace:`, `pinsDidChange:inSpace:`) and moves them by index (`pinTab:atIndex:`, `movePin:toSpace:atIndex:`).
+Pinned tabs and favorites are records in `ClairPinStore` (`add-pinned-tabs-and-favorites` D1), in the Local State pref `clair.pins`: a Space's pinned section and a profile's favorites are each a flat list of pin IDs, and each record has a `parent` field reserved for folders, always empty. iCloud sync is planned after the MVP. `ClairSpaceTabs` lists a bound pinned tab with its pin and computes the rows the tab commands and the next-tab rule use (D2, D4). `ClairHost.h` gives `ClairUI` a Space's pins as a flat array (`pinsInSpace:`, `pinsDidChange:inSpace:`) and moves them by index (`pinTab:atIndex:`, `movePin:toSpace:atIndex:`).
 
 In `ClairUI`, the pinned rows, the divider with "New Tab" and the Today rows are one SwiftUI `List`, which reorders with `onMove` and takes drops from the grid with `onInsert`. `PinsLogic.listDrop` maps a gap in the list to a section and index (`polish-sidebar-drops` D2). Row menus are AppKit menus from `RowClickCatcher`. The Space header's menu comes from `SpacesLogic.headerMenu`. The collapsed pinned sections are the user default `ClairCollapsedPinnedSpaces`.
 
@@ -14,30 +14,37 @@ Arc's behavior is in `arc-reference/README.md`.
 - The behavior in `specs/`.
 
 **Non-Goals:**
-- Folders inside folders, Change Icon…, Copy All Links, the search popover, Share Folder… and Live Folders. The format below leaves room for nesting (a folder is an item like a pin), but nothing reads or writes it.
-- Arc's per-window open state. Clair keeps one state per folder (D3).
+- Folders inside folders, Change Icon…, Copy All Links, the search popover, Share Folder… and Live Folders. The format below could express nesting (a folder's parent naming a folder), but the store refuses to write it.
+- Syncing. iCloud sync comes after the MVP, so D1 shapes the store as per-item records a sync layer can send one by one, and D3 keeps the per-Mac state out of them. The sync itself, its record types and a profile ID that is the same on every Mac are left to that change.
+- Arc's per-window open state. Clair keeps one state per folder on each Mac (D3).
+- Converting stores written before this change. Clair isn't released, so a store in the old shape loads empty.
 - Exact sizes and colours, which weren't measured: the folder row uses the pinned row's metrics, and its icon and name are tuned by hand against Arc in task 3.7.
 
 ## Decisions
 
-### D1. Folders are records in the pin store, which stays at version 1
+### D1. Every pinned tab, favorite and folder is a record with a parent and a sort key
 
 ```
 clair.pins  { "version": 1,
-              "spaces":   { "<space uuid>":  ["<pin or folder uuid>", …] },  // the pinned section, in order
-              "profiles": { "<profile dir>": ["<pin uuid>", …] },            // favorites, unchanged
-              "folders":  { "<folder uuid>": { "name": "…",
-                                               "open": true,
-                                               "pins": ["<pin uuid>", …] } },
-              "items":    { "<pin uuid>": { "url": …, "title": …, "name": … } } }
+              "items": {
+                "<uuid>": { "kind": "folder", "parent": "space:<space uuid>",   "order": "a0", "name": "Trip" },
+                "<uuid>": { "kind": "pin",    "parent": "folder:<folder uuid>", "order": "a0",
+                            "url": "https://…", "title": "…", "name": "…" },
+                "<uuid>": { "kind": "pin",    "parent": "space:<space uuid>",   "order": "a1", … },
+                "<uuid>": { "kind": "pin",    "parent": "profile:<profile dir>", "order": "a0", … } } }
 ```
 
-- **A Space's list holds items**, each a pin or a folder ID. A folder's own list holds pin IDs only (one level, the spec's rule). A pin is in exactly one list: a Space's, a folder's or a profile's.
-- **`parent` goes.** A folder's `pins` list carries the order a `parent` field couldn't, and two sources of truth could disagree.
-- **The version stays 1.** A store written before this change is already valid: its Space lists hold only pin IDs, which are items, and a missing `folders` means none. Loading ignores `parent`, and saving no longer writes it. Clair isn't released, so no older engine reads the new keys, and a version bump would only mark a change that needs no conversion.
-- **The open state is in the record** (D3), so the engine, which runs the tab commands, knows which tabs a closed folder hides.
-- **`ClairPinStore` gains** `CreateFolder`, `RenameFolder`, `SetFolderOpen`, `MoveItem` (a pin or folder to a Space's list, or a pin into a folder, at an index), `DuplicateFolder` (copies records and icon files), `RemoveFolder(remember)` and `FoldersIn`. `PinContainer` gains a folder ID, so a pin's place is a Space, a folder or a profile. Observers still hear `OnPinsChanged` for the folder's Space.
-- **Alternative: folders in `ClairUI`'s user defaults, grouping the store's pin IDs.** Rejected: the order of folders among pins would then live in two stores, the engine's tab commands couldn't skip closed folders, and every move, removal, restore and Space deletion would have to update both.
+- **Each record says where it is.** `parent` is a Space (its pinned section), a folder, or a profile (its favorites). `order` is a fractional index: a string that sorts between its neighbours, so a record can always get a key between any two others. A container's items are its children sorted by `order`, then by ID.
+- **A move changes one record.** Pinning, reordering, moving into or out of a folder, Move to Space and Restore each rewrite only the record that moved, never its siblings. That is what lets a later sync send and merge records one by one: two Macs editing different items can't overwrite each other's edits, as they would with an ordered list per container.
+- **One fact, one place.** There is no list of children next to the parent pointer, as Arc has (`childrenIds` with `parentID`), so the two can't disagree. The `spaces` and `profiles` lists of the first pin store go, with `parent`'s old meaning.
+- **One level is checked on write.** A folder's parent must be a Space, and a folder's children must be pins. The store refuses any other write, and on load drops records whose parent is missing or not allowed, with their icons.
+- **The sort keys** come from a small helper in the overlay, `clair_order_key.{h,mm}`: base-62 digit strings with the key between two neighbours, before the first and after the last, as in the common fractional-indexing scheme. Keys grow only when inserts keep landing in the same gap, which a sidebar's edits don't do often. The runtime suite covers repeated inserts in one gap and at both ends (task 3.9).
+- **Indices stay in the contract** (D2): the engine turns "index 2 in this container" into a key between that place's neighbours.
+- **The old shape isn't converted.** Clair isn't released, so no installed copy has data to keep, and a store in the old shape loads empty.
+- **`ClairPinStore` gains** `CreateFolder`, `RenameFolder`, `MoveItem` (a pin or folder to a container at an index), `DuplicateFolder` (copies records and icon files), `RemoveFolder(remember)` and `ChildrenOf(container)`, and keeps one index of children per container in memory, rebuilt on load and updated on each write. `PinContainer` gains a folder ID. Observers still hear `OnPinsChanged` for the Space or profile that changed.
+- **Alternative: ordered lists per container, with folders inside a Space's list.** Simplest for local use, but a container's whole list is then one value, so under sync a reorder on one Mac and an addition on another collide and one is lost.
+- **Alternative: Arc's tree, with `childrenIds` and `parentID` on every node.** It stores each item's place twice, and its generality serves nesting, Live Folders and Easels, which Clair doesn't have.
+- **Alternative: folders in `ClairUI`'s user defaults, grouping the store's pin IDs.** Rejected: folders would live in two stores, and the engine's tab commands couldn't skip closed folders.
 
 ### D2. The contract: pinned items
 
@@ -49,11 +56,12 @@ clair.pins  { "version": 1,
 - This is a breaking change to the contract, so the engine key changes.
 - **Alternative: keep `pinsInSpace:` flat and add `foldersInSpace:`.** An empty folder's place among the pins would then need a separate order, which is what an item list is.
 
-### D3. One open state per folder
+### D3. Each folder's open state, on each Mac
 
-A folder's `open` flag is in its record (D1) and applies in every window, across relaunches, as `ClairCollapsedPinnedSpaces` does for pinned sections. A click calls `setFolder:open:`. A new folder and a duplicate are open, and a restored one keeps its flag.
+Whether a folder is open isn't in its record: it's the Local State pref `clair.closed_folders`, a list of the closed folders' IDs, which `ClairPinStore` reads and writes beside `clair.pins` and prunes when a folder is removed. A sync layer leaves it out, so opening a folder on one Mac doesn't open it on another, as Arc keeps `expandedItems` out of its sidebar file. A click calls `setFolder:open:`. A folder is open unless it's listed, so a new folder and a duplicate are open. A removed folder remembers whether it was closed (D7).
 
-- **Alternative: per window, as Arc (`expandedItems` in `StorableWindows.json`).** Rejected for the same reason the collapse state is per Space: Clair's windows share their tab lists (`share-tabs-across-windows`), and two windows of one Space showing different rows would make Cmd+number differ between them.
+- **Applies in every window**, as `ClairCollapsedPinnedSpaces` does for pinned sections. Per window, as Arc (`expandedItems` in `StorableWindows.json`), was rejected for the same reason the collapse state is per Space: Clair's windows share their tab lists (`share-tabs-across-windows`), and two windows of one Space showing different rows would make Cmd+number differ between them.
+- **Alternative: an `open` field in the folder's record.** Syncing it would open and close folders on every Mac at once.
 - **Alternative: a user default in `ClairUI`.** Rejected, because the engine's tab commands need it (D9).
 
 ### D4. Folder rows in the pinned list
@@ -86,15 +94,15 @@ Task 1.1 checks first that an AppKit view inside a row's hosting view receives t
 ### D7. Deleting and restoring a folder
 
 - **`ClairUI`** deletes an empty folder at once, and otherwise shows a `ClairDialog`: "Delete your "<name>" folder?", "Deleting this folder will remove the tabs inside it.", Cancel and the destructive Delete Folder (`dialogs`, "Destructive dialog buttons").
-- **`deleteFolder:`** removes the folder and its pins from the store, remembering them as one removal (the folder record, its pins' records, its Space and index), then closes the bound tabs through the close flow. Removing first leaves each closed tab's own `TabRestoreService` entry newer, as for a removed pin (`add-pinned-tabs-and-favorites` D3).
+- **`deleteFolder:`** removes the folder and its pins from the store, remembering them as one removal (the folder's record with its parent and sort key, its pins' records, and whether it was closed), then closes the bound tabs through the close flow. Removing first leaves each closed tab's own `TabRestoreService` entry newer, as for a removed pin (`add-pinned-tabs-and-favorites` D3).
 - **Restore Last Closed Tab** (`ExecuteTabCommand`'s `IDC_RESTORE_TAB`, as for pins):
-  - when the newest removal of the profile is newer than Chromium's entry, it puts the folder and its pins back at their index, or at the end when the Space's list is shorter;
+  - when the newest removal of the profile is newer than Chromium's entry, it puts the records back with their sort keys, so the folder returns between the neighbours it had, or at the end of the section when its Space is gone or a key now collides;
   - when Chromium's entry is newer and its tab's `clair_pin` names a pin of a removed folder, the whole folder comes back first, and the restored tab binds to its pin. The folder's other tabs keep their entries in Chromium's list.
-- **A removed single pin** remembers its folder and index in it. It goes back there while the folder exists, and to the end of the Space's pinned section otherwise.
+- **A removed single pin** keeps its parent and sort key. It goes back there while the folder exists, and to the end of the Space's pinned section otherwise.
 
 ### D8. Turning a folder into a Space
 
-`turnFolderIntoSpace:` creates a Space after the last, named after the folder, without an icon, with the folder's Space's profile (`ClairSpaceStore`), moves each pin to the new Space's list in order with `MoveItem`, moving bound tabs as Move to Space does (`add-pinned-tabs-and-favorites` D5, `add-spaces` D7), removes the empty folder unremembered, and returns the new Space's ID. `ClairUI` then shows that Space in the window, with the switching animation. The profile is the same, so pages stay open.
+`turnFolderIntoSpace:` creates a Space after the last, named after the folder, without an icon, with the folder's Space's profile (`ClairSpaceStore`), moves each pin to the new Space in order with `MoveItem`, moving bound tabs as Move to Space does (`add-pinned-tabs-and-favorites` D5, `add-spaces` D7), removes the empty folder unremembered, and returns the new Space's ID. `ClairUI` then shows that Space in the window, with the switching animation. The profile is the same, so pages stay open.
 
 ### D9. Tab commands and the next tab
 
@@ -114,12 +122,13 @@ Both are absent in incognito and guest windows, which show no Space header. The 
 ### D11. Moving and duplicating folders
 
 - **Move to Space ›** calls `moveFolder:toSpace:atIndex:` with the end. Bound tabs move as Move to Space moves a pinned tab's, across profiles with `add-profiles` D9. As for a tab, a window whose active tab was in the folder follows it, and otherwise `ClairUI` shows "Folder was moved to <Space>" in the notice Move to Space uses.
-- **Duplicate** calls `duplicateFolder:`, which inserts the copy right after the folder, with new pin records copying the URLs, titles, names and icon files, unbound.
+- **Duplicate** calls `duplicateFolder:`, which inserts the copy right after the folder, with a key between the folder and its next sibling, and new pin records, keeping their keys, copying the URLs, titles, names and icon files, unbound.
 
 ## Risks / Trade-offs
 
 - **[A drop on a row may not reach an AppKit view inside a `List` row]** → task 1.1 checks it before anything is built on it, and D5 has a fallback.
 - **[A folder dragged in the `List` lifts only its own row]** → its tabs' rows stay in place until the drop, then move with it. Arc's own lifted folder wasn't observed; the hand check compares them.
-- **[An older engine reading a store with folders would drop the folders' pins, which are in no Space list]** → Clair isn't released, and an older build isn't run against a newer profile in practice.
+- **[Pins saved by builds before this change are lost]** → Clair isn't released; developers re-pin after updating.
+- **[Sort keys grow when items keep landing in one gap]** → each insert adds at most one digit, so a sidebar needs thousands of such moves before a key is long; a later change can rebalance a container's keys if it ever matters.
 - **[A restored folder with several open tabs reopens only the last page]** → the others stay in Chromium's recently closed list, so Restore Last Closed Tab again brings each back, binding to its pin.
-- **[The open state is app-wide, unlike Arc's]** → stated in the spec; changing to per window later only moves the flag.
+- **[The open state is per Mac and shared by its windows, unlike Arc's per window]** → stated in the spec; changing to per window later only changes `clair.closed_folders`.

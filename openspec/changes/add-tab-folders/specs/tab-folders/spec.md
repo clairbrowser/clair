@@ -59,7 +59,7 @@ A folder's row SHALL show a folder icon and its name, bold, as in Arc. Its tabs 
 - **THEN** its icon shows "•••"
 
 ### Requirement: Opening and closing a folder
-A click on a folder's row SHALL open it if it's closed and close it if it's open. A closed folder SHALL list none of its tabs, except the selected tab, which SHALL stay listed under it. Each folder SHALL remember whether it's open, in every window and across relaunches. A new folder SHALL be open.
+A click on a folder's row SHALL open it if it's closed and close it if it's open. A closed folder SHALL list none of its tabs, except the selected tab, which SHALL stay listed under it. Each folder SHALL remember whether it's open, in every window of the Mac and across relaunches, without changing it on other Macs. A new folder SHALL be open.
 
 #### Scenario: Closing
 - **WHEN** the open folder "Docs" holds "Spec" and "Plan", and the user clicks its row
