@@ -18,15 +18,15 @@ The application SHALL present itself as "Clair". This applies to the app bundle 
 - **THEN** none of them shows "Chromium" as the product name. The About screen may still label the Chromium version as the engine version and credit the Chromium open source project
 
 ### Requirement: Stable bundle identifier
-The application SHALL use the bundle identifier `dev.joshuapark.Clair`. Every helper app inside the bundle SHALL use an identifier prefixed with `dev.joshuapark.Clair.`. These identifiers MUST NOT change in later releases.
+The application SHALL use the bundle identifier `com.clairbrowser.clair`. Every helper app inside the bundle SHALL use an identifier prefixed with `com.clairbrowser.clair.`. These identifiers MUST NOT change in later releases.
 
 #### Scenario: Main bundle identifier
 - **WHEN** the `CFBundleIdentifier` of the shipped `Clair.app` is read
-- **THEN** it is exactly `dev.joshuapark.Clair`
+- **THEN** it is exactly `com.clairbrowser.clair`
 
 #### Scenario: Helper bundle identifiers
 - **WHEN** the bundle identifiers of all helper apps inside `Clair.app` are listed
-- **THEN** each one starts with `dev.joshuapark.Clair.`
+- **THEN** each one starts with `com.clairbrowser.clair.`
 
 ### Requirement: Isolated user data location
 The application SHALL store profile data under `~/Library/Application Support/Clair` and caches under `~/Library/Caches/Clair`. It MUST NOT read from or write to the data directories of Chromium, Google Chrome, or other Chromium-based browsers, except through an explicit user-initiated import.
