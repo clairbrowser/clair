@@ -114,6 +114,11 @@ The `release` environment is limited to `main`, and only the `package` and `publ
 
 `main`'s ruleset requires the merge gate's checks from everyone, admins included. Deploy keys are the only exception, and the release's should be the repository's only deploy key with write access. To replace it, add a new one, update the secret and remove the old one.
 
+The deploy key works only with two settings in place, which moving the repository into the `clairbrowser` organization lost (0.2.0's publish):
+
+- **The organization allows deploy keys:** `clairbrowser`'s Settings → Member privileges → Deploy keys → Enabled. New organizations start with them disabled, and while they're disabled every deploy key is too: it still authenticates, so the job's greeting check passes, but its pushes are refused with "Permission to clairbrowser/clair.git denied to deploy key". `gh api repos/clairbrowser/clair/keys --jq '.[].enabled'` shows `true` once the setting is back.
+- **`main`'s ruleset lets deploy keys bypass it:** Settings → Rules → Rulesets → `main` → Bypass list → Deploy keys, always allowed. Without it, the tag and the Release go out but the push to `main` is refused, and the appcast entry is stranded (see above). The push should report "Bypassed rule violations".
+
 GitHub secrets can't be read back, so 1Password is the only way to restore them. Losing the certificate only means creating a new one under the same team, but losing the EdDSA key strands every installed copy.
 
 The signing keychain isn't backed up, because each job creates its own with a random password and deletes it when it ends.
