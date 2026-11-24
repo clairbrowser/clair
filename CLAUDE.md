@@ -79,7 +79,7 @@ To compare Clair with Arc, or check a UI change by hand, use the probe tooling i
 
 ## Identifiers: never change these
 
-- Bundle ID: `dev.joshuapark.Clair`
+- Bundle ID: `com.clairbrowser.clair`
 - Data folder: `~/Library/Application Support/Clair`
 - Keychain item: "Clair Safe Storage"
 - Sparkle feed: `https://github.com/clairbrowser/clair/raw/main/.sparkle/appcast.xml`

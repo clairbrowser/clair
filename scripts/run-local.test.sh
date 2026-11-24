@@ -153,7 +153,7 @@ profile_arg() {
 }
 
 # A user defaults domain of the tests' own, never Clair's.
-defaults_domain="dev.joshuapark.Clair.run-local-test.$$"
+defaults_domain="com.clairbrowser.clair.run-local-test.$$"
 trap 'rm -rf "$workdir"; defaults delete "$defaults_domain" >/dev/null 2>&1; rm -f "$HOME/Library/Preferences/$defaults_domain.plist"' EXIT
 # Whether the domain holds any value: a deleted one reads as an empty dictionary.
 has_defaults() {

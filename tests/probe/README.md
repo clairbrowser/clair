@@ -37,7 +37,7 @@ without its coordinates.
 ```
 tests/probe/serve.sh start                         # pages on http://localhost:8765/
 tests/probe/launch-clair.sh http://localhost:8765/colour.html
-tests/probe/probe.sh start dev.joshuapark.Clair    # or no argument for Arc
+tests/probe/probe.sh start com.clairbrowser.clair    # or no argument for Arc
 tests/probe/probe.sh send "click 496 332 shift" "sleep 1.5" "key escape"
 tests/probe/probe.sh stop
 tests/probe/serve.sh stop
@@ -70,7 +70,7 @@ tests/probe/serve.sh stop
 
 **When the owner's own Clair is running** (for example a `run-local.sh` build
 they're trying), never attach the probe to Clair: with two copies running,
-XCUITest may drive theirs, so `probe.sh start dev.joshuapark.Clair` refuses.
+XCUITest may drive theirs, so `probe.sh start com.clairbrowser.clair` refuses.
 Drive the test copy over the DevTools protocol instead, which reaches only
 that copy: launch it with `launch-clair.sh --port 9333`, then
 `build/probe/bin/cdp 9333 <url part> click <x> <y> 8` Shift+clicks at CSS

@@ -73,7 +73,7 @@ final class WarnBeforeQuitting {
 /// (design D4).
 @Observable
 final class DefaultBrowser {
-  static let bundleIdentifier = "dev.joshuapark.Clair"
+  static let bundleIdentifier = "com.clairbrowser.clair"
 
   private(set) var isClair = false
 

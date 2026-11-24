@@ -7,7 +7,7 @@ probe_dir="$root/tests/probe"
 work="${CLAIR_PROBE_WORK:-$root/build/probe}"
 bin="$work/bin"
 lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-clair_id=dev.joshuapark.Clair
+clair_id=com.clairbrowser.clair
 
 die() {
   echo "$(basename "$0"): $1" >&2

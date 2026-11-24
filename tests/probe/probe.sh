@@ -8,7 +8,7 @@
 #   probe.sh status              whether it runs, and the end of its log
 #   probe.sh stop
 #
-# Clair (dev.joshuapark.Clair) must be the test copy from launch-clair.sh,
+# Clair (com.clairbrowser.clair) must be the test copy from launch-clair.sh,
 # running alone: start refuses to attach to Clair otherwise, since XCUITest
 # would launch, or drive, whichever copy Launch Services prefers.
 

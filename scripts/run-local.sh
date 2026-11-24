@@ -173,7 +173,7 @@ if [[ -z "$profile" ]]; then
   profile="$(mktemp -d "$work/profiles/profile.XXXXXX")"
   throwaway=true
 fi
-defaults_domain="${CLAIR_RUN_LOCAL_DEFAULTS_DOMAIN:-dev.joshuapark.Clair}"
+defaults_domain="${CLAIR_RUN_LOCAL_DEFAULTS_DOMAIN:-com.clairbrowser.clair}"
 saved_defaults="$(mktemp "$work/defaults.XXXXXX")"
 had_defaults=false
 # A deleted domain reads as an empty dictionary, which counts as none.
@@ -191,7 +191,7 @@ cleanup() {
     echo "run-local: couldn't restore the $defaults_domain user defaults; they're saved in $saved_defaults" >&2
   fi
   # The app and its notification helper register themselves with Launch
-  # Services; don't leave a second dev.joshuapark.Clair for "open" to pick.
+  # Services; don't leave a second com.clairbrowser.clair for "open" to pick.
   local bundle
   while IFS= read -r -d '' bundle; do
     "$lsregister" -u "$bundle" >/dev/null 2>&1 || true

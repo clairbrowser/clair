@@ -96,7 +96,7 @@
  // app's bundle ID actually is. All channels of Chrome should obey the same
  // policies.
 -const CFStringRef kBundleId = CFSTR("com.google.Chrome");
-+const CFStringRef kBundleId = CFSTR("dev.joshuapark.Clair");
++const CFStringRef kBundleId = CFSTR("com.clairbrowser.clair");
  
  constexpr char kEnrollmentTokenMetricsName[] =
      "Enterprise.CloudManagementEnrollmentTokenLocation.Mac";
@@ -118,7 +118,7 @@
            "EQHXZ8M8AV.com.google.Chrome"
  #else
 -          ".org.chromium.Chromium"
-+          ".dev.joshuapark.Clair"
++          ".com.clairbrowser.clair"
  #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
            ".unexportable-keys",
  #endif  // BUILDFLAG(IS_MAC)

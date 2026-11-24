@@ -24,7 +24,7 @@ check() {
   fi
 }
 
-clones="$workdir/X/dev.joshuapark.Clair.code_sign_clone"
+clones="$workdir/X/com.clairbrowser.clair.code_sign_clone"
 
 # Makes a fake clone NAME, aged an hour unless the second argument is "new".
 make_clone() {
@@ -87,14 +87,14 @@ check "is quiet when there's nothing to remove" "$(result test -z "$output")"
 # --- arguments -------------------------------------------------------------------------
 run 'bad id/../..'
 check "refuses a bundle ID that isn't one" "$(result test "$status" -ne 0)"
-run dev.joshuapark.Clair extra
+run com.clairbrowser.clair extra
 check "refuses extra arguments" "$(result test "$status" -ne 0)"
 
 # --- the default directory -------------------------------------------------------------
 # Without the override, it looks next to the user's temporary directory; a
 # bundle ID of the test's own has no clones there, so nothing is touched.
 status=0
-output="$("$clean" "dev.joshuapark.Clair.clean-test.$$" 2>&1)" || status=$?
+output="$("$clean" "com.clairbrowser.clair.clean-test.$$" 2>&1)" || status=$?
 check "succeeds on the real directory for a bundle ID with no clones" "$(result test "$status" -eq 0 -a -z "$output")"
 
 echo

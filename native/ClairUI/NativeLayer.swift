@@ -10,7 +10,7 @@ import os
 /// The running native layer. Chromium starts it once per launch, and it keeps
 /// the host for as long as the app runs.
 final class NativeLayer {
-  static let logger = Logger(subsystem: "dev.joshuapark.Clair", category: "ClairUI")
+  static let logger = Logger(subsystem: "com.clairbrowser.clair", category: "ClairUI")
 
   /// The layer Chromium started, if it has.
   private(set) static var current: NativeLayer?
@@ -50,7 +50,7 @@ final class NativeLayer {
   /// Runs what only makes sense inside the app: not in a unit test's process,
   /// whose main bundle isn't Clair.
   private func startInApp() {
-    guard Bundle.main.bundleIdentifier == "dev.joshuapark.Clair" else {
+    guard Bundle.main.bundleIdentifier == "com.clairbrowser.clair" else {
       return
     }
     let about = AboutWindowController(host: host, info: AboutInfo(bundle: .main, host: host))
