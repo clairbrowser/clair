@@ -80,29 +80,39 @@ jobs:
       matrix:
         include:
           - shard: updates
-            name: app, updates and restore
+            name: app, updates, restore and shared tabs
             tests: >-
               -only-testing:ClairRuntimeTests/AppTests
               -only-testing:ClairRuntimeTests/UpdateMenuTests
               -only-testing:ClairRuntimeTests/IdleInstallTests
               -only-testing:ClairRuntimeTests/CertificateDataTests
               -only-testing:ClairRuntimeTests/RestoreTests
+              -only-testing:ClairRuntimeTests/SharedTabsTests
+              -only-testing:ClairRuntimeTests/CommandBarTests
           - shard: profiles
-            name: profiles and link rules
+            name: profiles, link rules and extensions
             tests: >-
               -only-testing:ClairRuntimeTests/ProfilesTests
               -only-testing:ClairRuntimeTests/LinkRulesTests
+              -only-testing:ClairRuntimeTests/ExtensionActionTests
+              -only-testing:ClairRuntimeTests/DialogTests
+              -only-testing:ClairRuntimeTests/FullscreenTests
           # Everything else, so it must skip every class named above.
           - shard: app
-            name: window, Spaces, pins and shared tabs
+            name: window, Spaces and pins
             tests: >-
               -skip-testing:ClairRuntimeTests/AppTests
               -skip-testing:ClairRuntimeTests/UpdateMenuTests
               -skip-testing:ClairRuntimeTests/IdleInstallTests
               -skip-testing:ClairRuntimeTests/CertificateDataTests
               -skip-testing:ClairRuntimeTests/RestoreTests
+              -skip-testing:ClairRuntimeTests/SharedTabsTests
+              -skip-testing:ClairRuntimeTests/CommandBarTests
               -skip-testing:ClairRuntimeTests/ProfilesTests
               -skip-testing:ClairRuntimeTests/LinkRulesTests
+              -skip-testing:ClairRuntimeTests/ExtensionActionTests
+              -skip-testing:ClairRuntimeTests/DialogTests
+              -skip-testing:ClairRuntimeTests/FullscreenTests
     steps:
       - name: Check out
         uses: actions/checkout@v7
