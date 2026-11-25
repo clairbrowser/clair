@@ -653,12 +653,17 @@ struct SidebarFooter: View {
           items: creating ? items.map { $0.notCurrent } : items, showsNewSpaceDot: creating, actions: actions)
         Spacer(minLength: 2)
       }
-      // Arc's plus also offers folders, Easels and Boosts, which Clair hasn't.
+      // The plus menu (sidebar spec, "Plus menu"): Arc's also offers Easels,
+      // Boosts and Split View, which Clair hasn't.
       IconMenu(help: "New") {
-        if model.showsSpaces {
-          Button("New Space…") { actions?.beginNewSpace() }
+        ForEach(Array(SpacesLogic.plusMenu(showsSpaces: model.showsSpaces).enumerated()), id: \.offset) { _, item in
+          switch item {
+          case .newSpace: Button("New Space…") { actions?.beginNewSpace() }
+          case .newFolder: Button("New Folder") { actions?.newFolder() }
+          case .divider: Divider()
+          case .newTab: Button("New Tab") { actions?.newTab() }.keyboardShortcut("t", modifiers: .command)
+          }
         }
-        Button("New Tab") { actions?.newTab() }.keyboardShortcut("t", modifiers: .command)
       } label: {
         SymbolGlyph(systemImage: "plus", size: Self.glyphSize, weight: Self.glyphWeight)
       }
@@ -706,14 +711,14 @@ struct SpacePager: View {
         // transition of its own once it's out: removed inside the slide's
         // animation, it would fade where it was instead of sliding out.
         if let slide {
-          SpacePage(model: model, space: slide.fromSpace, tabs: slide.fromTabs, pins: slide.fromPins, actions: nil)
+          SpacePage(model: model, space: slide.fromSpace, tabs: slide.fromTabs, items: slide.fromItems, actions: nil)
             .offset(x: -direction * width * progress)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .transition(.identity)
         }
         SpacePage(
-          model: model, space: model.shownSpace, tabs: model.tabs, pins: model.pins, actions: actions,
+          model: model, space: model.shownSpace, tabs: model.tabs, items: model.pinnedItems, actions: actions,
           isSidebarHovered: isSidebarHovered, tabListHeight: $tabListHeight
         )
         .offset(x: slide == nil ? 0 : direction * width * (1 - progress))
@@ -747,8 +752,9 @@ struct SpacePage: View {
   let model: BrowserWindowModel
   let space: (any ClairSpace)?
   let tabs: [any ClairTab]
-  /// Its pinned tabs (add-pinned-tabs-and-favorites D11).
-  var pins: [any ClairPin] = []
+  /// Its pinned items, pinned tabs and folders (add-pinned-tabs-and-favorites
+  /// D11, add-tab-folders D4).
+  var items: [any ClairPinnedItem] = []
   weak var actions: (any SidebarActions)?
   var isSidebarHovered = false
   var tabListHeight: Binding<CGFloat>?
@@ -766,8 +772,9 @@ struct SpacePage: View {
         let collapsed = isShown ? model.isPinnedSectionCollapsed : false
         SpaceHeaderView(
           model: model, space: space, actions: actions, pinsCollapsed: collapsed,
-          // No chevron or hover pill without pinned tabs, as in Arc.
-          onToggleCollapse: PinsLogic.offersCollapse(pinCount: pins.count, collapsed: collapsed)
+          // No chevron or hover pill without pinned tabs or folders, as in
+          // Arc.
+          onToggleCollapse: PinsLogic.offersCollapse(pinCount: items.count, collapsed: collapsed)
             ? { [weak actions] in actions?.togglePinnedSection() } : nil,
           isDropTarget: isHeaderTargeted)
         // A row or tile dropped on the header is pinned last, as Pin Tab
@@ -775,11 +782,11 @@ struct SpacePage: View {
         .onDrop(
           of: [SidebarDragItem.type],
           delegate: PinningDropDelegate(
-            isEnabled: isShown && model.showsPins, target: .pinned(pins.count), isTargeted: $isHeaderTargeted,
+            isEnabled: isShown && model.showsPins, target: .pinned(items.count), isTargeted: $isHeaderTargeted,
             actions: actions))
       }
       TabList(
-        model: model, tabs: tabs, pins: pins, isSidebarHovered: isSidebarHovered, room: listHeight + spaceBelow,
+        model: model, tabs: tabs, items: items, isSidebarHovered: isSidebarHovered, room: listHeight + spaceBelow,
         actions: actions
       )
       .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
@@ -792,6 +799,21 @@ struct SpacePage: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { spaceBelow = $0 }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    // add-tab-folders D10: right-clicking the sidebar where there's no row
+    // or control, as below the list, opens the header's menu; other clicks
+    // go through, so the sidebar still moves the window.
+    .background {
+      if model.showsSpaces, actions != nil, space?.spaceID == model.shownSpaceID {
+        RowClickCatcher(onMiddleClick: {}, menuItems: sidebarMenuItems)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
+  /// The sidebar's own menu: the Space header's.
+  private var sidebarMenuItems: [RowClickCatcher.Item] {
+    guard let space else { return [] }
+    return SpaceHeaderView.menuItems(for: space, model: model, actions: actions)
   }
 }
 
@@ -981,8 +1003,8 @@ struct TabList: View {
   /// The Today rows' tabs: the window's in its Space, or the Space sliding
   /// out's.
   let tabs: [any ClairTab]
-  /// The pinned rows' pins.
-  var pins: [any ClairPin] = []
+  /// The pinned section's items, pinned tabs and folders.
+  var items: [any ClairPinnedItem] = []
   /// Whether the pointer is over the sidebar, which shows Clear.
   var isSidebarHovered = false
   /// The height the list may grow to, 0 until it's laid out.
@@ -994,7 +1016,8 @@ struct TabList: View {
 
   /// One of the list's items.
   enum Item: Identifiable {
-    case pin(any ClairPin)
+    /// A pinned tab or a folder (add-tab-folders D4).
+    case pinned(PinsLogic.PinnedRow)
     /// The divider, when it shows, and "New Tab", as one row, so the list
     /// offers no place between them.
     case boundary(showsDivider: Bool)
@@ -1002,7 +1025,7 @@ struct TabList: View {
 
     var id: String {
       switch self {
-      case .pin(let pin): "pin-\(pin.pinID)"
+      case .pinned(let row): row.id
       case .boundary: "boundary"
       case .tab(let tab): "tab-\(tab.tabID)"
       }
@@ -1032,9 +1055,9 @@ struct TabList: View {
 
   static func rowsHeight(model: BrowserWindowModel) -> CGFloat {
     let todayRows = TabListLogic.rowCount(model.tabs)
-    let pins = PinsLogic.visiblePins(
-      model.pins, collapsed: model.isPinnedSectionCollapsed, highlighted: model.highlightedTab)
-    return rowsHeight(pinCount: pins.count, tabCount: todayRows, showsPins: model.showsPins)
+    let pinned = PinsLogic.pinnedRows(
+      model.pinnedItems, collapsed: model.isPinnedSectionCollapsed, highlighted: model.highlightedTab)
+    return rowsHeight(pinCount: pinned.count, tabCount: todayRows, showsPins: model.showsPins)
   }
 
   /// Whether a list this tall is shorter than its rows, so it scrolls. It
@@ -1051,34 +1074,40 @@ struct TabList: View {
     let peeks = model.rowPeeks(in: tabs)
     let highlighted = model.highlightedTab
     let moveTargets = model.showsSpaces ? SpacesLogic.moveTargets(from: model.shownSpaceID, in: model.spaces.spaces) : []
-    let visiblePins = PinsLogic.visiblePins(pins, collapsed: model.isPinnedSectionCollapsed, highlighted: highlighted)
+    let collapsed = model.isPinnedSectionCollapsed
+    let pinned = PinsLogic.pinnedRows(items, collapsed: collapsed, highlighted: highlighted)
+    let expanded = collapsed ? PinsLogic.pinnedRows(items, collapsed: false, highlighted: highlighted) : pinned
     // Under the Space header, pinned tabs or not, as in Arc.
     let showsDivider = PinsLogic.showsDivider(todayRowCount: rows.count, showsPins: model.showsPins)
     let boundary = 1
-    let items: [Item] =
-      visiblePins.map { .pin($0) } + [.boundary(showsDivider: showsDivider)] + rows.map { .tab($0) }
+    let listItems: [Item] =
+      pinned.map { .pinned($0) } + [.boundary(showsDivider: showsDivider)] + rows.map { .tab($0) }
+    let items = items
     List {
-      ForEach(items) { item in
+      ForEach(listItems) { item in
         row(item, peeks: peeks, highlighted: highlighted, moveTargets: moveTargets)
           .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: -1))
           .listRowSeparator(.hidden)
           .listRowBackground(Color.clear)
       }
       .onMove { source, destination in
-        guard let from = source.first, items.indices.contains(from) else { return }
+        guard let from = source.first, listItems.indices.contains(from) else { return }
         let drop: PinsLogic.ListDrop
         let dragged: SidebarDragItem
-        switch items[from] {
-        case .pin(let pin):
-          dragged = .pin(pin.pinID)
+        switch listItems[from] {
+        case .pinned(let row):
+          switch row {
+          case .pin(let pin, _): dragged = .pin(pin.pinID)
+          case .folder(let folder): dragged = .folder(folder.folderID)
+          }
           drop = PinsLogic.listDrop(
-            destination: destination, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs,
-            movingPin: from)
+            destination: destination, rows: pinned, items: items, collapsed: collapsed, boundaryCount: boundary,
+            today: tabs, movingPinnedRow: from)
         case .tab(let tab):
           dragged = .tab(tab.tabID)
           drop = PinsLogic.listDrop(
-            destination: destination, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs,
-            movingTodayRow: from - visiblePins.count - boundary)
+            destination: destination, rows: pinned, items: items, collapsed: collapsed, boundaryCount: boundary,
+            today: tabs, movingTodayRow: from - pinned.count - boundary)
         // The divider and "New Tab" can be lifted but move nothing. They
         // aren't `moveDisabled`: the list then offers no place beside them
         // to a row dragged from above, such as a pinned tab to the top of
@@ -1086,12 +1115,13 @@ struct TabList: View {
         case .boundary:
           return
         }
-        actions?.drop(dragged, on: target(of: drop, visiblePins: visiblePins))
+        actions?.drop(dragged, on: Self.target(of: drop))
       }
       .onInsert(of: [SidebarDragItem.type]) { index, providers in
         let drop = PinsLogic.listDrop(
-          destination: index, pinCount: visiblePins.count, boundaryCount: boundary, today: tabs)
-        let target = target(of: drop, visiblePins: visiblePins)
+          destination: index, rows: pinned, items: items, collapsed: collapsed, boundaryCount: boundary,
+          today: tabs)
+        let target = Self.target(of: drop)
         let actions = actions
         SidebarDragItem.load(from: providers) { item in actions?.drop(item, on: target) }
       }
@@ -1104,7 +1134,7 @@ struct TabList: View {
     // the rows don't fit.
     .frame(
       maxHeight: Self.contentHeight(
-        rows: Self.rowsHeight(pinCount: visiblePins.count, tabCount: rows.count, showsPins: model.showsPins)))
+        rows: Self.rowsHeight(pinCount: pinned.count, tabCount: rows.count, showsPins: model.showsPins)))
     // Collapsing, the list slides the rows below over the pinned rows that go
     // and shrinks with them. Expanding, it adds the rows at once, so it takes
     // its new height at once too, and its rows slide down from under the
@@ -1116,25 +1146,25 @@ struct TabList: View {
       PinnedSectionReveal(
         progress: model.isPinnedSectionCollapsed ? 0 : 1, isCollapsed: model.isPinnedSectionCollapsed,
         height: Self.revealHeight(
-          hiddenPins: pins.count - PinsLogic.visiblePins(pins, collapsed: true, highlighted: highlighted).count,
-          expandedRows: Self.rowsHeight(pinCount: pins.count, tabCount: rows.count, showsPins: model.showsPins),
+          hiddenPins: expanded.count - PinsLogic.pinnedRows(items, collapsed: true, highlighted: highlighted).count,
+          expandedRows: Self.rowsHeight(pinCount: expanded.count, tabCount: rows.count, showsPins: model.showsPins),
           room: room)))
     .clipped()
     .accessibilityIdentifier("clair.tabList")
   }
 
-  /// Where a drop in the list goes, its pinned index counted among every pin
-  /// while the section is collapsed.
-  private func target(of drop: PinsLogic.ListDrop, visiblePins: [any ClairPin]) -> SidebarDropTarget {
+  /// The sidebar's own menu: the Space header's.
+  private var sidebarMenuItems: [RowClickCatcher.Item] {
+    guard let space = model.shownSpace else { return [] }
+    return SpaceHeaderView.menuItems(for: space, model: model, actions: actions)
+  }
+
+  /// Where a drop in the list goes.
+  static func target(of drop: PinsLogic.ListDrop) -> SidebarDropTarget {
     switch drop {
-    case .today(let index):
-      return .today(index)
-    case .pinned(let index):
-      guard visiblePins.count != pins.count else { return .pinned(index) }
-      if index < visiblePins.count, let full = pins.firstIndex(where: { $0.pinID == visiblePins[index].pinID }) {
-        return .pinned(full)
-      }
-      return .pinned(pins.count)
+    case .today(let index): .today(index)
+    case .pinned(let index): .pinned(index)
+    case .folder(let folderID, let index): .folder(folderID, index)
     }
   }
 
@@ -1143,7 +1173,7 @@ struct TabList: View {
     _ item: Item, peeks: [TabID: any ClairTab], highlighted: TabID, moveTargets: [any ClairSpace]
   ) -> some View {
     switch item {
-    case .pin(let pin):
+    case .pinned(.pin(let pin, let folder)):
       let tab = model.tab(ofPin: pin)
       PinRow(
         pin: pin, tab: tab, peek: tab.flatMap { $0.peekID != ClairTabIDNone ? model.pinTabs[$0.peekID] : nil },
@@ -1151,7 +1181,15 @@ struct TabList: View {
         moveTargets: moveTargets, rename: model.renaming?.row == .pin(pin.pinID) ? model.renaming : nil,
         actions: actions
       )
+      // add-tab-folders D4: a folder's tabs are indented under it.
+      .padding(.leading, folder == nil ? 0 : FolderRow.indent)
       .itemProvider { SidebarDragItem.pin(pin.pinID).itemProvider() }
+    case .pinned(.folder(let folder)):
+      FolderRow(
+        folder: folder, moveTargets: moveTargets,
+        rename: model.renaming?.row == .folder(folder.folderID) ? model.renaming : nil, actions: actions
+      )
+      .itemProvider { SidebarDragItem.folder(folder.folderID).itemProvider() }
     case .boundary(let showsDivider):
       VStack(spacing: 0) {
         if showsDivider {
@@ -1164,6 +1202,16 @@ struct TabList: View {
         NewTabRow(isHighlighted: model.commandBar?.mode == .newTab) { actions?.newTab() }
           // From inside a row, where it can reach the list's scroll view.
           .background(ScrollerControlSize(size: .small))
+          // add-tab-folders D10: right-clicking the list where there's no
+          // row opens the header's menu.
+          .background(TableMenuInstaller(items: model.showsSpaces && actions != nil ? sidebarMenuItems : nil))
+          // add-tab-folders D10: right-clicking "New Tab" opens the header's
+          // menu, as in Arc.
+          .overlay {
+            if model.showsSpaces && actions != nil {
+              RowClickCatcher(onMiddleClick: {}, menuItems: sidebarMenuItems)
+            }
+          }
       }
     case .tab(let tab):
       TabRow(

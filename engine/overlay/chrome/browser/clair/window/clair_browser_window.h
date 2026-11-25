@@ -59,6 +59,10 @@ namespace autofill {
 class AutofillBubbleHandler;
 }  // namespace autofill
 
+namespace clair {
+struct Pin;
+}  // namespace clair
+
 // The location bar a native window gives Chromium: there is none to draw, but
 // Chromium dereferences it on every tab switch. Focusing it opens the command
 // bar. It has no chip controller, so permission requests use the bubble.
@@ -334,6 +338,10 @@ class ClairBrowserWindow : public BrowserWindow {
   // add-pinned-tabs-and-favorites D4: the rows of open tabs, its open pinned
   // tabs first; and its Today rows alone.
   std::vector<tabs::TabInterface*> Rows() const;
+  // add-tab-folders D9: the pinned tabs of `space` that are rows here, open
+  // or not, in the sidebar's order: a closed folder's only while their page
+  // is open. None in an incognito or guest window.
+  std::vector<const clair::Pin*> RowPins(const std::string& space) const;
   std::vector<tabs::TabInterface*> TodayRows() const;
   // Whether `tab` is the row the window shows: the active tab, or the parent
   // of the active Peek. Never while the window shows a still.

@@ -17,7 +17,7 @@ This builds on `add-pinned-tabs-and-favorites`, `polish-sidebar-drops` and `show
   - right-clicking the sidebar where there's no row or control, or on the "New Tab" row, opens the header's menu.
 
   Each adds an open folder named "Untitled" at the end of the pinned section, with its name selected in a field. Tabs › New Folder… opens a dialog, "What are you organizing?", with Cancel and Create.
-- **Opening and closing.** A click on a folder opens or closes it. Each folder remembers whether it's open, in every window and across launches. A closed folder still lists its selected tab, and its icon shows "•••" while any of its tabs is open. Hovering a folder with open tabs shows "Close This Folder" (−), which closes their pages and keeps them in the folder.
+- **Opening and closing.** A click on a folder opens or closes it. Each folder remembers whether it's open, in every window and across launches. A closed folder still lists its tabs whose page is open, and its icon shows "•••" while any of its tabs is open. Hovering a folder with open tabs shows "Close This Folder" (−), which closes their pages and keeps them in the folder.
 - **Dragging.** A tab dropped on a folder becomes its first tab. Tabs move into, within and out of a folder by dragging, and folders reorder within the pinned section. A drop just below an open folder's last tab lands in the folder, as in Arc.
 - **The folder menu:** Turn "<name>" into Space, Rename…, Duplicate, Move to Space › (with more than one Space) and Delete.
   - **Turn into Space** makes a new Space named after the folder, using the same profile, with the folder's tabs as its pinned tabs, and shows it.

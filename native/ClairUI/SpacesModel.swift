@@ -18,7 +18,8 @@ protocol SpacesModelListener: AnyObject {
   func spacesDidChange()
   /// Profiles were created, renamed or deleted.
   func profilesDidChange()
-  /// A Space's pinned tabs changed (add-pinned-tabs-and-favorites D11).
+  /// A Space's pinned tabs or folders changed (add-pinned-tabs-and-favorites
+  /// D11, add-tab-folders D2).
   func spacePinsDidChange(_ spaceID: SpaceID)
   /// A profile's favorites changed.
   func favoritesDidChange(_ profileID: ProfileID)
@@ -48,9 +49,9 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
 
   /// Each Space's tabs, in its order, as last reported.
   @ObservationIgnored private var tabsBySpace: [SpaceID: [any ClairTab]] = [:]
-  /// Each Space's pinned tabs and each profile's favorites, in order, as last
-  /// reported (add-pinned-tabs-and-favorites D11).
-  @ObservationIgnored private var pinsBySpace: [SpaceID: [any ClairPin]] = [:]
+  /// Each Space's pinned items and each profile's favorites, in order, as
+  /// last reported (add-pinned-tabs-and-favorites D11, add-tab-folders D2).
+  @ObservationIgnored private var itemsBySpace: [SpaceID: [any ClairPinnedItem]] = [:]
   @ObservationIgnored private var favoritesByProfile: [ProfileID: [any ClairPin]] = [:]
   @ObservationIgnored private let listeners = NSHashTable<AnyObject>.weakObjects()
 
@@ -96,14 +97,33 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     tabs(inSpace: spaceID).filter { $0.browserID == browserID }
   }
 
-  /// A Space's pinned tabs, in its order.
-  func pins(inSpace spaceID: SpaceID) -> [any ClairPin] {
-    if let pins = pinsBySpace[spaceID] {
-      return pins
+  /// A Space's pinned items, pinned tabs and folders, in its order.
+  func pinnedItems(inSpace spaceID: SpaceID) -> [any ClairPinnedItem] {
+    if let items = itemsBySpace[spaceID] {
+      return items
     }
-    let pins = host?.pins(inSpace: spaceID) ?? []
-    pinsBySpace[spaceID] = pins
-    return pins
+    let items = host?.pinnedItems(inSpace: spaceID) ?? []
+    itemsBySpace[spaceID] = items
+    return items
+  }
+
+  /// Every pinned tab of a Space, its folders' included, in the sidebar's
+  /// order.
+  func pins(inSpace spaceID: SpaceID) -> [any ClairPin] {
+    PinsLogic.allPins(pinnedItems(inSpace: spaceID))
+  }
+
+  /// A Space's folders, in its order.
+  func folders(inSpace spaceID: SpaceID) -> [any ClairFolder] {
+    pinnedItems(inSpace: spaceID).compactMap(\.folder)
+  }
+
+  /// A folder of any Space, by its ID.
+  func folder(_ folderID: FolderID) -> (any ClairFolder)? {
+    for items in itemsBySpace.values {
+      if let folder = items.lazy.compactMap(\.folder).first(where: { $0.folderID == folderID }) { return folder }
+    }
+    return nil
   }
 
   /// A profile's favorites, in its order.
@@ -192,16 +212,18 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
 
   // MARK: Pins (add-pinned-tabs-and-favorites design D5, D6, D8)
 
-  func pin(tab: TabID, at index: Int) {
-    host?.pin(tab: tab, at: index)
+  /// Pins a Today tab at `index` in its Space's pinned section, or in
+  /// `folderID`.
+  func pin(tab: TabID, inFolder folderID: FolderID? = nil, at index: Int) {
+    host?.pin(tab: tab, inFolder: folderID, at: index)
   }
 
   func favorite(tab: TabID, at index: Int) {
     host?.favorite(tab: tab, at: index)
   }
 
-  func movePin(_ pinID: PinID, toSpace spaceID: SpaceID, at index: Int) {
-    host?.movePin(pinID, toSpace: spaceID, at: index)
+  func movePin(_ pinID: PinID, toSpace spaceID: SpaceID, folder folderID: FolderID? = nil, at index: Int) {
+    host?.movePin(pinID, toSpace: spaceID, folder: folderID, at: index)
   }
 
   func movePin(_ pinID: PinID, toFavoritesAt index: Int) {
@@ -236,10 +258,55 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     host?.clearToday(inSpace: spaceID)
   }
 
+  // MARK: Folders (add-tab-folders design D2, D6 to D8, D11)
+
+  /// Adds a folder named `name` at `index` among a Space's pinned items, and
+  /// returns its ID.
+  @discardableResult
+  func createFolder(named name: String, inSpace spaceID: SpaceID, at index: Int) -> FolderID? {
+    let name = SpacesLogic.cleanName(name)
+    guard !name.isEmpty else { return nil }
+    return host?.createFolder(named: name, inSpace: spaceID, at: index)
+  }
+
+  /// Renames a folder; an empty name, or the one it has, changes nothing.
+  func renameFolder(_ folderID: FolderID, to name: String) {
+    let name = SpacesLogic.cleanName(name)
+    guard !name.isEmpty, let folder = folder(folderID), folder.name != name else { return }
+    host?.renameFolder(folderID, to: name)
+  }
+
+  func setFolder(_ folderID: FolderID, open: Bool) {
+    host?.setFolder(folderID, open: open)
+  }
+
+  func moveFolder(_ folderID: FolderID, toSpace spaceID: SpaceID, at index: Int) {
+    host?.moveFolder(folderID, toSpace: spaceID, at: index)
+  }
+
+  func duplicateFolder(_ folderID: FolderID) {
+    host?.duplicateFolder(folderID)
+  }
+
+  /// Deletes a folder and its pinned tabs, without asking; the caller asks.
+  func deleteFolder(_ folderID: FolderID) {
+    host?.deleteFolder(folderID)
+  }
+
+  func closeTabs(inFolder folderID: FolderID) {
+    host?.closeTabs(inFolder: folderID)
+  }
+
+  /// Makes a Space of the folder and returns its ID.
+  @discardableResult
+  func turnFolderIntoSpace(_ folderID: FolderID) -> SpaceID? {
+    host?.turnFolderIntoSpace(folderID)
+  }
+
   /// A pin of any Space or profile, by its ID.
   func pin(_ pinID: PinID) -> (any ClairPin)? {
-    for pins in pinsBySpace.values {
-      if let pin = pins.first(where: { $0.pinID == pinID }) { return pin }
+    for items in itemsBySpace.values {
+      if let pin = PinsLogic.allPins(items).first(where: { $0.pinID == pinID }) { return pin }
     }
     for pins in favoritesByProfile.values {
       if let pin = pins.first(where: { $0.pinID == pinID }) { return pin }
@@ -313,15 +380,21 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     /// Its rows, in every window, and its pinned tabs, which go with it
     /// (add-pinned-tabs-and-favorites D9).
     let tabCount: Int
+    /// Its folders, which go with it too (add-tab-folders).
+    var folderCount = 0
     /// Whether to ask first (spaces spec, "Deleting a Space").
-    var needsConfirmation: Bool { SpacesLogic.deletionNeedsConfirmation(tabCount: tabCount) }
+    var needsConfirmation: Bool {
+      SpacesLogic.deletionNeedsConfirmation(tabCount: tabCount, folderCount: folderCount)
+    }
   }
 
   /// What deleting `spaceID` takes, or nil when it can't be deleted: the only
   /// Space, or one that's gone.
   func deletion(of spaceID: SpaceID) -> Deletion? {
     guard spaces.count > 1, let space = space(spaceID) else { return nil }
-    return Deletion(space: space, tabCount: rowCount(inSpace: spaceID) + pins(inSpace: spaceID).count)
+    return Deletion(
+      space: space, tabCount: rowCount(inSpace: spaceID) + pins(inSpace: spaceID).count,
+      folderCount: folders(inSpace: spaceID).count)
   }
 
   /// Deletes a Space and closes its tabs, without asking; the caller asks
@@ -341,7 +414,7 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     // and stay.
     for space in self.spaces where !known.contains(space.spaceID) {
       tabsBySpace[space.spaceID] = nil
-      pinsBySpace[space.spaceID] = nil
+      itemsBySpace[space.spaceID] = nil
     }
     self.spaces = spaces
     for listener in allListeners {
@@ -374,8 +447,8 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     }
   }
 
-  func pinsDidChange(_ pins: [any ClairPin], inSpace spaceID: SpaceID) {
-    pinsBySpace[spaceID] = pins
+  func pinnedItemsDidChange(_ items: [any ClairPinnedItem], inSpace spaceID: SpaceID) {
+    itemsBySpace[spaceID] = items
     for listener in allListeners {
       listener.spacePinsDidChange(spaceID)
     }

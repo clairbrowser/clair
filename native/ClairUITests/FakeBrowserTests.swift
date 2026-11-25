@@ -537,3 +537,101 @@ struct FakeBrowserTests {
     #expect(browser.addBookmarkFolder("   ") == ClairBookmarkFolderIDNone)
   }
 }
+
+// MARK: Folders (add-tab-folders design D1 to D3, D7 to D9)
+
+@MainActor
+struct FakeFolderTests {
+  @Test func foldersAreItemsOfTheirSpace() {
+    let host = FakeHost()
+    let observer = RecordingSpacesObserver()
+    host.addObserver(observer)
+    host.addPin(url: "https://mail.example/", title: "Mail")
+    let docs = host.addFolder("Docs")
+    host.addPin(url: "https://spec.example/", title: "Spec", folder: docs)
+    host.addPin(url: "https://plan.example/", title: "Plan", folder: docs)
+    let items = host.pinnedItems(inSpace: FakeHost.homeID)
+    #expect(items.map { $0.pin?.title ?? $0.folder?.name ?? "" } == ["Mail", "Docs"])
+    #expect(items[1].folder?.pins.map(\.title) == ["Spec", "Plan"])
+    #expect(items[1].folder?.pins.allSatisfy { $0.folderID == docs } == true)
+    #expect(observer.calls.last == "pins \(FakeHost.homeID) Mail,[Docs: Spec,Plan]")
+    // Every pinned tab of the Space, in the sidebar's order.
+    #expect(host.pins(inSpace: FakeHost.homeID).map(\.title) == ["Mail", "Spec", "Plan"])
+  }
+
+  @Test func pinsGoIntoAndOutOfFoldersByPlace() {
+    let browser = FakeBrowser()
+    let host = browser.host
+    let docs = host.addFolder("Docs")
+    let spec = browser.addTab(title: "Spec", url: "https://spec.example/")
+    host.pin(tab: spec.tabID, inFolder: docs, at: 0)
+    #expect(host.pinRecords(inFolder: docs).map(\.title) == ["Spec"])
+    let pinID = host.pinRecords(inFolder: docs)[0].id
+    host.movePin(pinID, toSpace: FakeHost.homeID, folder: nil, at: 0)
+    #expect(host.pinRecords(inFolder: docs).isEmpty)
+    #expect(host.pinnedItems(inSpace: FakeHost.homeID).first?.pin?.title == "Spec")
+    // A folder of another Space is ignored.
+    let work = host.addSpaces("Work")[0]
+    let other = host.addFolder("Other", inSpace: work)
+    host.movePin(pinID, toSpace: FakeHost.homeID, folder: other, at: 0)
+    #expect(host.pinRecords(inFolder: other).isEmpty)
+  }
+
+  @Test func eachFolderRemembersWhetherItsOpen() {
+    let host = FakeHost()
+    let docs = host.addFolder("Docs")
+    #expect(host.pinnedItems(inSpace: FakeHost.homeID)[0].folder?.isOpen == true)
+    host.setFolder(docs, open: false)
+    #expect(host.pinnedItems(inSpace: FakeHost.homeID)[0].folder?.isOpen == false)
+  }
+
+  @Test func aClosedFoldersUnopenedTabsArentRows() {
+    let browser = FakeBrowser()
+    let host = browser.host
+    let p = host.addPin(url: "https://p.example/", title: "P")
+    let docs = host.addFolder("Docs", open: false)
+    let s = host.addPin(url: "https://s.example/", title: "S", folder: docs)
+    let x = browser.addTab(title: "X")
+    browser.openPin(p)
+    let pTab = host.boundTab(of: p)?.tabID ?? ClairTabIDNone
+    #expect(browser.openRows == [pTab, x.tabID])
+    // Once its page is open, it's a row, selected or not.
+    browser.openPin(s)
+    let sTab = host.boundTab(of: s)?.tabID ?? ClairTabIDNone
+    browser.activate(tab: x.tabID)
+    #expect(browser.openRows == [pTab, sTab, x.tabID])
+  }
+
+  @Test func turningAFolderIntoASpaceMovesItsPins() {
+    let host = FakeHost()
+    let trip = host.addFolder("Trip")
+    host.addPin(url: "https://flights.example/", title: "Flights", folder: trip)
+    let spaceID = host.turnFolderIntoSpace(trip)
+    #expect(spaceID != nil)
+    #expect(host.spaces.last?.name == "Trip")
+    #expect(host.pinnedItems(inSpace: spaceID ?? "").map { $0.pin?.title } == ["Flights"])
+    #expect(host.folderRecord(trip) == nil)
+  }
+
+  @Test func aRemovedPinComesBackIntoItsFolderWhileItExists() {
+    let host = FakeHost()
+    let docs = host.addFolder("Docs")
+    let spec = host.addPin(url: "https://spec.example/", title: "Spec", folder: docs)
+    host.addPin(url: "https://plan.example/", title: "Plan", folder: docs)
+    host.removePin(spec)
+    host.restoreRemovedPin()
+    #expect(host.pinRecords(inFolder: docs).map(\.title) == ["Spec", "Plan"])
+    host.removePin(spec)
+    host.deleteFolder(docs)
+    host.restoreRemovedPin()
+    #expect(host.pinnedItems(inSpace: FakeHost.homeID).last?.pin?.title == "Spec")
+  }
+
+  @Test func deletingASpaceRemovesItsFolders() {
+    let host = FakeHost()
+    let work = host.addSpaces("Work")[0]
+    host.addFolder("Docs", inSpace: work)
+    host.deleteSpace(work)
+    #expect(host.folderRecords(inSpace: work).isEmpty)
+  }
+}

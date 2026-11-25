@@ -191,7 +191,7 @@ enum ManageSpacesDialog {
     }
     dialog.swap(
       to: BrowserWindowController.deletionPage(
-        for: deletion.space, tabCount: deletion.tabCount,
+        for: deletion.space, tabCount: deletion.tabCount, folderCount: deletion.folderCount,
         confirm: { dialog in
           delete()
           dialog.swapBack()

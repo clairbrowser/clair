@@ -109,8 +109,12 @@ struct SpacesLogicTests {
 
   @Test func headerMenuOffersArcsItems() {
     let titles = SpacesLogic.headerMenu(spaceCount: 2).map { $0?.title }
+    // add-tab-folders: New Folder between dividers after Set Profile.
     #expect(
-      titles == ["Change Space Icon…", "Rename Space…", "Set Profile", nil, "Manage Spaces…", nil, "Delete Space"])
+      titles == [
+        "Change Space Icon…", "Rename Space…", "Set Profile", nil, "New Folder", nil, "Manage Spaces…", nil,
+        "Delete Space",
+      ])
   }
 
   @Test func deleteSpaceIsOffForTheOnlySpace() {

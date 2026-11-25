@@ -40,6 +40,20 @@ protocol PinActions: AnyObject {
   func dismissFavoritesHint()
   /// A row or tile dropped somewhere it moves to.
   func drop(_ item: SidebarDragItem, on target: SidebarDropTarget)
+
+  // Folders (add-tab-folders design D4, D6 to D8, D11); New Folder is a
+  // SpaceActions call.
+  /// Tabs › New Folder…: asks for the name first.
+  func newFolderWithDialog()
+  /// A click on the folder's row.
+  func toggleFolder(_ folderID: FolderID)
+  /// Close This Folder.
+  func closeTabs(inFolder folderID: FolderID)
+  func turnFolderIntoSpace(_ folderID: FolderID)
+  func duplicateFolder(_ folderID: FolderID)
+  func moveFolder(_ folderID: FolderID, toSpace spaceID: SpaceID)
+  /// Asks first when it has tabs.
+  func deleteFolder(_ folderID: FolderID)
 }
 
 // MARK: Dragging between sections (design D5, D11)
@@ -48,6 +62,9 @@ protocol PinActions: AnyObject {
 enum SidebarDragItem: Equatable {
   case tab(TabID)
   case pin(PinID)
+  /// A folder, which moves only within its Space's pinned section
+  /// (add-tab-folders D4).
+  case folder(FolderID)
 
   /// Its own type, so a page's text or link dropped on the sidebar is
   /// ignored. It's text, which `package.sh` declares too: a list row dragged
@@ -59,6 +76,7 @@ enum SidebarDragItem: Equatable {
     switch self {
     case .tab(let tabID): "tab:\(tabID)"
     case .pin(let pinID): "pin:\(pinID)"
+    case .folder(let folderID): "folder:\(folderID)"
     }
   }
 
@@ -67,6 +85,8 @@ enum SidebarDragItem: Equatable {
       self = .tab(tabID)
     } else if payload.hasPrefix("pin:") {
       self = .pin(String(payload.dropFirst(4)))
+    } else if payload.hasPrefix("folder:") {
+      self = .folder(String(payload.dropFirst(7)))
     } else {
       return nil
     }
@@ -98,7 +118,10 @@ enum SidebarDragItem: Equatable {
 
 /// Where a dragged row or tile lands.
 enum SidebarDropTarget: Equatable {
+  /// At this index among the Space's pinned items, pinned tabs and folders.
   case pinned(Int)
+  /// At this index among a folder's pinned tabs (add-tab-folders D4, D5).
+  case folder(FolderID, Int)
   case today(Int)
   case favorites(Int)
 }
@@ -563,7 +586,9 @@ enum PinMenus {
     case .unpin: actions?.unpin(pinID)
     case .closeTab: actions?.closeKeepingPin(pinID)
     case .removeFavorite: actions?.removePin(pinID)
-    case .pin, .editPinnedPage, .replacePinnedURL, .editPinnedURL, .moveToSpace, .closeTabsBelow: break
+    case .pin, .editPinnedPage, .replacePinnedURL, .editPinnedURL, .moveToSpace, .closeTabsBelow, .turnIntoSpace,
+      .deleteFolder:
+      break
     }
   }
 }
@@ -649,15 +674,23 @@ struct RenameField: NSViewRepresentable {
   let onEnd: (PinsLogic.NameChange) -> Void
   /// The custom name now, which an unchanged draft keeps.
   var current: String?
+  /// The field's font: a folder's name is semibold (add-tab-folders D4).
+  var font: NSFont = RenameField.font
+  /// What a draft does to the current name: a row's name clears when
+  /// emptied, a folder's stays (add-tab-folders D6).
+  var change: (String, String?) -> PinsLogic.NameChange = { PinsLogic.nameChange(draft: $0, current: $1) }
 
   init(
-    text: String, placeholder: String, rename: RowRename, current: String? = nil,
+    text: String, placeholder: String, rename: RowRename, current: String? = nil, font: NSFont = RenameField.font,
+    change: @escaping (String, String?) -> PinsLogic.NameChange = { PinsLogic.nameChange(draft: $0, current: $1) },
     onEnd: @escaping (PinsLogic.NameChange) -> Void
   ) {
     self.text = text
     self.placeholder = placeholder
     self.rename = rename
     self.current = current
+    self.font = font
+    self.change = change
     self.onEnd = onEnd
   }
 
@@ -680,7 +713,7 @@ struct RenameField: NSViewRepresentable {
   }
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(onEnd: onEnd, current: current)
+    Coordinator(onEnd: onEnd, current: current, change: change)
   }
 
   func makeNSView(context: Context) -> NSTextField {
@@ -688,7 +721,7 @@ struct RenameField: NSViewRepresentable {
     field.isBordered = false
     field.drawsBackground = false
     field.focusRingType = .none
-    field.font = Self.font
+    field.font = font
     field.placeholderString = placeholder
     field.lineBreakMode = .byTruncatingTail
     field.cell?.usesSingleLineMode = true
@@ -728,23 +761,29 @@ struct RenameField: NSViewRepresentable {
     field.placeholderString = placeholder
     context.coordinator.onEnd = onEnd
     context.coordinator.current = current
+    context.coordinator.change = change
   }
 
   final class Coordinator: NSObject, NSTextFieldDelegate {
     var onEnd: (PinsLogic.NameChange) -> Void
     var current: String?
+    var change: (String, String?) -> PinsLogic.NameChange
     var isEditing = false
     private var ended = false
 
-    init(onEnd: @escaping (PinsLogic.NameChange) -> Void, current: String?) {
+    init(
+      onEnd: @escaping (PinsLogic.NameChange) -> Void, current: String?,
+      change: @escaping (String, String?) -> PinsLogic.NameChange
+    ) {
       self.onEnd = onEnd
       self.current = current
+      self.change = change
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
       switch selector {
       case #selector(NSResponder.insertNewline(_:)):
-        end(PinsLogic.nameChange(draft: textView.string, current: current))
+        end(change(textView.string, current))
         return true
       case #selector(NSResponder.cancelOperation(_:)):
         end(.unchanged)
@@ -758,7 +797,7 @@ struct RenameField: NSViewRepresentable {
       // Clicking elsewhere keeps the edit, as in Arc (tab-names spec); an end
       // before the field has the keyboard is no edit at all.
       guard isEditing, let field = notification.object as? NSTextField else { return }
-      end(PinsLogic.nameChange(draft: field.stringValue, current: current))
+      end(change(field.stringValue, current))
     }
 
     private func end(_ change: PinsLogic.NameChange) {

@@ -140,7 +140,8 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   tabs::TabInterface* BoundTab(std::string_view pin) const;
   // Whether `tab` is bound to a favorite.
   bool IsFavoriteTab(const tabs::TabInterface* tab) const;
-  // The bound tabs of a Space's pinned tabs, in the pins' order.
+  // The bound tabs of a Space's pinned tabs, its folders' included, in the
+  // sidebar's order (add-tab-folders D9).
   std::vector<tabs::TabInterface*> PinnedTabsIn(const std::string& space) const;
   // The bound tabs of the profile's favorites, in their order.
   std::vector<tabs::TabInterface*> FavoriteTabs() const;
@@ -362,12 +363,27 @@ void KeepLastUsedProfileOnASpace();
 tabs::TabInterface* BoundTabOf(std::string_view pin);
 // A container's pins, as snapshots, in order.
 NSArray<id<ClairPin>>* PinSnapshots(const PinContainer& container);
+// add-tab-folders D2: a Space's pinned items, pins and folders, as snapshots,
+// in order.
+NSArray<id<ClairPinnedItem>>* PinnedItemSnapshots(const std::string& space);
 // Pushes a container's pins to the observers at the end of this run-loop
 // turn, or with the next FlushAll().
 void PinsChanged(const PinContainer& container);
-// The host's pin calls.
-void PinTab(tabs::TabInterface* tab, size_t index, bool favorite);
+// The host's pin calls. `folder` is a folder of the tab's Space, or empty.
+void PinTab(tabs::TabInterface* tab,
+            const std::string& folder,
+            size_t index,
+            bool favorite);
 void MovePin(const std::string& pin, const PinContainer& to, size_t index);
+// add-tab-folders D7, D8, D11: the host's folder calls that reach tabs.
+void MoveFolder(const std::string& folder,
+                const std::string& space,
+                size_t index);
+void DuplicateFolder(const std::string& folder);
+void DeleteFolder(const std::string& folder);
+void CloseTabsInFolder(const std::string& folder);
+// Returns the new Space's ID, or empty.
+std::string TurnFolderIntoSpace(const std::string& folder);
 void RemovePin(const std::string& pin);
 void ReturnToPinnedURL(const std::string& pin);
 void ReplacePinnedURLWithCurrent(const std::string& pin);

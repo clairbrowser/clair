@@ -5,6 +5,7 @@
 #include "chrome/browser/clair/clair_profiles.h"
 
 #include <algorithm>
+#include <set>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -14,6 +15,8 @@
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/uuid.h"
+#include "base/values.h"
 #include "chrome/browser/browser_process.h"
 #import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_space_store.h"
@@ -26,6 +29,9 @@
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/common/chrome_constants.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 
 @interface ClairChromiumProfile : NSObject <ClairProfile>
 - (instancetype)initWithInfo:(const clair::ClairProfiles::Info&)info;
@@ -56,6 +62,10 @@ ProfileAttributesStorage* Storage() {
   return manager ? &manager->GetProfileAttributesStorage() : nullptr;
 }
 
+PrefService* LocalState() {
+  return g_browser_process ? g_browser_process->local_state() : nullptr;
+}
+
 std::string Clean(std::string_view name) {
   std::string trimmed(base::TrimWhitespaceASCII(name, base::TRIM_ALL));
   std::string cut;
@@ -69,6 +79,11 @@ std::string Clean(std::string_view name) {
 ClairProfiles* ClairProfiles::Get() {
   static base::NoDestructor<ClairProfiles> profiles;
   return profiles.get();
+}
+
+// static
+void ClairProfiles::RegisterPrefs(PrefRegistrySimple* registry) {
+  registry->RegisterDictionaryPref(kProfilesPref);
 }
 
 // static
@@ -89,6 +104,60 @@ void ClairProfiles::Start() {
   if (ProfileAttributesStorage* storage = Storage();
       storage && !observation_.IsObserving()) {
     observation_.Observe(storage);
+    ReconcileStoredIDs();
+  }
+}
+
+std::string ClairProfiles::StoredIDOf(std::string_view directory) {
+  PrefService* prefs = LocalState();
+  if (!prefs || directory.empty()) {
+    return std::string();
+  }
+  for (const auto [id, value] : prefs->GetDict(kProfilesPref)) {
+    if (value.is_string() && value.GetString() == directory) {
+      return id;
+    }
+  }
+  if (!Exists(directory)) {
+    return std::string();
+  }
+  std::string id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+  ScopedDictPrefUpdate(prefs, kProfilesPref)->Set(id, std::string(directory));
+  return id;
+}
+
+std::string ClairProfiles::DirectoryOf(std::string_view stored_id) const {
+  PrefService* prefs = LocalState();
+  const std::string* directory =
+      prefs ? prefs->GetDict(kProfilesPref).FindString(stored_id) : nullptr;
+  return directory && Exists(*directory) ? *directory : std::string();
+}
+
+void ClairProfiles::ReconcileStoredIDs() {
+  PrefService* prefs = LocalState();
+  ProfileAttributesStorage* storage = Storage();
+  if (!prefs || !storage) {
+    return;
+  }
+  std::set<std::string> directories;
+  for (ProfileAttributesEntry* entry : storage->GetAllProfilesAttributes()) {
+    directories.insert(entry->GetPath().BaseName().AsUTF8Unsafe());
+  }
+  std::vector<std::string> gone;
+  for (const auto [id, value] : prefs->GetDict(kProfilesPref)) {
+    if (!value.is_string() || !directories.contains(value.GetString()) ||
+        !base::Uuid::ParseLowercase(id).is_valid()) {
+      gone.push_back(id);
+    }
+  }
+  if (!gone.empty()) {
+    ScopedDictPrefUpdate update(prefs, kProfilesPref);
+    for (const std::string& id : gone) {
+      update->Remove(id);
+    }
+  }
+  for (const Info& info : List()) {
+    StoredIDOf(info.id);
   }
 }
 
@@ -232,6 +301,8 @@ void ClairProfiles::Changed() {
 }
 
 void ClairProfiles::OnProfileAdded(const base::FilePath& profile_path) {
+  // D13: its ID, from now on.
+  StoredIDOf(profile_path.BaseName().AsUTF8Unsafe());
   Changed();
 }
 
@@ -243,6 +314,22 @@ void ClairProfiles::OnProfileWasRemoved(const base::FilePath& profile_path,
   // add-pinned-tabs-and-favorites D9: its favorites go with it.
   ClairPinStore::Get()->RemoveContainer(
       PinContainer::OfProfile(profile_path.BaseName().AsUTF8Unsafe()));
+  // add-tab-folders D13: and its ID, once nothing saves it.
+  if (PrefService* prefs = LocalState()) {
+    const std::string directory = profile_path.BaseName().AsUTF8Unsafe();
+    std::vector<std::string> ids;
+    for (const auto [id, value] : prefs->GetDict(kProfilesPref)) {
+      if (value.is_string() && value.GetString() == directory) {
+        ids.push_back(id);
+      }
+    }
+    if (!ids.empty()) {
+      ScopedDictPrefUpdate update(prefs, kProfilesPref);
+      for (const std::string& id : ids) {
+        update->Remove(id);
+      }
+    }
+  }
   Changed();
 }
 

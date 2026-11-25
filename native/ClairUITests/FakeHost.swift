@@ -304,7 +304,8 @@ final class FakeHost: NSObject, ClairHost {
       + bound.values.filter { $0.browserID == browserID }.sorted { $0.tabID < $1.tabID }
   }
 
-  // MARK: Pins (add-pinned-tabs-and-favorites design D1 to D6)
+  // MARK: Pins (add-pinned-tabs-and-favorites design D1 to D6) and folders
+  // (add-tab-folders design D1 to D3, D7, D8, D11)
 
   /// A pin as the engine's store keeps it.
   struct PinRecord {
@@ -315,21 +316,56 @@ final class FakeHost: NSObject, ClairHost {
     var url: String
     var title: String
     var name: String?
+    /// The folder holding a pinned tab, or nil.
+    var folderID: FolderID?
+  }
+
+  /// A folder as the engine's store keeps it.
+  struct FolderRecord {
+    let id: FolderID
+    var spaceID: SpaceID
+    var name: String
   }
 
   private var records: [PinID: PinRecord] = [:]
-  private var pinOrder: [SpaceID: [PinID]] = [:]
+  private var folderRecords: [FolderID: FolderRecord] = [:]
+  /// Each Space's items, pins and folders, in order.
+  private var pinOrder: [SpaceID: [String]] = [:]
+  /// Each folder's pins, in order.
+  private var folderOrder: [FolderID: [PinID]] = [:]
   private var favoriteOrder: [ProfileID: [PinID]] = [:]
+  /// The folders closed on this Mac (D3).
+  private(set) var closedFolders: Set<FolderID> = []
   /// Each open pin's tab.
   private var bound: [PinID: FakeTab] = [:]
-  /// Pins removed, newest first, for Restore Last Closed Tab (D3).
+  /// Pins removed, newest first, for Restore Last Closed Tab (D3), each with
+  /// its index in its folder or section.
   private(set) var removedPins: [(record: PinRecord, index: Int)] = []
+  /// Folders removed, newest first, with their pins (D7).
+  private(set) var removedFolders: [(folder: FolderRecord, pins: [PinRecord], index: Int, wasClosed: Bool)] = []
   private var nextPin = 1
+  private var nextFolder = 1
 
   func pinRecord(_ pinID: PinID) -> PinRecord? { records[pinID] }
 
+  func folderRecord(_ folderID: FolderID) -> FolderRecord? { folderRecords[folderID] }
+
+  /// Every pin of a Space, its folders' included, in the sidebar's order.
   func pinRecords(inSpace spaceID: SpaceID) -> [PinRecord] {
-    (pinOrder[spaceID] ?? []).compactMap { records[$0] }
+    (pinOrder[spaceID] ?? []).flatMap { id -> [PinRecord] in
+      if let record = records[id] { return [record] }
+      return (folderOrder[id] ?? []).compactMap { records[$0] }
+    }
+  }
+
+  /// A folder's pins, in order.
+  func pinRecords(inFolder folderID: FolderID) -> [PinRecord] {
+    (folderOrder[folderID] ?? []).compactMap { records[$0] }
+  }
+
+  /// A Space's folders, in order.
+  func folderRecords(inSpace spaceID: SpaceID) -> [FolderRecord] {
+    (pinOrder[spaceID] ?? []).compactMap { folderRecords[$0] }
   }
 
   func favoriteRecords(ofProfile profileID: ProfileID) -> [PinRecord] {
@@ -337,6 +373,8 @@ final class FakeHost: NSObject, ClairHost {
   }
 
   func boundTab(of pinID: PinID) -> FakeTab? { bound[pinID] }
+
+  func isFolderOpen(_ folderID: FolderID) -> Bool { !closedFolders.contains(folderID) }
 
   func isFavoriteTab(_ tabID: TabID) -> Bool {
     guard let tab = tab(tabID), let pinID = tab.pinID, bound[pinID]?.tabID == tabID else { return false }
@@ -347,18 +385,27 @@ final class FakeHost: NSObject, ClairHost {
   @discardableResult
   func addPin(
     url: String, title: String, name: String? = nil, inSpace spaceID: SpaceID? = FakeHost.homeID,
-    profile profileID: ProfileID = FakeHost.defaultProfileID
+    folder folderID: FolderID? = nil, profile profileID: ProfileID = FakeHost.defaultProfileID
   ) -> PinID {
     let pinID = "pin-\(nextPin)"
     nextPin += 1
-    records[pinID] = PinRecord(id: pinID, spaceID: spaceID, profileID: profileID, url: url, title: title, name: name)
-    if let spaceID {
-      pinOrder[spaceID, default: []].append(pinID)
-    } else {
-      favoriteOrder[profileID, default: []].append(pinID)
-    }
+    let spaceID = folderID.flatMap { folderRecords[$0]?.spaceID } ?? spaceID
+    let record = PinRecord(
+      id: pinID, spaceID: spaceID, profileID: profileID, url: url, title: title, name: name,
+      folderID: spaceID == nil ? nil : folderID)
+    insertRecord(record, at: Int.max)
     pinsChanged(of: pinID)
     return pinID
+  }
+
+  /// Adds a folder as the engine's store would, and returns it.
+  @discardableResult
+  func addFolder(_ name: String, inSpace spaceID: SpaceID = FakeHost.homeID, open: Bool = true) -> FolderID {
+    let folderID = createFolder(named: name, inSpace: spaceID, at: Int.max) ?? ""
+    if !open {
+      setFolder(folderID, open: false)
+    }
+    return folderID
   }
 
   private func snapshot(_ record: PinRecord) -> FakePin {
@@ -366,7 +413,14 @@ final class FakeHost: NSObject, ClairHost {
     let atPinnedURL = tab.map { ($0.url?.absoluteString ?? $0.urlText) == record.url } ?? true
     return FakePin(
       id: record.id, isFavorite: record.spaceID == nil, spaceID: record.spaceID, profileID: record.profileID,
-      url: record.url, title: record.title, name: record.name, tab: tab, isAtPinnedURL: atPinnedURL)
+      url: record.url, title: record.title, name: record.name, tab: tab, isAtPinnedURL: atPinnedURL,
+      folderID: record.folderID)
+  }
+
+  private func snapshot(_ folder: FolderRecord) -> FakeFolder {
+    FakeFolder(
+      id: folder.id, spaceID: folder.spaceID, name: folder.name, isOpen: isFolderOpen(folder.id),
+      pins: pinRecords(inFolder: folder.id).map(snapshot))
   }
 
   private func pinsChanged(of pinID: PinID) {
@@ -376,9 +430,9 @@ final class FakeHost: NSObject, ClairHost {
 
   private func containerChanged(spaceID: SpaceID?, profileID: ProfileID) {
     if let spaceID {
-      let pins = self.pins(inSpace: spaceID)
+      let items = self.pinnedItems(inSpace: spaceID)
       for observer in allObservers {
-        observer.pinsDidChange(pins, inSpace: spaceID)
+        observer.pinnedItemsDidChange(items, inSpace: spaceID)
       }
     } else {
       let favorites = self.favorites(ofProfile: profileID)
@@ -386,6 +440,10 @@ final class FakeHost: NSObject, ClairHost {
         observer.favoritesDidChange(favorites, ofProfile: profileID)
       }
     }
+  }
+
+  private func spaceChanged(_ spaceID: SpaceID) {
+    containerChanged(spaceID: spaceID, profileID: profile(ofSpace: spaceID) ?? Self.defaultProfileID)
   }
 
   /// Binds `tab` to the pin, as the engine does when it opens or restores it.
@@ -427,10 +485,16 @@ final class FakeHost: NSObject, ClairHost {
     containerChanged(spaceID: record.spaceID, profileID: record.profileID)
   }
 
-  /// Takes the record out of the store; returns its index.
+  /// Takes the record out of the store; returns its index in its folder or
+  /// section.
   @discardableResult
   private func removeRecord(_ pinID: PinID) -> Int? {
     guard let record = records.removeValue(forKey: pinID) else { return nil }
+    if let folderID = record.folderID {
+      let index = folderOrder[folderID]?.firstIndex(of: pinID)
+      folderOrder[folderID]?.removeAll { $0 == pinID }
+      return index
+    }
     if let spaceID = record.spaceID {
       let index = pinOrder[spaceID]?.firstIndex(of: pinID)
       pinOrder[spaceID]?.removeAll { $0 == pinID }
@@ -441,31 +505,67 @@ final class FakeHost: NSObject, ClairHost {
     return index
   }
 
+  private static func insert<T>(_ element: T, into list: inout [T], at index: Int) {
+    list.insert(element, at: max(0, min(index, list.count)))
+  }
+
   private func insertRecord(_ record: PinRecord, at index: Int) {
     records[record.id] = record
-    if let spaceID = record.spaceID {
-      var order = pinOrder[spaceID] ?? []
-      order.insert(record.id, at: max(0, min(index, order.count)))
-      pinOrder[spaceID] = order
+    if let folderID = record.folderID {
+      Self.insert(record.id, into: &folderOrder[folderID, default: []], at: index)
+    } else if let spaceID = record.spaceID {
+      Self.insert(record.id, into: &pinOrder[spaceID, default: []], at: index)
     } else {
-      var order = favoriteOrder[record.profileID] ?? []
-      order.insert(record.id, at: max(0, min(index, order.count)))
-      favoriteOrder[record.profileID] = order
+      Self.insert(record.id, into: &favoriteOrder[record.profileID, default: []], at: index)
     }
   }
 
-  /// D3: Restore Last Closed Tab puts the newest removed pin back in place.
+  /// D3: Restore Last Closed Tab puts the newest removed pin back in place,
+  /// in its folder while it exists, or else at the end of its Space's
+  /// section (add-tab-folders D7).
   @discardableResult
   func restoreRemovedPin() -> PinID? {
     guard !removedPins.isEmpty else { return nil }
-    let (record, index) = removedPins.removeFirst()
+    var (record, index) = removedPins.removeFirst()
+    if let folderID = record.folderID, folderRecords[folderID] == nil {
+      record.folderID = nil
+      index = Int.max
+    }
     insertRecord(record, at: index)
     pinsChanged(of: record.id)
     return record.id
   }
 
+  /// D7: Restore Last Closed Tab puts the newest deleted folder back in
+  /// place, with its pins, open or closed as it was.
+  @discardableResult
+  func restoreRemovedFolder() -> FolderID? {
+    guard !removedFolders.isEmpty else { return nil }
+    let (folder, pins, index, wasClosed) = removedFolders.removeFirst()
+    guard isSpace(folder.spaceID) else { return nil }
+    folderRecords[folder.id] = folder
+    Self.insert(folder.id, into: &pinOrder[folder.spaceID, default: []], at: index)
+    if wasClosed {
+      closedFolders.insert(folder.id)
+    }
+    for pin in pins {
+      insertRecord(pin, at: Int.max)
+    }
+    spaceChanged(folder.spaceID)
+    return folder.id
+  }
+
   // MARK: ClairHost: pins
 
+  func pinnedItems(inSpace spaceID: SpaceID) -> [any ClairPinnedItem] {
+    (pinOrder[spaceID] ?? []).compactMap { id -> FakePinnedItem? in
+      if let record = records[id] { return FakePinnedItem(pin: snapshot(record)) }
+      if let folder = folderRecords[id] { return FakePinnedItem(folder: snapshot(folder)) }
+      return nil
+    }
+  }
+
+  /// Every pinned tab of a Space, its folders' included, as snapshots.
   func pins(inSpace spaceID: SpaceID) -> [any ClairPin] {
     pinRecords(inSpace: spaceID).map(snapshot)
   }
@@ -474,38 +574,43 @@ final class FakeHost: NSObject, ClairHost {
     favoriteRecords(ofProfile: profileID).map(snapshot)
   }
 
-  /// D5: a Today tab becomes a pin of its Space, or of its profile's
-  /// favorites, keeping its page and name.
-  private func pin(tab tabID: TabID, at index: Int, favorite: Bool) {
+  /// D5: a Today tab becomes a pin of its Space, in `folderID`, or of its
+  /// profile's favorites, keeping its page and name.
+  private func pin(tab tabID: TabID, inFolder folderID: FolderID?, at index: Int, favorite: Bool) {
     guard let tab = tab(tabID), tab.pinID == nil, isSpace(tab.spaceID), tab.peekParentID == ClairTabIDNone,
       let profileID = profile(ofSpace: tab.spaceID)
     else { return }
+    // A folder of another Space is ignored.
+    if let folderID, folderRecords[folderID]?.spaceID != tab.spaceID || favorite { return }
     let pinID = "pin-\(nextPin)"
     nextPin += 1
     let record = PinRecord(
       id: pinID, spaceID: favorite ? nil : tab.spaceID, profileID: profileID,
-      url: tab.url?.absoluteString ?? tab.urlText, title: tab.title, name: tab.name)
+      url: tab.url?.absoluteString ?? tab.urlText, title: tab.title, name: tab.name, folderID: folderID)
     insertRecord(record, at: index)
     setList(list(tab.spaceID).filter { $0.tabID != tabID && $0.peekParentID != tabID }, inSpace: tab.spaceID)
     bind(pinID, to: tab)
   }
 
-  func pin(tab tabID: TabID, at index: Int) {
-    commands.append("pin \(tabID) \(index)")
-    pin(tab: tabID, at: index, favorite: false)
+  func pin(tab tabID: TabID, inFolder folderID: FolderID?, at index: Int) {
+    commands.append(folderID.map { "pin \(tabID) \($0) \(index)" } ?? "pin \(tabID) \(index)")
+    pin(tab: tabID, inFolder: folderID, at: index, favorite: false)
   }
 
   func favorite(tab tabID: TabID, at index: Int) {
     commands.append("favorite \(tabID) \(index)")
-    pin(tab: tabID, at: index, favorite: true)
+    pin(tab: tabID, inFolder: nil, at: index, favorite: true)
   }
 
-  func movePin(_ pinID: PinID, toSpace spaceID: SpaceID, at index: Int) {
-    commands.append("movePin \(pinID) \(spaceID) \(index)")
+  func movePin(_ pinID: PinID, toSpace spaceID: SpaceID, folder folderID: FolderID?, at index: Int) {
+    commands.append(
+      folderID.map { "movePin \(pinID) \(spaceID) \($0) \(index)" } ?? "movePin \(pinID) \(spaceID) \(index)")
     guard var record = records[pinID], isSpace(spaceID), let profileID = profile(ofSpace: spaceID) else { return }
+    if let folderID, folderRecords[folderID]?.spaceID != spaceID { return }
     let from = (record.spaceID, record.profileID)
     removeRecord(pinID)
     record.spaceID = spaceID
+    record.folderID = folderID
     let changedProfile = record.profileID != profileID
     record.profileID = profileID
     insertRecord(record, at: index)
@@ -519,7 +624,9 @@ final class FakeHost: NSObject, ClairHost {
       }
       bound[pinID] = tab.with(spaceID: spaceID)
     }
-    containerChanged(spaceID: from.0, profileID: from.1)
+    if from.0 != spaceID {
+      containerChanged(spaceID: from.0, profileID: from.1)
+    }
     pinsChanged(of: pinID)
   }
 
@@ -529,6 +636,7 @@ final class FakeHost: NSObject, ClairHost {
     let from = (record.spaceID, record.profileID)
     removeRecord(pinID)
     record.spaceID = nil
+    record.folderID = nil
     insertRecord(record, at: index)
     if let tab = bound[pinID] {
       bound[pinID] = tab.with(spaceID: "")
@@ -551,6 +659,143 @@ final class FakeHost: NSObject, ClairHost {
       setList([today] + list(today.spaceID), inSpace: today.spaceID)
       browser.close(tab: tab.tabID)
     }
+  }
+
+  // MARK: ClairHost: folders (add-tab-folders design D2)
+
+  func createFolder(named name: String, inSpace spaceID: SpaceID, at index: Int) -> FolderID? {
+    commands.append("createFolder \(name) \(spaceID) \(index)")
+    let name = SpacesLogic.cleanName(name)
+    guard !name.isEmpty, isSpace(spaceID) else { return nil }
+    let folderID = "folder-\(nextFolder)"
+    nextFolder += 1
+    folderRecords[folderID] = FolderRecord(id: folderID, spaceID: spaceID, name: name)
+    folderOrder[folderID] = []
+    Self.insert(folderID, into: &pinOrder[spaceID, default: []], at: index)
+    spaceChanged(spaceID)
+    return folderID
+  }
+
+  func renameFolder(_ folderID: FolderID, to name: String) {
+    commands.append("renameFolder \(folderID) \(name)")
+    let name = SpacesLogic.cleanName(name)
+    guard !name.isEmpty, var folder = folderRecords[folderID] else { return }
+    folder.name = name
+    folderRecords[folderID] = folder
+    spaceChanged(folder.spaceID)
+  }
+
+  func setFolder(_ folderID: FolderID, open: Bool) {
+    commands.append("setFolder \(folderID) \(open)")
+    guard let folder = folderRecords[folderID] else { return }
+    if open {
+      closedFolders.remove(folderID)
+    } else {
+      closedFolders.insert(folderID)
+    }
+    spaceChanged(folder.spaceID)
+  }
+
+  func moveFolder(_ folderID: FolderID, toSpace spaceID: SpaceID, at index: Int) {
+    commands.append("moveFolder \(folderID) \(spaceID) \(index)")
+    guard var folder = folderRecords[folderID], isSpace(spaceID), let profileID = profile(ofSpace: spaceID)
+    else { return }
+    let from = folder.spaceID
+    pinOrder[from]?.removeAll { $0 == folderID }
+    folder.spaceID = spaceID
+    folderRecords[folderID] = folder
+    Self.insert(folderID, into: &pinOrder[spaceID, default: []], at: index)
+    // D1, D11: its pins follow it, and their tabs as Move to Space moves them.
+    for pinID in folderOrder[folderID] ?? [] {
+      guard var record = records[pinID] else { continue }
+      let changedProfile = record.profileID != profileID
+      record.spaceID = spaceID
+      record.profileID = profileID
+      records[pinID] = record
+      if var tab = bound[pinID] {
+        if changedProfile {
+          tab = FakeTab(
+            id: newTabID(), title: tab.title, url: tab.url?.absoluteString, spaceID: spaceID,
+            browserID: tab.browserID, pinID: pinID)
+          pageViews[tab.tabID] = NSView()
+        }
+        bound[pinID] = tab.with(spaceID: spaceID)
+        if let browser = browser(tab.browserID), browser.isActiveRow(tab.tabID) {
+          browser.followActiveTab()
+        }
+      }
+    }
+    if from != spaceID {
+      spaceChanged(from)
+    }
+    spaceChanged(spaceID)
+  }
+
+  func duplicateFolder(_ folderID: FolderID) {
+    commands.append("duplicateFolder \(folderID)")
+    guard let folder = folderRecords[folderID], let index = pinOrder[folder.spaceID]?.firstIndex(of: folderID)
+    else { return }
+    let copyID = "folder-\(nextFolder)"
+    nextFolder += 1
+    folderRecords[copyID] = FolderRecord(id: copyID, spaceID: folder.spaceID, name: folder.name)
+    folderOrder[copyID] = []
+    Self.insert(copyID, into: &pinOrder[folder.spaceID, default: []], at: index + 1)
+    for record in pinRecords(inFolder: folderID) {
+      let copy = PinRecord(
+        id: "pin-\(nextPin)", spaceID: record.spaceID, profileID: record.profileID, url: record.url,
+        title: record.title, name: record.name, folderID: copyID)
+      nextPin += 1
+      insertRecord(copy, at: Int.max)
+    }
+    spaceChanged(folder.spaceID)
+  }
+
+  func deleteFolder(_ folderID: FolderID) {
+    commands.append("deleteFolder \(folderID)")
+    guard let folder = folderRecords.removeValue(forKey: folderID),
+      let index = pinOrder[folder.spaceID]?.firstIndex(of: folderID)
+    else { return }
+    pinOrder[folder.spaceID]?.remove(at: index)
+    let pins = (folderOrder.removeValue(forKey: folderID) ?? []).compactMap { records.removeValue(forKey: $0) }
+    removedFolders.insert((folder, pins, index, closedFolders.remove(folderID) != nil), at: 0)
+    let tabs = pins.compactMap { bound.removeValue(forKey: $0.id) }
+    spaceChanged(folder.spaceID)
+    // D7: then their pages close through the close flow, as Today tabs.
+    for tab in tabs {
+      guard let browser = browser(tab.browserID) else { continue }
+      let today = tab.with(spaceID: folder.spaceID, pinID: .some(nil))
+      setList([today] + list(today.spaceID), inSpace: today.spaceID)
+      browser.close(tab: tab.tabID)
+    }
+  }
+
+  func closeTabs(inFolder folderID: FolderID) {
+    commands.append("closeTabsInFolder \(folderID)")
+    for record in pinRecords(inFolder: folderID) {
+      if let tab = bound[record.id] {
+        browser(tab.browserID)?.close(tab: tab.tabID)
+      }
+    }
+  }
+
+  func turnFolderIntoSpace(_ folderID: FolderID) -> SpaceID? {
+    commands.append("turnFolderIntoSpace \(folderID)")
+    guard let folder = folderRecords[folderID], let profileID = profile(ofSpace: folder.spaceID),
+      let spaceID = createSpace(named: folder.name, icon: nil, profile: profileID)
+    else { return nil }
+    // D8: its pins become the new Space's, in order, with their tabs.
+    for record in pinRecords(inFolder: folderID) {
+      movePin(record.id, toSpace: spaceID, folder: nil, at: Int.max)
+      if let tab = bound[record.id], let browser = browser(tab.browserID), browser.isActiveRow(tab.tabID) {
+        browser.followActiveTab()
+      }
+    }
+    folderRecords[folderID] = nil
+    folderOrder[folderID] = nil
+    closedFolders.remove(folderID)
+    pinOrder[folder.spaceID]?.removeAll { $0 == folderID }
+    spaceChanged(folder.spaceID)
+    return spaceID
   }
 
   func returnToPinnedURL(_ pinID: PinID) {
@@ -718,14 +963,21 @@ final class FakeHost: NSObject, ClairHost {
     for tab in list(spaceID) {
       browser(tab.browserID)?.closeTabNow(tab.tabID)
     }
-    // add-pinned-tabs-and-favorites D9: its pinned tabs go, for good.
-    for pinID in pinOrder[spaceID] ?? [] {
-      if let tab = bound[pinID] {
+    // add-pinned-tabs-and-favorites D9: its pinned tabs go, for good, and
+    // its folders with them (add-tab-folders).
+    for record in pinRecords(inSpace: spaceID) {
+      if let tab = bound[record.id] {
         browser(tab.browserID)?.closeTabNow(tab.tabID)
       }
-      records[pinID] = nil
-      bound[pinID] = nil
+      records[record.id] = nil
+      bound[record.id] = nil
     }
+    for folder in folderRecords(inSpace: spaceID) {
+      folderRecords[folder.id] = nil
+      folderOrder[folder.id] = nil
+      closedFolders.remove(folder.id)
+    }
+    removedFolders.removeAll { $0.folder.spaceID == spaceID }
     pinOrder[spaceID] = nil
     // add-link-rules D1: its link rules go with it.
     rules.removeAll { $0.spaceID == spaceID }
@@ -741,7 +993,7 @@ final class FakeHost: NSObject, ClairHost {
     commands.append("moveToSpace \(tabID) \(spaceID)")
     if let tab = tab(tabID), let pinID = tab.pinID, bound[pinID]?.tabID == tabID {
       // add-pinned-tabs-and-favorites D5: at the end of its pinned tabs.
-      movePin(pinID, toSpace: spaceID, at: Int.max)
+      movePin(pinID, toSpace: spaceID, folder: nil, at: Int.max)
       if let browser = browser(tab.browserID), browser.isActiveRow(tabID) {
         browser.followActiveTab()
       }

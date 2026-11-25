@@ -19,6 +19,7 @@
 #include "chrome/browser/clair/clair_link_rule_store.h"
 #include "chrome/browser/clair/clair_native_layer.h"
 #import "chrome/browser/clair/clair_pin_store.h"
+#include "chrome/browser/clair/clair_profiles.h"
 #include "chrome/browser/clair/clair_space_store.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
@@ -340,6 +341,8 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   // add-bookmarks-menu D6: whether the Bookmarks Bar notice has shown, once
   // for the whole app.
   ClairBookmarkBarDrain::RegisterPrefs(registry);
+  // add-tab-folders D13: the IDs the stores save for profiles.
+  ClairProfiles::RegisterPrefs(registry);
   // add-profiles D1: Chromium's profile picker never shows at launch, however
   // many profiles exist (ProfilePicker::AvailabilityOnStartup::kDisabled).
   registry->SetDefaultPrefValue(prefs::kBrowserProfilePickerAvailabilityOnStartup,

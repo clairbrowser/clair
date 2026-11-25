@@ -21,15 +21,30 @@
 #import "chrome/browser/clair/ClairHost.h"
 #endif
 
+class PrefRegistrySimple;
 class Profile;
 
 namespace clair {
 
-// add-profiles design D1: a profile is a Chromium profile, and Clair stores
-// nothing about it. Its ID is its directory's base name ("Default",
-// "Profile 1"); its name and existence come from ProfileAttributesStorage
-// alone. ClairProfiles wraps Chromium's profile calls for the host, observes
-// the storage, and pushes snapshots to the host's observers.
+// Local State pref (add-tab-folders design D13): the ID Clair gives each
+// profile, mapped to its directory on this Mac.
+//
+//   clair.profiles  { "<profile ID>": "<profile dir>" }   // "3f2a…": "Profile 1"
+inline constexpr char kProfilesPref[] = "clair.profiles";
+
+// add-profiles design D1: a profile is a Chromium profile. Its ID, as ClairUI
+// and the rest of the engine know it, is its directory's base name
+// ("Default", "Profile 1"); its name and existence come from
+// ProfileAttributesStorage alone. ClairProfiles wraps Chromium's profile calls
+// for the host, observes the storage, and pushes snapshots to the host's
+// observers.
+//
+// add-tab-folders design D13: what Clair saves about a profile is an ID of
+// its own, a lowercase UUID, since a directory's name differs between Macs.
+// The stores save that ID (StoredIDOf) and read it back (DirectoryOf); the
+// map from ID to directory, clair.profiles, is this Mac's. Every profile gets
+// an ID at start and when it's added, and loses it when it's removed; at
+// start, entries whose directory is gone are dropped.
 class ClairProfiles : public ProfileAttributesStorageObserver {
  public:
   // One profile as ClairUI sees it.
@@ -40,6 +55,9 @@ class ClairProfiles : public ProfileAttributesStorageObserver {
 
   // The profiles, created on first use.
   static ClairProfiles* Get();
+
+  // browser_prefs.cc, through clair::RegisterLocalStatePrefs.
+  static void RegisterPrefs(PrefRegistrySimple* registry);
 
   // The default profile's ID: Chromium's initial profile.
   static std::string DefaultID();
@@ -61,6 +79,13 @@ class ClairProfiles : public ProfileAttributesStorageObserver {
   Profile* LoadedProfile(std::string_view id) const;
   // Runs `done` with the profile once it's loaded, or with null.
   void Load(std::string_view id, base::OnceCallback<void(Profile*)> done);
+
+  // D13: the ID the stores save for the profile in `directory`, given now if
+  // it has none yet. Empty for a profile that doesn't exist.
+  std::string StoredIDOf(std::string_view directory);
+  // D13: the directory of the profile saved as `stored_id`, or empty when
+  // this Mac has no such profile.
+  std::string DirectoryOf(std::string_view stored_id) const;
 
   // Creates a profile named `name`; `done` gets its ID, or an empty string.
   void Create(std::string_view name,
@@ -90,6 +115,9 @@ class ClairProfiles : public ProfileAttributesStorageObserver {
 
   // Pushes the list to the host's observers.
   void Changed();
+  // D13: gives each profile without an ID one, and drops the IDs of
+  // profiles that are gone.
+  void ReconcileStoredIDs();
 
   base::ScopedObservation<ProfileAttributesStorage,
                           ProfileAttributesStorageObserver>
