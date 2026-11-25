@@ -47,7 +47,7 @@ Tabs › Pin Tab (Cmd+D) and Pin Tab in a Today tab's menu SHALL pin the tab at 
 - **THEN** the item reads "Unpin Tab"
 
 ### Requirement: Reordering and dragging pinned tabs
-Pinned tabs SHALL be reorderable by dragging. Dragging a Today tab into the pinned section SHALL pin it where it's dropped, also while the Space has no pinned tabs, by dropping it above the divider. Dragging a pinned tab below the divider SHALL unpin it where it's dropped. Favorites follow `favorites`.
+Pinned tabs SHALL be reorderable by dragging. Dragging a Today tab into the pinned section SHALL pin it where it's dropped, also while the Space has no pinned tabs, by dropping it above the divider. Dragging a pinned tab below the divider SHALL unpin it where it's dropped. Dragging into, within and out of folders follows `tab-folders`. Favorites follow `favorites`.
 
 #### Scenario: Dragging a Today tab into the pinned section
 - **WHEN** a Space has the pinned tabs "Mail" and "Docs" and the user drags a Today tab between them
@@ -64,6 +64,10 @@ Pinned tabs SHALL be reorderable by dragging. Dragging a Today tab into the pinn
 #### Scenario: Dragging a pinned tab to the top of Today
 - **WHEN** a Space has Today tabs and the user drags the pinned tab "Docs" between "New Tab" and the first Today tab
 - **THEN** "Docs" is no longer pinned and is the first Today tab
+
+#### Scenario: Dragging a pinned tab next to a folder
+- **WHEN** the pinned section lists "Mail" and then the closed folder "Work", and the user drags "Mail" just below "Work"
+- **THEN** "Mail" follows "Work", outside it
 
 ### Requirement: Dropping on the Space header
 Dropping a Today tab, a pinned tab or a favorite on the header of the Space the window shows SHALL pin it last in that Space, keeping its page, as Pin Tab does, whether the pinned section is empty, expanded or collapsed. While a drag is over the header, the header SHALL show its hover pill. The drop SHALL be a move: the pointer SHALL show no "+". Incognito and guest windows SHALL take no drop there.
@@ -96,7 +100,7 @@ On the selected pinned tab, hovering its row SHALL show a − button with the to
 - **THEN** its pinned URL loads again
 
 ### Requirement: Removing a pin
-On a pinned tab that isn't selected, hovering its row SHALL show an × button with the tooltip "Remove Pin", which removes the pinned tab and closes its page if open. Restore Last Closed Tab SHALL bring a removed pinned tab back pinned, at its place.
+On a pinned tab that isn't selected, hovering its row SHALL show an × button with the tooltip "Remove Pin", which removes the pinned tab and closes its page if open. Restore Last Closed Tab SHALL bring a removed pinned tab back pinned, at its place, in its folder if it was in one that still exists, and otherwise at the end of the pinned section.
 
 #### Scenario: × on a pinned tab
 - **WHEN** the user clicks × on the pinned tab "Docs", which isn't selected
@@ -105,6 +109,10 @@ On a pinned tab that isn't selected, hovering its row SHALL show an × button wi
 #### Scenario: Bringing it back
 - **WHEN** the user removed "Docs", second of three pinned tabs, and chooses Restore Last Closed Tab
 - **THEN** "Docs" is pinned second again, with its pinned URL
+
+#### Scenario: Bringing it back into its folder
+- **WHEN** the user removed "Spec", first in the folder "Work", and chooses Restore Last Closed Tab
+- **THEN** "Spec" is first in "Work" again
 
 ### Requirement: Navigated away from the pinned URL
 While a pinned tab's page is at another URL than its pinned URL, its row SHALL show its icon, a grey "/" and the current page's title, or its custom name. Hovering the icon SHALL turn it into a button and show "Back to Pinned URL" under the title. Clicking it, or Tabs › Back to Pinned URL, SHALL load the pinned URL as a new navigation. As in Arc, another query or fragment, or a redirect from the pinned URL, is still at it.
@@ -175,11 +183,15 @@ While the Space has pinned tabs, hovering the Space header SHALL show a chevron 
 - **THEN** "Work"'s pinned section is still collapsed
 
 ### Requirement: Pinned tabs after a relaunch
-Pinned tabs SHALL come back after every relaunch, in their Spaces and order, with their pinned URLs and names, whichever windows come back. A pinned tab whose page was open when Clair quit SHALL come back open at the URL it showed (`browser-window`); one whose page wasn't SHALL come back not open.
+Pinned tabs SHALL come back after every relaunch, in their Spaces, folders and order, with their pinned URLs and names, whichever windows come back. A pinned tab whose page was open when Clair quit SHALL come back open at the URL it showed (`browser-window`); one whose page wasn't SHALL come back not open.
 
 #### Scenario: Relaunch
 - **WHEN** the user quits with three pinned tabs in "Work", one of them open, and relaunches
 - **THEN** "Work" lists the three pinned tabs in order, the one that was open open again, and the other two not open
+
+#### Scenario: In a folder
+- **WHEN** the user quits with the pinned tab "Spec" open in the folder "Docs", and relaunches
+- **THEN** "Spec" is in "Docs", open
 
 #### Scenario: Navigated away
 - **WHEN** the user quits with the pinned tab "Mail" open at another URL than its pinned URL, and relaunches
