@@ -324,6 +324,7 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 @synthesize pinID = _pinID;
 @synthesize isFavorite = _isFavorite;
 @synthesize spaceID = _spaceID;
+@synthesize folderID = _folderID;
 @synthesize profileID = _profileID;
 @synthesize url = _url;
 @synthesize title = _title;
@@ -341,6 +342,9 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
     _pinID = base::SysUTF8ToNSString(pin.id);
     _isFavorite = pin.container.is_favorites();
     _spaceID = _isFavorite ? nil : base::SysUTF8ToNSString(pin.container.space);
+    _folderID = pin.container.is_folder()
+                    ? base::SysUTF8ToNSString(pin.container.folder)
+                    : nil;
     _profileID = base::SysUTF8ToNSString(store->ProfileOf(pin));
     _url = net::NSURLWithGURL(pin.url) ?: [NSURL URLWithString:@"about:blank"];
     _title = base::SysUTF8ToNSString(pin.title);
@@ -352,6 +356,49 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
     _tabs = [tabs copy] ?: @[];
     _tabID = _tabs.count ? _tabs.firstObject.tabID : ClairTabIDNone;
     _isAtPinnedURL = isAtPinnedURL;
+  }
+  return self;
+}
+@end
+
+// add-tab-folders D2.
+@interface ClairChromiumFolder : NSObject <ClairFolder>
+- (instancetype)initWithFolder:(const clair::Folder&)folder
+                          pins:(NSArray<id<ClairPin>>*)pins;
+@end
+
+@implementation ClairChromiumFolder
+@synthesize folderID = _folderID;
+@synthesize spaceID = _spaceID;
+@synthesize name = _name;
+@synthesize isOpen = _isOpen;
+@synthesize pins = _pins;
+
+- (instancetype)initWithFolder:(const clair::Folder&)folder
+                          pins:(NSArray<id<ClairPin>>*)pins {
+  if ((self = [super init])) {
+    _folderID = base::SysUTF8ToNSString(folder.id);
+    _spaceID = base::SysUTF8ToNSString(folder.space);
+    _name = base::SysUTF8ToNSString(folder.name);
+    _isOpen = clair::ClairPinStore::Get()->IsOpen(folder.id);
+    _pins = [pins copy] ?: @[];
+  }
+  return self;
+}
+@end
+
+@interface ClairChromiumPinnedItem : NSObject <ClairPinnedItem>
+- (instancetype)initWithPin:(id<ClairPin>)pin folder:(id<ClairFolder>)folder;
+@end
+
+@implementation ClairChromiumPinnedItem
+@synthesize pin = _pin;
+@synthesize folder = _folder;
+
+- (instancetype)initWithPin:(id<ClairPin>)pin folder:(id<ClairFolder>)folder {
+  if ((self = [super init])) {
+    _pin = pin;
+    _folder = folder;
   }
   return self;
 }
@@ -767,8 +814,8 @@ bool ClairSpaceTabs::IsFavoriteTab(const tabs::TabInterface* tab) const {
 std::vector<tabs::TabInterface*> ClairSpaceTabs::PinnedTabsIn(
     const std::string& space) const {
   std::vector<tabs::TabInterface*> result;
-  for (const clair::Pin* pin : clair::ClairPinStore::Get()->PinsIn(
-           clair::PinContainer::OfSpace(space))) {
+  // add-tab-folders D9: its folders' too, in the sidebar's order.
+  for (const clair::Pin* pin : clair::ClairPinStore::Get()->AllPinsIn(space)) {
     if (tabs::TabInterface* tab = BoundTab(pin->id)) {
       result.push_back(tab);
     }
@@ -1075,8 +1122,9 @@ bool ClairSpaceTabs::Bind(tabs::TabInterface* tab, const std::string& pin) {
   }
   // D3: a tab Restore Last Closed Tab brings back with a removed pin brings
   // the pin back first.
+  // add-tab-folders D7: a pin of a deleted folder brings the folder back.
   if (!store->Find(pin) && store->WasRemoved(pin)) {
-    store->Restore(pin);
+    store->RestorePin(pin);
   }
   const clair::Pin* record = store->Find(pin);
   if (!record || store->ProfileOf(*record) != clair::ClairProfiles::IDOf(profile_)) {
@@ -1833,7 +1881,7 @@ class PinPusher : public ClairPinStore::Observer {
   PinPusher() { ClairPinStore::Get()->AddObserver(this); }
 
   void Changed(const PinContainer& container) {
-    pending_.insert(container);
+    pending_.insert(container.Section());
     if (posted_) {
       return;
     }
@@ -1847,15 +1895,19 @@ class PinPusher : public ClairPinStore::Observer {
     std::set<PinContainer> pending = std::move(pending_);
     pending_.clear();
     for (const PinContainer& container : pending) {
-      NSArray<id<ClairPin>>* pins = PinSnapshots(container);
-      for (id<ClairSpacesObserver> observer in Observers().allObjects) {
-        if (container.is_favorites()) {
+      if (container.is_favorites()) {
+        NSArray<id<ClairPin>>* pins = PinSnapshots(container);
+        for (id<ClairSpacesObserver> observer in Observers().allObjects) {
           [observer favoritesDidChange:pins
                              ofProfile:base::SysUTF8ToNSString(container.profile)];
-        } else {
-          [observer pinsDidChange:pins
-                          inSpace:base::SysUTF8ToNSString(container.space)];
         }
+        continue;
+      }
+      // add-tab-folders D2: a Space's pinned items, folders included.
+      NSArray<id<ClairPinnedItem>>* items = PinnedItemSnapshots(container.space);
+      for (id<ClairSpacesObserver> observer in Observers().allObjects) {
+        [observer pinnedItemsDidChange:items
+                               inSpace:base::SysUTF8ToNSString(container.space)];
       }
     }
   }
@@ -2307,26 +2359,48 @@ tabs::TabInterface* BoundTabOf(std::string_view pin) {
   return nullptr;
 }
 
+namespace {
+
+id<ClairPin> PinSnapshotOf(const Pin& pin) {
+  for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
+    if (lists->BoundTab(pin.id)) {
+      return lists->PinSnapshot(pin);
+    }
+  }
+  return [[ClairChromiumPin alloc] initWithPin:pin tabs:@[] isAtPinnedURL:YES];
+}
+
+}  // namespace
+
 NSArray<id<ClairPin>>* PinSnapshots(const PinContainer& container) {
   NSMutableArray<id<ClairPin>>* pins = [NSMutableArray array];
-  ClairPinStore* store = ClairPinStore::Get();
-  for (const Pin* pin : store->PinsIn(container)) {
-    ClairSpaceTabs* holder = nullptr;
-    for (ClairSpaceTabs* lists : ClairSpaceTabs::All()) {
-      if (lists->BoundTab(pin->id)) {
-        holder = lists;
-        break;
-      }
-    }
-    if (!holder) {
-      [pins addObject:[[ClairChromiumPin alloc] initWithPin:*pin
-                                                       tabs:@[]
-                                              isAtPinnedURL:YES]];
-      continue;
-    }
-    [pins addObject:holder->PinSnapshot(*pin)];
+  for (const Pin* pin : ClairPinStore::Get()->PinsIn(container)) {
+    [pins addObject:PinSnapshotOf(*pin)];
   }
   return pins;
+}
+
+NSArray<id<ClairPinnedItem>>* PinnedItemSnapshots(const std::string& space) {
+  NSMutableArray<id<ClairPinnedItem>>* items = [NSMutableArray array];
+  ClairPinStore* store = ClairPinStore::Get();
+  // `id` is Objective-C's type here, so the child's ID is `child`.
+  for (const std::string& child :
+       store->ChildrenOf(PinContainer::OfSpace(space))) {
+    if (const Pin* pin = store->Find(child)) {
+      [items addObject:[[ClairChromiumPinnedItem alloc]
+                           initWithPin:PinSnapshotOf(*pin)
+                                folder:nil]];
+    } else if (const Folder* folder = store->FindFolder(child)) {
+      NSArray<id<ClairPin>>* pins =
+          PinSnapshots(PinContainer::OfFolder(space, folder->id));
+      [items addObject:[[ClairChromiumPinnedItem alloc]
+                           initWithPin:nil
+                                folder:[[ClairChromiumFolder alloc]
+                                           initWithFolder:*folder
+                                                     pins:pins]]];
+    }
+  }
+  return items;
 }
 
 void PinsChanged(const PinContainer& container) {
@@ -2342,7 +2416,10 @@ void UpdateWindowTitles() {
   }
 }
 
-void PinTab(tabs::TabInterface* tab, size_t index, bool favorite) {
+void PinTab(tabs::TabInterface* tab,
+            const std::string& folder,
+            size_t index,
+            bool favorite) {
   ClairSpaceTabs* lists =
       tab ? ClairSpaceTabs::ForWebContents(tab->GetContents()) : nullptr;
   if (!lists || !lists->is_regular()) {
@@ -2352,12 +2429,51 @@ void PinTab(tabs::TabInterface* tab, size_t index, bool favorite) {
   if (space.empty() || !lists->PinOf(tab).empty()) {
     return;
   }
+  // add-tab-folders D2: into a folder of its Space; the store refuses one of
+  // another Space.
   lists->PinTab(tab,
                 favorite ? PinContainer::OfProfile(
                                ClairProfiles::IDOf(lists->profile()))
-                         : PinContainer::OfSpace(space),
+                : folder.empty() ? PinContainer::OfSpace(space)
+                                 : PinContainer::OfFolder(space, folder),
                 index);
 }
+
+namespace {
+
+// The bound tab of a pin that moved from `old_profile` follows it: within a
+// profile it keeps its page, and its window follows it when it's the active
+// row; to another profile it reopens there, bound to the pin (add-profiles
+// D9, add-pinned-tabs-and-favorites D5).
+void BoundTabMoved(tabs::TabHandle handle,
+                   const std::string& pin,
+                   const std::string& old_profile) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const Pin* record = store->Find(pin);
+  tabs::TabInterface* bound = handle.Get();
+  if (!bound || !record) {
+    return;
+  }
+  if (store->ProfileOf(*record) != old_profile) {
+    ReopenInProfile({handle}, record->container.space, /*first_rank=*/0);
+    return;
+  }
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(bound);
+  // A pinned tab that left a Space leaves the stills of it there.
+  if (!record->container.is_favorites()) {
+    for (ClairBrowserWindow* other : ClairBrowserWindow::All()) {
+      if (other != holder && other->still_tab() == handle &&
+          other->shown_space() != record->container.space) {
+        other->StillTabClosed();
+      }
+    }
+  }
+  if (holder && holder->IsActiveRow(bound)) {
+    holder->FollowActiveTab();
+  }
+}
+
+}  // namespace
 
 void MovePin(const std::string& pin, const PinContainer& to, size_t index) {
   ClairPinStore* store = ClairPinStore::Get();
@@ -2367,33 +2483,121 @@ void MovePin(const std::string& pin, const PinContainer& to, size_t index) {
   }
   const std::string old_profile = store->ProfileOf(*record);
   tabs::TabInterface* bound = BoundTabOf(pin);
+  const tabs::TabHandle handle =
+      bound ? bound->GetHandle() : tabs::TabHandle::Null();
   if (!store->Move(pin, to, index)) {
     return;
   }
-  record = store->Find(pin);
-  if (!bound || !record) {
+  BoundTabMoved(handle, pin, old_profile);
+}
+
+// --- Folders (add-tab-folders D6 to D8, D11) ---
+
+void MoveFolder(const std::string& folder,
+                const std::string& space,
+                size_t index) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const Folder* record = store->FindFolder(folder);
+  if (!record) {
     return;
   }
-  // add-profiles D9: a page can't change profile; the tab reopens in the
-  // Space's profile, bound to the pin.
-  if (store->ProfileOf(*record) != old_profile) {
-    ReopenInProfile({bound->GetHandle()}, record->container.space,
-                    /*first_rank=*/0);
-    return;
-  }
-  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(bound);
-  // A pinned tab that left a Space leaves the stills of it there.
-  if (!record->container.is_favorites()) {
-    for (ClairBrowserWindow* other : ClairBrowserWindow::All()) {
-      if (other != holder && other->still_tab() == bound->GetHandle() &&
-          other->shown_space() != record->container.space) {
-        other->StillTabClosed();
-      }
+  const std::string old_profile =
+      ClairSpaceStore::Get()->ProfileOf(record->space);
+  std::vector<std::pair<std::string, tabs::TabHandle>> bound;
+  for (const Pin* pin :
+       store->PinsIn(PinContainer::OfFolder(record->space, folder))) {
+    if (tabs::TabInterface* tab = BoundTabOf(pin->id)) {
+      bound.emplace_back(pin->id, tab->GetHandle());
     }
   }
-  if (holder && holder->IsActiveRow(bound)) {
-    holder->FollowActiveTab();
+  if (!store->Move(folder, PinContainer::OfSpace(space), index)) {
+    return;
   }
+  // D11: its open pinned tabs move as Move to Space moves one.
+  for (const auto& [pin, handle] : bound) {
+    BoundTabMoved(handle, pin, old_profile);
+  }
+}
+
+void DuplicateFolder(const std::string& folder) {
+  ClairPinStore::Get()->DuplicateFolder(folder);
+}
+
+void DeleteFolder(const std::string& folder) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const Folder* record = store->FindFolder(folder);
+  if (!record) {
+    return;
+  }
+  std::vector<tabs::TabHandle> handles;
+  for (const Pin* pin :
+       store->PinsIn(PinContainer::OfFolder(record->space, folder))) {
+    if (tabs::TabInterface* tab = BoundTabOf(pin->id)) {
+      handles.push_back(tab->GetHandle());
+    }
+  }
+  // D7: removed before its tabs close, as one removal, so their own entries
+  // in the recently closed list are the newer, and each brings the folder
+  // back with it.
+  store->RemoveFolder(folder, /*remember=*/true);
+  for (const tabs::TabHandle& handle : handles) {
+    tabs::TabInterface* tab = handle.Get();
+    if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab)) {
+      holder->CloseTab(tab);
+    }
+  }
+}
+
+void CloseTabsInFolder(const std::string& folder) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const Folder* record = store->FindFolder(folder);
+  if (!record) {
+    return;
+  }
+  // Close This Folder: each bound tab through the close flow, as Clear Today
+  // closes its tabs; the pins stay.
+  std::vector<tabs::TabHandle> handles;
+  for (const Pin* pin :
+       store->PinsIn(PinContainer::OfFolder(record->space, folder))) {
+    if (tabs::TabInterface* tab = BoundTabOf(pin->id)) {
+      handles.push_back(tab->GetHandle());
+    }
+  }
+  for (const tabs::TabHandle& handle : handles) {
+    tabs::TabInterface* tab = handle.Get();
+    if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab)) {
+      holder->CloseTab(tab);
+    }
+  }
+}
+
+std::string TurnFolderIntoSpace(const std::string& folder) {
+  ClairPinStore* store = ClairPinStore::Get();
+  ClairSpaceStore* spaces = ClairSpaceStore::Get();
+  const Folder* record = store->FindFolder(folder);
+  if (!record) {
+    return std::string();
+  }
+  const std::string space = record->space;
+  // D8: after the last Space, named after the folder, without an icon, with
+  // its Space's profile.
+  const std::string created =
+      spaces->Create(record->name, std::string(), spaces->ProfileOf(space));
+  if (created.empty()) {
+    return created;
+  }
+  std::vector<std::string> pins;
+  for (const Pin* pin : store->PinsIn(PinContainer::OfFolder(space, folder))) {
+    pins.push_back(pin->id);
+  }
+  // Its pins become the new Space's pinned tabs, in order, with their tabs,
+  // as Move to Space moves them.
+  for (const std::string& pin : pins) {
+    MovePin(pin, PinContainer::OfSpace(created),
+            std::numeric_limits<size_t>::max());
+  }
+  store->RemoveFolder(folder, /*remember=*/false);
+  return created;
 }
 
 void RemovePin(const std::string& pin) {
@@ -2555,7 +2759,7 @@ bool RestoreRemovedPin(ClairBrowserWindow* window) {
   if (removal->time <= newest) {
     return false;
   }
-  return store->Restore(removal->pin.id);
+  return store->Restore(removal);
 }
 
 bool HasRemovedPin(ClairBrowserWindow* window) {

@@ -86,6 +86,10 @@ std::string PinIDOf(ClairPinID pinID) {
   return base::SysNSStringToUTF8(pinID ?: @"");
 }
 
+std::string FolderIDOf(ClairFolderID folderID) {
+  return base::SysNSStringToUTF8(folderID ?: @"");
+}
+
 size_t PinIndexOf(NSInteger index) {
   return index < 0 ? 0 : static_cast<size_t>(index);
 }
@@ -276,10 +280,9 @@ ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
 
 // --- Pins (add-pinned-tabs-and-favorites design D1 to D6, D10) ---
 
-- (NSArray<id<ClairPin>>*)pinsInSpace:(ClairSpaceID)spaceID {
+- (NSArray<id<ClairPinnedItem>>*)pinnedItemsInSpace:(ClairSpaceID)spaceID {
   CHECK([NSThread isMainThread]);
-  return clair::PinSnapshots(
-      clair::PinContainer::OfSpace(base::SysNSStringToUTF8(spaceID ?: @"")));
+  return clair::PinnedItemSnapshots(base::SysNSStringToUTF8(spaceID ?: @""));
 }
 
 - (NSArray<id<ClairPin>>*)favoritesOfProfile:(ClairProfileID)profileID {
@@ -288,23 +291,31 @@ ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
       base::SysNSStringToUTF8(profileID ?: @"")));
 }
 
-- (void)pinTab:(ClairTabID)tabID atIndex:(NSInteger)index {
+- (void)pinTab:(ClairTabID)tabID
+      inFolder:(ClairFolderID)folderID
+       atIndex:(NSInteger)index {
   CHECK([NSThread isMainThread]);
-  clair::PinTab(TabOf(tabID), PinIndexOf(index), /*favorite=*/false);
+  clair::PinTab(TabOf(tabID), FolderIDOf(folderID), PinIndexOf(index),
+                /*favorite=*/false);
 }
 
 - (void)favoriteTab:(ClairTabID)tabID atIndex:(NSInteger)index {
   CHECK([NSThread isMainThread]);
-  clair::PinTab(TabOf(tabID), PinIndexOf(index), /*favorite=*/true);
+  clair::PinTab(TabOf(tabID), std::string(), PinIndexOf(index),
+                /*favorite=*/true);
 }
 
 - (void)movePin:(ClairPinID)pinID
         toSpace:(ClairSpaceID)spaceID
+         folder:(ClairFolderID)folderID
         atIndex:(NSInteger)index {
   CHECK([NSThread isMainThread]);
+  const std::string space = base::SysNSStringToUTF8(spaceID ?: @"");
+  const std::string folder = FolderIDOf(folderID);
+  // add-tab-folders D2: the store refuses a folder of another Space.
   clair::MovePin(PinIDOf(pinID),
-                 clair::PinContainer::OfSpace(
-                     base::SysNSStringToUTF8(spaceID ?: @"")),
+                 folder.empty() ? clair::PinContainer::OfSpace(space)
+                                : clair::PinContainer::OfFolder(space, folder),
                  PinIndexOf(index));
 }
 
@@ -360,6 +371,59 @@ ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
 - (void)clearTodayInSpace:(ClairSpaceID)spaceID {
   CHECK([NSThread isMainThread]);
   clair::ClearToday(base::SysNSStringToUTF8(spaceID ?: @""));
+}
+
+// --- Folders (add-tab-folders design D1 to D3, D6 to D8, D11) ---
+
+- (ClairFolderID)createFolderNamed:(NSString*)name
+                           inSpace:(ClairSpaceID)spaceID
+                           atIndex:(NSInteger)index {
+  CHECK([NSThread isMainThread]);
+  const std::string id = clair::ClairPinStore::Get()->CreateFolder(
+      base::SysNSStringToUTF8(spaceID ?: @""), PinIndexOf(index),
+      base::SysNSStringToUTF8(name ?: @""));
+  return id.empty() ? nil : base::SysUTF8ToNSString(id);
+}
+
+- (void)renameFolder:(ClairFolderID)folderID to:(NSString*)name {
+  CHECK([NSThread isMainThread]);
+  clair::ClairPinStore::Get()->RenameFolder(
+      FolderIDOf(folderID), base::SysNSStringToUTF8(name ?: @""));
+}
+
+- (void)setFolder:(ClairFolderID)folderID open:(BOOL)open {
+  CHECK([NSThread isMainThread]);
+  clair::ClairPinStore::Get()->SetOpen(FolderIDOf(folderID), open);
+}
+
+- (void)moveFolder:(ClairFolderID)folderID
+           toSpace:(ClairSpaceID)spaceID
+           atIndex:(NSInteger)index {
+  CHECK([NSThread isMainThread]);
+  clair::MoveFolder(FolderIDOf(folderID),
+                    base::SysNSStringToUTF8(spaceID ?: @""),
+                    PinIndexOf(index));
+}
+
+- (void)duplicateFolder:(ClairFolderID)folderID {
+  CHECK([NSThread isMainThread]);
+  clair::DuplicateFolder(FolderIDOf(folderID));
+}
+
+- (void)deleteFolder:(ClairFolderID)folderID {
+  CHECK([NSThread isMainThread]);
+  clair::DeleteFolder(FolderIDOf(folderID));
+}
+
+- (void)closeTabsInFolder:(ClairFolderID)folderID {
+  CHECK([NSThread isMainThread]);
+  clair::CloseTabsInFolder(FolderIDOf(folderID));
+}
+
+- (ClairSpaceID)turnFolderIntoSpace:(ClairFolderID)folderID {
+  CHECK([NSThread isMainThread]);
+  const std::string space = clair::TurnFolderIntoSpace(FolderIDOf(folderID));
+  return space.empty() ? nil : base::SysUTF8ToNSString(space);
 }
 
 // --- Profiles (add-profiles design D1, D7, D9, D11) ---

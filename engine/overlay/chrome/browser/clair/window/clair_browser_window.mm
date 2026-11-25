@@ -1032,12 +1032,44 @@ std::vector<tabs::TabInterface*> ClairBrowserWindow::SpaceTabs() const {
                                    : space_tabs_->TabsIn(shown_space_, browser_);
 }
 
+std::vector<const clair::Pin*> ClairBrowserWindow::RowPins(
+    const std::string& space) const {
+  std::vector<const clair::Pin*> pins;
+  if (!space_tabs_ || !space_tabs_->is_regular()) {
+    return pins;
+  }
+  // add-tab-folders D9: the Space's items in order: each pinned tab, and a
+  // folder's pinned tabs while it's open, or only the one whose tab is the
+  // window's highlighted row while it's closed.
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  const tabs::TabInterface* highlighted = HighlightedRow();
+  for (const std::string& id :
+       store->ChildrenOf(clair::PinContainer::OfSpace(space))) {
+    if (const clair::Pin* pin = store->Find(id)) {
+      pins.push_back(pin);
+      continue;
+    }
+    const bool open = store->IsOpen(id);
+    for (const clair::Pin* pin :
+         store->PinsIn(clair::PinContainer::OfFolder(space, id))) {
+      if (open || (highlighted && space_tabs_->BoundTab(pin->id) ==
+                                      highlighted)) {
+        pins.push_back(pin);
+      }
+    }
+  }
+  return pins;
+}
+
 std::vector<tabs::TabInterface*> ClairBrowserWindow::Rows() const {
   // add-pinned-tabs-and-favorites D4: the open pinned tabs, then the Today
-  // tabs. Favorites are never rows.
+  // tabs. Favorites are never rows. add-tab-folders D9: a closed folder's
+  // tabs aren't, except the highlighted one.
   std::vector<tabs::TabInterface*> rows;
-  if (space_tabs_ && space_tabs_->is_regular()) {
-    rows = space_tabs_->PinnedTabsIn(shown_space_);
+  for (const clair::Pin* pin : RowPins(shown_space_)) {
+    if (tabs::TabInterface* tab = space_tabs_->BoundTab(pin->id)) {
+      rows.push_back(tab);
+    }
   }
   for (tabs::TabInterface* tab : TodayRows()) {
     rows.push_back(tab);
@@ -1311,7 +1343,12 @@ void ClairBrowserWindow::CloseTabsBelow(tabs::TabInterface* tab) {
   // below it and every Today tab; from a Today tab, the Today tabs below it.
   std::vector<tabs::TabInterface*> tabs;
   if (space_tabs_->is_regular()) {
-    tabs = space_tabs_->PinnedTabsIn(space);
+    // add-tab-folders D9: the pinned rows the window lists.
+    for (const clair::Pin* pin : RowPins(space)) {
+      if (tabs::TabInterface* bound = space_tabs_->BoundTab(pin->id)) {
+        tabs.push_back(bound);
+      }
+    }
     for (tabs::TabInterface* today : space_tabs_->TabsIn(space)) {
       tabs.push_back(today);
     }
@@ -1664,17 +1701,15 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
     // stop, and never into another Space. A row another window holds is
     // taken from it (share-tabs-across-windows D3). Every pinned tab is a
     // row, open or not, and landing on one that isn't opens it; favorites
-    // are none (add-pinned-tabs-and-favorites D4).
+    // are none (add-pinned-tabs-and-favorites D4). A closed folder's pinned
+    // tabs are none either, except the highlighted one (add-tab-folders D9).
     struct Slot {
       raw_ptr<tabs::TabInterface> tab;
       std::string pin;
     };
     std::vector<Slot> slots;
-    if (space_tabs_ && space_tabs_->is_regular()) {
-      for (const clair::Pin* pin : clair::ClairPinStore::Get()->PinsIn(
-               clair::PinContainer::OfSpace(shown_space_))) {
-        slots.push_back({space_tabs_->BoundTab(pin->id), pin->id});
-      }
+    for (const clair::Pin* pin : RowPins(shown_space_)) {
+      slots.push_back({space_tabs_->BoundTab(pin->id), pin->id});
     }
     for (tabs::TabInterface* row : TodayRows()) {
       slots.push_back({row, std::string()});
@@ -1717,8 +1752,9 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
     case IDC_MOVE_TAB_NEXT:
     case IDC_MOVE_TAB_PREVIOUS: {
       // One row down or up within its section, stopping at the ends as
-      // Chromium does (add-pinned-tabs-and-favorites D4). The strip keeps
-      // its order, which means nothing to the user (D2).
+      // Chromium does (add-pinned-tabs-and-favorites D4), and within its
+      // folder (add-tab-folders D9). The strip keeps its order, which means
+      // nothing to the user (D2).
       if (!space_tabs_) {
         return true;
       }
@@ -1731,7 +1767,8 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
         if (!record || !index || record->container.is_favorites()) {
           return true;
         }
-        const size_t count = store->PinsIn(record->container).size();
+        // A top-level pin steps over a folder as over a pin.
+        const size_t count = store->ChildrenOf(record->container).size();
         if (down ? *index + 1 < count : *index > 0) {
           store->Move(pin, record->container, down ? *index + 1 : *index - 1);
         }

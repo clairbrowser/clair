@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <set>
+#include <tuple>
 #include <utility>
 
 #include "base/check.h"
@@ -14,6 +15,7 @@
 #include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/clair/clair_order_key.h"
 #include "chrome/browser/clair/clair_profiles.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -25,18 +27,19 @@ namespace {
 
 constexpr int kVersion = 1;
 constexpr char kVersionKey[] = "version";
-constexpr char kOrderKey[] = "order";
 constexpr char kSpacesKey[] = "spaces";
+constexpr char kOrderKey[] = "order";
 constexpr char kNameKey[] = "name";
 constexpr char kIconKey[] = "icon";
 constexpr char kProfileKey[] = "profile";
 
-// A profile that exists, or the one a Space falls back to (add-profiles
-// design D2).
-std::string ExistingProfile(const std::string* profile) {
+// The directory of the profile saved as `stored` (add-tab-folders D13), or
+// the one a Space falls back to (add-profiles design D2).
+std::string ExistingProfile(const std::string* stored) {
   ClairProfiles* profiles = ClairProfiles::Get();
-  return profile && profiles->Exists(*profile) ? *profile
-                                               : profiles->FallbackID();
+  std::string directory =
+      stored ? profiles->DirectoryOf(*stored) : std::string();
+  return directory.empty() ? profiles->FallbackID() : directory;
 }
 
 // `text` without surrounding whitespace, cut to `max` bytes on a character
@@ -83,23 +86,20 @@ void ClairSpaceStore::Load() {
   spaces_.clear();
   const base::DictValue& stored = prefs_->GetDict(kSpacesPref);
   const std::optional<int> version = stored.FindInt(kVersionKey);
-  const base::ListValue* order = stored.FindList(kOrderKey);
   const base::DictValue* entries = stored.FindDict(kSpacesKey);
-  if (version == kVersion && order && entries) {
-    std::set<std::string> seen;
-    for (const base::Value& value : *order) {
-      const std::string* id = value.GetIfString();
-      if (!id || !base::Uuid::ParseLowercase(*id).is_valid() ||
-          !seen.insert(*id).second) {
-        continue;
-      }
-      const base::DictValue* entry = entries->FindDict(*id);
+  if (version == kVersion && entries) {
+    for (const auto [id, value] : *entries) {
+      const base::DictValue* entry = value.GetIfDict();
       const std::string* name = entry ? entry->FindString(kNameKey) : nullptr;
-      if (!name) {
+      const std::string* order = entry ? entry->FindString(kOrderKey) : nullptr;
+      // add-tab-folders D12: a Space without a sort key, as saved before it,
+      // is left out.
+      if (!base::Uuid::ParseLowercase(id).is_valid() || !name || !order ||
+          !IsValidOrderKey(*order)) {
         continue;
       }
-      Space space{*id, Clean(*name, kMaxNameLength), std::string(),
-                  ExistingProfile(entry->FindString(kProfileKey))};
+      Space space{id, Clean(*name, kMaxNameLength), std::string(),
+                  ExistingProfile(entry->FindString(kProfileKey)), *order};
       if (space.name.empty()) {
         continue;
       }
@@ -108,35 +108,70 @@ void ClairSpaceStore::Load() {
       }
       spaces_.push_back(std::move(space));
     }
+    Sort();
   }
   // There are no existing users to migrate (design, Context): anything else
   // starts over with one Space.
   if (spaces_.empty()) {
     spaces_.push_back({base::Uuid::GenerateRandomV4().AsLowercaseString(),
                        kFirstSpaceName, std::string(),
-                       ClairProfiles::DefaultID()});
+                       ClairProfiles::DefaultID(),
+                       OrderKeyBetween(std::string(), std::string())});
     Save();
   }
 }
 
 void ClairSpaceStore::Save() {
-  base::ListValue order;
+  ClairProfiles* profiles = ClairProfiles::Get();
   base::DictValue entries;
   for (const Space& space : spaces_) {
-    order.Append(space.id);
     base::DictValue entry;
     entry.Set(kNameKey, space.name);
     if (!space.icon.empty()) {
       entry.Set(kIconKey, space.icon);
     }
-    entry.Set(kProfileKey, space.profile);
+    // add-tab-folders D13: the profile's ID, not its directory.
+    entry.Set(kProfileKey, profiles->StoredIDOf(space.profile));
+    entry.Set(kOrderKey, space.order);
     entries.Set(space.id, std::move(entry));
   }
   base::DictValue stored;
   stored.Set(kVersionKey, kVersion);
-  stored.Set(kOrderKey, std::move(order));
   stored.Set(kSpacesKey, std::move(entries));
   prefs_->SetDict(kSpacesPref, std::move(stored));
+}
+
+void ClairSpaceStore::Sort() {
+  std::ranges::sort(spaces_, [](const Space& a, const Space& b) {
+    return std::tie(a.order, a.id) < std::tie(b.order, b.id);
+  });
+}
+
+std::string ClairSpaceStore::KeyAt(size_t index, std::string_view moving) {
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    std::vector<const Space*> others;
+    for (const Space& space : spaces_) {
+      if (space.id != moving) {
+        others.push_back(&space);
+      }
+    }
+    const size_t at = std::min(index, others.size());
+    const std::string before = at > 0 ? others[at - 1]->order : std::string();
+    const std::string after =
+        at < others.size() ? others[at]->order : std::string();
+    std::string key = OrderKeyBetween(before, after);
+    if (!key.empty()) {
+      return key;
+    }
+    // Two Spaces share a key, as when two Macs placed one each in the same
+    // gap: every Space gets a new key, in the order they're in.
+    std::string previous;
+    for (Space& space : spaces_) {
+      space.order = OrderKeyBetween(previous, std::string());
+      previous = space.order;
+    }
+  }
+  return OrderKeyBetween(spaces_.back().order, std::string());
 }
 
 void ClairSpaceStore::Changed() {
@@ -164,10 +199,12 @@ std::string ClairSpaceStore::Create(std::string_view name,
                                     std::string_view profile) {
   Space space{base::Uuid::GenerateRandomV4().AsLowercaseString(),
               Clean(name, kMaxNameLength), CleanIcon(icon),
-              std::string(profile)};
+              std::string(profile), std::string()};
   if (space.name.empty() || !ClairProfiles::Get()->Exists(profile)) {
     return std::string();
   }
+  // D12: after the last.
+  space.order = KeyAt(spaces_.size(), space.id);
   std::string id = space.id;
   spaces_.push_back(std::move(space));
   Changed();
@@ -204,9 +241,11 @@ void ClairSpaceStore::Move(std::string_view id, int index) {
   if (to == *from) {
     return;
   }
-  Space space = std::move(spaces_[*from]);
-  spaces_.erase(spaces_.begin() + *from);
-  spaces_.insert(spaces_.begin() + to, std::move(space));
+  // add-tab-folders D12: only the Space that moved gets a new key.
+  const std::string key = KeyAt(to, id);
+  auto it = std::ranges::find(spaces_, id, &Space::id);
+  it->order = key;
+  Sort();
   Changed();
 }
 

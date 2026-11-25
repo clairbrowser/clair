@@ -75,17 +75,20 @@
 }
 - (void)openURL:(NSURL*)url inProfile:(ClairProfileID)profileID {
 }
-- (NSArray<id<ClairPin>>*)pinsInSpace:(ClairSpaceID)spaceID {
+- (NSArray<id<ClairPinnedItem>>*)pinnedItemsInSpace:(ClairSpaceID)spaceID {
   return @[];
 }
 - (NSArray<id<ClairPin>>*)favoritesOfProfile:(ClairProfileID)profileID {
   return @[];
 }
-- (void)pinTab:(ClairTabID)tabID atIndex:(NSInteger)index {
+- (void)pinTab:(ClairTabID)tabID inFolder:(ClairFolderID)folderID atIndex:(NSInteger)index {
 }
 - (void)favoriteTab:(ClairTabID)tabID atIndex:(NSInteger)index {
 }
-- (void)movePin:(ClairPinID)pinID toSpace:(ClairSpaceID)spaceID atIndex:(NSInteger)index {
+- (void)movePin:(ClairPinID)pinID
+        toSpace:(ClairSpaceID)spaceID
+         folder:(ClairFolderID)folderID
+        atIndex:(NSInteger)index {
 }
 - (void)movePin:(ClairPinID)pinID toFavoritesAtIndex:(NSInteger)index {
 }
@@ -102,6 +105,24 @@
 - (void)setName:(NSString*)name forPin:(ClairPinID)pinID {
 }
 - (void)clearTodayInSpace:(ClairSpaceID)spaceID {
+}
+- (ClairFolderID)createFolderNamed:(NSString*)name inSpace:(ClairSpaceID)spaceID atIndex:(NSInteger)index {
+  return name.length ? [NSUUID UUID].UUIDString.lowercaseString : nil;
+}
+- (void)renameFolder:(ClairFolderID)folderID to:(NSString*)name {
+}
+- (void)setFolder:(ClairFolderID)folderID open:(BOOL)open {
+}
+- (void)moveFolder:(ClairFolderID)folderID toSpace:(ClairSpaceID)spaceID atIndex:(NSInteger)index {
+}
+- (void)duplicateFolder:(ClairFolderID)folderID {
+}
+- (void)deleteFolder:(ClairFolderID)folderID {
+}
+- (void)closeTabsInFolder:(ClairFolderID)folderID {
+}
+- (ClairSpaceID)turnFolderIntoSpace:(ClairFolderID)folderID {
+  return nil;
 }
 - (NSArray<id<ClairLinkRule>>*)linkRules {
   return @[];
@@ -171,12 +192,21 @@
   [host quitWithoutWarning];
   XCTAssertEqual([host tabsInSpace:space].count, 0u);
   // The pin calls (add-pinned-tabs-and-favorites design D10).
-  XCTAssertEqual([host pinsInSpace:space].count, 0u);
+  XCTAssertEqual([host pinnedItemsInSpace:space].count, 0u);
   XCTAssertEqual([host favoritesOfProfile:@"Default"].count, 0u);
-  [host pinTab:3 atIndex:0];
+  [host pinTab:3 inFolder:nil atIndex:0];
   [host setName:nil forTab:3];
   ClairPinID pin = @(std::string("6f1c0d1e-0000-4000-8000-000000000000").c_str());
-  [host movePin:pin toSpace:space atIndex:NSIntegerMax];
+  [host movePin:pin toSpace:space folder:nil atIndex:NSIntegerMax];
+  // The folder calls (add-tab-folders design D2).
+  ClairFolderID folder_id = [host createFolderNamed:@(std::string("Trip").c_str())
+                                            inSpace:space
+                                            atIndex:NSIntegerMax];
+  XCTAssertNotNil(folder_id);
+  XCTAssertNil([host createFolderNamed:@"" inSpace:space atIndex:0]);
+  [host movePin:pin toSpace:space folder:folder_id atIndex:0];
+  [host setFolder:folder_id open:NO];
+  XCTAssertNil([host turnFolderIntoSpace:folder_id]);
   [host setPinnedURL:[NSURL URLWithString:@"https://example.com/"] forPin:pin];
   // The link rule calls (add-link-rules design D4).
   XCTAssertEqual(host.linkRules.count, 0u);

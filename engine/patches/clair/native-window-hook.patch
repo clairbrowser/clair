@@ -467,7 +467,7 @@
        ":global_keyboard_shortcuts_mac",
        "//chrome/browser/apps/app_shim",
        "//chrome/browser/mac",
-@@ -5257,6 +5258,71 @@
+@@ -5257,6 +5258,73 @@
    # is easy to catch in review.
    sources = []
  }
@@ -490,6 +490,8 @@
 +      "clair/clair_link_rule_store.mm",
 +      "clair/clair_link_rules.h",
 +      "clair/clair_link_rules.mm",
++      "clair/clair_order_key.h",
++      "clair/clair_order_key.mm",
 +      "clair/clair_pin_store.h",
 +      "clair/clair_pin_store.mm",
 +      "clair/clair_profiles.h",

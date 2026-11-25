@@ -38,23 +38,28 @@ struct Space {
   std::string icon;
   // The profile's directory name, such as "Default"; never empty.
   std::string profile;
+  // Its sort key (add-tab-folders design D12, clair_order_key.h).
+  std::string order;
 };
 
 // The app's Spaces, in the user's order, kept in Chromium's Local State
-// (add-spaces design D1):
+// (add-spaces design D1, add-tab-folders design D12, D13):
 //
 //   clair.spaces      { "version": 1,
-//                       "order": ["<uuid>", …],
 //                       "spaces": { "<uuid>": { "name": "Work",
 //                                               "icon": "💼",
-//                                               "profile": "Profile 1" } } }
+//                                               "profile": "<profile ID>",
+//                                               "order": "a0" } } }
 //   clair.last_space  "<uuid>"   // the Space last shown in a key window
 //   clair.windows     { "<group uuid>": "<space uuid>" }
 //
-// There is always at least one Space: with none stored it creates "Home", and
-// it refuses to delete the last. A Space without "profile", as stored before
-// add-profiles, uses the default profile, as does one whose profile is gone
-// (add-profiles design D2).
+// Each Space carries its own place, a sort key, and the Spaces are sorted by
+// it, then by ID, so a move rewrites only the Space that moved. "profile" is
+// the profile's ID of ClairProfiles::StoredIDOf, translated to and from its
+// directory on load and save. There is always at least one Space: with none
+// stored it creates "Home", and it refuses to delete the last. A Space
+// without a valid sort key is left out; one whose profile is gone uses the
+// default profile (add-profiles design D2).
 class ClairSpaceStore {
  public:
   class Observer : public base::CheckedObserver {
@@ -134,6 +139,12 @@ class ClairSpaceStore {
   void Load();
   void Save();
   void Changed();
+  // Sorts the Spaces by sort key, then by ID.
+  void Sort();
+  // D12: a key for `index` in the order without `moving`, between that
+  // place's neighbours. When two neighbours share a key, every Space gets a
+  // new one first.
+  std::string KeyAt(size_t index, std::string_view moving);
 
   const raw_ptr<PrefService> prefs_;
   std::vector<Space> spaces_;

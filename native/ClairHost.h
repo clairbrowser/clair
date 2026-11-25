@@ -89,6 +89,10 @@ typedef NSString *ClairProfileID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(ProfileI
 // (add-pinned-tabs-and-favorites design D1).
 typedef NSString *ClairPinID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(PinID);
 
+// A folder's ID: the UUID string of a folder in a Space's pinned section,
+// which never changes (add-tab-folders design D1).
+typedef NSString *ClairFolderID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(FolderID);
+
 // A bookmark's ID and a bookmark folder's: Chromium's bookmark node IDs,
 // stable while Clair runs (add-bookmarks-menu design D3).
 typedef int64_t ClairBookmarkID NS_SWIFT_NAME(BookmarkID);
@@ -99,6 +103,7 @@ static const ClairBookmarkFolderID ClairBookmarkFolderIDNone = -1;
 
 @protocol ClairLinkRule;
 @protocol ClairPin;
+@protocol ClairPinnedItem;
 @protocol ClairProfile;
 @protocol ClairSpace;
 @protocol ClairSpacesObserver;
@@ -146,7 +151,7 @@ NS_SWIFT_NAME(ClairHost)
 // profile: every window showing the Space lists all of them, whichever window
 // holds each (share-tabs-across-windows design D1). A Peek directly follows its
 // parent. The tabs of pinned tabs and favorites aren't among them: they reach
-// ClairUI through their pins (-pinsInSpace:, -favoritesOfProfile:). An
+// ClairUI through their pins (-pinnedItemsInSpace:, -favoritesOfProfile:). An
 // incognito or guest window's Space (-[ClairBrowser shownSpaceID]) lists that
 // window's tabs alone, whose `browserID` is its own. Empty for an unknown
 // Space.
@@ -171,13 +176,14 @@ NS_SWIFT_NAME(ClairHost)
 - (void)moveSpace:(ClairSpaceID)spaceID toIndex:(NSInteger)index NS_SWIFT_NAME(moveSpace(_:to:));
 // Deletes a Space: each window showing it shows the Space before it, or the
 // one after when it was first, then its tabs close in every window, each with
-// its leave-page confirmation, and its pinned tabs are removed
-// (add-pinned-tabs-and-favorites design D9). Ignored for the only Space.
-// ClairUI asks the user first.
+// its leave-page confirmation, and its pinned tabs and folders are removed
+// (add-pinned-tabs-and-favorites design D9, add-tab-folders). Ignored for the
+// only Space. ClairUI asks the user first.
 - (void)deleteSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(deleteSpace(_:));
 // Moves a tab, with its Peek, to the top of another Space's list, or a pinned
-// tab's bound tab, with its pin, to the end of that Space's pinned section
-// (add-pinned-tabs-and-favorites design D5). Within a profile it keeps its
+// tab's bound tab, with its pin, to the end of that Space's pinned section,
+// outside any folder (add-pinned-tabs-and-favorites design D5). Within a
+// profile it keeps its
 // page and its window. To a Space of another profile it
 // reopens at its URL in that profile, without its Peek and without asking
 // before leaving the page (add-profiles design D9). A window whose active tab
@@ -186,43 +192,55 @@ NS_SWIFT_NAME(ClairHost)
 // it had closed there.
 - (void)moveTab:(ClairTabID)tabID toSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(move(tab:toSpace:));
 
-// --- Pinned tabs and favorites (add-pinned-tabs-and-favorites design D1 to
-// D6, D10) ---
+// --- Pinned tabs, folders and favorites (add-pinned-tabs-and-favorites
+// design D1 to D6, D10; add-tab-folders design D1 to D3, D7, D8, D11) ---
 // A pin is a saved item, kept in Chromium's Local State whether or not a page
 // is open: a pinned tab belongs to a Space, a favorite to a profile. While its
-// page is open, one tab is bound to it. Changes reach every observer through
-// -[ClairSpacesObserver pinsDidChange:inSpace:] and
-// -favoritesDidChange:ofProfile:. Indices count pins in their section; an
-// index past the end means the end. Every call naming a pin, tab, Space or
-// profile that doesn't exist, or a tab of an incognito or guest window, does
-// nothing.
+// page is open, one tab is bound to it. A Space's pinned section lists items,
+// each a pinned tab or a folder; a folder holds pinned tabs only, one level
+// deep. Changes reach every observer through
+// -[ClairSpacesObserver pinnedItemsDidChange:inSpace:] and
+// -favoritesDidChange:ofProfile:. A place in a Space's pinned section is an
+// index among its items, pins and folders alike, or, with a folder, an index
+// among the folder's pins; a place among favorites is an index among them. An
+// index past the end means the end. Every call naming a pin, folder, tab,
+// Space or profile that doesn't exist, or a tab of an incognito or guest
+// window, does nothing.
 
-// A Space's pinned tabs, in its order. Empty for an unknown Space.
-- (NSArray<id<ClairPin>> *)pinsInSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(pins(inSpace:));
+// A Space's pinned items, in its order. Empty for an unknown Space.
+- (NSArray<id<ClairPinnedItem>> *)pinnedItemsInSpace:(ClairSpaceID)spaceID
+    NS_SWIFT_NAME(pinnedItems(inSpace:));
 // A profile's favorites, in its order. Empty for an unknown profile.
 - (NSArray<id<ClairPin>> *)favoritesOfProfile:(ClairProfileID)profileID
     NS_SWIFT_NAME(favorites(ofProfile:));
 
-// Pins a Today tab at `index` in its Space's pinned section (D5): the pin
-// takes the tab's URL as its pinned URL, its title, icon and custom name, and
-// the tab, with its Peek, stays open and bound to it.
-- (void)pinTab:(ClairTabID)tabID atIndex:(NSInteger)index NS_SWIFT_NAME(pin(tab:at:));
-// Makes a Today tab a favorite of its profile at `index`, as -pinTab:atIndex:
-// does.
+// Pins a Today tab at `index` in its Space's pinned section, or in
+// `folderID`, a folder of that Space (D5): the pin takes the tab's URL as its
+// pinned URL, its title, icon and custom name, and the tab, with its Peek,
+// stays open and bound to it. A folder of another Space is ignored.
+- (void)pinTab:(ClairTabID)tabID
+      inFolder:(nullable ClairFolderID)folderID
+       atIndex:(NSInteger)index NS_SWIFT_NAME(pin(tab:inFolder:at:));
+// Makes a Today tab a favorite of its profile at `index`, as
+// -pinTab:inFolder:atIndex: does.
 - (void)favoriteTab:(ClairTabID)tabID atIndex:(NSInteger)index NS_SWIFT_NAME(favorite(tab:at:));
-// Moves a pinned tab or favorite to `index` in `spaceID`'s pinned section,
-// with its bound tab: within a Space it reorders, and a favorite becomes a
-// pinned tab. To a Space of another profile, the bound tab reopens at its URL
-// in that profile, bound to the pin (add-profiles design D9).
-- (void)movePin:(ClairPinID)pinID toSpace:(ClairSpaceID)spaceID atIndex:(NSInteger)index
-    NS_SWIFT_NAME(movePin(_:toSpace:at:));
+// Moves a pinned tab or favorite to `index` in `spaceID`'s pinned section, or
+// in `folderID`, a folder of that Space, with its bound tab: within a Space it
+// reorders, or moves into or out of a folder, and a favorite becomes a pinned
+// tab. A folder of another Space is ignored. To a Space of another profile,
+// the bound tab reopens at its URL in that profile, bound to the pin
+// (add-profiles design D9).
+- (void)movePin:(ClairPinID)pinID
+        toSpace:(ClairSpaceID)spaceID
+         folder:(nullable ClairFolderID)folderID
+        atIndex:(NSInteger)index NS_SWIFT_NAME(movePin(_:toSpace:folder:at:));
 // Moves a pinned tab or favorite to `index` among the favorites of its
 // profile (a pinned tab's is its Space's), with its bound tab.
 - (void)movePin:(ClairPinID)pinID toFavoritesAtIndex:(NSInteger)index
     NS_SWIFT_NAME(movePin(_:toFavoritesAt:));
 // Removes a pinned tab or favorite and closes its bound tab, if any, with its
-// leave-page confirmation. Restore Last Closed Tab brings it back in place
-// (D3).
+// leave-page confirmation. Restore Last Closed Tab brings it back in place,
+// in its folder while the folder exists (D3, add-tab-folders design D7).
 - (void)removePin:(ClairPinID)pinID NS_SWIFT_NAME(removePin(_:));
 // Loads the pinned URL in the bound tab as a new navigation, so Back returns
 // (D6).
@@ -241,6 +259,44 @@ NS_SWIFT_NAME(ClairHost)
 // leave-page confirmation, as Close Tabs Below does. Pinned tabs and favorites
 // stay as they are (D4).
 - (void)clearTodayInSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(clearToday(inSpace:));
+
+// --- Folders (add-tab-folders design D1 to D3, D6 to D8, D11) ---
+
+// Adds an empty folder named `name` at `index` among `spaceID`'s pinned
+// items and returns its ID. A new folder is open. An empty name, once
+// trimmed, or an unknown Space is ignored, and returns nil.
+- (nullable ClairFolderID)createFolderNamed:(NSString *)name
+                                    inSpace:(ClairSpaceID)spaceID
+                                    atIndex:(NSInteger)index
+    NS_SWIFT_NAME(createFolder(named:inSpace:at:));
+// Renames a folder. An empty name, once trimmed, is ignored.
+- (void)renameFolder:(ClairFolderID)folderID to:(NSString *)name NS_SWIFT_NAME(renameFolder(_:to:));
+// Opens or closes a folder in every window of this Mac, and keeps it so
+// across launches (D3). It isn't part of the folder's record.
+- (void)setFolder:(ClairFolderID)folderID open:(BOOL)open NS_SWIFT_NAME(setFolder(_:open:));
+// Moves a folder, with its pins and their bound tabs, to `index` among
+// `spaceID`'s pinned items: within its Space it reorders. Bound tabs move as
+// -movePin:toSpace:folder:atIndex: moves them, across profiles too, and a
+// window whose active tab was one of them shows the Space (D11).
+- (void)moveFolder:(ClairFolderID)folderID
+           toSpace:(ClairSpaceID)spaceID
+           atIndex:(NSInteger)index NS_SWIFT_NAME(moveFolder(_:toSpace:at:));
+// Adds a copy of the folder right after it, open, with a copy of each of its
+// pins in order: their pinned URLs, titles, names and icons, none open (D11).
+- (void)duplicateFolder:(ClairFolderID)folderID NS_SWIFT_NAME(duplicateFolder(_:));
+// Removes a folder and its pins, then closes their bound tabs, each with its
+// leave-page confirmation. Restore Last Closed Tab brings the folder back with
+// its pins, in place (D7). ClairUI asks the user first when it has pins.
+- (void)deleteFolder:(ClairFolderID)folderID NS_SWIFT_NAME(deleteFolder(_:));
+// Close This Folder: closes the bound tab of each of the folder's pins, in
+// whichever window holds it, each with its leave-page confirmation, as
+// -clearTodayInSpace: does. The pins stay.
+- (void)closeTabsInFolder:(ClairFolderID)folderID NS_SWIFT_NAME(closeTabs(inFolder:));
+// Adds a Space after the last, named after the folder, without an icon, using
+// the folder's Space's profile; makes the folder's pins its pinned tabs, in
+// order, with their bound tabs; removes the folder; and returns the new
+// Space's ID, or nil when nothing changed (D8).
+- (nullable ClairSpaceID)turnFolderIntoSpace:(ClairFolderID)folderID NS_SWIFT_NAME(turnFolderIntoSpace(_:));
 
 // --- Profiles (add-profiles design D1, D7, D9 and D11) ---
 // A profile is a Chromium profile: its own cookies, history, logins,
@@ -581,8 +637,12 @@ NS_SWIFT_NAME(ClairPin)
 @property(nonatomic, readonly, copy) ClairPinID pinID;
 // Whether it is a favorite rather than a pinned tab.
 @property(nonatomic, readonly) BOOL isFavorite;
-// A pinned tab's Space, or nil for a favorite.
+// A pinned tab's Space, or nil for a favorite. A pin in a folder is in the
+// folder's Space.
 @property(nonatomic, readonly, copy, nullable) ClairSpaceID spaceID;
+// The folder holding the pinned tab, or nil outside one and for a favorite
+// (add-tab-folders design D2).
+@property(nonatomic, readonly, copy, nullable) ClairFolderID folderID;
 // A favorite's profile, or for a pinned tab its Space's.
 @property(nonatomic, readonly, copy) ClairProfileID profileID;
 // The pinned URL: what opens when the pin is selected without a page, and
@@ -605,6 +665,30 @@ NS_SWIFT_NAME(ClairPin)
 // first requested before redirects, is the pinned URL, ignoring the fragment
 // (design D2). YES while unbound.
 @property(nonatomic, readonly) BOOL isAtPinnedURL;
+@end
+
+// A folder in a Space's pinned section, as a snapshot (add-tab-folders design
+// D2). Chromium implements it.
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairFolder)
+@protocol ClairFolder <NSObject>
+@property(nonatomic, readonly, copy) ClairFolderID folderID;
+@property(nonatomic, readonly, copy) ClairSpaceID spaceID;
+// Never empty.
+@property(nonatomic, readonly, copy) NSString *name;
+// Whether it's open on this Mac (D3). A new folder is.
+@property(nonatomic, readonly) BOOL isOpen;
+// Its pinned tabs, in its order.
+@property(nonatomic, readonly, copy) NSArray<id<ClairPin>> *pins;
+@end
+
+// One item of a Space's pinned section: a pinned tab or a folder; exactly one
+// of the two is set (add-tab-folders design D2). Chromium implements it.
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairPinnedItem)
+@protocol ClairPinnedItem <NSObject>
+@property(nonatomic, readonly, nullable) id<ClairPin> pin;
+@property(nonatomic, readonly, nullable) id<ClairFolder> folder;
 @end
 
 // A Space, as a snapshot (add-spaces design D9). Chromium implements it.
@@ -701,12 +785,13 @@ NS_SWIFT_NAME(ClairSpacesObserver)
 // `profiles` is the new list, as -[ClairHost profiles] returns it. A change
 // of a Space's profile arrives through -spacesDidChange:.
 - (void)profilesDidChange:(NSArray<id<ClairProfile>> *)profiles NS_SWIFT_NAME(profilesDidChange(_:));
-// A Space's pinned tabs were added, removed, moved, renamed, edited, bound or
-// unbound, or one's title, icon or place against its pinned URL changed
-// (add-pinned-tabs-and-favorites design D10). `pins` is the new list, as
-// -[ClairHost pinsInSpace:] returns it.
-- (void)pinsDidChange:(NSArray<id<ClairPin>> *)pins inSpace:(ClairSpaceID)spaceID
-    NS_SWIFT_NAME(pinsDidChange(_:inSpace:));
+// A Space's pinned tabs or folders were added, removed, moved, renamed,
+// edited, bound or unbound, a folder was opened or closed, or a pin's title,
+// icon or place against its pinned URL changed (add-pinned-tabs-and-favorites
+// design D10, add-tab-folders design D2). `items` is the new list, as
+// -[ClairHost pinnedItemsInSpace:] returns it.
+- (void)pinnedItemsDidChange:(NSArray<id<ClairPinnedItem>> *)items inSpace:(ClairSpaceID)spaceID
+    NS_SWIFT_NAME(pinnedItemsDidChange(_:inSpace:));
 // The same for a profile's favorites.
 - (void)favoritesDidChange:(NSArray<id<ClairPin>> *)favorites ofProfile:(ClairProfileID)profileID
     NS_SWIFT_NAME(favoritesDidChange(_:ofProfile:));
