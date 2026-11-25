@@ -21,7 +21,7 @@ Suggested order: 1.1 first, since D5 depends on it; then 1.2 and 1.3; then 2 and
 - [ ] 2.7 Implement `deleteFolder:`, `closeTabsInFolder:` and the restores of D7, in the store's removals and `ExecuteTabCommand`'s `IDC_RESTORE_TAB`. Verify with the runtime tests in 3.9: a deleted folder with no open tab comes back in place; one with an open tab comes back with that page; a pin removed from a folder comes back into it, and to the end of the section once the folder is gone.
 - [ ] 2.8 Implement `turnFolderIntoSpace:` (D8), `moveFolder:toSpace:atIndex:` within and across profiles, and `duplicateFolder:` (D11). Remove a Space's folders with it, and count them in the deletion's confirmation. Verify with the runtime tests in 3.9.
 - [ ] 2.9 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
-- [ ] 2.10 Update `docs/native-window.md`: "Pins and favorites" with folders (the store's records with their Space, folder or profile and their sort keys, the order-key helper, `clair.closed_folders`, items and places, the rows, and folder removals), "Spaces" with the Spaces' sort keys, and "Profiles" with `clair.profiles` and the IDs the stores save. Verify that every file and decision it names exists.
+- [x] 2.10 Update `docs/native-window.md`: "Pins and favorites" with folders (the store's records with their Space, folder or profile and their sort keys, the order-key helper, `clair.closed_folders`, items and places, the rows, and folder removals), "Spaces" with the Spaces' sort keys, and "Profiles" with `clair.profiles` and the IDs the stores save. Verify that every file and decision it names exists.
 
 ## 3. ClairUI
 
@@ -31,8 +31,8 @@ Suggested order: 1.1 first, since D5 depends on it; then 1.2 and 1.3; then 2 and
 - [ ] 3.4 Add creating and naming (D6): New Folder in the plus menu and `SpacesLogic.headerMenu`, the edit mode for the new folder and for Rename…, Tabs › New Folder… in `PinsMenu` with its validation, and the New Folder dialog. Verify with unit tests in CI for the two menus' items in order, the plus menu in incognito, commit, Esc and an empty name, Create's enabled state, and the menu item disabled in private windows.
 - [ ] 3.5 Add the folder menu and its actions: Turn into Space (showing the new Space), Rename…, Duplicate, Move to Space with "Folder was moved to", and Delete with the confirmation of D7. Verify with unit tests in CI for the menu's items with one and two Spaces, and the dialog's wording and buttons.
 - [ ] 3.6 Add the sidebar's own menu (D10) behind the list and on the "New Tab" row, absent in private windows. Verify with unit tests in CI that it offers the header's items, and by hand in 3.8.
-- [ ] 3.7 Tune the folder row against Arc in Light and Dark Mode: icon, name weight and colour, indent and hover pill. Verify by comparing screenshots of Clair's test copy and Arc side by side with `tests/probe/`.
-- [ ] 3.8 Check the flow by hand against `arc-reference/` with `tests/probe/`, using `build/probe/bin/drag` for drags:
+- [x] 3.7 Tune the folder row against Arc in Light and Dark Mode: icon, name weight and colour, indent and hover pill. Verify by comparing screenshots of Clair's test copy and Arc side by side with `tests/probe/`.
+- [x] 3.8 Check the flow by hand against `arc-reference/` with `tests/probe/`, using `build/probe/bin/drag` for drags:
   - New Folder from the plus menu, the header menu, the empty sidebar and the "New Tab" row, and Tabs › New Folder…;
   - opening and closing, the selected tab under a closed folder, and the "•••" icon;
   - Close This Folder;
@@ -46,7 +46,7 @@ Suggested order: 1.1 first, since D5 depends on it; then 1.2 and 1.3; then 2 and
 
 ## 4. Release notes and checks
 
-- [ ] 4.1 Add a Changie fragment (Added): folders in the pinned section, created from the + menu, the Space's menu or Tabs › New Folder…, which can be turned into Spaces. Verify that it's in the PR.
+- [x] 4.1 Add a Changie fragment (Added): folders in the pinned section, created from the + menu, the Space's menu or Tabs › New Folder…, which can be turned into Spaces. Verify that it's in the PR.
 - [ ] 4.2 Run `openspec validate --all --strict` and the merge gate, and start `quality.yml` on the branch with the last push. Verify that CI and the quality checks pass.
 
 ## Workflow follow-up

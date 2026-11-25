@@ -6,8 +6,9 @@ import AppKit
 import ClairHost
 
 /// Clair's items in Chromium's Tab menu and the View menu
-/// (add-pinned-tabs-and-favorites design D11): Pin Tab (Cmd+D), Back to Pinned
-/// URL, Close and Keep Pinned and Clear Today (Shift+Cmd+K), and View ›
+/// (add-pinned-tabs-and-favorites design D11): Pin Tab (Cmd+D), New Folder…
+/// (add-tab-folders D6), Back to Pinned URL, Close and Keep Pinned and Clear
+/// Today (Shift+Cmd+K), and View ›
 /// Collapse Pinned Tabs. They act on the main window, which titles and
 /// enables them. Chromium's own Pin Tab is hidden, and Cmd+D left its
 /// bookmark item.
@@ -44,7 +45,8 @@ final class PinsMenu: NSObject, NSMenuItemValidation {
     }
     let chromiumPin = tabMenu.items.lastIndex { chromiumPinTags.contains($0.tag) }
     var index = chromiumPin.map { $0 + 1 } ?? tabMenu.numberOfItems
-    for command in [PinsLogic.MainMenuCommand.togglePin, .backToPinnedURL, .closeKeepingPin, .clearToday] {
+    // add-tab-folders D6: New Folder… right after Pin Tab.
+    for command in [PinsLogic.MainMenuCommand.togglePin, .newFolder, .backToPinnedURL, .closeKeepingPin, .clearToday] {
       tabMenu.insertItem(make(command), at: index)
       index += 1
     }

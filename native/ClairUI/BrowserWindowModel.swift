@@ -29,9 +29,12 @@ final class BrowserWindowModel {
   private(set) var tabs: [any ClairTab] = []
   private(set) var activeTabID: TabID = ClairTabIDNone
 
-  /// The pinned tabs of the Space the window shows, and the favorites of its
-  /// profile, in their order (add-pinned-tabs-and-favorites D11); none in an
+  /// The pinned items of the Space the window shows, pinned tabs and
+  /// folders, and the favorites of its profile, in their order
+  /// (add-pinned-tabs-and-favorites D11, add-tab-folders D2); none in an
   /// incognito or guest window.
+  private(set) var pinnedItems: [any ClairPinnedItem] = []
+  /// Every pinned tab of the shown Space, its folders' included, in order.
   private(set) var pins: [any ClairPin] = []
   private(set) var favorites: [any ClairPin] = []
   /// The latest snapshot of each open pin's tab and its Peek, by tab ID.
@@ -62,6 +65,8 @@ final class BrowserWindowModel {
     case .pin(let pinID):
       guard let pin = (pins + favorites).first(where: { $0.pinID == pinID }) else { return nil }
       return PinsLogic.icon(of: pin, tab: tab(ofPin: pin))
+    case .folder:
+      return nil
     }
   }
 
@@ -261,12 +266,14 @@ final class BrowserWindowModel {
   /// Reads the Space's pinned tabs and the profile's favorites again.
   func reloadPins() {
     guard showsPins else {
+      pinnedItems = []
       pins = []
       favorites = []
       pinTabs = [:]
       return
     }
-    pins = spaces.pins(inSpace: shownSpaceID)
+    pinnedItems = spaces.pinnedItems(inSpace: shownSpaceID)
+    pins = PinsLogic.allPins(pinnedItems)
     favorites = profileID.map { spaces.favorites(ofProfile: $0) } ?? []
     var latest: [TabID: any ClairTab] = [:]
     for pin in pins + favorites {
@@ -333,6 +340,8 @@ struct RowRename: Equatable {
   enum Row: Equatable {
     case tab(TabID)
     case pin(PinID)
+    /// A folder's name (add-tab-folders D6).
+    case folder(FolderID)
   }
 
   let row: Row
@@ -352,8 +361,8 @@ struct SpaceSlide: Identifiable {
   /// Whether the new Space comes in from the trailing side, being later in
   /// the order.
   let fromTrailing: Bool
-  /// Its pinned tabs (add-pinned-tabs-and-favorites D11).
-  var fromPins: [any ClairPin] = []
+  /// Its pinned items (add-pinned-tabs-and-favorites D11, add-tab-folders).
+  var fromItems: [any ClairPinnedItem] = []
 }
 
 /// A toast at the bottom of the card. Each has its own ID, so the same

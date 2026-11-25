@@ -34,6 +34,9 @@ protocol SpaceActions: AnyObject {
   func moveSpace(_ spaceID: SpaceID, to index: Int)
   func moveTab(_ tab: TabID, toSpace spaceID: SpaceID)
   func manageSpaces()
+  /// New Folder: adds an open folder named "Untitled" at the end of the
+  /// pinned section, with its name in a field (add-tab-folders D6).
+  func newFolder()
 }
 
 /// What the Space header is editing, if anything.
@@ -238,17 +241,26 @@ struct SpaceHeaderView: View {
   /// The header's menu (spaces spec, "Space header").
   private var menuItems: [RowClickCatcher.Item] {
     guard let space else { return [] }
-    return SpacesLogic.headerMenu(spaceCount: model.spaces.spaces.count).map { item in
+    return Self.menuItems(for: space, model: model, actions: actions)
+  }
+
+  /// The header's menu for `space`, which its More button and the sidebar's
+  /// own menu offer too (add-tab-folders D10).
+  static func menuItems(for space: any ClairSpace, model: BrowserWindowModel, actions: (any SpaceActions)?)
+    -> [RowClickCatcher.Item]
+  {
+    SpacesLogic.headerMenu(spaceCount: model.spaces.spaces.count).map { item in
       guard let item else { return .separator }
       guard item.isEnabled else { return .disabled(item.title) }
       if item.command == .setProfile {
-        return .submenu(item.title, Self.profileItems(for: space, in: model.spaces, actions: actions))
+        return .submenu(item.title, profileItems(for: space, in: model.spaces, actions: actions))
       }
       return .action(item.title) { [weak actions] in
         switch item.command {
         case .changeIcon: actions?.beginChangingSpaceIcon()
         case .rename: actions?.beginRenamingSpace()
         case .setProfile: break
+        case .newFolder: actions?.newFolder()
         case .manage: actions?.manageSpaces()
         case .delete: actions?.deleteSpace(space.spaceID)
         }

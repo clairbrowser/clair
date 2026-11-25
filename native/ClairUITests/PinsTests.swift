@@ -106,10 +106,10 @@ struct PinsLogicTests {
 
   @Test func aCollapsedSectionKeepsOnlyTheSelectedRow() {
     let open = FakeTab(id: 7, title: "Mail", pinID: "Mail")
-    let pins = [pin("Docs"), pin("Mail", tab: open), pin("News")]
-    #expect(PinsLogic.visiblePins(pins, collapsed: false, highlighted: 7).count == 3)
-    #expect(PinsLogic.visiblePins(pins, collapsed: true, highlighted: 7).map(\.title) == ["Mail"])
-    #expect(PinsLogic.visiblePins(pins, collapsed: true, highlighted: 99).isEmpty)
+    let items = [pin("Docs"), pin("Mail", tab: open), pin("News")].map { FakePinnedItem(pin: $0) }
+    #expect(PinsLogic.pinnedRows(items, collapsed: false, highlighted: 7).count == 3)
+    #expect(PinsLogic.pinnedRows(items, collapsed: true, highlighted: 7).compactMap(\.pin?.title) == ["Mail"])
+    #expect(PinsLogic.pinnedRows(items, collapsed: true, highlighted: 99).isEmpty)
   }
 
   @Test func theDividerAndClearShowWithTodayTabs() {
@@ -180,9 +180,12 @@ struct PinsLogicTests {
     let today = [FakeTab(id: 1), FakeTab(id: 2, peekID: 3), FakeTab(id: 3, peekParentID: 2), FakeTab(id: 4)]
     // Two pinned rows, the row of the divider and "New Tab", then three
     // Today rows.
+    let items = [pin("P"), pin("Q")].map { FakePinnedItem(pin: $0) }
+    let rows = PinsLogic.pinnedRows(items, collapsed: false, highlighted: ClairTabIDNone)
     func drop(_ destination: Int, pin: Int? = nil, row: Int? = nil) -> PinsLogic.ListDrop {
       PinsLogic.listDrop(
-        destination: destination, pinCount: 2, boundaryCount: 1, today: today, movingPin: pin, movingTodayRow: row)
+        destination: destination, rows: rows, items: items, boundaryCount: 1, today: today, movingPinnedRow: pin,
+        movingTodayRow: row)
     }
     // A Today tab between the two pinned tabs is pinned second.
     #expect(drop(1, row: 0) == .pinned(1))
@@ -201,8 +204,12 @@ struct PinsLogicTests {
     let today = [FakeTab(id: 1), FakeTab(id: 2)]
     // No pinned rows: the row of the divider and "New Tab", then two Today
     // rows. Above it pins; below it is the top of Today.
-    #expect(PinsLogic.listDrop(destination: 0, pinCount: 0, boundaryCount: 1, today: today, movingTodayRow: 1) == .pinned(0))
-    #expect(PinsLogic.listDrop(destination: 1, pinCount: 0, boundaryCount: 1, today: today, movingTodayRow: 1) == .today(0))
+    #expect(
+      PinsLogic.listDrop(destination: 0, rows: [], items: [], boundaryCount: 1, today: today, movingTodayRow: 1)
+        == .pinned(0))
+    #expect(
+      PinsLogic.listDrop(destination: 1, rows: [], items: [], boundaryCount: 1, today: today, movingTodayRow: 1)
+        == .today(0))
   }
 
   @Test func sidebarDragsCarryTextOfTheirOwnType() {
@@ -487,8 +494,8 @@ struct FakePinsTests {
     w.controller.perform(.toggleCollapse)
     #expect(w.model.isPinnedSectionCollapsed)
     #expect(other.model.isPinnedSectionCollapsed)
-    let visible = PinsLogic.visiblePins(w.model.pins, collapsed: true, highlighted: w.model.highlightedTab)
-    #expect(visible.map(\.title) == ["Mail"])
+    let visible = PinsLogic.pinnedRows(w.model.pinnedItems, collapsed: true, highlighted: w.model.highlightedTab)
+    #expect(visible.compactMap(\.pin?.title) == ["Mail"])
     w.controller.togglePinnedSection()
     #expect(!w.model.isPinnedSectionCollapsed)
   }

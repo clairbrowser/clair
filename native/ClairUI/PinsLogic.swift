@@ -78,19 +78,100 @@ enum PinsLogic {
     isSelected ? .closeKeepingPin : .removePin
   }
 
-  /// The pinned rows the section lists: every one, or only the selected one
-  /// while it's collapsed (pinned-tabs spec, "Collapsing the pinned
-  /// section").
-  static func visiblePins(_ pins: [any ClairPin], collapsed: Bool, highlighted: TabID) -> [any ClairPin] {
-    guard collapsed else { return pins }
-    return pins.filter { $0.tabID != ClairTabIDNone && $0.tabID == highlighted }
-  }
-
   /// Whether the Space header offers its collapse chevron: while the Space
-  /// has pinned tabs, or while its section is collapsed, so a section whose
-  /// last pin went while it was collapsed can be expanded again.
+  /// has pinned items, pinned tabs or folders, or while its section is
+  /// collapsed, so a section whose last pin went while it was collapsed can
+  /// be expanded again.
   static func offersCollapse(pinCount: Int, collapsed: Bool) -> Bool {
     pinCount > 0 || collapsed
+  }
+
+  // MARK: Folders (add-tab-folders design D4)
+
+  /// Every pinned tab of `items`, its folders' included, in order.
+  static func allPins(_ items: [any ClairPinnedItem]) -> [any ClairPin] {
+    items.flatMap { item -> [any ClairPin] in
+      if let pin = item.pin { return [pin] }
+      return item.folder?.pins ?? []
+    }
+  }
+
+  /// One row of the pinned section.
+  enum PinnedRow {
+    /// A pinned tab, under `folder` when it's listed in one.
+    case pin(any ClairPin, folder: (any ClairFolder)?)
+    case folder(any ClairFolder)
+
+    var id: String {
+      switch self {
+      case .pin(let pin, _): "pin-\(pin.pinID)"
+      case .folder(let folder): "folder-\(folder.folderID)"
+      }
+    }
+
+    var pin: (any ClairPin)? {
+      if case .pin(let pin, _) = self { return pin }
+      return nil
+    }
+  }
+
+  /// The pinned section's rows: each pinned tab; each folder, then its
+  /// tabs while it's open, or only its selected one while it's closed. A
+  /// collapsed section lists only the selected tab, without its folder
+  /// (pinned-tabs spec, "Collapsing the pinned section"; tab-folders spec,
+  /// "Folders in a collapsed pinned section").
+  static func pinnedRows(_ items: [any ClairPinnedItem], collapsed: Bool, highlighted: TabID) -> [PinnedRow] {
+    let isSelected = { (pin: any ClairPin) in pin.tabID != ClairTabIDNone && pin.tabID == highlighted }
+    if collapsed {
+      return allPins(items).filter(isSelected).map { .pin($0, folder: nil) }
+    }
+    var rows: [PinnedRow] = []
+    for item in items {
+      if let pin = item.pin {
+        rows.append(.pin(pin, folder: nil))
+      } else if let folder = item.folder {
+        rows.append(.folder(folder))
+        for pin in folder.pins where folder.isOpen || isSelected(pin) {
+          rows.append(.pin(pin, folder: folder))
+        }
+      }
+    }
+    return rows
+  }
+
+  /// The folder icon's state (tab-folders spec, "The folder row").
+  enum FolderIcon: Equatable {
+    case open
+    case closed
+    /// Closed, with "•••" while any of its tabs is open.
+    case closedWithOpenTabs
+  }
+
+  static func hasOpenTabs(_ folder: any ClairFolder) -> Bool {
+    folder.pins.contains { $0.tabID != ClairTabIDNone }
+  }
+
+  static func folderIcon(_ folder: any ClairFolder) -> FolderIcon {
+    if folder.isOpen { return .open }
+    return hasOpenTabs(folder) ? .closedWithOpenTabs : .closed
+  }
+
+  /// Whether a folder's row shows "Close This Folder" (−): on hover, while
+  /// any of its tabs is open.
+  static func showsCloseFolder(_ folder: any ClairFolder, isHovered: Bool) -> Bool {
+    isHovered && hasOpenTabs(folder)
+  }
+
+  static let closeFolderHelp = "Close This Folder"
+  /// D6: a new folder's name, and its field's placeholder.
+  static let newFolderName = "Untitled"
+  static let folderNamePlaceholder = "Folder Title"
+
+  /// What keeping `draft` in a folder's name field does: an empty name keeps
+  /// the one it has.
+  static func folderNameChange(draft: String, current: String) -> NameChange {
+    let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty || trimmed == current ? .unchanged : .rename(trimmed)
   }
 
   /// Whether the divider shows: while the Space has Today tabs, in a window
@@ -172,7 +253,8 @@ enum PinsLogic {
   // MARK: Rows and commands (design D4)
 
   /// One of the rows Cmd+1 to Cmd+9 and Next Tab count: every pinned tab of
-  /// the Space, open or not, then the Today rows. Favorites aren't rows.
+  /// the Space, open or not, then the Today rows. Favorites aren't rows, and
+  /// neither are the tabs a closed folder hides (add-tab-folders D9).
   enum CommandRow: Equatable {
     case pin(PinID)
     case tab(TabID)
@@ -182,31 +264,41 @@ enum PinsLogic {
     pins.map { .pin($0.pinID) } + TabListLogic.rows(today).map { .tab($0.tabID) }
   }
 
+  static func commandRows(items: [any ClairPinnedItem], highlighted: TabID, today: [any ClairTab]) -> [CommandRow] {
+    let pins = pinnedRows(items, collapsed: false, highlighted: highlighted).compactMap(\.pin)
+    return commandRows(pins: pins, today: today)
+  }
+
   // MARK: Dragging (design D5, D11)
 
   /// Where a row dropped in the list goes.
   enum ListDrop: Equatable {
-    /// At this index among the Space's pinned tabs.
+    /// At this index among the Space's pinned items, pinned tabs and folders.
     case pinned(Int)
+    /// At this index among a folder's pinned tabs (add-tab-folders D4).
+    case folder(FolderID, Int)
     /// At this index in the Space's Today list, Peeks counted.
     case today(Int)
   }
 
   /// Where a row dropped before list item `destination` goes, in a list of
-  /// `pinCount` pinned rows, then `boundaryCount` rows that are neither (the
-  /// row of the divider and "New Tab"), then the Today rows of `today`. `movingPin` is
-  /// the index of a pinned row being moved within the list, which no longer
-  /// counts once it's lifted; `movingTodayRow` the same for a Today row.
+  /// pinned rows, `rows` of `items`, then `boundaryCount` rows that are
+  /// neither (the row of the divider and "New Tab"), then the Today rows of
+  /// `today`. `movingPinnedRow` is the index of a pinned row being moved
+  /// within the list, which no longer counts once it's lifted;
+  /// `movingTodayRow` the same for a Today row.
+  ///
+  /// add-tab-folders D4: a gap after a folder's row, between its tabs, or
+  /// after an open folder's last tab is in the folder, as in Arc; after a
+  /// closed folder's row, or its selected tab, it's after the folder.
   static func listDrop(
-    destination: Int, pinCount: Int, boundaryCount: Int, today: [any ClairTab], movingPin: Int? = nil,
-    movingTodayRow: Int? = nil
+    destination: Int, rows: [PinnedRow], items: [any ClairPinnedItem], collapsed: Bool = false,
+    boundaryCount: Int, today: [any ClairTab], movingPinnedRow: Int? = nil, movingTodayRow: Int? = nil
   ) -> ListDrop {
+    let pinCount = rows.count
     if destination <= pinCount {
-      var index = destination
-      if let movingPin, movingPin < destination {
-        index -= 1
-      }
-      return .pinned(max(index, 0))
+      return pinnedDrop(
+        destination: destination, rows: rows, items: items, collapsed: collapsed, moving: movingPinnedRow)
     }
     let rows = TabListLogic.rows(today)
     var row = min(max(destination - pinCount - boundaryCount, 0), rows.count)
@@ -224,6 +316,78 @@ enum PinsLogic {
       count + 1 + (TabListLogic.peek(ofRow: tab.tabID, in: today) == nil || tab.tabID == moving ? 0 : 1)
     }
     return .today(index)
+  }
+
+  /// The place of a gap among the pinned rows.
+  private static func pinnedDrop(
+    destination: Int, rows: [PinnedRow], items: [any ClairPinnedItem], collapsed: Bool, moving: Int?
+  ) -> ListDrop {
+    var others = rows
+    var gap = destination
+    let lifted = moving.flatMap { rows.indices.contains($0) ? rows[$0] : nil }
+    if let moving, rows.indices.contains(moving) {
+      others.remove(at: moving)
+      if moving < gap { gap -= 1 }
+    }
+    gap = min(max(gap, 0), others.count)
+    // The items as they are once the lifted row's item is out of the way.
+    var topItems = items
+    var liftedPin: PinID?
+    switch lifted {
+    case .pin(let pin, _):
+      liftedPin = pin.pinID
+      topItems.removeAll { $0.pin?.pinID == pin.pinID }
+    case .folder(let folder):
+      topItems.removeAll { $0.folder?.folderID == folder.folderID }
+    case nil:
+      break
+    }
+    let topIndex = { (id: String) -> Int? in
+      topItems.firstIndex { ($0.pin?.pinID ?? $0.folder?.folderID) == id }
+    }
+    let indexInFolder = { (pin: any ClairPin, folder: any ClairFolder) -> Int in
+      folder.pins.filter { $0.pinID != liftedPin }.firstIndex { $0.pinID == pin.pinID } ?? 0
+    }
+    /// The place of `pin` itself, in a folder or at the top level.
+    let placeOf = { (pin: any ClairPin) -> ListDrop in
+      for item in topItems {
+        if let folder = item.folder, folder.pins.contains(where: { $0.pinID == pin.pinID }) {
+          return .folder(folder.folderID, indexInFolder(pin, folder))
+        }
+      }
+      return .pinned(topIndex(pin.pinID) ?? topItems.count)
+    }
+    if collapsed {
+      // Only the selected tab shows: before it is its own place, after it
+      // the end of the section.
+      if gap < others.count, let pin = others[gap].pin {
+        return placeOf(pin)
+      }
+      return .pinned(topItems.count)
+    }
+    let below = gap < others.count ? others[gap] : nil
+    switch gap > 0 ? others[gap - 1] : nil {
+    case nil:
+      return .pinned(0)
+    case .folder(let folder):
+      // Under a folder's row: first in it, or before its selected tab while
+      // it's closed; after it when it's closed and lists nothing below.
+      if case .pin(let pin, let parent)? = below, parent?.folderID == folder.folderID {
+        return .folder(folder.folderID, indexInFolder(pin, folder))
+      }
+      if folder.isOpen {
+        return .folder(folder.folderID, 0)
+      }
+      return .pinned((topIndex(folder.folderID) ?? topItems.count - 1) + 1)
+    case .pin(let pin, let parent):
+      guard let parent else {
+        return .pinned((topIndex(pin.pinID) ?? topItems.count - 1) + 1)
+      }
+      if parent.isOpen {
+        return .folder(parent.folderID, indexInFolder(pin, parent) + 1)
+      }
+      return .pinned((topIndex(parent.folderID) ?? topItems.count - 1) + 1)
+    }
   }
 
   // MARK: Menus (sidebar, pinned-tabs and favorites specs)
@@ -244,6 +408,9 @@ enum PinsLogic {
     case closeTab
     case closeTabsBelow
     case removeFavorite
+    // A folder's (add-tab-folders).
+    case turnIntoSpace
+    case deleteFolder
   }
 
   struct MenuItem: Equatable {
@@ -312,6 +479,47 @@ enum PinsLogic {
     return items
   }
 
+  /// A folder's menu (tab-folders spec, "Folder menu"): Move to Space only
+  /// with another Space.
+  static func folderMenu(name: String, canMoveToSpace: Bool) -> [MenuItem?] {
+    var items: [MenuItem?] = [
+      MenuItem(title: "Turn “\(name)” into Space", command: .turnIntoSpace),
+      nil,
+      MenuItem(title: "Rename…", command: .rename),
+      nil,
+      MenuItem(title: "Duplicate", command: .duplicate),
+    ]
+    if canMoveToSpace {
+      items.append(MenuItem(title: "Move to Space", command: .moveToSpace))
+    }
+    items += [nil, MenuItem(title: "Delete", command: .deleteFolder)]
+    return items
+  }
+
+  // MARK: Folder dialogs (add-tab-folders design D6, D7)
+
+  static let newFolderDialogTitle = "New Folder…"
+  static let newFolderDialogPlaceholder = "What are you organizing?"
+  static let newFolderDialogButton = "Create"
+
+  /// Create needs a name (tab-folders spec, "New Folder dialog").
+  static func canCreateFolder(_ text: String) -> Bool {
+    !SpacesLogic.cleanName(text).isEmpty
+  }
+
+  /// Whether Delete asks first: only for a folder with tabs.
+  static func folderDeletionNeedsConfirmation(_ folder: any ClairFolder) -> Bool {
+    !folder.pins.isEmpty
+  }
+
+  static func folderDeletionTitle(_ name: String) -> String {
+    "Delete your “\(name)” folder?"
+  }
+
+  /// Clair has no archive: the tabs go.
+  static let folderDeletionMessage = "Deleting this folder will remove the tabs inside it."
+  static let folderDeletionButton = "Delete Folder"
+
   /// Edit Pinned Page's items; Replace needs the page open away from its
   /// pinned URL.
   static func editPinnedPageMenu(_ pin: any ClairPin) -> [MenuItem] {
@@ -341,6 +549,8 @@ enum PinsLogic {
     case closeKeepingPin
     case clearToday
     case toggleCollapse
+    /// Tabs › New Folder… (add-tab-folders D6).
+    case newFolder
   }
 
   static func title(of command: MainMenuCommand, in state: MenuState) -> String {
@@ -350,6 +560,7 @@ enum PinsLogic {
     case .closeKeepingPin: "Close and Keep Pinned"
     case .clearToday: "Clear Today"
     case .toggleCollapse: state.isCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs"
+    case .newFolder: newFolderDialogTitle
     }
   }
 
@@ -361,6 +572,7 @@ enum PinsLogic {
     case .closeKeepingPin: return state.activePinIsFavorite != nil
     case .clearToday: return state.todayRowCount > 0
     case .toggleCollapse: return true
+    case .newFolder: return true
     }
   }
 }

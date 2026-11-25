@@ -81,12 +81,23 @@ enum SpacesLogic {
   struct MenuItem: Equatable {
     enum Command: Equatable {
       /// Set Profile is a submenu of `profileMenu(_:checked:)`.
-      case changeIcon, rename, setProfile, manage, delete
+      case changeIcon, rename, setProfile, newFolder, manage, delete
     }
 
     let title: String
     let command: Command
     let isEnabled: Bool
+  }
+
+  /// An item of the footer's plus menu (sidebar spec, "Plus menu").
+  enum PlusMenuItem: Equatable {
+    case newSpace, newFolder, divider, newTab
+  }
+
+  /// The plus menu: New Space…, New Folder, a divider and New Tab, or New
+  /// Tab alone in incognito and guest windows.
+  static func plusMenu(showsSpaces: Bool) -> [PlusMenuItem] {
+    showsSpaces ? [.newSpace, .newFolder, .divider, .newTab] : [.newTab]
   }
 
   /// The header's menu, a nil for each separator: Delete Space is off for the
@@ -96,6 +107,9 @@ enum SpacesLogic {
       MenuItem(title: "Change Space Icon…", command: .changeIcon, isEnabled: true),
       MenuItem(title: "Rename Space…", command: .rename, isEnabled: true),
       MenuItem(title: "Set Profile", command: .setProfile, isEnabled: true),
+      nil,
+      // add-tab-folders D6.
+      MenuItem(title: "New Folder", command: .newFolder, isEnabled: true),
       nil,
       MenuItem(title: "Manage Spaces…", command: .manage, isEnabled: true),
       nil,
@@ -155,6 +169,12 @@ enum SpacesLogic {
     "Tab was moved to \(spaceName)"
   }
 
+  /// The same for a folder (tab-folders spec, "Moving a folder to another
+  /// Space").
+  static func folderMovedNotice(_ spaceName: String) -> String {
+    "Folder was moved to \(spaceName)"
+  }
+
   /// The Spaces a tab of `spaceID` can move to, in order: every other one.
   /// Empty with one Space, so the tab's menu has no "Move to Space".
   static func moveTargets(from spaceID: SpaceID, in spaces: [any ClairSpace]) -> [any ClairSpace] {
@@ -170,9 +190,9 @@ enum SpacesLogic {
   // MARK: Deleting
 
   /// Whether deleting a Space asks first: only when it has tabs, in any
-  /// window (spaces spec, "Deleting a Space").
-  static func deletionNeedsConfirmation(tabCount: Int) -> Bool {
-    tabCount > 0
+  /// window, or folders (spaces spec, "Deleting a Space").
+  static func deletionNeedsConfirmation(tabCount: Int, folderCount: Int = 0) -> Bool {
+    tabCount > 0 || folderCount > 0
   }
 
   /// Text for the confirmation, worded for Clair: its tabs close.
@@ -180,8 +200,15 @@ enum SpacesLogic {
     "Delete the “\(name)” Space?"
   }
 
-  static func deletionMessage(tabCount: Int) -> String {
-    tabCount == 1 ? "Its tab will close." : "Its \(tabCount) tabs will close."
+  static func deletionMessage(tabCount: Int, folderCount: Int = 0) -> String {
+    let folders = folderCount == 1 ? "its folder" : "its \(folderCount) folders"
+    let tabs = tabCount == 1 ? "tab" : "\(tabCount) tabs"
+    switch (tabCount, folderCount) {
+    case (_, 0): return "Its \(tabs) will close."
+    case (0, 1): return "Its folder will be removed."
+    case (0, _): return "Its \(folderCount) folders will be removed."
+    default: return "Its \(tabs) will close, and \(folders) will be removed."
+    }
   }
 
   // MARK: Names

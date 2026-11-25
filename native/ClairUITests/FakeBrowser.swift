@@ -99,14 +99,16 @@ final class FakePin: NSObject, ClairPin {
   let tabID: TabID
   let tabs: [any ClairTab]
   let isAtPinnedURL: Bool
+  let folderID: FolderID?
 
   init(
     id: PinID, isFavorite: Bool = false, spaceID: SpaceID? = FakeHost.homeID,
     profileID: ProfileID = FakeHost.defaultProfileID, url: String, title: String = "", name: String? = nil,
-    tab: FakeTab? = nil, isAtPinnedURL: Bool = true
+    tab: FakeTab? = nil, isAtPinnedURL: Bool = true, folderID: FolderID? = nil
   ) {
     pinID = id
     self.isFavorite = isFavorite
+    self.folderID = isFavorite ? nil : folderID
     self.spaceID = isFavorite ? nil : spaceID
     self.profileID = profileID
     self.url = URL(string: url)!
@@ -115,6 +117,39 @@ final class FakePin: NSObject, ClairPin {
     tabID = tab?.tabID ?? ClairTabIDNone
     tabs = tab.map { [$0] } ?? []
     self.isAtPinnedURL = isAtPinnedURL
+  }
+}
+
+/// A stand-in for a folder snapshot (add-tab-folders design D2).
+final class FakeFolder: NSObject, ClairFolder {
+  let folderID: FolderID
+  let spaceID: SpaceID
+  let name: String
+  let isOpen: Bool
+  let pins: [any ClairPin]
+
+  init(id: FolderID, spaceID: SpaceID = FakeHost.homeID, name: String, isOpen: Bool = true, pins: [any ClairPin] = []) {
+    folderID = id
+    self.spaceID = spaceID
+    self.name = name
+    self.isOpen = isOpen
+    self.pins = pins
+  }
+}
+
+/// A stand-in for a pinned item snapshot: a pin or a folder.
+final class FakePinnedItem: NSObject, ClairPinnedItem {
+  let pin: (any ClairPin)?
+  let folder: (any ClairFolder)?
+
+  init(pin: any ClairPin) {
+    self.pin = pin
+    folder = nil
+  }
+
+  init(folder: any ClairFolder) {
+    pin = nil
+    self.folder = folder
   }
 }
 
@@ -511,9 +546,19 @@ final class FakeBrowser: NSObject, ClairBrowser {
   }
 
   /// The rows of open tabs Clair picks the next tab from: open pinned tabs,
-  /// then Today rows.
+  /// then Today rows. A closed folder's tabs aren't rows, except the window's
+  /// highlighted one (add-tab-folders D9).
   var openRows: [TabID] {
-    pinnedTabs.map(\.tabID) + TabListLogic.rows(tabs).map(\.tabID)
+    let highlighted =
+      stillTabID != ClairTabIDNone
+      ? stillTabID : TabListLogic.highlightedRow(activeTabID: activeTabID, in: tabs + pinnedTabs)
+    let pinned = profileKind == .regular ? host.pinRecords(inSpace: shownSpaceID) : []
+    let shown = pinned.compactMap { record -> TabID? in
+      guard let tab = host.boundTab(of: record.id) else { return nil }
+      if let folderID = record.folderID, !host.isFolderOpen(folderID), tab.tabID != highlighted { return nil }
+      return tab.tabID
+    }
+    return shown + TabListLogic.rows(tabs).map(\.tabID)
   }
 
   /// The window holding a tab.
@@ -1315,8 +1360,11 @@ final class RecordingSpacesObserver: NSObject, ClairSpacesObserver {
     calls.append("profiles \(profiles.map(\.name).joined(separator: ","))")
   }
 
-  func pinsDidChange(_ pins: [any ClairPin], inSpace spaceID: SpaceID) {
-    calls.append("pins \(spaceID) \(pins.map(\.title).joined(separator: ","))")
+  func pinnedItemsDidChange(_ items: [any ClairPinnedItem], inSpace spaceID: SpaceID) {
+    let titles = items.map { item in
+      item.pin?.title ?? item.folder.map { "[\($0.name): \($0.pins.map(\.title).joined(separator: ","))]" } ?? ""
+    }
+    calls.append("pins \(spaceID) \(titles.joined(separator: ","))")
   }
 
   func favoritesDidChange(_ favorites: [any ClairPin], ofProfile profileID: ProfileID) {

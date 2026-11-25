@@ -18,6 +18,15 @@ extension BrowserWindowController {
     if let rename = model.renaming, !isListed(rename.row) {
       model.renaming = nil
     }
+    beginNamingNewFolder()
+  }
+
+  /// add-tab-folders D6: a folder New Folder added gets its name field once
+  /// it's listed, which may be with a later update than the call's.
+  private func beginNamingNewFolder() {
+    guard let folderID = pendingNewFolder, isListed(.folder(folderID)) else { return }
+    pendingNewFolder = nil
+    model.renaming = RowRename(row: .folder(folderID), selectsAll: true, caret: nil)
   }
 
   /// The collapse of the shown Space's pinned section and the favorites box,
@@ -46,6 +55,7 @@ extension BrowserWindowController {
     switch row {
     case .tab(let tabID): model.tabs.contains { $0.tabID == tabID }
     case .pin(let pinID): model.pins.contains { $0.pinID == pinID } || model.favorites.contains { $0.pinID == pinID }
+    case .folder(let folderID): model.pinnedItems.contains { $0.folder?.folderID == folderID }
     }
   }
 
@@ -87,6 +97,8 @@ extension BrowserWindowController {
       clearToday()
     case .toggleCollapse:
       togglePinnedSection()
+    case .newFolder:
+      newFolderWithDialog()
     }
   }
 
@@ -107,7 +119,8 @@ extension BrowserWindowController {
 
   func pin(tab: TabID) {
     guard model.showsPins else { return }
-    model.spaces.pin(tab: tab, at: model.pins.count)
+    // At the end of the pinned section, outside any folder.
+    model.spaces.pin(tab: tab, at: model.pinnedItems.count)
   }
 
   func pinToFavorites(tab: TabID) {
@@ -197,6 +210,9 @@ extension BrowserWindowController {
     switch row {
     case .tab(let tabID): model.spaces.setName(name, forTab: tabID)
     case .pin(let pinID): model.spaces.setName(name, forPin: pinID)
+    case .folder(let folderID):
+      // An empty name keeps the folder's (add-tab-folders D6).
+      if let name { model.spaces.renameFolder(folderID, to: name) }
     }
   }
 
@@ -231,12 +247,16 @@ extension BrowserWindowController {
     switch (item, target) {
     case (.tab(let tabID), .pinned(let index)):
       model.spaces.pin(tab: tabID, at: index)
+    case (.tab(let tabID), .folder(let folderID, let index)):
+      model.spaces.pin(tab: tabID, inFolder: folderID, at: index)
     case (.tab(let tabID), .today(let index)):
       move(tab: tabID, to: index)
     case (.tab(let tabID), .favorites(let index)):
       model.spaces.favorite(tab: tabID, at: index)
     case (.pin(let pinID), .pinned(let index)):
       model.spaces.movePin(pinID, toSpace: model.shownSpaceID, at: index)
+    case (.pin(let pinID), .folder(let folderID, let index)):
+      model.spaces.movePin(pinID, toSpace: model.shownSpaceID, folder: folderID, at: index)
     case (.pin(let pinID), .today(let index)):
       browser?.unpin(pinID, to: index)
     case (.pin(let pinID), .favorites(var index)):
@@ -246,6 +266,93 @@ extension BrowserWindowController {
         index -= 1
       }
       model.spaces.movePin(pinID, toFavoritesAt: index)
+    // add-tab-folders D4: a folder moves only within the pinned section's
+    // top level; dropped anywhere else, it stays where it was.
+    case (.folder(let folderID), .pinned(let index)):
+      model.spaces.moveFolder(folderID, toSpace: model.shownSpaceID, at: index)
+    case (.folder, _):
+      break
+    }
+  }
+
+  // MARK: Folders (add-tab-folders design D4, D6 to D8, D11)
+
+  /// New Folder in the plus menu, the header's menu and the sidebar's: an
+  /// open folder named "Untitled" at the end of the pinned section, whose
+  /// name field shows once it's listed.
+  func newFolder() {
+    guard model.showsPins else { return }
+    if model.isPinnedSectionCollapsed {
+      pinsPreferences.setCollapsed(false, for: model.shownSpaceID)
+    }
+    guard
+      let folderID = model.spaces.createFolder(
+        named: PinsLogic.newFolderName, inSpace: model.shownSpaceID, at: model.pinnedItems.count)
+    else { return }
+    pendingNewFolder = folderID
+    beginNamingNewFolder()
+  }
+
+  /// Tabs › New Folder…: asks for the name, then adds the folder, without a
+  /// name field.
+  func newFolderWithDialog() {
+    guard model.showsPins else { return }
+    let spaces = model.spaces
+    let spaceID = model.shownSpaceID
+    PinDialogs.showNewFolder(on: dialogs) { [weak self] name in
+      guard let self else { return }
+      if model.isPinnedSectionCollapsed && model.shownSpaceID == spaceID {
+        pinsPreferences.setCollapsed(false, for: spaceID)
+      }
+      spaces.createFolder(named: name, inSpace: spaceID, at: spaces.pinnedItems(inSpace: spaceID).count)
+    }
+  }
+
+  func toggleFolder(_ folderID: FolderID) {
+    guard let folder = model.spaces.folder(folderID) else { return }
+    model.spaces.setFolder(folderID, open: !folder.isOpen)
+  }
+
+  func closeTabs(inFolder folderID: FolderID) {
+    model.spaces.closeTabs(inFolder: folderID)
+  }
+
+  /// D8: the window shows the new Space, with the switching animation.
+  func turnFolderIntoSpace(_ folderID: FolderID) {
+    guard let spaceID = model.spaces.turnFolderIntoSpace(folderID) else { return }
+    showSpace(spaceID)
+  }
+
+  func duplicateFolder(_ folderID: FolderID) {
+    model.spaces.duplicateFolder(folderID)
+  }
+
+  /// D11: at the end of the other Space's pinned section. A window whose
+  /// active tab was in it follows it; otherwise a notice says where it went.
+  func moveFolder(_ folderID: FolderID, toSpace spaceID: SpaceID) {
+    guard let space = model.spaces.space(spaceID), let folder = model.spaces.folder(folderID) else { return }
+    let highlighted = model.highlightedTab
+    let holdsActive = highlighted != ClairTabIDNone && folder.pins.contains { $0.tabID == highlighted }
+    model.spaces.moveFolder(folderID, toSpace: spaceID, at: Int.max)
+    if !holdsActive {
+      model.notice.show(
+        Notice(text: SpacesLogic.folderMovedNotice(space.name), identifier: Self.movedNoticeID),
+        for: NoticeState.copiedDuration)
+    }
+  }
+
+  /// D7: an empty folder goes at once; one with tabs asks first.
+  func deleteFolder(_ folderID: FolderID) {
+    guard let folder = model.spaces.folder(folderID) else { return }
+    let spaces = model.spaces
+    guard PinsLogic.folderDeletionNeedsConfirmation(folder) else {
+      spaces.deleteFolder(folderID)
+      return
+    }
+    dialogs.show(ClairDialog(PinDialogs.deleteFolderPage(name: folder.name))) { answer in
+      if answer == .accepted {
+        spaces.deleteFolder(folderID)
+      }
     }
   }
 }

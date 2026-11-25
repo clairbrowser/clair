@@ -45,6 +45,30 @@ enum PinDialogs {
       ])
   }
 
+  /// Tabs › New Folder…'s dialog (add-tab-folders D6), worded as Arc's.
+  static func newFolderPage(state: ProfileNameState) -> ClairDialogPage {
+    ClairDialogPage(
+      title: PinsLogic.newFolderDialogTitle,
+      content: AnyView(
+        PinTextField(
+          state: state, placeholder: PinsLogic.newFolderDialogPlaceholder, identifier: "clair.newFolderField")),
+      buttons: [
+        ClairDialogButton(title: "Cancel", role: .cancel),
+        ClairDialogButton(
+          title: PinsLogic.newFolderDialogButton, role: .default, isEnabled: PinsLogic.canCreateFolder(state.text)),
+      ])
+  }
+
+  /// Delete on a folder with tabs (add-tab-folders D7).
+  static func deleteFolderPage(name: String) -> ClairDialogPage {
+    ClairDialogPage(
+      title: PinsLogic.folderDeletionTitle(name), message: PinsLogic.folderDeletionMessage,
+      buttons: [
+        ClairDialogButton(title: "Cancel", role: .cancel),
+        ClairDialogButton(title: PinsLogic.folderDeletionButton, role: .destructive),
+      ])
+  }
+
   /// Save needs a URL (pinned-tabs spec, "Editing the pinned URL").
   static func canSave(_ text: String) -> Bool {
     PinsLogic.fixedUpURL(text) != nil
@@ -90,6 +114,20 @@ enum PinDialogs {
     return dialog
   }
 
+  /// Asks for a new folder's name, and adds it with `create`.
+  @discardableResult
+  static func showNewFolder(on presenter: ClairDialogPresenter, create: @escaping (String) -> Void) -> ClairDialog {
+    let state = ProfileNameState()
+    let dialog = ClairDialog(newFolderPage(state: state))
+    bind(state, to: dialog, enabled: PinsLogic.canCreateFolder)
+    presenter.show(dialog) { answer in
+      if answer == .accepted, PinsLogic.canCreateFolder(state.text) {
+        create(SpacesLogic.cleanName(state.text))
+      }
+    }
+    return dialog
+  }
+
   /// Keeps the default button enabled by `enabled`, and makes Return in the
   /// field press it.
   private static func bind(_ state: ProfileNameState, to dialog: ClairDialog, enabled: @escaping (String) -> Bool) {
@@ -109,6 +147,11 @@ enum PinDialogs {
   }
 
   private static let states = NSMapTable<ClairDialog, ProfileNameState>.weakToStrongObjects()
+
+  /// A dialog's field, for tests.
+  static func nameState(of dialog: ClairDialog) -> ProfileNameState? {
+    states.object(forKey: dialog)
+  }
 }
 
 /// A pin dialog's field, its text selected when it appears.

@@ -55,6 +55,9 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   /// The collapse of pinned sections and the favorites box
   /// (add-pinned-tabs-and-favorites D11).
   let pinsPreferences: PinsPreferences
+  /// The folder New Folder just added, whose name field shows once it's
+  /// listed (add-tab-folders D6).
+  var pendingNewFolder: FolderID?
   /// Watches the rest of a press once the window server has its window drag.
   private var safetyNetMonitor: Any?
   private var safetyNet = WindowDragSafetyNet()
@@ -470,7 +473,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       model.spaceSlide = SpaceSlide(
         fromSpace: previousSpace, fromTabs: swappedIn ? model.spaces.tabs(inSpace: previousSpaceID) : model.tabs,
         fromTrailing: SpacesLogic.slidesFromTrailing(to: spaceID, from: previousSpaceID, in: model.spaces.spaces),
-        fromPins: model.spaces.pins(inSpace: previousSpaceID))
+        fromItems: model.spaces.pinnedItems(inSpace: previousSpaceID))
     } else {
       model.spaceSlide = nil
     }
@@ -1145,7 +1148,8 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       spaces.deleteSpace(spaceID)
       return
     }
-    let dialog = ClairDialog(Self.deletionPage(for: deletion.space, tabCount: deletion.tabCount))
+    let dialog = ClairDialog(
+      Self.deletionPage(for: deletion.space, tabCount: deletion.tabCount, folderCount: deletion.folderCount))
     dialogs.show(dialog) { answer in
       if answer == .accepted {
         spaces.deleteSpace(spaceID)
@@ -1156,11 +1160,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   /// The confirmation for deleting a Space with tabs (spaces spec, "Deleting
   /// a Space"), worded for Clair: its tabs close.
   static func deletionPage(
-    for space: any ClairSpace, tabCount: Int, confirm: (@MainActor (ClairDialog) -> Void)? = nil,
-    cancel: (@MainActor (ClairDialog) -> Void)? = nil
+    for space: any ClairSpace, tabCount: Int, folderCount: Int = 0,
+    confirm: (@MainActor (ClairDialog) -> Void)? = nil, cancel: (@MainActor (ClairDialog) -> Void)? = nil
   ) -> ClairDialogPage {
     ClairDialogPage(
-      title: SpacesLogic.deletionTitle(space.name), message: SpacesLogic.deletionMessage(tabCount: tabCount),
+      title: SpacesLogic.deletionTitle(space.name),
+      message: SpacesLogic.deletionMessage(tabCount: tabCount, folderCount: folderCount),
       buttons: [
         ClairDialogButton(title: "Cancel", role: .cancel, action: cancel),
         ClairDialogButton(title: "Delete Space", role: .destructive, action: confirm),
