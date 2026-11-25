@@ -17,7 +17,7 @@ Clair SHALL keep an ordered list of Spaces. Each Space SHALL have a name and an 
 - **THEN** the Spaces "Home", "Work" and "Travel" exist in that order, each with its name and icon
 
 ### Requirement: Space header
-Above the tab list, the sidebar SHALL show the current Space's icon, if it has one, and its name. Right-clicking the header SHALL open a menu offering Change Space Icon…, Rename Space…, Set Profile (`profiles`), Manage Spaces… and Delete Space. Hovering the header SHALL show a More button (…) at its trailing end, as in Arc, which opens the same menu. An incognito or guest window SHALL show no Space header.
+Above the tab list, the sidebar SHALL show the current Space's icon, if it has one, and its name. Right-clicking the header SHALL open a menu offering Change Space Icon…, Rename Space…, Set Profile (`profiles`), then between dividers New Folder (`tab-folders`), then Manage Spaces… and Delete Space. Hovering the header SHALL show a More button (…) at its trailing end, as in Arc, which opens the same menu. An incognito or guest window SHALL show no Space header.
 
 #### Scenario: Header shows the Space
 - **WHEN** a window shows the Space "Work", whose icon is 💼
@@ -25,7 +25,7 @@ Above the tab list, the sidebar SHALL show the current Space's icon, if it has o
 
 #### Scenario: Header menu
 - **WHEN** the user right-clicks the header
-- **THEN** the menu lists Change Space Icon…, Rename Space…, Set Profile, Manage Spaces… and Delete Space, in that order
+- **THEN** the menu lists Change Space Icon…, Rename Space…, Set Profile, New Folder, Manage Spaces… and Delete Space, in that order
 
 #### Scenario: Incognito window
 - **WHEN** the user opens an incognito window
@@ -133,7 +133,7 @@ The user SHALL be able to reorder Spaces by dragging a Space's item in the foote
 - **THEN** the Spaces are in the new order
 
 ### Requirement: Deleting a Space
-Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs and no pinned tabs SHALL happen at once. Otherwise Clair SHALL first ask for confirmation in a dialog, saying that its tabs will close; on confirmation its tabs SHALL close in every window and its pinned tabs SHALL be removed. Each window that showed the Space SHALL then show the Space before it, or the one after when it was first.
+Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs, no pinned tabs and no folders SHALL happen at once. Otherwise Clair SHALL first ask for confirmation in a dialog, saying that its tabs will close; on confirmation its tabs SHALL close in every window and its pinned tabs and folders SHALL be removed. Each window that showed the Space SHALL then show the Space before it, or the one after when it was first.
 
 #### Scenario: The only Space
 - **WHEN** there is one Space and the user opens its header's menu
@@ -150,6 +150,10 @@ Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs
 #### Scenario: Space with pinned tabs only
 - **WHEN** the user deletes a Space whose only tabs are two pinned tabs, none open, and confirms
 - **THEN** the pinned tabs are removed with the Space, and the profile's favorites stay
+
+#### Scenario: Space with an empty folder only
+- **WHEN** the user deletes a Space whose only item is an empty folder
+- **THEN** Clair asks for confirmation, and on confirmation the folder is removed with the Space
 
 ### Requirement: Manage Spaces dialog
 Manage Spaces…, in the Spaces menu and the Space header's menu, SHALL open a dialog on the window, with every Space in order on the left, each with its icon, name and number of tabs, and the selected Space's name, icon and profile popup (`profiles`) on the right. It SHALL open with the window's Space selected, and "Done" or Esc SHALL close it.
@@ -410,3 +414,18 @@ For the tab chosen after a close, a favorite the user came from SHALL count as t
 #### Scenario: The Space's only open tab is a pinned tab
 - **WHEN** the pinned tab "Mail" is the Space's only open tab, the Space has no Today tabs, and the user chooses Close and Keep Pinned
 - **THEN** the window stays on the Space, on a new tab page with the command bar, and "Mail" keeps its row
+
+### Requirement: Tab commands and folders
+The rows the tab commands act on SHALL include the tabs of open folders, in the sidebar's order, and SHALL leave out the tabs a closed folder hides, those whose page isn't open. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move a folder's tab within its folder, stopping at its ends.
+
+#### Scenario: A closed folder
+- **WHEN** "Work" has the pinned tab P, then the closed folder "Docs" holding S, whose page isn't open, then the Today tab X, P is active, and the user presses Opt+Cmd+Down
+- **THEN** X is active, and S stays closed
+
+#### Scenario: An open folder
+- **WHEN** "Docs" is open instead, and the user presses Cmd+2
+- **THEN** S is active
+
+#### Scenario: Moving a folder's tab
+- **WHEN** S is the first of the two tabs in "Docs", S is active, and the user presses Ctrl+Shift+PageUp
+- **THEN** nothing moves
