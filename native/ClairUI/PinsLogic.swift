@@ -116,7 +116,8 @@ enum PinsLogic {
   }
 
   /// The pinned section's rows: each pinned tab; each folder, then its
-  /// tabs while it's open, or only its selected one while it's closed. A
+  /// tabs while it's open, or those whose page is open while it's closed,
+  /// as Arc does. A
   /// collapsed section lists only the selected tab, without its folder
   /// (pinned-tabs spec, "Collapsing the pinned section"; tab-folders spec,
   /// "Folders in a collapsed pinned section").
@@ -131,7 +132,7 @@ enum PinsLogic {
         rows.append(.pin(pin, folder: nil))
       } else if let folder = item.folder {
         rows.append(.folder(folder))
-        for pin in folder.pins where folder.isOpen || isSelected(pin) {
+        for pin in folder.pins where folder.isOpen || pin.tabID != ClairTabIDNone {
           rows.append(.pin(pin, folder: folder))
         }
       }
@@ -288,9 +289,10 @@ enum PinsLogic {
   /// within the list, which no longer counts once it's lifted;
   /// `movingTodayRow` the same for a Today row.
   ///
-  /// add-tab-folders D4: a gap after a folder's row, between its tabs, or
-  /// after an open folder's last tab is in the folder, as in Arc; after a
-  /// closed folder's row, or its selected tab, it's after the folder.
+  /// add-tab-folders D4: a gap after a folder's row, between its listed
+  /// tabs, or after an open folder's last tab is in the folder, as in Arc;
+  /// after a closed folder's last listed tab, or its row when it lists none,
+  /// it's after the folder.
   static func listDrop(
     destination: Int, rows: [PinnedRow], items: [any ClairPinnedItem], collapsed: Bool = false,
     boundaryCount: Int, today: [any ClairTab], movingPinnedRow: Int? = nil, movingTodayRow: Int? = nil
@@ -370,8 +372,8 @@ enum PinsLogic {
     case nil:
       return .pinned(0)
     case .folder(let folder):
-      // Under a folder's row: first in it, or before its selected tab while
-      // it's closed; after it when it's closed and lists nothing below.
+      // Under a folder's row: first in it, or before its first listed tab
+      // while it's closed; after it when it's closed and lists nothing.
       if case .pin(let pin, let parent)? = below, parent?.folderID == folder.folderID {
         return .folder(folder.folderID, indexInFolder(pin, folder))
       }
@@ -385,6 +387,10 @@ enum PinsLogic {
       }
       if parent.isOpen {
         return .folder(parent.folderID, indexInFolder(pin, parent) + 1)
+      }
+      // Between two tabs a closed folder lists: in it, before the lower one.
+      if case .pin(let next, let nextParent)? = below, nextParent?.folderID == parent.folderID {
+        return .folder(parent.folderID, indexInFolder(next, parent))
       }
       return .pinned((topIndex(parent.folderID) ?? topItems.count - 1) + 1)
     }

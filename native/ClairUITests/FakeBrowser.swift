@@ -546,19 +546,10 @@ final class FakeBrowser: NSObject, ClairBrowser {
   }
 
   /// The rows of open tabs Clair picks the next tab from: open pinned tabs,
-  /// then Today rows. A closed folder's tabs aren't rows, except the window's
-  /// highlighted one (add-tab-folders D9).
+  /// a closed folder's included, as the sidebar lists them
+  /// (add-tab-folders D9), then Today rows.
   var openRows: [TabID] {
-    let highlighted =
-      stillTabID != ClairTabIDNone
-      ? stillTabID : TabListLogic.highlightedRow(activeTabID: activeTabID, in: tabs + pinnedTabs)
-    let pinned = profileKind == .regular ? host.pinRecords(inSpace: shownSpaceID) : []
-    let shown = pinned.compactMap { record -> TabID? in
-      guard let tab = host.boundTab(of: record.id) else { return nil }
-      if let folderID = record.folderID, !host.isFolderOpen(folderID), tab.tabID != highlighted { return nil }
-      return tab.tabID
-    }
-    return shown + TabListLogic.rows(tabs).map(\.tabID)
+    pinnedTabs.map(\.tabID) + TabListLogic.rows(tabs).map(\.tabID)
   }
 
   /// The window holding a tab.

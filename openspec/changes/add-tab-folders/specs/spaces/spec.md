@@ -43,10 +43,10 @@ Delete Space SHALL be disabled for the only Space. Deleting a Space with no tabs
 ## ADDED Requirements
 
 ### Requirement: Tab commands and folders
-The rows the tab commands act on SHALL include the tabs of open folders, in the sidebar's order, and SHALL leave out the tabs a closed folder hides. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move a folder's tab within its folder, stopping at its ends.
+The rows the tab commands act on SHALL include the tabs of open folders, in the sidebar's order, and SHALL leave out the tabs a closed folder hides, those whose page isn't open. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move a folder's tab within its folder, stopping at its ends.
 
 #### Scenario: A closed folder
-- **WHEN** "Work" has the pinned tab P, then the closed folder "Docs" holding S, then the Today tab X, P is active, and the user presses Opt+Cmd+Down
+- **WHEN** "Work" has the pinned tab P, then the closed folder "Docs" holding S, whose page isn't open, then the Today tab X, P is active, and the user presses Opt+Cmd+Down
 - **THEN** X is active, and S stays closed
 
 #### Scenario: An open folder

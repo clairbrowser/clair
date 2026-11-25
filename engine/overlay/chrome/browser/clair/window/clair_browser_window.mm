@@ -1039,10 +1039,9 @@ std::vector<const clair::Pin*> ClairBrowserWindow::RowPins(
     return pins;
   }
   // add-tab-folders D9: the Space's items in order: each pinned tab, and a
-  // folder's pinned tabs while it's open, or only the one whose tab is the
-  // window's highlighted row while it's closed.
+  // folder's pinned tabs while it's open, or those whose page is open while
+  // it's closed, as the sidebar lists them.
   clair::ClairPinStore* store = clair::ClairPinStore::Get();
-  const tabs::TabInterface* highlighted = HighlightedRow();
   for (const std::string& id :
        store->ChildrenOf(clair::PinContainer::OfSpace(space))) {
     if (const clair::Pin* pin = store->Find(id)) {
@@ -1052,8 +1051,7 @@ std::vector<const clair::Pin*> ClairBrowserWindow::RowPins(
     const bool open = store->IsOpen(id);
     for (const clair::Pin* pin :
          store->PinsIn(clair::PinContainer::OfFolder(space, id))) {
-      if (open || (highlighted && space_tabs_->BoundTab(pin->id) ==
-                                      highlighted)) {
+      if (open || space_tabs_->BoundTab(pin->id)) {
         pins.push_back(pin);
       }
     }
@@ -1702,7 +1700,8 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
     // taken from it (share-tabs-across-windows D3). Every pinned tab is a
     // row, open or not, and landing on one that isn't opens it; favorites
     // are none (add-pinned-tabs-and-favorites D4). A closed folder's pinned
-    // tabs are none either, except the highlighted one (add-tab-folders D9).
+    // tabs are none either, except those whose page is open
+    // (add-tab-folders D9).
     struct Slot {
       raw_ptr<tabs::TabInterface> tab;
       std::string pin;

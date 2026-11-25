@@ -339,8 +339,8 @@ class ClairBrowserWindow : public BrowserWindow {
   // tabs first; and its Today rows alone.
   std::vector<tabs::TabInterface*> Rows() const;
   // add-tab-folders D9: the pinned tabs of `space` that are rows here, open
-  // or not, in the sidebar's order: a closed folder's only while its tab is
-  // the highlighted row. None in an incognito or guest window.
+  // or not, in the sidebar's order: a closed folder's only while their page
+  // is open. None in an incognito or guest window.
   std::vector<const clair::Pin*> RowPins(const std::string& space) const;
   std::vector<tabs::TabInterface*> TodayRows() const;
   // Whether `tab` is the row the window shows: the active tab, or the parent

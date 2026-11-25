@@ -25,16 +25,16 @@ Suggested order: 1.1 first, since D5 depends on it; then 1.2 and 1.3; then 2 and
 
 ## 3. ClairUI
 
-- [ ] 3.1 Carry pinned items in `SpacesModel` and `BrowserWindowModel`, and flatten them into rows with depths and places, open and closed, collapsed or not (D4). Verify with `ClairUI` unit tests in CI for the rows of an open folder, a closed one with and without its selected tab, an empty one, and a collapsed section.
+- [ ] 3.1 Carry pinned items in `SpacesModel` and `BrowserWindowModel`, and flatten them into rows with depths and places, open and closed, collapsed or not (D4). Verify with `ClairUI` unit tests in CI for the rows of an open folder, a closed one with open and unopened tabs, an empty one, and a collapsed section.
 - [ ] 3.2 Add the folder row (D4): the icon's three states, the name, the hover pill, a click calling `setFolder:open:`, and the − button with "Close This Folder" while a tab is bound, calling `closeTabsInFolder:`. Verify with unit tests in CI for the icon state and when − shows.
 - [ ] 3.3 Extend `PinsLogic.listDrop` with the gaps of D4, refuse a folder anywhere but the top level, and add the row drop view of D5 (or its fallback). Verify with unit tests in CI for every gap around an open, closed and empty folder, and by hand in 3.8.
 - [ ] 3.4 Add creating and naming (D6): New Folder in the plus menu and `SpacesLogic.headerMenu`, the edit mode for the new folder and for Rename…, Tabs › New Folder… in `PinsMenu` with its validation, and the New Folder dialog. Verify with unit tests in CI for the two menus' items in order, the plus menu in incognito, commit, Esc and an empty name, Create's enabled state, and the menu item disabled in private windows.
 - [ ] 3.5 Add the folder menu and its actions: Turn into Space (showing the new Space), Rename…, Duplicate, Move to Space with "Folder was moved to", and Delete with the confirmation of D7. Verify with unit tests in CI for the menu's items with one and two Spaces, and the dialog's wording and buttons.
 - [ ] 3.6 Add the sidebar's own menu (D10) behind the list and on the "New Tab" row, absent in private windows. Verify with unit tests in CI that it offers the header's items, and by hand in 3.8.
 - [x] 3.7 Tune the folder row against Arc in Light and Dark Mode: icon, name weight and colour, indent and hover pill. Verify by comparing screenshots of Clair's test copy and Arc side by side with `tests/probe/`.
-- [x] 3.8 Check the flow by hand against `arc-reference/` with `tests/probe/`, using `build/probe/bin/drag` for drags:
+- [ ] 3.8 Check the flow by hand against `arc-reference/` with `tests/probe/`, using `build/probe/bin/drag` for drags:
   - New Folder from the plus menu, the header menu, the empty sidebar and the "New Tab" row, and Tabs › New Folder…;
-  - opening and closing, the selected tab under a closed folder, and the "•••" icon;
+  - opening and closing, the open tabs under a closed folder, and the "•••" icon;
   - Close This Folder;
   - drops on an open and a closed folder's row, between its tabs, below its last tab, and a tab dragged out above it and into Today;
   - reordering a folder, and a folder dropped below the divider;

@@ -585,24 +585,20 @@ struct FakeFolderTests {
     #expect(host.pinnedItems(inSpace: FakeHost.homeID)[0].folder?.isOpen == false)
   }
 
-  @Test func aClosedFoldersTabsArentRowsExceptTheSelectedOne() {
+  @Test func aClosedFoldersUnopenedTabsArentRows() {
     let browser = FakeBrowser()
     let host = browser.host
     let p = host.addPin(url: "https://p.example/", title: "P")
     let docs = host.addFolder("Docs", open: false)
     let s = host.addPin(url: "https://s.example/", title: "S", folder: docs)
     let x = browser.addTab(title: "X")
-    browser.openPin(s)
     browser.openPin(p)
     let pTab = host.boundTab(of: p)?.tabID ?? ClairTabIDNone
-    let sTab = host.boundTab(of: s)?.tabID ?? ClairTabIDNone
     #expect(browser.openRows == [pTab, x.tabID])
-    // Its own tab, selected, is a row.
-    browser.activate(tab: sTab)
-    #expect(browser.openRows == [pTab, sTab, x.tabID])
-    // Open, every one is.
+    // Once its page is open, it's a row, selected or not.
+    browser.openPin(s)
+    let sTab = host.boundTab(of: s)?.tabID ?? ClairTabIDNone
     browser.activate(tab: x.tabID)
-    host.setFolder(docs, open: true)
     #expect(browser.openRows == [pTab, sTab, x.tabID])
   }
 

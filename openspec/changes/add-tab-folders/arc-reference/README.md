@@ -16,7 +16,7 @@ Keep these screenshots. They move with the change when it's archived.
 | new-folder-dialog.jpg | Tabs › New Folder… (menu item identifier `newListMenuItem`): a dialog titled "New Folder…", a field with the placeholder "What are you organizing?", Cancel (ESC) and Create (↩), which is disabled while the field is empty. |
 | new-folder-dialog-created.jpg | Create: the folder "Inbox" is added open, last in the pinned section, below "Reading", though the first pinned tab was selected. |
 | drop-on-folder.jpg | A Today tab dropped on the open, empty folder's row: it becomes the folder's tab, indented 16 pt, pinned and still selected. |
-| folder-closed-selected.jpg | The folder closed while its tab is selected: the tab stays listed under it, and the folder's icon shows "•••". |
+| folder-closed-selected.jpg | The folder closed while its tab's page is open: the tab stays listed under it, and the folder's icon shows "•••". A closed folder lists every tab whose page is open, selected or not (confirmed in Arc by the owner, 2026-11-25). |
 | close-this-folder.jpg | Hovering the folder while its tab's page is open: a − button with the tooltip "Close This Folder". |
 | close-this-folder-after.jpg | After clicking −: the tab's page is closed, the closed folder no longer lists it, and its icon is plain again. The window shows no page. |
 | delete-folder-dialog.jpg | Delete on a folder with a tab: "Delete your "Inbox" folder?", "Deleting this folder will archive the tabs inside it.", Cancel (ESC) and a red Delete Folder (↩). An empty folder is deleted without asking. |

@@ -243,12 +243,20 @@ final class FoldersTests: NativeWindowTestCase {
     }
     try require(filed, "Docs doesn't list its tabs: \(browser.pinnedSection)")
 
-    // Closed, Docs lists only its selected tab, and shows "•••".
+    // Closed, Docs lists only its tabs whose page is open, selected or not,
+    // as Arc does, and shows "•••".
+    browser.pinRow("Counter plan").click()
+    _ = await Harness.wait(for: 10) { browser.pinRow("Counter plan").isSelected }
+    browser.ui.typeKey("w", modifierFlags: .command)
+    _ = await browser.waitForTarget("?plan", open: false)
     browser.pinRow("Counter spec").click()
-    _ = await Harness.wait(for: 10) { browser.pinRow("Counter spec").isSelected }
+    let specOpen = await browser.waitForTarget("?spec")
+    try require(specOpen, "Spec's page isn't open")
+    browser.pinRow("Counter home").click()
+    _ = await Harness.wait(for: 10) { browser.pinRow("Counter home").isSelected }
     browser.folderRow("Docs").click()
     let closed = await browser.waitForPinnedSection { $0.suffix(2) == ["[Docs]", "  Counter spec"] }
-    XCTAssertTrue(closed, "The closed folder doesn't list just its selected tab: \(browser.pinnedSection)")
+    XCTAssertTrue(closed, "The closed folder doesn't list just its open tab: \(browser.pinnedSection)")
     XCTAssertFalse(browser.isFolderOpen("Docs"), "The folder's row says it's open")
 
     try await browser.relaunch()
@@ -287,6 +295,12 @@ final class FoldersTests: NativeWindowTestCase {
     try require(filed, "S isn't in Docs: \(browser.pinnedSection)")
     let x = await browser.waitForTabs(30) { $0.contains("Counter x") }
     try require(x, "X didn't come back: \(browser.tabTitles)")
+    // S's page closed: a closed folder lists its open tabs only.
+    browser.pinRow("Counter s").click()
+    _ = await Harness.wait(for: 10) { browser.pinRow("Counter s").isSelected }
+    browser.ui.typeKey("w", modifierFlags: .command)
+    let sClosed = await browser.waitForTarget("?s", open: false)
+    try require(sClosed, "Cmd+W didn't close S's page")
     browser.folderRow("Docs").click()
     _ = await browser.waitForPinnedSection { $0 == ["Counter p", "[Docs]"] }
 

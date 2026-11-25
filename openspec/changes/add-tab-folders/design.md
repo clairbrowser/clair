@@ -75,14 +75,14 @@ Whether a folder is open isn't in its record: it's the Local State pref `clair.c
 
 ### D4. Folder rows in the pinned list
 
-`ClairUI` flattens the pinned items into the `List`'s rows: a folder row, then its pins' rows indented 16 pt when the folder is open, or only its selected pin's row when it's closed. Each row knows its depth and its place (Space and index, or folder and index).
+`ClairUI` flattens the pinned items into the `List`'s rows: a folder row, then its pins' rows indented 16 pt when the folder is open, or only those whose page is open when it's closed, as Arc does. Each row knows its depth and its place (Space and index, or folder and index).
 
 - **The folder row** has the icon (a folder drawn open while open, closed otherwise, with "•••" inside while closed with a bound tab), the name in the pinned row's font at semibold, the hover pill, and the − button with "Close This Folder" while any of its pins is bound.
   - *As built (task 3.7):* SF Symbols has no open folder, so `FolderIcon` draws all three states as paths, in a 20 × 18 pt box as Arc's, centred where favicons are so the name lines up with the tabs' titles. Arc tints the icon and the name with the Space's theme colour; Clair's Spaces have none, so both use the sidebar's text colour, in Light and Dark Mode.
 - **Gaps** map to places in `PinsLogic.listDrop`, extended:
-  - between a folder row and its first visible tab, between its tabs, and after an open folder's last tab: in the folder, at that index, as Arc does (`drop-below-last-tab*.jpg`);
+  - between a folder row and its first listed tab, between its listed tabs, and after an open folder's last tab: in the folder, at that index, as Arc does (`drop-below-last-tab*.jpg`);
   - after an open, empty folder's row: first in it;
-  - after a closed folder's row: the top level, after the folder.
+  - after a closed folder's last listed tab, or its row when it lists none: the top level, after the folder.
 - **A dragged folder row** may land only on top-level gaps; elsewhere `onMove` ignores it, so it stays where it was. Its tabs' rows move with it once the store changes.
 - **Collapsed sections** (`Folders in a collapsed pinned section`) show only the active row, flattened, without its folder.
 - **Alternative: `OutlineGroup` or `DisclosureGroup` in the list.** `onMove` doesn't move rows between disclosure groups, and the list's height arithmetic and the runtime suite's row counts assume flat rows.
@@ -116,7 +116,7 @@ Task 1.1 checks first that an AppKit view inside a row's hosting view receives t
 
 ### D9. Tab commands and the next tab
 
-`ClairSpaceTabs`' rows (`add-pinned-tabs-and-favorites` D4) become: the Space's items in order, each pin, and for a folder its pins when it's open, or only the window's active tab when it's closed and the tab is in it; then the Today tabs. The next-tab rule passes over unbound pins as now, and over pins a closed folder hides. Ctrl+Shift+PageUp/Down move a folder's pin within the folder, stopping at its ends.
+`ClairSpaceTabs`' rows (`add-pinned-tabs-and-favorites` D4) become: the Space's items in order, each pin, and for a folder its pins when it's open, or those whose page is open when it's closed; then the Today tabs. The next-tab rule passes over unbound pins as now, and over pins a closed folder hides. Ctrl+Shift+PageUp/Down move a folder's pin within the folder, stopping at its ends.
 
 ### D10. The sidebar's own menu
 

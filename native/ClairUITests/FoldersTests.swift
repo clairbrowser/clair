@@ -38,10 +38,16 @@ struct FolderRowsTests {
         == ["Mail", "[Docs]", "  Spec", "  Plan"])
   }
 
-  @Test func aClosedFolderListsOnlyItsSelectedTab() {
-    let items = [folder("Docs", open: false, [pin("Spec", tab: 5), pin("Plan", tab: 6)])]
-    #expect(titles(PinsLogic.pinnedRows(items, collapsed: false, highlighted: ClairTabIDNone)) == ["[Docs]"])
-    #expect(titles(PinsLogic.pinnedRows(items, collapsed: false, highlighted: 5)) == ["[Docs]", "  Spec"])
+  @Test func aClosedFolderListsItsOpenTabs() {
+    // Selected or not, as in Arc; an unopened one isn't listed.
+    let items = [folder("Docs", open: false, [pin("Spec", tab: 5), pin("Plan"), pin("Note", tab: 6)])]
+    for highlighted in [ClairTabIDNone, 5] {
+      #expect(
+        titles(PinsLogic.pinnedRows(items, collapsed: false, highlighted: highlighted))
+          == ["[Docs]", "  Spec", "  Note"])
+    }
+    let idle = [folder("Docs", open: false, [pin("Spec"), pin("Plan")])]
+    #expect(titles(PinsLogic.pinnedRows(idle, collapsed: false, highlighted: ClairTabIDNone)) == ["[Docs]"])
   }
 
   @Test func anEmptyFolderListsItsRowAlone() {
@@ -87,12 +93,13 @@ struct FolderRowsTests {
 
   // MARK: Gaps (D4)
 
-  /// P; F open with a, b; G closed with c selected; H open and empty; Q.
+  /// P; F open with a, b; G closed with c and e open, d not; H open and
+  /// empty; Q.
   private var sample: [any ClairPinnedItem] {
     [
       FakePinnedItem(pin: pin("P")),
       folder("F", [pin("a", folder: "F"), pin("b", folder: "F")]),
-      folder("G", open: false, [pin("c", tab: 9, folder: "G")]),
+      folder("G", open: false, [pin("c", tab: 9, folder: "G"), pin("d", folder: "G"), pin("e", tab: 10, folder: "G")]),
       folder("H"),
       FakePinnedItem(pin: pin("Q")),
     ]
@@ -108,7 +115,7 @@ struct FolderRowsTests {
 
   @Test func gapsAroundFoldersLandInsideOrAfterThem() {
     #expect(titles(PinsLogic.pinnedRows(sample, collapsed: false, highlighted: 9)) == [
-      "P", "[F]", "  a", "  b", "[G]", "  c", "[H]", "Q",
+      "P", "[F]", "  a", "  b", "[G]", "  c", "  e", "[H]", "Q",
     ])
     #expect(drop(0) == .pinned(0))
     #expect(drop(1) == .pinned(1))
@@ -116,13 +123,14 @@ struct FolderRowsTests {
     #expect(drop(2) == .folder("F", 0))
     #expect(drop(3) == .folder("F", 1))
     #expect(drop(4) == .folder("F", 2))
-    // Under a closed folder's row, before its selected tab, is in it;
-    // below that tab is after the folder.
+    // Under a closed folder's row, and between the tabs it lists, is in it;
+    // below its last listed tab is after the folder.
     #expect(drop(5) == .folder("G", 0))
-    #expect(drop(6) == .pinned(3))
+    #expect(drop(6) == .folder("G", 2))
+    #expect(drop(7) == .pinned(3))
     // Under an open, empty folder's row: first in it.
-    #expect(drop(7) == .folder("H", 0))
-    #expect(drop(8) == .pinned(5))
+    #expect(drop(8) == .folder("H", 0))
+    #expect(drop(9) == .pinned(5))
   }
 
   @Test func aLiftedRowNoLongerCounts() {
@@ -133,7 +141,7 @@ struct FolderRowsTests {
     // a moved out to the top.
     #expect(drop(0, moving: 2) == .pinned(0))
     // F moved to the end: after Q, among the items without F.
-    #expect(drop(8, moving: 1) == .pinned(4))
+    #expect(drop(9, moving: 1) == .pinned(4))
     // F dropped below its own last tab lands in itself, which the window
     // ignores.
     #expect(drop(4, moving: 1) == .folder("F", 2))
