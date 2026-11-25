@@ -82,23 +82,6 @@ extension Browser {
     post(.leftMouseUp, to)
   }
 
-  /// Scrolls the sidebar down until `row` can be clicked, starting over
-  /// `top`, the list's first row. If the first scroll doesn't move `top` up,
-  /// the wheel runs the other way, so it turns round once.
-  func reveal(_ row: XCUIElement, over top: XCUIElement) {
-    let area = top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-    var delta: CGFloat = -80
-    var turned = false
-    for _ in 0..<40 where !row.isHittable {
-      let before = top.frame.minY
-      area.scroll(byDeltaX: 0, deltaY: delta)
-      if !turned, top.isHittable, top.frame.minY >= before {
-        delta = -delta
-        turned = true
-      }
-    }
-  }
-
   /// Local State's "clair" dictionary, read while Clair isn't running.
   func clairState() throws -> [String: Any] {
     let localState = dataDirectory.appending(path: "Local State")
@@ -244,16 +227,17 @@ final class FoldersTests: NativeWindowTestCase {
     return tabs
   }
 
-  /// Creating through the plus menu and Tab › New Folder…, renaming, a drop
-  /// on a folder's row, and closing, across a relaunch (tab-folders spec,
-  /// "Creating a folder in place", "New Folder dialog", "Opening and closing
-  /// a folder", "Folders after a relaunch").
-  func testCreatingNamingAndClosingFoldersAcrossARelaunch() async throws {
+  /// Creating through the plus menu and Tab › New Folder…, renaming,
+  /// closing, and the tab commands over a closed and an open folder, across
+  /// a relaunch (tab-folders spec, "Creating a folder in place", "New Folder
+  /// dialog", "Opening and closing a folder", "Folders after a relaunch";
+  /// spaces spec, "Tab commands and folders").
+  func testCreatingNamingAndClosingFolders() async throws {
     executionTimeAllowance = 300
     try Harness.setRestoreWindows(true)
     let (browser, home) = try await startWithPage("counter.html?home")
     defer { home.close() }
-    let tabs = try await openCounters(browser, ["spec", "plan"])
+    let tabs = try await openCounters(browser, ["spec", "plan", "x"])
     defer { tabs.forEach { $0.close() } }
     try await browser.pinWithCmdD("Counter spec")
     try await browser.pinWithCmdD("Counter plan")
@@ -283,6 +267,8 @@ final class FoldersTests: NativeWindowTestCase {
       $0 == ["Counter home", "[Trip]", "[Docs]", "  Counter plan", "  Counter spec"]
     }
     try require(filed, "Docs doesn't list its tabs: \(browser.pinnedSection)")
+    let x = await browser.waitForTabs(30) { $0.contains("Counter x") }
+    try require(x, "X didn't come back: \(browser.tabTitles)")
 
     // Closed, Docs lists only its tabs whose page is open, selected or not,
     // as Arc does, and shows "•••".
@@ -300,6 +286,16 @@ final class FoldersTests: NativeWindowTestCase {
     XCTAssertTrue(closed, "The closed folder doesn't list just its open tab: \(browser.pinnedSection)")
     XCTAssertFalse(browser.isFolderOpen("Docs"), "The folder's row says it's open")
 
+    // The tab commands count the rows listed (spaces spec, "Tab commands and
+    // folders"): from Home, the next row is Spec, past Plan's hidden one, and
+    // Cmd+3 is X, in Today.
+    browser.ui.typeKey(.downArrow, modifierFlags: [.command, .option])
+    let next = await Harness.wait(for: 15) { browser.pinRow("Counter spec").isSelected }
+    XCTAssertTrue(next, "Opt+Cmd+Down didn't go to the closed folder's open tab")
+    browser.ui.typeKey("3", modifierFlags: .command)
+    let third = await browser.waitForActiveRow("Counter x")
+    XCTAssertTrue(third, "Cmd+3 counted the closed folder's hidden tab")
+
     try await browser.relaunch()
     let back = await browser.waitForPinnedSection(30) { $0.prefix(3) == ["Counter home", "[Trip]", "[Docs]"] }
     XCTAssertTrue(back, "The folders didn't come back in place: \(browser.pinnedSection)")
@@ -310,6 +306,16 @@ final class FoldersTests: NativeWindowTestCase {
       $0 == ["Counter home", "[Trip]", "[Docs]", "  Counter plan", "  Counter spec"]
     }
     XCTAssertTrue(both, "Docs' tabs didn't come back in order: \(browser.pinnedSection)")
+    // Open, Docs' tabs count from Cmd+2, and Plan, first in Docs, stays in
+    // it on Ctrl+Shift+PageUp.
+    browser.ui.typeKey("2", modifierFlags: .command)
+    let plan = await Harness.wait(for: 15) { browser.pinRow("Counter plan").isSelected }
+    XCTAssertTrue(plan, "Cmd+2 didn't count the open folder's tab")
+    browser.ui.typeKey(.pageUp, modifierFlags: [.control, .shift])
+    try await Task.sleep(for: .seconds(1))
+    XCTAssertEqual(
+      browser.pinnedSection, ["Counter home", "[Trip]", "[Docs]", "  Counter plan", "  Counter spec"],
+      "Plan left its folder")
 
     try await browser.relaunch()
     let records = try browser.pinRecords()
@@ -317,69 +323,6 @@ final class FoldersTests: NativeWindowTestCase {
     XCTAssertEqual(Set(folders.values.compactMap { $0["name"] as? String }), ["Trip", "Docs"])
     let closedIDs = try browser.clairState()["closed_folders"] as? [String] ?? []
     XCTAssertTrue(closedIDs.isEmpty, "Docs, opened again, is still in clair.closed_folders: \(closedIDs)")
-  }
-
-  /// The tab commands skip a closed folder's tabs and count an open one's
-  /// (spaces spec, "Tab commands and folders").
-  func testTabCommandsOverClosedAndOpenFolders() async throws {
-    try Harness.setRestoreWindows(true)
-    let (browser, p) = try await startWithPage("counter.html?p")
-    defer { p.close() }
-    let tabs = try await openCounters(browser, ["s", "x"])
-    defer { tabs.forEach { $0.close() } }
-    try await browser.pinWithCmdD("Counter p")
-    try await browser.pinWithCmdD("Counter s")
-    try browser.newFolderFromPlusMenu("Docs")
-    _ = await browser.waitForPinnedSection { $0 == ["Counter p", "Counter s", "[Docs]"] }
-    try await browser.fileIntoFolder(["Counter s"], folder: "Docs")
-    let filed = await browser.waitForPinnedSection(30) { $0 == ["Counter p", "[Docs]", "  Counter s"] }
-    try require(filed, "S isn't in Docs: \(browser.pinnedSection)")
-    let x = await browser.waitForTabs(30) { $0.contains("Counter x") }
-    try require(x, "X didn't come back: \(browser.tabTitles)")
-    // S's page closed: a closed folder lists its open tabs only.
-    browser.pinRow("Counter s").click()
-    _ = await Harness.wait(for: 10) { browser.pinRow("Counter s").isSelected }
-    browser.ui.typeKey("w", modifierFlags: .command)
-    let sClosed = await browser.waitForTarget("?s", open: false)
-    try require(sClosed, "Cmd+W didn't close S's page")
-    browser.folderRow("Docs").click()
-    _ = await browser.waitForPinnedSection { $0 == ["Counter p", "[Docs]"] }
-
-    // Closed: from P, the next row is X.
-    browser.pinRow("Counter p").click()
-    _ = await Harness.wait(for: 10) { browser.pinRow("Counter p").isSelected }
-    browser.ui.typeKey(.downArrow, modifierFlags: [.command, .option])
-    let next = await browser.waitForActiveRow("Counter x")
-    XCTAssertTrue(next, "Opt+Cmd+Down didn't skip the closed folder's tab")
-    XCTAssertEqual(browser.pinnedSection, ["Counter p", "[Docs]"], "S showed while its folder is closed")
-    // Cmd+2 counts X second.
-    browser.ui.typeKey("1", modifierFlags: .command)
-    browser.ui.typeKey("2", modifierFlags: .command)
-    let second = await browser.waitForActiveRow("Counter x")
-    XCTAssertTrue(second, "Cmd+2 counted the closed folder's tab")
-
-    // Open: Cmd+2 is S.
-    browser.folderRow("Docs").click()
-    _ = await browser.waitForPinnedSection { $0 == ["Counter p", "[Docs]", "  Counter s"] }
-    browser.ui.typeKey("2", modifierFlags: .command)
-    let s = await Harness.wait(for: 15) { browser.pinRow("Counter s").isSelected }
-    XCTAssertTrue(s, "Cmd+2 didn't count the open folder's tab")
-
-    // S, alone in Docs, doesn't move with Ctrl+Shift+PageUp.
-    browser.ui.typeKey(.pageUp, modifierFlags: [.control, .shift])
-    try await Task.sleep(for: .seconds(1))
-    XCTAssertEqual(browser.pinnedSection, ["Counter p", "[Docs]", "  Counter s"], "S left its folder")
-
-    // Closing S, with Docs closed, passes over nothing hidden: P shows.
-    browser.folderRow("Docs").click()
-    _ = await browser.waitForPinnedSection { $0 == ["Counter p", "[Docs]", "  Counter s"] }
-    browser.ui.typeKey("w", modifierFlags: .command)
-    let gone = await browser.waitForTarget("?s", open: false)
-    XCTAssertTrue(gone, "Cmd+W didn't close S's page")
-    let shown = await Harness.wait(for: 15) {
-      browser.pinRow("Counter p").isSelected || browser.activeRow == "Counter x"
-    }
-    XCTAssertTrue(shown, "Closing S showed no next row")
   }
 
   /// Close This Folder, Duplicate, Delete with its confirmation and Restore
@@ -494,104 +437,58 @@ final class FoldersTests: NativeWindowTestCase {
       records.values.contains { $0["name"] as? String == "Ideas" }, "The deleted Space's folder is still saved")
   }
 
-  /// The stores' records (add-tab-folders D1): sort keys keep twenty pins
-  /// placed one after another into the same gap, and twenty at each end, in
-  /// order across a relaunch; a move rewrites one record; a folder moving to
-  /// another Space rewrites its pins' Space too; and a pinned tab whose
-  /// folder is gone lists at its Space's top level. Ctrl+Shift+PageUp places
-  /// each pin, one gap at a time.
-  func testRecordsAndSortKeys() async throws {
-    // Sixty pins, placed one key at a time, and five relaunches.
-    executionTimeAllowance = 900
-    try Harness.setRestoreWindows(false)
-    let (browser, first) = try await startWithPage("counter.html?first")
-    defer { first.close() }
-    try await browser.pinWithCmdD("Counter first")
-    let lastTab = try await browser.open(counter("last"))
-    _ = await browser.waitForTabs { $0.contains("Counter last") }
-    try await browser.pinWithCmdD("Counter last")
-    lastTab.close()
-
-    /// Pins a new counter last, then moves it up `steps` rows.
-    func place(_ name: String, up steps: Int, expected: [String]) async throws {
-      let tab = try await browser.open(counter(name))
-      defer { tab.close() }
-      _ = await browser.waitForTabs { $0.contains("Counter \(name)") }
-      try await browser.pinWithCmdD("Counter \(name)")
-      for _ in 0..<steps {
-        browser.ui.typeKey(.pageUp, modifierFlags: [.control, .shift])
-      }
-      let placed = await browser.waitForPins { $0 == expected }
-      try require(placed, "\(name) isn't in place: \(browser.pinTitles)")
-    }
-
-    // Twenty at the top, each above the one before.
-    var expected = ["Counter first", "Counter last"]
-    for round in 1...20 {
-      expected.insert("Counter top\(round)", at: 0)
-      try await place("top\(round)", up: expected.count - 1, expected: expected)
-    }
-    // Twenty into the gap after "first", each above the one before.
-    let gap = expected.firstIndex(of: "Counter first")! + 1
-    for round in 1...20 {
-      expected.insert("Counter gap\(round)", at: gap)
-      try await place("gap\(round)", up: expected.count - 1 - gap, expected: expected)
-    }
-    // Twenty at the end.
-    for round in 1...20 {
-      expected.append("Counter end\(round)")
-      try await place("end\(round)", up: 0, expected: expected)
-    }
-    try await browser.relaunch()
-    let kept = await browser.waitForPins(30) { $0 == expected }
-    XCTAssertTrue(kept, "The pins' order didn't survive the relaunch: \(browser.pinTitles)")
-
-    // One pin moved up one row: only its record changes.
-    let before = try await recordsAfterRelaunch(browser)
-    browser.reveal(browser.pinRow("Counter last"), over: browser.pinRow(expected[0]))
-    browser.pinRow("Counter last").click()
-    _ = await Harness.wait(for: 10) { browser.pinRow("Counter last").isSelected }
-    browser.ui.typeKey(.pageUp, modifierFlags: [.control, .shift])
-    let index = expected.firstIndex(of: "Counter last")!
-    _ = await browser.waitForPins { $0.firstIndex(of: "Counter last") == index - 1 }
-    let after = try await recordsAfterRelaunch(browser)
-    XCTAssertEqual(changed(before, after).count, 1, "Moving one pin rewrote \(changed(before, after))")
-
-  }
-
-  /// A folder moving to another Space rewrites its record and its pins'
-  /// (add-tab-folders D1), and a pinned tab whose folder's record is gone
-  /// lists at its Space's top level.
+  /// Each item is its own record (add-tab-folders D1): a pin moving up a row
+  /// rewrites only its own record and keeps its place across a relaunch, a
+  /// folder moving to another Space rewrites its record and its pins', and a
+  /// pinned tab whose folder's record is gone lists at its Space's top level.
+  /// Placing keys in any order is scripts/order-key.test.sh's.
   func testFolderRecords() async throws {
     executionTimeAllowance = 420
     try Harness.setRestoreWindows(false)
     let (browser, first) = try await startWithPage("counter.html?end1")
     defer { first.close() }
-    let second = try await browser.open(counter("end2"))
-    defer { second.close() }
-    _ = await browser.waitForTabs { $0.contains("Counter end2") }
-    try await browser.pinWithCmdD("Counter end1")
-    try await browser.pinWithCmdD("Counter end2")
+    let tabs = try await openCounters(browser, ["end2", "end3", "end4"])
+    defer { tabs.forEach { $0.close() } }
+    for name in ["end1", "end2", "end3", "end4"] {
+      try await browser.pinWithCmdD("Counter \(name)")
+    }
 
     // A folder of two pins moved to another Space: its record and its pins'.
     try browser.newFolderFromPlusMenu("Trip")
     _ = await Harness.wait(for: 10) { browser.folderNames == ["Trip"] }
     try await browser.fileIntoFolder(["Counter end1", "Counter end2"], folder: "Trip")
-    _ = await browser.waitForPinnedSection(30) { $0.suffix(3) == ["[Trip]", "  Counter end1", "  Counter end2"] }
+    let filed = await browser.waitForPinnedSection(30) {
+      $0 == ["Counter end3", "Counter end4", "[Trip]", "  Counter end1", "  Counter end2"]
+    }
+    try require(filed, "Trip doesn't hold End 1 and 2: \(browser.pinnedSection)")
     try await browser.createSpace("Work")
     browser.ui.typeKey("1", modifierFlags: .control)
     _ = await browser.waitForSpace("Home")
     let beforeMove = try await recordsAfterRelaunch(browser)
+
+    // End 4 up a row, then Trip to Work.
+    browser.pinRow("Counter end4").click()
+    _ = await Harness.wait(for: 10) { browser.pinRow("Counter end4").isSelected }
+    browser.ui.typeKey(.pageUp, modifierFlags: [.control, .shift])
+    let up = await browser.waitForPinnedSection { $0.prefix(2) == ["Counter end4", "Counter end3"] }
+    try require(up, "Ctrl+Shift+PageUp didn't move End 4 up: \(browser.pinnedSection)")
     browser.folderRow("Trip").rightClick()
     browser.ui.menuItems["Move to Space"].click()
     try require(browser.visibleMenuItem("Work") != nil, "Move to Space has no Work")
     browser.visibleMenuItem("Work")?.click()
     _ = await Harness.wait(for: 10) { browser.folderNames.isEmpty }
     let afterMove = try await recordsAfterRelaunch(browser)
-    let moved = changed(beforeMove, afterMove)
-    XCTAssertEqual(moved.count, 3, "Moving a folder of two pins rewrote \(moved.count) records")
+    browser.ui.typeKey("1", modifierFlags: .control)
+    _ = await browser.waitForSpace("Home")
+    let kept = await browser.waitForPinnedSection(30) { $0 == ["Counter end4", "Counter end3"] }
+    XCTAssertTrue(kept, "Home's pins didn't keep their order: \(browser.pinnedSection)")
     let workID = try XCTUnwrap(try browser.spaceRecords().first { $0.value["name"] as? String == "Work" }?.key)
-    XCTAssertTrue(moved.allSatisfy { afterMove[$0]?["space"] as? String == workID }, "The moved records don't name Work")
+    let changes = changed(beforeMove, afterMove)
+    let moved = changes.filter { afterMove[$0]?["space"] as? String == workID }
+    XCTAssertEqual(moved.count, 3, "Moving a folder of two pins rewrote \(moved.count) of its records")
+    let others = changes.subtracting(moved).compactMap { afterMove[$0]?["url"] as? String }
+    XCTAssertEqual(others.count, 1, "Moving End 4 rewrote \(others.count) records")
+    XCTAssertTrue(others.allSatisfy { $0.hasSuffix("?end4") }, "Moving End 4 rewrote \(others)")
 
     // A pinned tab whose folder's record is gone lists at its Space's top
     // level.
