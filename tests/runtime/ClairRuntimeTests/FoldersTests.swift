@@ -47,15 +47,56 @@ extension Browser {
   }
 
   /// Drags a row onto the middle of another, as onto a folder's row
-  /// (add-tab-folders D5), or onto its top edge, the gap above it: slowly,
-  /// and held over the target, so the list and the row's drop view see the
-  /// drag arrive.
-  func drag(_ row: XCUIElement, onto target: XCUIElement, topEdge: Bool = false) {
-    row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-      .press(
-        forDuration: 0.5,
-        thenDragTo: target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: topEdge ? 0.08 : 0.5)),
-        withVelocity: .slow, thenHoldForDuration: 0.6)
+  /// (add-tab-folders D5), or onto its top edge, the gap above it, with the
+  /// mouse's own events at a hand's speed, as the probe's `drag` does:
+  /// XCUITest's synthesized drags never start a drag in the sidebar. Skips
+  /// when the runner may not post events.
+  func drag(_ row: XCUIElement, onto target: XCUIElement, topEdge: Bool = false) throws {
+    try drag(
+      from: CGPoint(x: row.frame.midX, y: row.frame.midY),
+      to: CGPoint(
+        x: target.frame.midX,
+        y: topEdge ? target.frame.minY + target.frame.height * 0.08 : target.frame.midY))
+  }
+
+  /// Drags between two points on screen with the mouse's own events.
+  func drag(from: CGPoint, to: CGPoint) throws {
+    guard CGPreflightPostEventAccess() else {
+      throw XCTSkip("The test runner may not post mouse events, which drags in the sidebar need")
+    }
+    func post(_ type: CGEventType, _ point: CGPoint) {
+      CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
+        .post(tap: .cghidEventTap)
+    }
+    post(.mouseMoved, from)
+    usleep(200_000)
+    post(.leftMouseDown, from)
+    usleep(300_000)
+    let steps = 30
+    for step in 1...steps {
+      let t = CGFloat(step) / CGFloat(steps)
+      post(.leftMouseDragged, CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t))
+      usleep(16_000)
+    }
+    usleep(600_000)
+    post(.leftMouseUp, to)
+  }
+
+  /// Scrolls the sidebar down until `row` can be clicked, starting over
+  /// `top`, the list's first row. If the first scroll doesn't move `top` up,
+  /// the wheel runs the other way, so it turns round once.
+  func reveal(_ row: XCUIElement, over top: XCUIElement) {
+    let area = top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    var delta: CGFloat = -80
+    var turned = false
+    for _ in 0..<40 where !row.isHittable {
+      let before = top.frame.minY
+      area.scroll(byDeltaX: 0, deltaY: delta)
+      if !turned, top.isHittable, top.frame.minY >= before {
+        delta = -delta
+        turned = true
+      }
+    }
   }
 
   /// Local State's "clair" dictionary, read while Clair isn't running.
@@ -507,6 +548,7 @@ final class FoldersTests: NativeWindowTestCase {
 
     // One pin moved up one row: only its record changes.
     let before = try await recordsAfterRelaunch(browser)
+    browser.reveal(browser.pinRow("Counter last"), over: browser.pinRow(expected[0]))
     browser.pinRow("Counter last").click()
     _ = await Harness.wait(for: 10) { browser.pinRow("Counter last").isSelected }
     browser.ui.typeKey(.pageUp, modifierFlags: [.control, .shift])
@@ -586,8 +628,8 @@ final class FoldersTests: NativeWindowTestCase {
 
   /// Dragging into, within and out of folders, and reordering folders and
   /// Spaces (tab-folders spec, "Dragging tabs into a folder", "Dragging tabs
-  /// out of a folder", "Reordering folders"; add-tab-folders D12). XCUITest's
-  /// drags reach the sidebar on the hosted runners.
+  /// out of a folder", "Reordering folders"; add-tab-folders D12). It drags
+  /// with the mouse's own events, and skips where the runner may not post them.
   func testDraggingIntoAndOutOfFolders() async throws {
     executionTimeAllowance = 300
     let (browser, home) = try await startWithPage("counter.html?home")
@@ -599,12 +641,12 @@ final class FoldersTests: NativeWindowTestCase {
     _ = await browser.waitForPinnedSection { $0 == ["Counter home", "[Docs]"] }
 
     // On the row: the folder's first tab, with its page.
-    browser.drag(try XCTUnwrap(browser.tabRow("Counter spec")), onto: browser.folderRow("Docs"))
+    try browser.drag(try XCTUnwrap(browser.tabRow("Counter spec")), onto: browser.folderRow("Docs"))
     let onRow = await browser.waitForPinnedSection { $0 == ["Counter home", "[Docs]", "  Counter spec"] }
     try require(onRow, "A drop on Docs' row didn't pin into it: \(browser.pinnedSection)")
     let kept = try await browser.target(endingWith: "?spec")
     XCTAssertNotNil(kept, "Pinning into the folder closed the page")
-    browser.drag(try XCTUnwrap(browser.tabRow("Counter plan")), onto: browser.folderRow("Docs"))
+    try browser.drag(try XCTUnwrap(browser.tabRow("Counter plan")), onto: browser.folderRow("Docs"))
     let firstIn = await browser.waitForPinnedSection {
       $0 == ["Counter home", "[Docs]", "  Counter plan", "  Counter spec"]
     }
@@ -613,7 +655,7 @@ final class FoldersTests: NativeWindowTestCase {
     // A drop on a closed folder's row lands in it too.
     browser.folderRow("Docs").click()
     _ = await browser.waitForPinnedSection { $0 == ["Counter home", "[Docs]"] }
-    browser.drag(try XCTUnwrap(browser.tabRow("Counter note")), onto: browser.folderRow("Docs"))
+    try browser.drag(try XCTUnwrap(browser.tabRow("Counter note")), onto: browser.folderRow("Docs"))
     try await Task.sleep(for: .seconds(1))
     browser.folderRow("Docs").click()
     let closedDrop = await browser.waitForPinnedSection {
@@ -622,24 +664,24 @@ final class FoldersTests: NativeWindowTestCase {
     XCTAssertTrue(closedDrop, "A drop on the closed folder didn't land in it: \(browser.pinnedSection)")
 
     // A folder's tab dragged above the folder leaves it.
-    browser.drag(browser.pinRow("Counter note"), onto: browser.folderRow("Docs"), topEdge: true)
+    try browser.drag(browser.pinRow("Counter note"), onto: browser.folderRow("Docs"), topEdge: true)
     let out = await browser.waitForPinnedSection {
       $0 == ["Counter home", "Counter note", "[Docs]", "  Counter plan", "  Counter spec"]
     }
     XCTAssertTrue(out, "Dragging Note above Docs didn't take it out: \(browser.pinnedSection)")
 
     // Into Today, below the divider, it's unpinned with its page.
-    browser.drag(browser.pinRow("Counter spec"), onto: browser.element("clair.newTabRow"))
+    try browser.drag(browser.pinRow("Counter spec"), onto: browser.element("clair.newTabRow"))
     let today = await browser.waitForTabs { $0.contains("Counter spec") }
     XCTAssertTrue(today, "Dragging Spec into Today didn't unpin it: \(browser.tabTitles)")
 
     // The folder reorders above Home, with its tabs, and stays put when
     // dropped below the divider.
-    browser.drag(browser.folderRow("Docs"), onto: browser.pinRow("Counter home"), topEdge: true)
+    try browser.drag(browser.folderRow("Docs"), onto: browser.pinRow("Counter home"), topEdge: true)
     let reordered = await browser.waitForPinnedSection { $0.first == "[Docs]" }
     XCTAssertTrue(reordered, "Docs didn't move above Home: \(browser.pinnedSection)")
     let section = browser.pinnedSection
-    browser.drag(browser.folderRow("Docs"), onto: try XCTUnwrap(browser.tabRow("Counter spec")))
+    try browser.drag(browser.folderRow("Docs"), onto: try XCTUnwrap(browser.tabRow("Counter spec")))
     try await Task.sleep(for: .seconds(1))
     XCTAssertEqual(browser.pinnedSection, section, "Docs moved below the divider")
 
@@ -648,10 +690,9 @@ final class FoldersTests: NativeWindowTestCase {
     let spacesBefore = try await spaceRecordsAfterRelaunch(browser)
     let items = browser.switcherItems
     try require(items.count == 2, "The switcher doesn't show two Spaces")
-    items[1].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-      .press(
-        forDuration: 0.5, thenDragTo: items[0].coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)),
-        withVelocity: .slow, thenHoldForDuration: 0.4)
+    try browser.drag(
+      from: CGPoint(x: items[1].frame.midX, y: items[1].frame.midY),
+      to: CGPoint(x: items[0].frame.minX + items[0].frame.width * 0.2, y: items[0].frame.midY))
     _ = await Harness.wait(for: 10) { browser.spacesMenuSpaces.first == "Work" }
     let spacesAfter = try await spaceRecordsAfterRelaunch(browser)
     XCTAssertEqual(browser.spacesMenuSpaces, ["Work", "Home"], "The Spaces' order didn't survive the relaunch")
