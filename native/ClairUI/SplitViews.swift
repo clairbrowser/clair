@@ -381,10 +381,21 @@ struct SplitRow: View {
 
   @State private var isHovered = false
   @State private var hoveredChip: Int?
+  @State private var width: CGFloat = 0
   @Environment(\.colorScheme) private var colorScheme
 
   /// The gap between the chips.
   static let chipGap: CGFloat = 3
+  /// The row's inset around its chips.
+  static let inset: CGFloat = 4
+
+  /// The chip under `x`, from the row's leading edge, in a row `width` wide
+  /// of `count` chips of equal width.
+  static func chip(at x: CGFloat, width: CGFloat, count: Int) -> Int? {
+    let room = width - 2 * inset
+    guard count > 0, room > 0, x >= inset, x < width - inset else { return nil }
+    return min(count - 1, Int((x - inset) / (room / CGFloat(count))))
+  }
 
   var body: some View {
     HStack(spacing: Self.chipGap) {
@@ -404,8 +415,9 @@ struct SplitRow: View {
         .accessibilityIdentifier(button.identifier)
       }
     }
-    .padding(.horizontal, 4)
+    .padding(.horizontal, Self.inset)
     .frame(height: TabRow.pillHeight)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     .background {
       if isActive {
         RoundedRectangle(cornerRadius: TabRow.cornerRadius, style: .continuous)
@@ -419,7 +431,17 @@ struct SplitRow: View {
     .padding(.bottom, TabRow.pillInset + TabRow.spacing)
     .contentShape(Rectangle())
     .onTapGesture(perform: onTap)
-    .onHover { isHovered = $0 }
+    // The row tracks which chip is under the pointer, for its ×.
+    .onContinuousHover { phase in
+      switch phase {
+      case .active(let point):
+        isHovered = true
+        hoveredChip = Self.chip(at: point.x, width: width, count: pages.count)
+      case .ended:
+        isHovered = false
+        hoveredChip = nil
+      }
+    }
     .accessibilityElement(children: .contain)
     .accessibilityLabel(pages.map(\.title).joined(separator: ", "))
     .accessibilityIdentifier("clair.splitRow")
@@ -458,13 +480,6 @@ struct SplitRow: View {
         ) { onChipClose(index) }
         .padding(.trailing, 1)
         .accessibilityIdentifier("clair.splitClose.\(index)")
-      }
-    }
-    .onHover { hovering in
-      if hovering {
-        hoveredChip = index
-      } else if hoveredChip == index {
-        hoveredChip = nil
       }
     }
   }
@@ -583,17 +598,19 @@ struct SplitButton: View {
   }
 }
 
-/// An invisible view behind a SwiftUI button that a menu pops up from,
-/// below the button.
+/// An invisible view behind a SwiftUI button that a menu pops up from.
 struct MenuAnchor: NSViewRepresentable {
   /// Holds the view, for the button's action to reach.
   @MainActor
   final class Box {
     weak var view: NSView?
 
+    /// Pops `menu` up below the view, its trailing edge at the view's when
+    /// it's wider, as the button sits at the toolbar's trailing end.
     func popUp(_ menu: NSMenu) {
       guard let view else { return }
-      menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+      let x = min(0, view.bounds.width - menu.size.width)
+      menu.popUp(positioning: nil, at: NSPoint(x: x, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
     }
   }
 
