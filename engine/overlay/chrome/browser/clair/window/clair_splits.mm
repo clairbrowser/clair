@@ -17,7 +17,9 @@
 #import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
+#include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
@@ -27,6 +29,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/sessions/core/tab_restore_service.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "content/public/browser/navigation_controller.h"
@@ -595,13 +598,17 @@ void ClairSplits::OnSplitTabChanged(const SplitTabChange& change) {
       }
       // D6: a split Chromium made, from Option+click or the link's context
       // menu, puts the page the link was clicked in, the active tab then,
-      // in the leading pane. Session restore and Reopen Closed Tab keep the
-      // order they saved.
+      // in the leading pane. Session restore, Reopen Closed Tab and Reopen
+      // Closed Window keep the order they saved.
       tabs::TabInterface* active = model_->GetActiveTab();
+      Profile* profile = window_->browser()->GetProfile();
+      sessions::TabRestoreService* tab_restore =
+          TabRestoreServiceFactory::GetForProfile(profile);
       if (!changing_ &&
           added->reason() ==
               SplitTabChange::SplitTabAddReason::kNewSplitTabAdded &&
-          !SessionRestore::IsRestoring(window_->browser()->GetProfile()) &&
+          !SessionRestore::IsRestoring(profile) &&
+          !(tab_restore && tab_restore->IsRestoring()) &&
           active && std::ranges::find(changed, active) != changed.end() &&
           changed.front() != active) {
         base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(

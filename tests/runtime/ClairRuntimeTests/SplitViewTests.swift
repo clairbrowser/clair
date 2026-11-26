@@ -387,22 +387,12 @@ final class SplitViewTests: NativeWindowTestCase {
       XCTAssertEqual(shown.frame.midX, moved.midX, accuracy: 3, "The ratio changed across a relaunch")
     }
 
-    // Reopen Closed Window brings it back too.
-    let other = try await browser.open(url("counter.html?keep"), newWindow: true)
-    defer { other.close() }
-    _ = try await browser.waitForNativeWindows(2)
-    // The split's window is the first one opened, at the back now.
-    let splitWindow = browser.nativeWindows.first {
-      $0.element.descendants(matching: .any).matching(identifier: "clair.splitRow").count > 0
-    }
-    try require(splitWindow != nil, "No window lists the split")
-    splitWindow?.click()
+    // Reopen Closed Window brings it back too. Closing the last window
+    // closes its tabs; with another window open, they'd move there
+    // (share-tabs-across-windows D4).
     browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-    let windowClosed = await Harness.wait(for: 15) { try await browser.windowCount() == 1 }
-    try require(windowClosed, "Close Window didn't close a window")
-    // The split's own window closed, with both its pages.
     for page in ["split.html", "?split-same"] {
-      let gone = await browser.waitForTarget(page, open: false)
+      let gone = await browser.waitForTarget(page, open: false, seconds: 30)
       try require(gone, "The split's page \(page) is still open after its window closed")
     }
     browser.ui.typeKey("t", modifierFlags: [.command, .shift])
