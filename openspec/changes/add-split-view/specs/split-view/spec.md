@@ -272,11 +272,15 @@ Separate Tabs, in a pane's split menu, the split row's menu and View, SHALL end 
 - **THEN** the sidebar lists "News" and then "Docs" where the split's row was, and the window shows "Docs" alone
 
 ### Requirement: The split row
-In the sidebar, a split SHALL show as one row with a chip per tab, in pane order, each with the tab's favicon and title (or custom name), truncated to share the row, as in Arc. While the split isn't selected, a thin divider SHALL separate the chips. While it's selected, the row SHALL be highlighted and each chip SHALL show as its own grey pill.
+In the sidebar, a split SHALL show as one row with a chip per tab, in pane order, each with the tab's favicon and title (or custom name), truncated to share the row, as in Arc. While the split isn't selected, a thin divider SHALL separate the chips. While it's selected, the row SHALL be highlighted and each chip SHALL show as its own grey pill, in the same place as before, as in Arc.
 
 #### Scenario: A split in Today
 - **WHEN** a Space has the Today tabs "Mail" and a split of "News" and "Docs"
 - **THEN** the sidebar lists "Mail" and one row holding a "News" chip and a "Docs" chip
+
+#### Scenario: Selecting it
+- **WHEN** the user selects that split
+- **THEN** the row is highlighted, each chip is a grey pill, and neither chip moves
 
 #### Scenario: The selected split
 - **WHEN** the window shows the split

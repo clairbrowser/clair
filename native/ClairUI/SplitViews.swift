@@ -390,10 +390,12 @@ struct SplitRow: View {
   var body: some View {
     HStack(spacing: Self.chipGap) {
       ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-        if index > 0, !isActive {
+        if index > 0 {
+          // Kept, clear, while selected, so the chips don't move, as in Arc.
           Rectangle()
             .fill(PinFill.divider)
             .frame(width: 1, height: 16)
+            .opacity(isActive ? 0 : 1)
         }
         chip(page, index: index)
       }
