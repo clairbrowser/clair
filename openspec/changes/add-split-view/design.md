@@ -53,7 +53,7 @@ The rows ClairUI lists come from `-tabsInSpace:` as now. `TabListLogic` folds tw
 - the tab's page view, still, crashed-page view and docked DevTools;
 - its focus ring (2 pt, `controlAccentColor`), shown only while it has a partner and is focused.
 
-A `SplitDivider` sits in the 10 pt gap (Arc's measurement in change 1's `arc-reference/look-and-behaviour.md`, 356 + 10 + 356). It shows a grabber and the resize cursor. While dragging, it sets the panes' widths locally, then calls `setSplitRatio` when the drag ends. The ratio is clamped so that each pane's page, below its header and inside its card, is at least about 210 pt wide, Dia's minimum as the owner measured it with DevTools. It needn't be exact. In a page area too narrow for that, the clamp gives way and the ratio holds.
+A `SplitDivider` sits in the 10 pt gap (Arc's measurement in change 1's `arc-reference/look-and-behaviour.md`, 356 + 10 + 356). It shows a grabber and the resize cursor. While dragging, it sets the panes' widths locally, then calls `setSplitRatio` when the drag ends. The ratio is clamped so that each pane's page, below its header and inside its card, is at least about 210 pt wide, Dia's minimum as the owner measured it with DevTools. It needn't be exact. In a page area too narrow for that, the clamp gives way and the ratio holds. When a drag ends within 20 pt of the centre, the divider animates to it and the ratio is saved as 0.5.
 
 `BrowserWindowModel.paneCount` becomes 2 while the active tab has a partner, so `PageHeaderPolicy` shows pane headers and hides the sidebar's controls with no further change (`add-page-toolbar` D1). The Peek, find field, loading indicator and toasts are measured against the page area, the union of the panes. Find is the exception: it uses the focused pane, as the spec says. The loading indicator follows the active tab, as now, and centres on that tab's pane.
 
@@ -119,7 +119,7 @@ Menu bar items:
 
 The tab context menus gain Split with Tab › from the menus `PinsLogic` and the sidebar already build.
 
-**Wording:** Clair says "Separate Tabs" everywhere, as the owner named the sidebar item. The Dia capture `dia-reference/split-button-menu-split.jpg` reads "Separate All Tabs", and Arc's View menu "Separate Page from Split View".
+**Wording:** Clair says "Separate Tabs" everywhere, as Dia does. Arc's View menu says "Separate Page from Split View".
 
 ### D10. Pinned and favorited splits
 
@@ -135,11 +135,20 @@ A Today split holding a pin-bound tab (the spec's "A split with a pinned tab or 
 
 ### D11. Peeks in a split
 
-`PeekLayout` is unchanged and measures from the page area (D3), so a Peek covers both panes, which shrink and wash out together. Open in Split View expands the Peek as Expand does (`ClairPeeks`), then calls `AddToNewSplit` with the parent. The button isn't built while the parent has a partner, since a split holds two tabs.
+`PeekLayout` is unchanged and measures from the page area (D3), so a Peek is centred over both panes. Only the parent's `PaneView` takes the shrink and wash, as in Arc; the other pane keeps its size and colour. Task 1.1 checks what a click on that other pane does in Arc. Open in Split View expands the Peek as Expand does (`ClairPeeks`), then calls `AddToNewSplit` with the parent. The button isn't built while the parent has a partner, since a split holds two tabs.
 
 ### D12. Closing
 
 Closing a tab in a split dissolves the split in `TabStripModel`, and the other tab stays where it was. `ClairSplits` then activates it, so the spec's "other tab shows alone" holds whatever Clair's next-tab rule would pick. The split row's × closes both tabs: `CloseTabs` on the pair, each with its leave-page confirmation, so tab restore records one `Split` entry.
+
+### D13a. Link status with a modifier
+
+The link status capsule is `ClairUI`'s, fed by the page's hovered URL. It now also reads the modifier flags, from `flagsChanged` on the window while a URL shows:
+- Option gives "Open <URL> in Split View";
+- Shift, while `opensPeekOnShiftClick` is on, gives "Open <URL> in Peek";
+- in a Peek, either gives the URL alone, since there Option acts as a plain click and Shift opens a tab.
+
+Both texts follow what D6 and Peek actually do with the click, so the capsule never promises something else. In a split, the capsule sits at the bottom-leading corner of the hovered link's pane.
 
 ### D13. Runtime identifiers
 

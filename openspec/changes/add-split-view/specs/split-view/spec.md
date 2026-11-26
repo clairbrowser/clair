@@ -58,7 +58,7 @@ While the pointer is over the pane that isn't focused, its header SHALL show its
 - **THEN** that pane is focused, and the Site Control Center opens for its page
 
 ### Requirement: Resizing the panes
-A divider in the gap between the panes SHALL show a grabber and the resize pointer. Dragging it SHALL resize both panes, stopping when either pane's page would be narrower than about 210 points, as in Dia. The split SHALL keep the ratio, across tab switches and relaunches. A new split SHALL start with equal panes. While the page area is too narrow for two such pages, the panes SHALL keep their ratio.
+A divider in the gap between the panes SHALL show a grabber and the resize pointer. Dragging it SHALL resize both panes, stopping when either pane's page would be narrower than about 210 points, as in Dia. The split SHALL keep the ratio, across tab switches and relaunches. A new split SHALL start with equal panes, and a drag ending near the centre SHALL snap to equal panes. While the page area is too narrow for two such pages, the panes SHALL keep their ratio.
 
 #### Scenario: Dragging the divider
 - **WHEN** the user drags the divider of an equal split in a wide window 200 points toward the trailing edge
@@ -67,6 +67,10 @@ A divider in the gap between the panes SHALL show a grabber and the resize point
 #### Scenario: Past the limit
 - **WHEN** the user keeps dragging toward the trailing edge
 - **THEN** the trailing pane's page stops at about 210 points wide
+
+#### Scenario: Snapping to the centre
+- **WHEN** the user drags the divider to within about 20 points of the page area's centre and lets go
+- **THEN** the panes become equal
 
 #### Scenario: Coming back to the split
 - **WHEN** the user resized a split, selects another tab and then selects the split again
@@ -119,6 +123,24 @@ While the page is split, Option+clicking a link in either pane SHALL load it in 
 #### Scenario: Option+click in the trailing pane
 - **WHEN** the user Option+clicks a link in the trailing pane
 - **THEN** the link loads in the leading pane
+
+### Requirement: The link status names the split
+While Option is held and the pointer rests on a link in a page, the link status (`browser-window`) SHALL read "Open <URL> in Split View", where Option+click opens it in a split. Pressing or releasing Option while the status shows SHALL update it at once. Inside a Peek, where Option+click acts as a plain click, it SHALL show the URL alone.
+
+#### Scenario: Holding Option over a link
+- **WHEN** the pointer rests on a link to `https://example.com/` and the user holds Option
+- **THEN** the link status reads "Open https://example.com/ in Split View"
+
+#### Scenario: Releasing Option
+- **WHEN** the user then releases Option
+- **THEN** the link status reads `https://example.com/`
+
+### Requirement: Link status in a split
+While the page is split, the link status SHALL show at the bottom-leading corner of the pane holding the link.
+
+#### Scenario: A link in the trailing pane
+- **WHEN** the pointer rests on a link in the trailing pane
+- **THEN** the link status shows at the trailing pane's bottom-leading corner
 
 ### Requirement: Open Link in Split View
 A link's context menu SHALL offer Open Link in Split View, after Open Link in New Tab, which SHALL act as Option+click on that link.
@@ -180,7 +202,7 @@ On a split page, a pane's split button SHALL open a menu offering Move Left and 
 - **THEN** "News" shows in the trailing pane, focused, and the other tab in the leading pane
 
 ### Requirement: Split with Tab in the menus
-Tabs › Split with Tab › SHALL list the Today tabs as the split button's menu does, with New Tab, and SHALL be disabled while the page is split. The menus of a Today tab, pinned tab and favorite SHALL offer Split with Tab ›, listing the Space's Today tabs other than that tab, then New Tab. Choosing one SHALL make a split of the menu's tab, leading, and the chosen tab, trailing and focused.
+Tabs › Split with Tab › SHALL list the Today tabs as the split button's menu does, with New Tab, and SHALL be disabled while the page is split. The menus of a Today tab, pinned tab and favorite SHALL offer Split with Tab ›, listing the Space's Today tabs other than that tab, in the sidebar's order, each with its favicon, then New Tab. Choosing one SHALL make a split of the menu's tab, leading, and the chosen tab, trailing and focused.
 
 #### Scenario: From a tab's menu
 - **WHEN** the user right-clicks the Today tab "News" and chooses Split with Tab › "Docs"
@@ -285,11 +307,11 @@ Splits SHALL come back after a relaunch, with Reopen Closed Window and after a c
 - **THEN** the sidebar shows the split's row in its place, and selecting it shows "News" and "Docs" at a 2:1 ratio
 
 ### Requirement: Peeks in a split
-Shift+clicking a link in either pane SHALL open a Peek of that pane's tab that covers the whole page area, both panes included, as `peek` describes. Closing it SHALL show the split as it was.
+Shift+clicking a link in either pane SHALL open a Peek of that pane's tab, centred over the whole page area, with only that pane shrinking and washing out behind it, as `peek` describes. Closing it SHALL show the split as it was.
 
 #### Scenario: A Peek from the trailing pane
 - **WHEN** a split shows "News" and "Docs" and the user Shift+clicks a link in "Docs"
-- **THEN** a Peek opens centred on the page area, over both washed-out panes
+- **THEN** a Peek opens centred on the page area, "Docs"'s pane shrinks and washes out behind it, and "News"'s pane doesn't change
 
 #### Scenario: Closing it
 - **WHEN** the user presses Esc

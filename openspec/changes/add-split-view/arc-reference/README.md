@@ -26,3 +26,8 @@ Keep these screenshots. They move with the change when it's archived.
 - The drag-onto-page UI: the portrait card's size, the drop zone's tint and border, and the slide's timing.
 - The split row with long titles at the default sidebar width.
 - Closing one pane of a pinned split.
+- With a Peek open from one pane, what a click on the other pane does.
+
+## Peek in a split
+
+Only the Peek's parent pane shrinks, is covered and washes out; the other pane stays as it is (the owner, in PR #259).

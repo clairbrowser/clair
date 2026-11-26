@@ -27,5 +27,5 @@ Keep these screenshots. They move with the change when it's archived.
 ## Not taken from Dia
 
 - Its grey focus border: Clair uses Arc's accent ring.
-- The menu item's wording: this capture reads "Separate All Tabs". Clair says "Separate Tabs" everywhere.
+- Nothing in the wording: Dia says "Separate Tabs", as Clair does.
 - The Chat button and Dia's toolbar look (see `add-page-toolbar`'s `dia-reference/`).

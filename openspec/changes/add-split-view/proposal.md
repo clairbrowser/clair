@@ -13,11 +13,11 @@ Clair takes split view from two browsers:
 - **Two panes, side by side,** for the MVP, built on Chromium's own split tabs (`TabStripModel`'s split collections), which allow exactly two tabs. Each pane is an ordinary tab. Clair draws the split natively: two pane cards with a gap and a divider between them, a header on each pane, and the focused pane ringed in the accent colour.
 - **Making a split:**
   - **Dragging a tab onto the page**, with Arc's drop UI: the dragged tab turns into a portrait card, and the half under the pointer becomes a drop zone while the page slides to the other half. On a page that's already split, the dropped tab replaces the pane under the pointer, and the replaced tab returns to the sidebar.
-  - **Option+click on a link** opens it in a new pane to the right of the page it was clicked in, which takes focus. While the page is already split, it loads the link in the other pane as a new navigation, so Back returns there, and creates no tab. This replaces Chromium's Option+click download.
+  - **Option+click on a link** opens it in a new pane to the right of the page it was clicked in, which takes focus. While the page is already split, it loads the link in the other pane as a new navigation, so Back returns there, and creates no tab. This replaces Chromium's Option+click download. While Option is held over a link, the link status reads "Open <URL> in Split View".
   - **The split button:** at the toolbar's trailing end, and just before the close button in a pane's header, as in Arc. Its menu, as in Dia, offers "Split with Tab" (the Space's Today tabs, then New Tab). On a split page, it offers Move Left or Move Right, Separate Tabs and Close This Tab.
-  - **Menus:** Tabs › Split with Tab › and a Split with Tab › submenu in the menus of Today tabs, pinned tabs and favorites, listing the Space's Today tabs. View gains Add Split View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs. A link's context menu gains Open Link in Split View.
+  - **Menus:** Tabs › Split with Tab › and a Split with Tab › submenu in the menus of Today tabs, pinned tabs and favorites, listing the Space's Today tabs in the sidebar's order, with their favicons. View gains Add Split View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs. A link's context menu gains Open Link in Split View.
   - **A Peek's Open in Split View button**, as in Arc, beside Close and Expand, shown while the Peek's parent isn't split.
-- **Panes:** each pane's × closes only that pane's tab. The focused pane's header shows the split button, site controls, pinned extensions and indicators; the other pane's shows them while the pointer is over it. Dragging the divider resizes the panes down to a page of about 210 points, as in Dia, and the split keeps the ratio. Clicking in a pane focuses it, and the window's commands (URL, back, find, DevTools, Copy URL…) act on the focused pane. A Peek from either pane covers the whole page area, both panes included.
+- **Panes:** each pane's × closes only that pane's tab. The focused pane's header shows the split button, site controls, pinned extensions and indicators; the other pane's shows them while the pointer is over it. Dragging the divider resizes the panes down to a page of about 210 points, as in Dia, and the split keeps the ratio. Clicking in a pane focuses it, and the window's commands (URL, back, find, DevTools, Copy URL…) act on the focused pane. A Peek from either pane is centred over the whole page area, and only its parent's pane shrinks and washes out, as in Arc. Dragging the divider near the centre snaps it to equal panes.
 - **The sidebar:** a split is one row with a chip per page, as in Arc. Selecting the row shows the split; chips aren't selected one at a time. The row's × closes both tabs. Its menu adds Separate Tabs. Tab commands count the row as one stop.
 - **Pinned and favorited splits,** as in Arc: a split can be pinned or favorited as one item, shown as the chip row in the pinned section (folders included) or as one favorite tile divided into a segment per page. Separating it leaves both pages pinned, or both favorited, in its place. A pinned split has no Back to Pinned URL.
 - **Splits are saved:** they come back after a relaunch, with Reopen Closed Window and with Restore Last Closed Tab, and they move between windows and Spaces as one.
@@ -50,7 +50,8 @@ Clair takes split view from two browsers:
   - "Favorite menu" adds Split with Tab ›.
 - `tab-folders`: "Folders hold pinned tabs" lets a folder hold pinned splits.
 - `peek`:
-  - "Peek layout": in a split, the Peek covers both panes.
+  - "Peek layout": in a split, the Peek is centred over the page area, and only its parent's pane shrinks and washes out.
+  - "The link status names the Peek" is added: holding Shift over a link shows "Open <URL> in Peek".
   - "Peek buttons" adds Open in Split View, hidden while the parent is in a split.
 - `browser-window`: "Both pages of a split are visible" is added.
 
