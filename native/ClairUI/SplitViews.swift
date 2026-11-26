@@ -563,8 +563,7 @@ struct SplitButton: View {
         continue
       case .tab(let tabID, let title):
         item = MenuAnchor.item(title) { choose(entry) }
-        item.image =
-          icon(tabID).map(SplitRows.menuIcon) ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)
+        item.setFavicon(icon(tabID))
       case .moveLeft(let isEnabled), .moveRight(let isEnabled):
         item = MenuAnchor.item(entry.title) { choose(entry) }
         item.isEnabled = isEnabled
@@ -734,12 +733,20 @@ enum SplitRows {
     }
   }
 
-  /// A favicon sized for a menu item.
-  static func menuIcon(_ image: NSImage) -> NSImage {
-    let size = NSSize(width: 16, height: 16)
-    return NSImage(size: size, flipped: false) { rect in
-      image.draw(in: rect)
-      return true
+  /// A favicon sized for a menu item, or the globe that stands for a page
+  /// without one elsewhere, at the same size so titles stay aligned.
+  static func menuIcon(_ image: NSImage?) -> NSImage {
+    HistoryMenuBuilder.icon(image)
+  }
+}
+
+extension NSMenuItem {
+  /// Shows a page's favicon, or the globe, beside the title: macOS 27 hides
+  /// menu item images unless they're asked to show.
+  func setFavicon(_ favicon: NSImage?) {
+    image = SplitRows.menuIcon(favicon)
+    if #available(macOS 27, *) {
+      preferredImageVisibility = .visible
     }
   }
 }

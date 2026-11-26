@@ -304,8 +304,9 @@ struct RowMenuContent: View {
         Menu(title) { RowMenuContent(items: items) }
       case .icon(let title, let image, let run):
         Button(action: run) {
-          if let image { Label { Text(title) } icon: { Image(nsImage: image) } } else { Label(title, systemImage: "globe") }
+          Label { Text(title) } icon: { Image(nsImage: SplitRows.menuIcon(image)) }
         }
+        .labelStyle(.titleAndIcon)
       case .disabledSubmenu(let title):
         Menu(title) {}.disabled(true)
       case .separator:

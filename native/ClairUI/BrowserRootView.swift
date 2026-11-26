@@ -33,6 +33,9 @@ final class FittingHostingView<Content: View>: NSHostingView<Content> {
 class SelfSizingHostingView<Content: View>: NSHostingView<Content> {
   /// A margin around the content, kept for its shadow, that takes no clicks.
   var hitInset: CGFloat = 0
+  /// Whether a change in the content's width lays the window out again too,
+  /// for a view sized to its content both ways, such as the link status.
+  var tracksWidth = false
 
   required init(rootView: Content) {
     super.init(rootView: rootView)
@@ -60,7 +63,8 @@ class SelfSizingHostingView<Content: View>: NSHostingView<Content> {
   // in the same pass.
   override func layout() {
     super.layout()
-    if abs(fittingSize.height - bounds.height) > 0.5 {
+    let size = fittingSize
+    if abs(size.height - bounds.height) > 0.5 || (tracksWidth && abs(size.width - bounds.width) > 0.5) {
       superview?.needsLayout = true
     }
   }

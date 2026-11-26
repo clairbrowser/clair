@@ -1701,7 +1701,7 @@ struct RowClickCatcher: NSViewRepresentable {
           let menuItem = NSMenuItem(title: title, action: #selector(runItem(_:)), keyEquivalent: "")
           menuItem.target = target
           menuItem.representedObject = ItemAction(run: action)
-          menuItem.image = image.map(SplitRows.menuIcon) ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)
+          menuItem.setFavicon(image)
           menu.addItem(menuItem)
         case .submenu(let title, let items):
           let menuItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")

@@ -327,9 +327,13 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       let capsule = CapsuleText(text: text, identifier: "clair.status")
       if let host = rootView.statusHost as? SelfSizingHostingView<CapsuleText> {
         host.rootView = capsule
+        // New text, such as the words Option or Shift add, takes a new width,
+        // and the pane holding the link may have changed.
+        rootView.needsLayout = true
         fade(host, to: 1)
       } else {
         let host = SelfSizingHostingView(rootView: capsule)
+        host.tracksWidth = true
         host.alphaValue = 0
         rootView.statusHost = host
         fade(host, to: 1)

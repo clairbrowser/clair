@@ -403,11 +403,30 @@ struct SplitWindowTests {
     let menu = SplitButton.menu(entries, icon: { _ in nil }) { chosen = $0 }
     #expect(menu.items.map(\.title) == ["Split with Tab", "Mail", "", "New Tab"])
     #expect(menu.items[0].isSectionHeader)
+    // A page without a favicon shows the globe.
+    #expect(menu.items[1].image === HistoryMenuBuilder.placeholderIcon)
+    if #available(macOS 27, *) {
+      #expect(menu.items[1].preferredImageVisibility == .visible)
+    }
     let mailItem = menu.items[1]
     _ = (mailItem.target as? NSObject)?.perform(mailItem.action, with: mailItem)
     #expect(chosen == .tab(mail.tabID, title: "Mail"))
     let pane = SplitButton.menu(SplitLogic.paneMenu(isLeading: true), icon: { _ in nil }) { _ in }
     #expect(!pane.items[0].isEnabled && pane.items[1].isEnabled)
+  }
+
+  @Test func theLinkStatusLaysTheWindowOutWhenItsWordsChange() {
+    let superview = NSView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+    let host = SelfSizingHostingView(rootView: CapsuleText(text: "https://docs.example/", identifier: "clair.status"))
+    host.tracksWidth = true
+    superview.addSubview(host)
+    host.frame = CGRect(origin: .zero, size: host.fittingSize)
+    superview.layoutSubtreeIfNeeded()
+    #expect(!superview.needsLayout)
+    // Option's words make it wider, at the same height.
+    host.rootView = CapsuleText(text: "Option-click to open in split view: https://docs.example/", identifier: "clair.status")
+    host.layoutSubtreeIfNeeded()
+    #expect(superview.needsLayout)
   }
 
   @Test func theSplitRowStandsForBothTabs() {

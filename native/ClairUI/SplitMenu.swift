@@ -132,9 +132,7 @@ final class SplitMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: #selector(chooseTab(_:)), keyEquivalent: "")
         item.target = self
         item.tag = Int(truncatingIfNeeded: other)
-        item.image =
-          (favicons[other] ?? nil).map(SplitRows.menuIcon)
-          ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)
+        item.setFavicon(favicons[other] ?? nil)
         menu.addItem(item)
       case .newTab:
         let item = NSMenuItem(title: entry.title, action: #selector(chooseNewTab(_:)), keyEquivalent: "")
