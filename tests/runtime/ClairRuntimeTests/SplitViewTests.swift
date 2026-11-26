@@ -126,8 +126,8 @@ final class SplitViewTests: NativeWindowTestCase {
     XCTAssertFalse(browser.tabTitles.contains(Self.links), "The split's tab kept a row of its own")
     XCTAssertTrue(browser.element("clair.pane.0").exists && browser.element("clair.pane.1").exists, "No two panes")
     XCTAssertTrue(browser.element("clair.splitDivider").exists, "The split shows no divider")
-    var linksVisibility = try await browser.visibility(of: links)
-    var counterVisibility = try await browser.visibility(of: counter)
+    let linksVisibility = try await browser.visibility(of: links)
+    let counterVisibility = try await browser.visibility(of: counter)
     XCTAssertEqual(linksVisibility, "visible", "The leading pane's page isn't visible")
     XCTAssertEqual(counterVisibility, "visible", "The trailing pane's page isn't visible")
 
