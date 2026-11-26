@@ -151,7 +151,7 @@ A favorite's page in a split loads URLs from the command bar in its pane: `clair
 
 ### D12. Closing
 
-Closing a tab in a split dissolves the split in `TabStripModel`, and the other tab stays where it was. `ClairSplits` then activates it, so the spec's "other tab shows alone" holds whatever Clair's next-tab rule would pick. In Today, each chip of a split's row has its own ×, which closes its tab as the pane's × does. A pinned split's − closes both tabs: `CloseTabs` on the pair, each with its leave-page confirmation, so tab restore records one `Split` entry.
+Closing a tab in a split dissolves the split in `TabStripModel`, and the other tab stays where it was. `ClairSplits` then activates it, so the spec's "other tab shows alone" holds whatever Clair's next-tab rule would pick. In Today, hovering a split's row shows a × on each chip, which closes its tab as the pane's × does. A pinned split's − closes both tabs: `CloseTabs` on the pair, each with its leave-page confirmation, so tab restore records one `Split` entry.
 
 ### D13b. The command bar's place
 

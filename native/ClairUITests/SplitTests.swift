@@ -130,14 +130,6 @@ struct SplitLogicTests {
 
 /// One row for a split, its tabs in pane order (add-split-view D2).
 struct SplitRowListTests {
-  @Test func thePointerPicksTheChipUnderIt() {
-    // A 212 pt row: 4 pt insets, two chips of 102 pt.
-    #expect(SplitRow.chip(at: 2, width: 212, count: 2) == nil)
-    #expect(SplitRow.chip(at: 60, width: 212, count: 2) == 0)
-    #expect(SplitRow.chip(at: 150, width: 212, count: 2) == 1)
-    #expect(SplitRow.chip(at: 210, width: 212, count: 2) == nil)
-  }
-
   @Test func aSplitsTrailingPaneFoldsIntoItsRow() {
     let mail = FakeTab(id: 1, title: "Mail")
     let news = FakeTab(id: 2, title: "News", splitPartnerID: 3, isLeadingPane: true)

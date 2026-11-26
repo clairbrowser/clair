@@ -341,11 +341,14 @@ final class SplitViewTests: NativeWindowTestCase {
     links.close()
     counter.close()
 
-    // A chip's × closes its page only; the other shows alone.
-    let chip = browser.element("clair.splitChip.1", in: browser.splitRow(split))
-    chip.hover()
+    // Hovering the row shows a × on each chip; one closes its page only,
+    // and the other shows alone.
+    browser.element("clair.splitChip.0", in: browser.splitRow(split)).hover()
     let close = browser.element("clair.splitClose.1", in: browser.splitRow(split))
-    try require(close.waitForExistence(timeout: 5), "Hovering a split chip shows no ×")
+    try require(close.waitForExistence(timeout: 5), "Hovering the split row shows no × on the other chip")
+    XCTAssertTrue(
+      browser.element("clair.splitClose.0", in: browser.splitRow(split)).exists,
+      "Hovering the split row shows no × on the hovered chip")
     close.click()
     let closed = await browser.waitForTarget("?split-same", open: false)
     XCTAssertTrue(closed, "The chip's × didn't close its page")

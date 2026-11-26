@@ -290,15 +290,15 @@ Clicking anywhere on a split row SHALL show the split with the pane that was foc
 - **THEN** the window shows the split with "Docs" focused
 
 ### Requirement: Closing a page from its row
-Hovering a chip of a split's row in Today SHALL show a close button at the chip's trailing end, with the tooltip "Close tab", and ⌘W on the focused pane's chip while the split shows. It SHALL close that chip's tab only, as the pane's × does (see "Closing a pane"). Middle-clicking a chip SHALL do the same.
+Hovering a split's row in Today SHALL show a close button at the trailing end of each chip, with the tooltip "Close tab", and ⌘W on the focused pane's chip while the split shows. Each SHALL close its chip's tab only, as the pane's × does (see "Closing a pane"). Middle-clicking a chip SHALL do the same.
 
 #### Scenario: Closing one chip
-- **WHEN** a Today split shows "News" and "Docs" and the user hovers the "Docs" chip and clicks its ×
+- **WHEN** a Today split shows "News" and "Docs" and the user hovers its row and clicks the "Docs" chip's ×
 - **THEN** "Docs" closes, and "News" shows alone, in the split's place in the list
 
-#### Scenario: The other chip
-- **WHEN** the user hovers the "News" chip instead
-- **THEN** its own × shows, and the "Docs" chip shows none
+#### Scenario: Hovering the row
+- **WHEN** the user hovers either chip of the row
+- **THEN** both the "News" chip and the "Docs" chip show a ×
 
 ### Requirement: The split row's menu
 Right-clicking a split row SHALL open the menu of its kind for the tab whose chip is under the pointer (Today tab menu, `pinned-tabs`, `favorites`), without Split with Tab ›, Back to Pinned URL or Edit Pinned Page ›, with Separate Tabs added. Pin Tab, Pin to Favorites, Unpin Tab, Remove Favorite and Move to Space SHALL act on the whole split.

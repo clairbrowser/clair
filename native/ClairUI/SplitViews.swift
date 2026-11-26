@@ -340,8 +340,8 @@ struct SplitChipPage {
 
 /// A split as one row in the sidebar, as in Arc: a chip per page with its
 /// favicon and title, a thin line between them while not selected, a grey
-/// pill each while selected. In Today, hovering a chip shows its own ×,
-/// which closes that page; in the pinned section, the row shows − or ×.
+/// pill each while selected. In Today, hovering the row shows a × on each
+/// chip, which closes that page; in the pinned section, the row shows − or ×.
 struct SplitRow: View {
   let pages: [SplitChipPage]
   let isActive: Bool
@@ -380,22 +380,12 @@ struct SplitRow: View {
   let menuItems: (Int) -> [RowClickCatcher.Item]
 
   @State private var isHovered = false
-  @State private var hoveredChip: Int?
-  @State private var width: CGFloat = 0
   @Environment(\.colorScheme) private var colorScheme
 
   /// The gap between the chips.
   static let chipGap: CGFloat = 3
   /// The row's inset around its chips.
   static let inset: CGFloat = 4
-
-  /// The chip under `x`, from the row's leading edge, in a row `width` wide
-  /// of `count` chips of equal width.
-  static func chip(at x: CGFloat, width: CGFloat, count: Int) -> Int? {
-    let room = width - 2 * inset
-    guard count > 0, room > 0, x >= inset, x < width - inset else { return nil }
-    return min(count - 1, Int((x - inset) / (room / CGFloat(count))))
-  }
 
   var body: some View {
     HStack(spacing: Self.chipGap) {
@@ -417,7 +407,6 @@ struct SplitRow: View {
     }
     .padding(.horizontal, Self.inset)
     .frame(height: TabRow.pillHeight)
-    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     .background {
       if isActive {
         RoundedRectangle(cornerRadius: TabRow.cornerRadius, style: .continuous)
@@ -431,17 +420,7 @@ struct SplitRow: View {
     .padding(.bottom, TabRow.pillInset + TabRow.spacing)
     .contentShape(Rectangle())
     .onTapGesture(perform: onTap)
-    // The row tracks which chip is under the pointer, for its ×.
-    .onContinuousHover { phase in
-      switch phase {
-      case .active(let point):
-        isHovered = true
-        hoveredChip = Self.chip(at: point.x, width: width, count: pages.count)
-      case .ended:
-        isHovered = false
-        hoveredChip = nil
-      }
-    }
+    .onHover { isHovered = $0 }
     .accessibilityElement(children: .contain)
     .accessibilityLabel(pages.map(\.title).joined(separator: ", "))
     .accessibilityIdentifier("clair.splitRow")
@@ -449,7 +428,7 @@ struct SplitRow: View {
   }
 
   private func chip(_ page: SplitChipPage, index: Int) -> some View {
-    let showsClose = onChipClose != nil && hoveredChip == index
+    let showsClose = onChipClose != nil && isHovered
     return HStack(spacing: 6) {
       PinIcon(icon: page.icon, isLoading: page.tab?.isLoading == true && page.icon == nil, size: TabRow.faviconSize)
         .frame(width: TabRow.iconSize, height: TabRow.iconSize)
