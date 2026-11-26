@@ -66,7 +66,7 @@ Clair takes split view from two browsers:
   - moving splits between windows.
 
   The pin store gains split records. Session restore and tab restore get the splits Chromium saves, which needs verifying against Clair's Space session.
-- **Patches:** probably a small one so Option+click reaches the browser rather than starting a download (`design.md` D6). `clair_window_hooks.mm` and `clair_native_window.mm` stop hiding Chromium's split items where Clair now handles them.
+- **Patches:** probably a small one so Option+click reaches the browser rather than starting a download (`design.md` D6). `clair_window_hooks.mm` stops removing Open Link in Split View from the page's context menu. `clair_native_window.mm` keeps `IDC_NEW_SPLIT_TAB` hidden, since Clair's own items replace it (`design.md` D9).
 - **`ClairUI`:**
   - `PageCardView` lays out a list of panes with a divider;
   - `PageToolbar` gains the pane variants and the split button;

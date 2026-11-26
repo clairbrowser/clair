@@ -21,7 +21,7 @@ The Peek SHALL be a card with rounded corners centred over the page card, about 
 A column of round buttons SHALL sit outside the Peek's top-trailing corner, beside the card: Close (×), then Expand, then Open in Split View (`split-view`), as in Arc, which SHALL NOT show while the Peek's parent is in a split. Each SHALL highlight under the pointer and have a VoiceOver label naming its action, and Arc's tooltip: "Close" with ⌘W, "Expand" with ⌘O, and "Open in Split View".
 
 #### Scenario: Buttons shown
-- **WHEN** a Peek is open
+- **WHEN** a Peek is open on a tab that isn't in a split
 - **THEN** Close, Expand and Open in Split View show in a column beside its top-trailing corner, outside the card
 
 #### Scenario: A Peek in a split

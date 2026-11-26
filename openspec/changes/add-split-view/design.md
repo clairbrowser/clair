@@ -36,7 +36,7 @@ See proposal.md, "Why". The behaviour is in `specs/split-view/spec.md`; this cov
 `ClairHost.h` gains:
 - on `ClairTab`, `splitID` (an opaque string, or nil) and `splitRatio`;
 - on `ClairBrowser`:
-  - `splitTab:withTab:`, which makes the second tab trailing and focused, wherever each was;
+  - `splitTab:withTab:side:`, which puts the second tab on the given side (leading or trailing), focused, wherever each was;
   - `splitTabWithNewTab:`, which adds a new tab page as the trailing, focused pane, for Add Split View and New Tab;
   - `replacePaneOfTab:withTab:`, `swapSplitOfTab:`, `separateSplitOfTab:`, `closeSplitOfTab:` (both tabs) and `setSplitRatio:ofTab:`;
   - `canAddPaneToTab:`, for the "Cannot Add New Pane" toast.
@@ -96,7 +96,7 @@ New tabs still go to the top. A split's new tab is inserted next to its source w
 - the half under the pointer, or the pane under it while split, becomes a drop zone tinted with the accent colour at low opacity, with an accent border;
 - the page animates to the other half.
 
-The drop calls `splitTab:withTab:`, or `replacePaneOfTab:withTab:` while split. The replaced tab stays where Chromium leaves it, right after the split, which is the row below the split's row.
+The drop calls `splitTab:withTab:side:` with the half it was dropped on, so the dropped tab lands there, focused, or `replacePaneOfTab:withTab:` while split. The replaced tab stays where Chromium leaves it, right after the split, which is the row below the split's row.
 
 The card size, the zone's tint and the slide's timing are to be measured from an Arc recording with `tests/probe/` (task 1.1), as for Peek.
 

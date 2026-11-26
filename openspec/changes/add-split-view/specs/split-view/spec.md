@@ -176,18 +176,22 @@ The toolbar SHALL show a split button at its trailing end (`page-toolbar`), and 
 - **THEN** the Peek's toolbar shows no split button
 
 ### Requirement: The split button's menu on a single page
-On a page that isn't split, the split button's menu SHALL offer the heading "Split with Tab", the Today tabs of the window's Space other than the shown tab, in the sidebar's order, each with its favicon and title, a divider and New Tab, as in Dia. Choosing a tab SHALL make a split with it trailing and focused. The list SHALL have no cap, and SHALL scroll when long.
+On a page that isn't split, the split button's menu SHALL offer the heading "Split with Tab", the Today tabs of the window's Space other than the shown tab and those in a split, in the sidebar's order, each with its favicon and title, a divider and New Tab, as in Dia. Choosing a tab SHALL make a split with it trailing and focused. The list SHALL have no cap, and SHALL scroll when long.
 
 #### Scenario: Two other Today tabs
 - **WHEN** the window shows "Mail" and the Space's Today tabs are "News", "Mail" and "Docs"
 - **THEN** the menu offers "Split with Tab", "News", "Docs", a divider and New Tab
+
+#### Scenario: A tab already in a split
+- **WHEN** the window shows "Mail", and the Space's Today tabs are "Mail", "Plan" and a split of "News" and "Docs"
+- **THEN** the menu offers "Split with Tab", "Plan", a divider and New Tab
 
 #### Scenario: Choosing a tab
 - **WHEN** the user chooses "Docs"
 - **THEN** a split shows "Mail" leading and "Docs" trailing and focused, and the sidebar shows one row for both
 
 ### Requirement: Splitting with a new tab
-New Tab in a Split with Tab menu, and View › Add Split View (⌃⇧=), SHALL make a split of the shown tab and a new tab on the new tab page, trailing and focused, and open the command bar centred on the new pane, as Arc does with its empty pane. Choosing a page SHALL load it in the new tab. Esc SHALL close the command bar and leave the new tab page in its pane. While the page is split, Add Split View SHALL show the toast "Cannot Add New Pane".
+New Tab in a Split with Tab menu, and View › Add Split View (⌃⇧=), SHALL make a split of its target tab (see "The tab a new-tab split splits") and a new tab on the new tab page, trailing and focused, and open the command bar centred on the new pane, as Arc does with its empty pane. Choosing a page SHALL load it in the new tab. Esc SHALL close the command bar and leave the new tab page in its pane. While the page is split, Add Split View SHALL show the toast "Cannot Add New Pane".
 
 #### Scenario: Add Split View
 - **WHEN** the window shows "News" alone and the user presses ⌃⇧=
@@ -205,6 +209,17 @@ New Tab in a Split with Tab menu, and View › Add Split View (⌃⇧=), SHALL m
 - **WHEN** the page is split and the user presses ⌃⇧=
 - **THEN** the toast "Cannot Add New Pane" shows, and the split doesn't change
 
+### Requirement: The tab a new-tab split splits
+New Tab in a tab's Split with Tab › context menu SHALL split that tab, whichever tab the window shows. View › Add Split View, New Tab in Tabs › Split with Tab › and New Tab in the split button's menu SHALL split the shown tab.
+
+#### Scenario: From another tab's menu
+- **WHEN** the window shows "Mail" and the user chooses New Tab from the Split with Tab › menu of the Today tab "News"
+- **THEN** the window shows a split of "News" and a new tab page, the new tab trailing and focused, and "Mail" isn't in a split
+
+#### Scenario: From the menu bar
+- **WHEN** the window shows "Mail" and the user chooses Tabs › Split with Tab › New Tab
+- **THEN** the window shows a split of "Mail" and a new tab page
+
 ### Requirement: The split button's menu on a split
 On a split page, a pane's split button SHALL open a menu offering Move Left and Move Right, a divider, Separate Tabs and Close This Tab, as in Dia. Move Left SHALL be disabled in the leading pane and Move Right in the trailing pane. Moving SHALL swap the panes, keeping the moved pane focused.
 
@@ -217,7 +232,7 @@ On a split page, a pane's split button SHALL open a menu offering Move Left and 
 - **THEN** "News" shows in the trailing pane, focused, and the other tab in the leading pane
 
 ### Requirement: Split with Tab in the menus
-Tabs › Split with Tab › SHALL list the Today tabs as the split button's menu does, with New Tab, and SHALL be disabled while the page is split. The menus of a Today tab, pinned tab and favorite SHALL offer Split with Tab ›, listing the Space's Today tabs other than that tab, in the sidebar's order, each with its favicon, then New Tab. Choosing one SHALL make a split of the menu's tab, leading, and the chosen tab, trailing and focused.
+Tabs › Split with Tab › SHALL list the Today tabs as the split button's menu does, with New Tab, and SHALL be disabled while the page is split. The menus of a Today tab, pinned tab and favorite SHALL offer Split with Tab ›, listing the Space's Today tabs other than that tab and those in a split, in the sidebar's order, each with its favicon, then New Tab. Choosing one SHALL make a split of the menu's tab, leading, and the chosen tab, trailing and focused.
 
 #### Scenario: From a tab's menu
 - **WHEN** the user right-clicks the Today tab "News" and chooses Split with Tab › "Docs"
