@@ -17,6 +17,7 @@
 #import "chrome/browser/clair/window/clair_browser_bridge.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_peek_session.h"
+#include "chrome/browser/clair/window/clair_splits.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -238,8 +239,14 @@ void ClairPeeks::Link(tabs::TabInterface* parent, tabs::TabInterface* peek) {
       model_ ? strip()->GetIndexOfTab(parent) : TabStripModel::kNoTab;
   const int peek_index =
       model_ ? strip()->GetIndexOfTab(peek) : TabStripModel::kNoTab;
-  if (parent_index == TabStripModel::kNoTab ||
-      peek_index != parent_index + 1 || FindByParent(parent) != pairs_.end() ||
+  // add-split-view: a split's pane's Peek lands after the split and any
+  // Peek of its other pane; Repair then orders them.
+  const bool in_place =
+      peek_index == parent_index + 1 ||
+      (!ClairSplits::PanesOf(parent).empty() &&
+       peek_index > parent_index && peek_index <= InsertIndexFor(parent));
+  if (parent_index == TabStripModel::kNoTab || !in_place ||
+      FindByParent(parent) != pairs_.end() ||
       FindByPeek(parent) != pairs_.end() || FindByPeek(peek) != pairs_.end()) {
     ActivateTab(peek);
     return;
@@ -360,7 +367,7 @@ content::WebContents* ClairPeeks::OpenURL(
   // A new Peek, inserted in the background right after its parent and linked
   // before it becomes active, so ClairUI never sees it as a tab of its own.
   nav_params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
-  nav_params.tabstrip_index = strip()->GetIndexOfTab(source_tab) + 1;
+  nav_params.tabstrip_index = InsertIndexFor(source_tab);
   nav_params.tabstrip_add_types =
       AddTabTypes::ADD_FORCE_INDEX | AddTabTypes::ADD_INHERIT_OPENER;
   nav_params.window_action = NavigateParams::WindowAction::kNoAction;
@@ -409,7 +416,7 @@ content::WebContents* ClairPeeks::AddContents(
     return nav_params.navigated_or_inserted_contents;
   }
   nav_params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
-  nav_params.tabstrip_index = strip()->GetIndexOfTab(source_tab) + 1;
+  nav_params.tabstrip_index = InsertIndexFor(source_tab);
   nav_params.tabstrip_add_types =
       AddTabTypes::ADD_FORCE_INDEX | AddTabTypes::ADD_INHERIT_OPENER;
   nav_params.window_action = NavigateParams::WindowAction::kNoAction;
@@ -516,6 +523,41 @@ void ClairPeeks::Adopt(tabs::TabInterface* parent, tabs::TabInterface* peek) {
 }
 
 // --- Tab commands (D7, D8) ---
+
+int ClairPeeks::PeekIndexFor(const tabs::TabInterface* parent) const {
+  const int parent_index =
+      model_ && parent ? strip()->GetIndexOfTab(parent) : TabStripModel::kNoTab;
+  const std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(parent);
+  if (parent_index == TabStripModel::kNoTab || panes.empty()) {
+    return parent_index == TabStripModel::kNoTab ? parent_index
+                                                 : parent_index + 1;
+  }
+  int index = strip()->GetIndexOfTab(panes.back()) + 1;
+  // The trailing pane's Peek follows the leading pane's.
+  if (parent == panes.back() && PeekOf(panes.front())) {
+    ++index;
+  }
+  return index;
+}
+
+int ClairPeeks::InsertIndexFor(const tabs::TabInterface* parent) const {
+  const std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(parent);
+  if (!model_ || !parent || panes.empty()) {
+    return model_ && parent ? strip()->GetIndexOfTab(parent) + 1
+                            : TabStripModel::kNoTab;
+  }
+  int index = strip()->GetIndexOfTab(panes.back()) + 1;
+  for (tabs::TabInterface* pane : panes) {
+    if (PeekOf(pane)) {
+      ++index;
+    }
+  }
+  return index;
+}
+
+void ClairPeeks::SplitsChanged() {
+  ScheduleRepair();
+}
 
 void ClairPeeks::MoveQuietly(int from, int to) {
   if (from == TabStripModel::kNoTab || from == to) {
@@ -817,12 +859,14 @@ void ClairPeeks::Repair() {
     }
     const int parent_index = strip()->GetIndexOfTab(parent);
     const int peek_index = strip()->GetIndexOfTab(peek);
+    // add-split-view: after a split's panes, not between them.
+    const int target = PeekIndexFor(parent);
     if (parent_index == TabStripModel::kNoTab ||
-        peek_index == TabStripModel::kNoTab || peek_index == parent_index + 1) {
+        peek_index == TabStripModel::kNoTab || peek_index == target) {
       continue;
     }
-    MoveQuietly(peek_index,
-                peek_index < parent_index ? parent_index : parent_index + 1);
+    // Moving it from before its place takes it out from there first.
+    MoveQuietly(peek_index, peek_index < target ? target - 1 : target);
   }
   // Parents whose Peek left on their own, unless shown.
   std::vector<tabs::TabHandle> to_hide = std::move(parents_to_hide_);

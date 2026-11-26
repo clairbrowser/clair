@@ -1,0 +1,40 @@
+# Option+click on a link opens it in a split on macOS, as in Dia
+# (add-split-view design D6), instead of downloading it. Chromium already maps
+# Cmd+Option+click to split view; plain Option+click now does the same, in the
+# renderer's click policy and in the browser's click disposition. The link
+# then reaches the browser as WindowOpenDisposition::NEW_SPLIT_VIEW, which the
+# native window handles (clair_window_hooks.mm). Option+click no longer
+# downloads; Save Link As… in the context menu still does.
+
+--- a/ui/base/window_open_disposition_utils.cc
++++ b/ui/base/window_open_disposition_utils.cc
+@@ -27,6 +27,13 @@
+   if (split_view_modifier && alt_key && !shift_key) {
+     return WindowOpenDisposition::NEW_SPLIT_VIEW;
+   }
++#if BUILDFLAG(IS_MAC)
++  // Clair: Option+click opens a link in a split, as in Dia, instead of
++  // downloading it.
++  if (alt_key && !shift_key && !new_tab_modifier) {
++    return WindowOpenDisposition::NEW_SPLIT_VIEW;
++  }
++#endif
+   if (new_tab_modifier) {
+     return shift_key ? WindowOpenDisposition::NEW_FOREGROUND_TAB
+                      : WindowOpenDisposition::NEW_BACKGROUND_TAB;
+--- a/third_party/blink/renderer/core/loader/navigation_policy.cc
++++ b/third_party/blink/renderer/core/loader/navigation_policy.cc
+@@ -61,6 +61,13 @@
+   if (new_tab_modifier && alt && !shift) {
+     return kNavigationPolicySplitView;
+   }
++#if BUILDFLAG(IS_MAC)
++  // Clair: Option+click opens a link in a split, as in Dia, instead of
++  // downloading it.
++  if (alt && !shift && !new_tab_modifier) {
++    return kNavigationPolicySplitView;
++  }
++#endif
+   if (!new_tab_modifier && !shift && !alt) {
+     return kNavigationPolicyCurrentTab;
+   } else if (new_tab_modifier) {

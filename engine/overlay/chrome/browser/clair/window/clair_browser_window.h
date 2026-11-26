@@ -53,6 +53,7 @@ class SkBitmap;
 class ClairExtensions;
 class ClairPeeks;
 class ClairSpaceTabs;
+class ClairSplits;
 class GURL;
 
 namespace autofill {
@@ -247,12 +248,18 @@ class ClairStatusBubble : public StatusBubble {
   void Hide() override;
   void MouseMoved(bool left_content) override;
 
+  // add-split-view D13a: the link under the pointer in `source`, a page the
+  // window shows, which may be a split's other pane.
+  void SetURL(const GURL& url, content::WebContents* source);
+
  private:
   void Update();
 
   const raw_ptr<ClairBrowserWindow> window_;
   std::u16string status_;
   std::u16string url_;
+  // The ClairTabID of the page the link is in, or -1 for the active one.
+  int64_t url_tab_ = -1;
 };
 
 // share-tabs-across-windows D1, D2: how a window takes a tab another window
@@ -313,6 +320,8 @@ class ClairBrowserWindow : public BrowserWindow {
   ClairDownloads* downloads() const { return downloads_.get(); }
   // The window's Peeks (add-peek design D1); null once the window is going.
   ClairPeeks* peeks() const { return peeks_.get(); }
+  // The window's splits (add-split-view design D1); null once it's going.
+  ClairSplits* splits() const { return splits_.get(); }
   // The tab lists of the window's profile (add-spaces design D2).
   ClairSpaceTabs* space_tabs() const { return space_tabs_; }
 
@@ -380,6 +389,38 @@ class ClairBrowserWindow : public BrowserWindow {
   // Opens `url` in a new foreground tab of the shown Space, or a new tab page
   // with the command bar when it's empty.
   void OpenInShownSpace(const GURL& url);
+
+  // --- Split view (add-split-view design D2, D8, D10 to D12) ---
+  // The pages shown while `active` is the active tab: it, its Peek or
+  // parent (add-peek D4), and its split's other pane (D5).
+  std::set<content::WebContents*> PagesShownWith(
+      content::WebContents* active) const;
+  // Makes a split of `tab` and `other` here, `other` leading when
+  // `other_leading` and focused, taking either from another window first.
+  void SplitTabs(tabs::TabInterface* tab,
+                 tabs::TabInterface* other,
+                 bool other_leading);
+  // A new tab page as the trailing, focused pane of `tab`'s split, here.
+  void SplitWithNewTab(tabs::TabInterface* tab);
+  // Shows `tab`'s split with the pane focused last, taking it from another
+  // window if need be.
+  void ShowSplit(tabs::TabInterface* tab);
+  // D8: `replacement` takes `pane`'s place, focused.
+  void ReplacePane(tabs::TabInterface* pane, tabs::TabInterface* replacement);
+  // Separate Tabs, of a pinned or favorited split too (D10).
+  void SeparateSplit(tabs::TabInterface* tab);
+  // Closes both panes, each with its leave-page confirmation, first showing
+  // the next row when the split is the active row. A pinned split keeps its
+  // pins (Close and Keep Pinned).
+  void CloseSplit(tabs::TabInterface* tab);
+  // D10: shows a pinned or favorited split's open tabs as a split with
+  // `ratio`, taking them from other windows if need be.
+  void ShowPinnedSplit(tabs::TabInterface* lead,
+                       tabs::TabInterface* trail,
+                       double ratio);
+  // D11: the Peek of `tab` becomes the trailing, focused pane of a split
+  // with its parent.
+  void OpenPeekInSplit(tabs::TabInterface* tab);
 
   // --- Window groups (add-profiles D3 to D6, D8, D13) ---
   // Whether the window is a member its group has ordered out.
@@ -479,8 +520,9 @@ class ClairBrowserWindow : public BrowserWindow {
   // The active tab's docked DevTools changed (D5).
   void UpdateDevTools();
 
-  // The link under the pointer, or an empty URL to hide the status (D8).
-  void SetStatusURL(const GURL& url);
+  // The link under the pointer in `source`, a page the window shows, or an
+  // empty URL to hide the status (D8, add-split-view D13a).
+  void SetStatusURL(const GURL& url, content::WebContents* source);
 
   // Shows a toast in the card (D8).
   void ShowToast(const std::u16string& text);
@@ -666,10 +708,11 @@ class ClairBrowserWindow : public BrowserWindow {
   // D2: ends the still, closing the placeholder unless it became a tab.
   void EndStill();
   tabs::TabInterface* placeholder() const;
-  // The pages the card shows while `active` is the active tab: it and its
-  // Peek or parent (add-peek D4).
-  std::set<content::WebContents*> PagesShownWith(
-      content::WebContents* active) const;
+  // Brings `tab` here with its row, as a take does, then runs `then`.
+  void BringHere(tabs::TabInterface* tab, base::OnceClosure then);
+  // Closes the tabs named by `handles` together, each with its leave-page
+  // confirmation; a split's two make one entry in the recently closed list.
+  void CloseTabsNow(std::vector<tabs::TabHandle> handles);
 
   const raw_ptr<Browser> browser_;
   ClairNativeWindow* __strong ns_window_ = nil;
@@ -683,6 +726,7 @@ class ClairBrowserWindow : public BrowserWindow {
   std::unique_ptr<ClairExtensions> extensions_;
   std::unique_ptr<ClairDownloads> downloads_;
   std::unique_ptr<ClairPeeks> peeks_;
+  std::unique_ptr<ClairSplits> splits_;
   // Owned by the profile.
   raw_ptr<ClairSpaceTabs> space_tabs_ = nullptr;
   // add-spaces D3: the Space the window shows, and the tab last active in

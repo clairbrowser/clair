@@ -7,6 +7,7 @@
 #import <AppKit/AppKit.h>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <set>
 #include <utility>
@@ -40,6 +41,11 @@ constexpr char kItemsKey[] = "items";
 constexpr char kKindKey[] = "kind";
 constexpr char kPinKind[] = "pin";
 constexpr char kFolderKind[] = "folder";
+// add-split-view D10.
+constexpr char kSplitKind[] = "split";
+constexpr char kSplitKey[] = "split";
+constexpr char kIndexKey[] = "index";
+constexpr char kRatioKey[] = "ratio";
 constexpr char kSpaceKey[] = "space";
 constexpr char kFolderKey[] = "folder";
 constexpr char kProfileKey[] = "profile";
@@ -61,6 +67,11 @@ std::string Clean(std::string_view text, size_t max) {
 
 bool IsPinID(std::string_view id) {
   return base::Uuid::ParseLowercase(id).is_valid();
+}
+
+// add-split-view D10: a split's ratio, as the divider allows it.
+double ClampRatio(double ratio) {
+  return std::isfinite(ratio) ? std::clamp(ratio, 0.05, 0.95) : 0.5;
 }
 
 // D6: the schemes a pinned URL may have.
@@ -281,22 +292,94 @@ void ClairPinStore::Load() {
         folders_[id] = std::move(folder);
       }
     }
+    // The place a pin or a split names: a Space's section, a folder of it,
+    // or a profile's favorites; nullopt when it's gone.
+    auto place_of = [&](const base::DictValue& item)
+        -> std::optional<PinContainer> {
+      const std::string* space = item.FindString(kSpaceKey);
+      const std::string* profile = item.FindString(kProfileKey);
+      if (space) {
+        if (!spaces->Contains(*space)) {
+          return std::nullopt;
+        }
+        // D1: in its folder, in the folder's Space, while the folder
+        // exists; at its own Space's top level otherwise.
+        const std::string* folder = item.FindString(kFolderKey);
+        auto found = folder ? folders_.find(*folder) : folders_.end();
+        if (found != folders_.end()) {
+          return PinContainer::OfFolder(found->second.space, found->first);
+        }
+        return PinContainer::OfSpace(*space);
+      }
+      if (profile) {
+        // D13: the profile's ID on this Mac.
+        const std::string directory =
+            ClairProfiles::Get()->DirectoryOf(*profile);
+        if (directory.empty()) {
+          return std::nullopt;
+        }
+        return PinContainer::OfProfile(directory);
+      }
+      return std::nullopt;
+    };
+    // add-split-view D10: splits next, so their pins can find them.
+    for (const auto [id, value] : *items) {
+      const base::DictValue* item = value.GetIfDict();
+      const std::string* kind = item ? item->FindString(kKindKey) : nullptr;
+      const std::string* order = item ? item->FindString(kOrderKey) : nullptr;
+      if (!kind || *kind != kSplitKind || !IsPinID(id) || !order ||
+          !IsValidOrderKey(*order) || folders_.contains(id)) {
+        continue;
+      }
+      std::optional<PinContainer> place = place_of(*item);
+      if (!place) {
+        continue;
+      }
+      PinnedSplit split;
+      split.id = id;
+      split.container = *place;
+      split.order = *order;
+      split.ratio = ClampRatio(item->FindDouble(kRatioKey).value_or(0.5));
+      splits_[id] = std::move(split);
+    }
     for (const auto [id, value] : *items) {
       const base::DictValue* item = value.GetIfDict();
       const std::string* kind = item ? item->FindString(kKindKey) : nullptr;
       const std::string* url = item ? item->FindString(kURLKey) : nullptr;
-      const std::string* order = item ? item->FindString(kOrderKey) : nullptr;
-      if (!kind || *kind != kPinKind || !IsPinID(id) || !url || !order ||
-          !IsValidOrderKey(*order) || folders_.contains(id)) {
+      if (!kind || *kind != kPinKind || !IsPinID(id) || !url ||
+          folders_.contains(id) || splits_.contains(id)) {
         continue;
       }
       Pin pin;
       pin.id = id;
-      pin.order = *order;
       pin.url = GURL(*url);
       if (!IsPinnableURL(pin.url)) {
         continue;
       }
+      if (const std::string* split_id = item->FindString(kSplitKey)) {
+        // A pin of a split takes its split's place.
+        auto split = splits_.find(*split_id);
+        const std::optional<int> index = item->FindInt(kIndexKey);
+        if (split == splits_.end() || !index || *index < 0 || *index > 1) {
+          continue;
+        }
+        pin.split = split->first;
+        pin.split_index = *index;
+        pin.container = split->second.container;
+        if (const std::string* title = item->FindString(kTitleKey)) {
+          pin.title = Clean(*title, kMaxTitleLength);
+        }
+        if (const std::string* name = item->FindString(kNameKey)) {
+          pin.name = Clean(*name, kMaxNameLength);
+        }
+        pins_[pin.id] = std::move(pin);
+        continue;
+      }
+      const std::string* order = item->FindString(kOrderKey);
+      if (!order || !IsValidOrderKey(*order)) {
+        continue;
+      }
+      pin.order = *order;
       const std::string* space = item->FindString(kSpaceKey);
       const std::string* profile = item->FindString(kProfileKey);
       if (space) {
@@ -338,7 +421,38 @@ void ClairPinStore::Load() {
       closed_.insert(*id);
     }
   }
+  RepairSplits();
   Index();
+}
+
+void ClairPinStore::RepairSplits() {
+  for (auto it = splits_.begin(); it != splits_.end();) {
+    std::vector<Pin*> panes;
+    bool leading = false;
+    bool trailing = false;
+    for (auto& [id, pin] : pins_) {
+      if (pin.split == it->first) {
+        panes.push_back(&pin);
+        (pin.split_index == 0 ? leading : trailing) = true;
+      }
+    }
+    if (panes.size() == 2 && leading && trailing) {
+      ++it;
+      continue;
+    }
+    // The pins it has take its place, in pane order, each with a key of its
+    // own after the split's.
+    std::ranges::sort(panes, {}, &Pin::split_index);
+    std::string order = it->second.order;
+    for (Pin* pin : panes) {
+      pin->split.clear();
+      pin->split_index = 0;
+      pin->container = it->second.container;
+      pin->order = order;
+      order = OrderKeyBetween(order, std::string());
+    }
+    it = splits_.erase(it);
+  }
 }
 
 void ClairPinStore::Save() {
@@ -352,19 +466,38 @@ void ClairPinStore::Save() {
     item.Set(kNameKey, folder.name);
     items.Set(id, std::move(item));
   }
+  // The place a pin or a split names.
+  auto set_place = [&](base::DictValue& item, const PinContainer& container) {
+    if (container.is_favorites()) {
+      // D13: the profile's ID, not its directory.
+      item.Set(kProfileKey, profiles->StoredIDOf(container.profile));
+    } else {
+      item.Set(kSpaceKey, container.space);
+      if (container.is_folder()) {
+        item.Set(kFolderKey, container.folder);
+      }
+    }
+  };
+  // add-split-view D10.
+  for (const auto& [id, split] : splits_) {
+    base::DictValue item;
+    item.Set(kKindKey, kSplitKind);
+    set_place(item, split.container);
+    item.Set(kOrderKey, split.order);
+    item.Set(kRatioKey, split.ratio);
+    items.Set(id, std::move(item));
+  }
   for (const auto& [id, pin] : pins_) {
     base::DictValue item;
     item.Set(kKindKey, kPinKind);
-    if (pin.container.is_favorites()) {
-      // D13: the profile's ID, not its directory.
-      item.Set(kProfileKey, profiles->StoredIDOf(pin.container.profile));
+    if (!pin.split.empty()) {
+      // A split's pin names its split and pane, not a place.
+      item.Set(kSplitKey, pin.split);
+      item.Set(kIndexKey, pin.split_index);
     } else {
-      item.Set(kSpaceKey, pin.container.space);
-      if (pin.container.is_folder()) {
-        item.Set(kFolderKey, pin.container.folder);
-      }
+      set_place(item, pin.container);
+      item.Set(kOrderKey, pin.order);
     }
-    item.Set(kOrderKey, pin.order);
     item.Set(kURLKey, pin.url.spec());
     item.Set(kTitleKey, pin.title);
     if (!pin.name.empty()) {
@@ -393,7 +526,13 @@ void ClairPinStore::Index() {
     keyed[PinContainer::OfSpace(folder.space)].emplace_back(folder.order, id);
   }
   for (const auto& [id, pin] : pins_) {
-    keyed[pin.container].emplace_back(pin.order, id);
+    // A split's pins have its place (add-split-view D10).
+    if (pin.split.empty()) {
+      keyed[pin.container].emplace_back(pin.order, id);
+    }
+  }
+  for (const auto& [id, split] : splits_) {
+    keyed[split.container].emplace_back(split.order, id);
   }
   children_.clear();
   for (auto& [container, entries] : keyed) {
@@ -443,6 +582,47 @@ const Folder* ClairPinStore::FindFolder(std::string_view id) const {
   return found == folders_.end() ? nullptr : &found->second;
 }
 
+const PinnedSplit* ClairPinStore::FindSplit(std::string_view id) const {
+  auto found = splits_.find(std::string(id));
+  return found == splits_.end() ? nullptr : &found->second;
+}
+
+std::vector<const Pin*> ClairPinStore::PinsOfSplit(std::string_view id) const {
+  std::vector<const Pin*> result;
+  if (id.empty() || !FindSplit(id)) {
+    return result;
+  }
+  for (const auto& [pin_id, pin] : pins_) {
+    if (pin.split == id) {
+      result.push_back(&pin);
+    }
+  }
+  std::ranges::sort(result, {}, &Pin::split_index);
+  return result;
+}
+
+const Pin* ClairPinStore::PartnerOf(std::string_view pin) const {
+  const Pin* record = Find(pin);
+  if (!record || record->split.empty()) {
+    return nullptr;
+  }
+  for (const Pin* other : PinsOfSplit(record->split)) {
+    if (other != record) {
+      return other;
+    }
+  }
+  return nullptr;
+}
+
+void ClairPinStore::PlaceSplitPins(const PinnedSplit& split) {
+  for (auto& [id, pin] : pins_) {
+    if (pin.split == split.id) {
+      pin.container = split.container;
+      pin.order.clear();
+    }
+  }
+}
+
 std::vector<std::string> ClairPinStore::ChildrenOf(
     const PinContainer& container) const {
   auto found = children_.find(container);
@@ -456,6 +636,11 @@ std::vector<const Pin*> ClairPinStore::PinsIn(
   for (const std::string& id : ChildrenOf(container)) {
     if (const Pin* pin = Find(id)) {
       result.push_back(pin);
+    } else if (FindSplit(id)) {
+      // add-split-view D10: a split's two, in pane order.
+      for (const Pin* pane : PinsOfSplit(id)) {
+        result.push_back(pane);
+      }
     }
   }
   return result;
@@ -466,6 +651,10 @@ std::vector<const Pin*> ClairPinStore::AllPinsIn(std::string_view space) const {
   for (const std::string& id : ChildrenOf(PinContainer::OfSpace(space))) {
     if (const Pin* pin = Find(id)) {
       result.push_back(pin);
+    } else if (FindSplit(id)) {
+      for (const Pin* pane : PinsOfSplit(id)) {
+        result.push_back(pane);
+      }
     } else if (FindFolder(id)) {
       for (const Pin* child : PinsIn(PinContainer::OfFolder(space, id))) {
         result.push_back(child);
@@ -488,8 +677,14 @@ std::vector<const Folder*> ClairPinStore::FoldersIn(
 
 std::optional<size_t> ClairPinStore::IndexOf(std::string_view id) const {
   PinContainer container;
+  if (const Pin* pin = Find(id); pin && !pin->split.empty()) {
+    // add-split-view D10: a split's pin has its split's place.
+    return IndexOf(pin->split);
+  }
   if (const Pin* pin = Find(id)) {
     container = pin->container;
+  } else if (const PinnedSplit* split = FindSplit(id)) {
+    container = split->container;
   } else if (const Folder* folder = FindFolder(id)) {
     container = PinContainer::OfSpace(folder->space);
   } else {
@@ -529,6 +724,9 @@ const std::string& ClairPinStore::OrderOf(std::string_view id) const {
   if (const Folder* folder = FindFolder(id)) {
     return folder->order;
   }
+  if (const PinnedSplit* split = FindSplit(id)) {
+    return split->order;
+  }
   return *none;
 }
 
@@ -563,6 +761,8 @@ std::string ClairPinStore::KeyAt(const PinContainer& container,
         pin->second.order = next;
       } else if (auto folder = folders_.find(id); folder != folders_.end()) {
         folder->second.order = next;
+      } else if (auto split = splits_.find(id); split != splits_.end()) {
+        split->second.order = next;
       }
       previous = std::move(next);
     }
@@ -600,6 +800,30 @@ bool ClairPinStore::Move(std::string_view id,
   if (!IsValid(container)) {
     return false;
   }
+  // add-split-view D10: a split's pin moves its split, which goes where a pin
+  // goes.
+  if (const Pin* pin = Find(id); pin && !pin->split.empty()) {
+    return Move(pin->split, container, index);
+  }
+  if (auto found = splits_.find(std::string(id)); found != splits_.end()) {
+    const PinContainer from = found->second.container;
+    std::vector<std::string> others = ChildrenOf(container);
+    std::erase(others, std::string(id));
+    if (from == container && IndexOf(id) == std::min(index, others.size())) {
+      return false;
+    }
+    std::string key = KeyAt(container, index, id);
+    found = splits_.find(std::string(id));
+    found->second.container = container;
+    found->second.order = std::move(key);
+    PlaceSplitPins(found->second);
+    if (from.Section() != container.Section()) {
+      Index();
+      Notify(from);
+    }
+    Changed(container);
+    return true;
+  }
   const std::optional<size_t> old_index = IndexOf(id);
   if (auto found = pins_.find(std::string(id)); found != pins_.end()) {
     const PinContainer from = found->second.container;
@@ -635,11 +859,17 @@ bool ClairPinStore::Move(std::string_view id,
   found = folders_.find(std::string(id));
   found->second.order = std::move(key);
   if (from != container) {
-    // D1: its pins' own Space follows it.
+    // D1: its pins' own Space follows it, and its splits' (add-split-view
+    // D10).
     found->second.space = container.space;
     for (auto& [pin_id, pin] : pins_) {
       if (pin.container.folder == id) {
         pin.container.space = container.space;
+      }
+    }
+    for (auto& [split_id, split] : splits_) {
+      if (split.container.folder == id) {
+        split.container.space = container.space;
       }
     }
     Index();
@@ -677,6 +907,31 @@ void ClairPinStore::Remove(std::string_view id, bool remember) {
   if (found == pins_.end()) {
     return;
   }
+  // add-split-view D10: a split's pin goes with its split and the other pin.
+  if (!found->second.split.empty()) {
+    auto split = splits_.find(found->second.split);
+    Removal removal;
+    std::vector<std::string> ids;
+    for (const Pin* pane : PinsOfSplit(found->second.split)) {
+      ids.push_back(pane->id);
+    }
+    for (const std::string& pane_id : ids) {
+      auto pane = pins_.find(pane_id);
+      removal.pins.push_back(std::move(pane->second));
+      pins_.erase(pane);
+    }
+    const PinContainer container = split->second.container;
+    removal.splits.push_back(std::move(split->second));
+    splits_.erase(split);
+    if (remember) {
+      removal.time = base::Time::Now();
+      Remember(std::move(removal));
+    } else {
+      Forget(removal);
+    }
+    Changed(container);
+    return;
+  }
   Pin pin = std::move(found->second);
   pins_.erase(found);
   const PinContainer container = pin.container;
@@ -689,6 +944,131 @@ void ClairPinStore::Remove(std::string_view id, bool remember) {
     DeleteIcon(pin.id);
   }
   Changed(container);
+}
+
+// --- Splits (add-split-view D10) ---
+
+std::string ClairPinStore::CreateSplit(const PinContainer& container,
+                                       size_t index,
+                                       double ratio,
+                                       const NewPin& leading,
+                                       const NewPin& trailing) {
+  if (!IsPinnableURL(leading.url) || !IsPinnableURL(trailing.url) ||
+      !IsValid(container)) {
+    return std::string();
+  }
+  PinnedSplit split;
+  split.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+  split.container = container;
+  split.order = KeyAt(container, index, std::string());
+  split.ratio = ClampRatio(ratio);
+  int pane = 0;
+  for (const NewPin* source : {&leading, &trailing}) {
+    Pin pin;
+    pin.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+    pin.container = container;
+    pin.url = source->url;
+    pin.title = Clean(source->title, kMaxTitleLength);
+    pin.name = Clean(source->name, kMaxNameLength);
+    pin.split = split.id;
+    pin.split_index = pane++;
+    std::string pin_id = pin.id;
+    pins_[pin_id] = std::move(pin);
+  }
+  std::string id = split.id;
+  splits_[id] = std::move(split);
+  Changed(container);
+  return id;
+}
+
+void ClairPinStore::SeparateSplit(std::string_view id) {
+  auto split = splits_.find(std::string(id));
+  if (split == splits_.end()) {
+    return;
+  }
+  const PinContainer container = split->second.container;
+  const std::string order = split->second.order;
+  // The leading pin takes the split's key, the trailing one a key between it
+  // and the next child's.
+  const std::vector<std::string> children = ChildrenOf(container);
+  auto at = std::ranges::find(children, id);
+  const std::string next = at != children.end() && at + 1 != children.end()
+                               ? OrderOf(*(at + 1))
+                               : std::string();
+  std::vector<std::string> panes;
+  for (const Pin* pin : PinsOfSplit(id)) {
+    panes.push_back(pin->id);
+  }
+  splits_.erase(split);
+  std::string key = order;
+  for (size_t i = 0; i < panes.size(); ++i) {
+    Pin& pin = pins_[panes[i]];
+    pin.split.clear();
+    pin.split_index = 0;
+    pin.container = container;
+    pin.order = key;
+    key = OrderKeyBetween(key, next);
+  }
+  Index();
+  // Without room between the two keys, the trailing pin goes right after the
+  // leading one, as KeyAt renumbers.
+  if (panes.size() == 2 && pins_[panes[1]].order.empty()) {
+    const std::optional<size_t> leading = IndexOf(panes[0]);
+    std::string fallback = KeyAt(
+        container, leading ? *leading + 1 : std::numeric_limits<size_t>::max(),
+        panes[1]);
+    pins_[panes[1]].order = std::move(fallback);
+  }
+  Changed(container);
+}
+
+void ClairPinStore::TakeOutOfSplit(std::string_view pin_id) {
+  const Pin* pin = Find(pin_id);
+  const Pin* partner = PartnerOf(pin_id);
+  auto split = pin ? splits_.find(pin->split) : splits_.end();
+  if (!pin || !partner || split == splits_.end()) {
+    return;
+  }
+  // The other pin takes the split's place and key.
+  Pin& kept = pins_[partner->id];
+  kept.split.clear();
+  kept.split_index = 0;
+  kept.container = split->second.container;
+  kept.order = split->second.order;
+  const PinContainer container = split->second.container;
+  Removal removal;
+  removal.partner = kept.id;
+  removal.splits.push_back(split->second);
+  auto found = pins_.find(std::string(pin_id));
+  removal.pins.push_back(std::move(found->second));
+  pins_.erase(found);
+  splits_.erase(split);
+  removal.time = base::Time::Now();
+  Remember(std::move(removal));
+  Changed(container);
+}
+
+void ClairPinStore::SetSplitRatio(std::string_view id, double ratio) {
+  auto split = splits_.find(std::string(id));
+  ratio = ClampRatio(ratio);
+  if (split == splits_.end() || std::abs(split->second.ratio - ratio) < 1e-4) {
+    return;
+  }
+  split->second.ratio = ratio;
+  Save();
+}
+
+void ClairPinStore::SwapSplitPanes(std::string_view id) {
+  const PinnedSplit* split = FindSplit(id);
+  if (!split) {
+    return;
+  }
+  for (auto& [pin_id, pin] : pins_) {
+    if (pin.split == id) {
+      pin.split_index = 1 - pin.split_index;
+    }
+  }
+  Changed(split->container);
 }
 
 void ClairPinStore::SetName(std::string_view id, std::string_view name) {
@@ -797,11 +1177,27 @@ std::string ClairPinStore::DuplicateFolder(std::string_view id) {
               original->name};
   const std::vector<const Pin*> pins =
       PinsIn(PinContainer::OfFolder(original->space, original->id));
+  // add-split-view D10: its splits are copied as splits.
+  std::map<std::string, std::string> split_copies;
+  std::vector<PinnedSplit> new_splits;
+  for (const Pin* pin : pins) {
+    if (pin->split.empty() || split_copies.contains(pin->split)) {
+      continue;
+    }
+    PinnedSplit split = *FindSplit(pin->split);
+    split.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+    split.container = PinContainer::OfFolder(copy.space, copy.id);
+    split_copies[pin->split] = split.id;
+    new_splits.push_back(std::move(split));
+  }
   std::vector<Pin> copies;
   for (const Pin* pin : pins) {
     Pin duplicate = *pin;
     duplicate.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
     duplicate.container = PinContainer::OfFolder(copy.space, copy.id);
+    if (!duplicate.split.empty()) {
+      duplicate.split = split_copies[duplicate.split];
+    }
     if (NSImage* icon = IconOf(pin->id)) {
       icons_[duplicate.id] = icon;
       if (!icon_dir_.empty()) {
@@ -814,6 +1210,10 @@ std::string ClairPinStore::DuplicateFolder(std::string_view id) {
   }
   std::string copy_id = copy.id;
   folders_[copy_id] = std::move(copy);
+  for (PinnedSplit& split : new_splits) {
+    std::string split_id = split.id;
+    splits_[split_id] = std::move(split);
+  }
   for (Pin& duplicate : copies) {
     std::string pin_id = duplicate.id;
     pins_[pin_id] = std::move(duplicate);
@@ -842,6 +1242,15 @@ std::vector<std::string> ClairPinStore::RemoveFolder(std::string_view id,
     removal.pins.push_back(std::move(pin->second));
     pins_.erase(pin);
   }
+  // add-split-view D10: its splits go with it.
+  for (auto split = splits_.begin(); split != splits_.end();) {
+    if (split->second.container.folder == id) {
+      removal.splits.push_back(std::move(split->second));
+      split = splits_.erase(split);
+    } else {
+      ++split;
+    }
+  }
   folders_.erase(found);
   if (closed_.erase(std::string(id)) > 0) {
     SaveClosed();
@@ -865,6 +1274,13 @@ std::vector<std::string> ClairPinStore::RemoveContainer(
       removed.push_back(it->first);
       DeleteIcon(it->first);
       it = pins_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = splits_.begin(); it != splits_.end();) {
+    if (it->second.container.Section() == section) {
+      it = splits_.erase(it);
     } else {
       ++it;
     }
@@ -962,6 +1378,11 @@ bool ClairPinStore::Restore(const Removal* target) {
       closed_.insert(id);
       SaveClosed();
     }
+    for (PinnedSplit& split : removal.splits) {
+      split.container = PinContainer::OfFolder(section.space, id);
+      std::string split_id = split.id;
+      splits_[split_id] = std::move(split);
+    }
     for (Pin& pin : removal.pins) {
       if (pins_.contains(pin.id)) {
         continue;
@@ -970,7 +1391,74 @@ bool ClairPinStore::Restore(const Removal* target) {
       std::string pin_id = pin.id;
       pins_[pin_id] = std::move(pin);
     }
+    RepairSplits();
     Changed(section);
+    return true;
+  }
+  // add-split-view D10: a split, whole or with the pane closed out of it.
+  if (!found->splits.empty()) {
+    PinnedSplit split = found->splits[0];
+    if (FindSplit(split.id) ||
+        std::ranges::any_of(found->pins, [&](const Pin& pin) {
+          return pins_.contains(pin.id);
+        })) {
+      return false;
+    }
+    Removal removal = std::move(*found);
+    removals_.erase(found);
+    if (!removal.partner.empty()) {
+      // The pin that kept the split's place takes it back into the split,
+      // where it is now; without it, the closed pin comes back alone there.
+      auto partner = pins_.find(removal.partner);
+      Pin pin = std::move(removal.pins[0]);
+      if (partner == pins_.end() || !partner->second.split.empty()) {
+        pin.split.clear();
+        pin.split_index = 0;
+        pin.container = IsValid(split.container) ? split.container
+                                                 : split.container.Section();
+        pin.order = KeyAt(pin.container, std::numeric_limits<size_t>::max(),
+                          std::string());
+        const PinContainer container = pin.container;
+        std::string pin_id = pin.id;
+        pins_[pin_id] = std::move(pin);
+        Changed(container);
+        return true;
+      }
+      split.container = partner->second.container;
+      split.order = partner->second.order;
+      partner->second.split = split.id;
+      partner->second.split_index = 1 - pin.split_index;
+      partner->second.order.clear();
+      pin.container = split.container;
+      const PinContainer container = split.container;
+      std::string pin_id = pin.id;
+      pins_[pin_id] = std::move(pin);
+      std::string split_id = split.id;
+      splits_[split_id] = std::move(split);
+      Changed(container);
+      return true;
+    }
+    bool at_end = false;
+    if (!IsValid(split.container)) {
+      if (!IsValid(split.container.Section())) {
+        return false;
+      }
+      split.container = split.container.Section();
+      at_end = true;
+    }
+    if (at_end || KeyTaken(split.container, split.order)) {
+      split.order = KeyAt(split.container, std::numeric_limits<size_t>::max(),
+                          std::string());
+    }
+    const PinContainer container = split.container;
+    for (Pin& pin : removal.pins) {
+      pin.container = container;
+      std::string pin_id = pin.id;
+      pins_[pin_id] = std::move(pin);
+    }
+    std::string split_id = split.id;
+    splits_[split_id] = std::move(split);
+    Changed(container);
     return true;
   }
   if (found->pins.empty() || pins_.contains(found->pins[0].id) ||

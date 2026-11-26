@@ -29,23 +29,31 @@ See proposal.md, "Why". The behaviour is in `specs/split-view/spec.md`; this cov
 
 `ClairSplits`, one per native window like `ClairPeeks`, wraps `TabStripModel`'s split calls and observes `TabStripModelObserver`'s split changes (`OnSplitTabChanged`). A Clair split *is* a Chromium split: its ID is the `SplitTabId`, its ratio is `split_ratio`, and its pane order is the tab order.
 
+**Audit of Chromium 157's split code (task 2.1).** `TabStripModel`'s split calls check no feature (`kSideBySide` is a layout, not a flag), and its metrics and UKM don't touch Views. The observers of `OnSplitTabChanged` that reach `BrowserView` (`SplitTabHighlightController`, the scrims, the toolbar's split button) are created only with a `BrowserView`, which a native window has none of; `SplitViewIphController` uses the user-education interface every browser has. The session service writes splits and session restore and tab restore bring them back without a flag. Nothing needed guarding. Two of Chromium's behaviours shape the code instead: a tab moved or inserted inside a split ends it (so a pane's Peek sits after the whole split, D3), and `UpdateTabInSplit(kReplace)` closes the replaced tab (so Replace ends the split and restores it with the same ID, D8).
+
 *Alternative:* a table of Clair's own, as for Peeks, with any number of panes, as Dia allows. Clair would then have to save splits itself, carry them through tab restore, keep them together across windows, and keep both pages visible. Chromium already does all of this for two tabs, and the MVP asks for two. See "Beyond two panes".
 
 ### D2. The contract
 
 `ClairHost.h` gains:
-- on `ClairTab`, `splitID` (an opaque string, or nil) and `splitRatio`;
+- on `ClairTab`, `splitPartnerID` (the other tab, or none), `isLeadingPane` and `splitRatio`. ClairUI needs the partner rather than an opaque split ID: a Today split with a pinned tab's page has only one tab in `-tabsInSpace:`, and the other comes from its pin;
 - on `ClairBrowser`:
   - `splitTab:withTab:side:`, which puts the second tab on the given side (leading or trailing), focused, wherever each was;
   - `splitTabWithNewTab:`, which adds a new tab page as the trailing, focused pane, for Add Split View and New Tab;
+  - `showSplitOfTab:`, which shows a split with the pane focused last, for the split row and the tab commands;
   - `replacePaneOfTab:withTab:`, `swapSplitOfTab:`, `separateSplitOfTab:`, `closeSplitOfTab:` (both tabs) and `setSplitRatio:ofTab:`;
-  - `canAddPaneToTab:`, for the "Cannot Add New Pane" toast.
+  - `openPeekInSplitOfTab:` (D11);
+- on `ClairWindow`, `statusTextDidChange:isLink:tab:` in place of `statusTextDidChange:`, so the link status can word a link with the modifier keys and sit in its pane (D13a).
+
+"Cannot Add New Pane" needs no call: the menu bar item is the engine's (D9), and ClairUI's menus read `splitPartnerID`.
 
 Focusing a pane is the existing `activateTab:`. In Chromium, the focused pane is the active tab, and its partner is the other tab of its split.
 
-The rows ClairUI lists come from `-tabsInSpace:` as now. `TabListLogic` folds two adjacent tabs with the same `splitID` into one row. A pinned section and the favorites can now hold a split item (D10).
+The rows ClairUI lists come from `-tabsInSpace:` as now, the trailing pane right after the leading one and its Peek. `TabListLogic` folds a tab and its partner into one row. A pinned section, a folder and the favorites can now hold a split item (D10).
 
 ### D3. Panes in `PageCardView`
+
+In the strip, a pane's Peek sits after the split, the leading pane's Peek first, never between the panes, where Chromium would end the split; `ClairPeeks` places and repairs it there. Focusing the other pane closes a Peek open over a pane, as in Arc (`arc-reference/README.md`).
 
 `PageCardView` lays out `panes`, an array of one or two `PaneView`s, in place of its single page holder. Each `PaneView` holds:
 - its own rounded card and shadow;
@@ -69,12 +77,12 @@ Clicking in the other pane has to focus it and still reach the page. The engine 
 
 ### D6. Option+click
 
-One patch, `split-on-option-click.patch`, changes the click mapping on macOS in both places: Blink's `NavigationPolicyFromEventModifiers` and `ui::DispositionFromClick`. Option with no Shift now gives the split-view policy and `NEW_SPLIT_VIEW`, the same as Cmd+Option. The link then reaches `ClairBrowserWindow`'s `OpenURL` path as `NEW_SPLIT_VIEW`, like Shift+click's `NEW_WINDOW` for Peeks, and `ClairSplits::OpenURL` handles it:
-- **from a page that isn't split:** a new foreground tab next to the source, then `AddToNewSplit` with the new tab trailing and active;
+One patch, `split-on-option-click.patch`, changes the click mapping on macOS in both places: Blink's `NavigationPolicyFromEventModifiers` and `ui::DispositionFromClick`. Option with no Shift now gives the split-view policy and `NEW_SPLIT_VIEW`, the same as Cmd+Option. The link then reaches `BrowserWebContentsDelegate`'s `OpenURLFromTab` (or `AddNewContents`, for a link with a target) as `NEW_SPLIT_VIEW`, where the native window's link hook, which already sends Shift+click's `NEW_WINDOW` to Peeks, now named `clair::MaybeOpenLink`, hands it to `ClairSplits::OpenLink`:
+- **from a page that isn't split:** a new background tab right after the source, then `AddToNewSplit` with the new tab trailing and active, so the split's row keeps the source's place (Chromium's own navigator would put the new tab at the top, where Clair places new tabs);
 - **from a split pane:** load the URL in the partner as `CURRENT_TAB`, renderer-initiated off, as a new navigation that keeps its history, then activate it;
 - **from a Peek:** `CURRENT_TAB` in the Peek.
 
-Open Link in Split View (`IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW`) is no longer removed. It already opens with `NEW_SPLIT_VIEW`, so it takes the same path. `ClairPinnedLinkThrottle` only sees navigations in place, and a split's new tab is a new tab, so a pinned tab's Option+click makes a split, not a Peek.
+Open Link in Split View (`IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW`) is no longer removed. It doesn't use `NEW_SPLIT_VIEW`: Chromium's `RenderViewContextMenu::OpenLinkInSplitView` opens a background tab and calls `AddToNewSplit` with the active tab, or, in a split, loads the link in the other pane, as Option+click does. Its new tab lands first in the split, so `ClairSplits` puts the tab that was active, where the link was clicked, back in the leading pane once Chromium is done; session restore and tab restore keep their saved order. In a split, Chromium names the item "Open Link in Left View" or "Right View", and it doesn't focus the other pane. `ClairPinnedLinkThrottle` only sees navigations in place, and a split's new tab is a new tab, so a pinned tab's Option+click makes a split, not a Peek.
 
 *Alternative:* catch the download in `DownloadRequestLimiter` or `RenderFrameHostImpl::DownloadURL`. That runs after the renderer has decided "download", loses the click's context, and still needs a patch.
 
@@ -114,7 +122,7 @@ The split button takes Arc's slot, the trailing one (`add-page-toolbar` D4 measu
 In a pane, × is centred 21 pt from the pane's edge, the split button 57 pt, site controls 93 pt, and extensions and indicators follow at 36 pt steps, as now.
 
 Menu bar items:
-- Tabs › Split with Tab ›, and View › Add Split View, Close Split Pane and Separate Tabs, are added where the folder change added New Folder…, through the native window's menu install (`InstallNativeWindowMenus`) and `ExecuteCommand`.
+- Tabs › Split with Tab ›, and View › Add Split View, Close Split Pane and Separate Tabs, are `ClairUI`'s, as `PinsMenu` adds the folder change's New Folder…: a `SplitMenu` installs, titles and enables them for the main window, and acts through the D2 calls. "Cannot Add New Pane" is `ClairUI`'s toast.
 - `IDC_NEW_SPLIT_TAB` stays hidden. Clair's own items replace it.
 
 The tab context menus gain Split with Tab › from the menus `PinsLogic` and the sidebar already build.
@@ -125,7 +133,7 @@ The tab context menus gain Split with Tab › from the menus `PinsLogic` and the
 
 `ClairPinStore` gains a **split record**, `{id, sortKey, ratio}`, with the place a pin has: a Space's pinned section, a folder in it, or a profile's favorites. A folder holds pins and splits, still one level deep. Each of its two pins names the split and its index (0 or 1), instead of its own place. The format follows `add-tab-folders`' iCloud-ready records: a move rewrites the split record only.
 
-In `ClairHost.h`, `ClairPinnedItem` gains a split kind holding its two pins and its ratio, and the favorites list returns items in place of bare pins. Selecting a split item binds or opens both pins' tabs and makes them a Chromium split with the saved ratio:
+In `ClairHost.h`, `ClairPinnedItem` gains a split kind (`ClairPinnedSplit`) holding its two pins and its ratio, each pin names its split, a folder lists items (pins and splits) in place of pins, and the favorites list returns items in place of bare pins. Calls that name a pin of a split (move, unpin, remove, open) act on the whole split, and `separatePinnedSplit:` separates one whose pages are closed. Selecting a split item binds or opens both pins' tabs and makes them a Chromium split with the saved ratio:
 - **Closing one pane** takes its pin out of the item, as Arc does (`arc-reference/README.md`, "Closing one pane of a pinned split"): the split record goes, the other pin takes its place and sort key, and the closed pin is removed as Remove Pin removes one. Restore Last Closed Tab brings back the split record with both pins and its ratio, and reopens the pair as a split.
 - **Separate** turns the record into two pins at its sort key, in pane order.
 - **Unpin and Remove Favorite** move or remove both pins.
@@ -135,7 +143,7 @@ A Today split holding a pin-bound tab (the spec's "A split with a pinned tab or 
 
 ### D11. Peeks in a split
 
-`PeekLayout` is unchanged and measures from the page area (D3), so a Peek is centred over both panes. Only the parent's `PaneView` takes the shrink and wash, as in Arc; the other pane keeps its size and colour. Task 1.1 checks what a click on that other pane does in Arc. Open in Split View expands the Peek as Expand does (`ClairPeeks`), then calls `AddToNewSplit` with the parent. The button isn't built while the parent has a partner, since a split holds two tabs.
+`PeekLayout` is unchanged and measures from the page area (D3), so a Peek is centred over both panes. Only the parent's `PaneView` takes the shrink and wash, as in Arc; the other pane keeps its size and colour. A click on the other pane closes the Peek, as Arc does (task 1.1); in Clair it also focuses that pane. Arc keeps Open in Split View on a Peek in a split, since it allows more panes; Clair doesn't show it. Open in Split View expands the Peek as Expand does (`ClairPeeks`), then calls `AddToNewSplit` with the parent. The button isn't built while the parent has a partner, since a split holds two tabs.
 
 ### D12. Closing
 

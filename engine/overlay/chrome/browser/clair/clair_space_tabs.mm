@@ -21,6 +21,7 @@
 #include "chrome/browser/browser_process.h"
 #import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_profiles.h"
+#include "chrome/browser/clair/window/clair_splits.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_window_group.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
@@ -105,7 +106,15 @@ struct SpaceTag : public base::SupportsUserData::Data {
   // What the session holds for the two; nullopt when unknown.
   std::optional<std::string> written_pin;
   std::optional<std::string> written_name;
+  // add-split-view D7: when the tab was first listed, by a count; a split's
+  // row keeps the place of the pane listed first.
+  uint64_t listed = 0;
 };
+
+uint64_t NextListed() {
+  static uint64_t count = 0;
+  return ++count;
+}
 
 // add-profiles D6: the group of the window holding `contents`, or empty.
 std::string GroupOf(content::WebContents* contents) {
@@ -218,7 +227,10 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
                          spaceID:(NSString*)spaceID
                        browserID:(ClairBrowserID)browserID
                            pinID:(NSString*)pinID
-                            name:(NSString*)name;
+                            name:(NSString*)name
+                  splitPartnerID:(ClairTabID)splitPartnerID
+                   isLeadingPane:(BOOL)isLeadingPane
+                      splitRatio:(double)splitRatio;
 @end
 
 @implementation ClairChromiumTab
@@ -245,6 +257,9 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 @synthesize browserID = _browserID;
 @synthesize pinID = _pinID;
 @synthesize name = _name;
+@synthesize splitPartnerID = _splitPartnerID;
+@synthesize isLeadingPane = _isLeadingPane;
+@synthesize splitRatio = _splitRatio;
 
 - (instancetype)initWithContents:(content::WebContents*)contents
                     peekParentID:(ClairTabID)peekParentID
@@ -252,8 +267,14 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
                          spaceID:(NSString*)spaceID
                        browserID:(ClairBrowserID)browserID
                            pinID:(NSString*)pinID
-                            name:(NSString*)name {
+                            name:(NSString*)name
+                  splitPartnerID:(ClairTabID)splitPartnerID
+                   isLeadingPane:(BOOL)isLeadingPane
+                      splitRatio:(double)splitRatio {
   if ((self = [super init])) {
+    _splitPartnerID = splitPartnerID;
+    _isLeadingPane = isLeadingPane;
+    _splitRatio = splitRatio;
     _peekParentID = peekParentID;
     _peekID = peekID;
     _spaceID = [spaceID copy];
@@ -333,6 +354,7 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 @synthesize tabID = _tabID;
 @synthesize tabs = _tabs;
 @synthesize isAtPinnedURL = _isAtPinnedURL;
+@synthesize pinnedSplitID = _pinnedSplitID;
 
 - (instancetype)initWithPin:(const clair::Pin&)pin
                        tabs:(NSArray<id<ClairTab>>*)tabs
@@ -356,6 +378,7 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
     _tabs = [tabs copy] ?: @[];
     _tabID = _tabs.count ? _tabs.firstObject.tabID : ClairTabIDNone;
     _isAtPinnedURL = isAtPinnedURL;
+    _pinnedSplitID = pin.split.empty() ? nil : base::SysUTF8ToNSString(pin.split);
   }
   return self;
 }
@@ -364,7 +387,7 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 // add-tab-folders D2.
 @interface ClairChromiumFolder : NSObject <ClairFolder>
 - (instancetype)initWithFolder:(const clair::Folder&)folder
-                          pins:(NSArray<id<ClairPin>>*)pins;
+                         items:(NSArray<id<ClairPinnedItem>>*)items;
 @end
 
 @implementation ClairChromiumFolder
@@ -372,32 +395,74 @@ ClairTabIndicators IndicatorsOf(content::WebContents* contents) {
 @synthesize spaceID = _spaceID;
 @synthesize name = _name;
 @synthesize isOpen = _isOpen;
-@synthesize pins = _pins;
+@synthesize items = _items;
 
 - (instancetype)initWithFolder:(const clair::Folder&)folder
-                          pins:(NSArray<id<ClairPin>>*)pins {
+                         items:(NSArray<id<ClairPinnedItem>>*)items {
   if ((self = [super init])) {
     _folderID = base::SysUTF8ToNSString(folder.id);
     _spaceID = base::SysUTF8ToNSString(folder.space);
     _name = base::SysUTF8ToNSString(folder.name);
     _isOpen = clair::ClairPinStore::Get()->IsOpen(folder.id);
+    _items = [items copy] ?: @[];
+  }
+  return self;
+}
+@end
+
+// add-split-view D10.
+@interface ClairChromiumPinnedSplit : NSObject <ClairPinnedSplit>
+- (instancetype)initWithSplit:(const clair::PinnedSplit&)split
+                         pins:(NSArray<id<ClairPin>>*)pins;
+@end
+
+@implementation ClairChromiumPinnedSplit
+@synthesize pinnedSplitID = _pinnedSplitID;
+@synthesize isFavorite = _isFavorite;
+@synthesize spaceID = _spaceID;
+@synthesize folderID = _folderID;
+@synthesize profileID = _profileID;
+@synthesize pins = _pins;
+@synthesize ratio = _ratio;
+
+- (instancetype)initWithSplit:(const clair::PinnedSplit&)split
+                         pins:(NSArray<id<ClairPin>>*)pins {
+  if ((self = [super init])) {
+    _pinnedSplitID = base::SysUTF8ToNSString(split.id);
+    _isFavorite = split.container.is_favorites();
+    _spaceID =
+        _isFavorite ? nil : base::SysUTF8ToNSString(split.container.space);
+    _folderID = split.container.is_folder()
+                    ? base::SysUTF8ToNSString(split.container.folder)
+                    : nil;
+    _profileID = base::SysUTF8ToNSString(
+        _isFavorite ? split.container.profile
+                    : clair::ClairSpaceStore::Get()->ProfileOf(
+                          split.container.space));
     _pins = [pins copy] ?: @[];
+    _ratio = split.ratio;
   }
   return self;
 }
 @end
 
 @interface ClairChromiumPinnedItem : NSObject <ClairPinnedItem>
-- (instancetype)initWithPin:(id<ClairPin>)pin folder:(id<ClairFolder>)folder;
+- (instancetype)initWithPin:(id<ClairPin>)pin
+                      split:(id<ClairPinnedSplit>)split
+                     folder:(id<ClairFolder>)folder;
 @end
 
 @implementation ClairChromiumPinnedItem
 @synthesize pin = _pin;
+@synthesize split = _split;
 @synthesize folder = _folder;
 
-- (instancetype)initWithPin:(id<ClairPin>)pin folder:(id<ClairFolder>)folder {
+- (instancetype)initWithPin:(id<ClairPin>)pin
+                      split:(id<ClairPinnedSplit>)split
+                     folder:(id<ClairFolder>)folder {
   if ((self = [super init])) {
     _pin = pin;
+    _split = split;
     _folder = folder;
   }
   return self;
@@ -971,6 +1036,8 @@ id<ClairTab> ClairSpaceTabs::Snapshot(content::WebContents* contents) const {
   }
   const std::string pin = PinOf(tab);
   const std::string name = NameOf(tab);
+  // add-split-view D2.
+  tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
   return [[ClairChromiumTab alloc]
       initWithContents:contents
           peekParentID:peek_parent_id
@@ -978,7 +1045,11 @@ id<ClairTab> ClairSpaceTabs::Snapshot(content::WebContents* contents) const {
                spaceID:base::SysUTF8ToNSString(SpaceOf(tab))
              browserID:browser_id
                  pinID:pin.empty() ? nil : base::SysUTF8ToNSString(pin)
-                  name:name.empty() ? nil : base::SysUTF8ToNSString(name)];
+                  name:name.empty() ? nil : base::SysUTF8ToNSString(name)
+        splitPartnerID:partner ? clair::TabIDOf(partner->GetContents())
+                               : ClairTabIDNone
+         isLeadingPane:partner && ClairSplits::IsLeading(tab)
+            splitRatio:ClairSplits::RatioOf(tab)];
 }
 
 id<ClairPin> ClairSpaceTabs::PinSnapshot(const clair::Pin& pin) const {
@@ -1053,6 +1124,9 @@ void ClairSpaceTabs::Insert(TabStripModel* model,
   tag = EnsureTag(contents);
   tag->space = space;
   tag->rank = rank;
+  if (!tag->listed) {
+    tag->listed = NextListed();
+  }
 
   std::vector<tabs::TabHandle>& list = lists_[space];
   size_t at = 0;
@@ -1161,6 +1235,12 @@ bool ClairSpaceTabs::Bind(tabs::TabInterface* tab, const std::string& pin) {
   clair::PinsChanged(record->container);
   TabChanged(contents);
   PostFlush();
+  // add-split-view D10: a pin of a pinned split shows beside the other one's
+  // page, once both are open in one window.
+  if (!record->split.empty()) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&clair::JoinPinnedSplit, pin));
+  }
   return true;
 }
 
@@ -1224,6 +1304,68 @@ std::string ClairSpaceTabs::OwnSpace() const {
   // no Space uses has none; its window hands its pages to clair.last_space.
   std::string space = ClairWindowGroup::SpaceForNewWindow(profile_);
   return space.empty() ? clair::ClairSpaceStore::Get()->last_space() : space;
+}
+
+namespace {
+
+// What a new pin takes from `tab`: its URL, title and custom name.
+clair::ClairPinStore::NewPin NewPinFrom(tabs::TabInterface* tab,
+                                        const std::string& name) {
+  content::WebContents* contents = tab->GetContents();
+  content::NavigationEntry* entry =
+      contents->GetController().GetLastCommittedEntry();
+  clair::ClairPinStore::NewPin pin;
+  pin.url = entry && !entry->IsInitialEntry() ? entry->GetURL()
+                                              : contents->GetVisibleURL();
+  pin.title = base::UTF16ToUTF8(contents->GetTitle());
+  pin.name = name;
+  return pin;
+}
+
+// Keeps `tab`'s favicon as the pin's icon.
+void TakeIcon(tabs::TabInterface* tab, const std::string& pin) {
+  if (auto* favicons =
+          favicon::ContentFaviconDriver::FromWebContents(tab->GetContents());
+      favicons && favicons->FaviconIsValid()) {
+    gfx::Image image = favicons->GetFavicon();
+    if (!image.IsEmpty()) {
+      clair::ClairPinStore::Get()->SetIcon(pin, image.ToNSImage());
+    }
+  }
+}
+
+}  // namespace
+
+std::string ClairSpaceTabs::PinSplit(tabs::TabInterface* lead,
+                                     tabs::TabInterface* trail,
+                                     const clair::PinContainer& container,
+                                     size_t index) {
+  // add-split-view D10: a split of two Today tabs, as one item.
+  for (tabs::TabInterface* tab : {lead, trail}) {
+    if (!tab || !is_regular() || !PinOf(tab).empty() || SpaceOf(tab).empty() ||
+        PeekParentOf(tab)) {
+      return std::string();
+    }
+  }
+  SpaceTag* lead_tag = EnsureTag(lead->GetContents());
+  SpaceTag* trail_tag = EnsureTag(trail->GetContents());
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  const std::string split = store->CreateSplit(
+      container, index, ClairSplits::RatioOf(lead),
+      NewPinFrom(lead, lead_tag->name), NewPinFrom(trail, trail_tag->name));
+  const std::vector<const clair::Pin*> pins = store->PinsOfSplit(split);
+  if (pins.size() != 2) {
+    return std::string();
+  }
+  const std::string lead_pin = pins[0]->id;
+  const std::string trail_pin = pins[1]->id;
+  TakeIcon(lead, lead_pin);
+  TakeIcon(trail, trail_pin);
+  lead_tag->name.clear();
+  trail_tag->name.clear();
+  Bind(lead, lead_pin);
+  Bind(trail, trail_pin);
+  return split;
 }
 
 std::string ClairSpaceTabs::PinTab(tabs::TabInterface* tab,
@@ -1575,6 +1717,75 @@ void ClairSpaceTabs::TabChanged(content::WebContents* contents) {
   PostFlush();
 }
 
+void ClairSpaceTabs::SplitChanged(tabs::TabInterface* tab) {
+  if (!tab) {
+    return;
+  }
+  TabChanged(tab->GetContents());
+  ListChanged(SpaceOf(tab));
+  BoundChanged(tab);
+}
+
+void ClairSpaceTabs::KeepSplitsTogether(std::vector<tabs::TabHandle>& list) {
+  // add-split-view D7: each split whose tabs are both in the list is one row:
+  // the leading pane and its Peek, then the trailing pane and its, at the
+  // place of the pane listed first, as a new tab joins the top of the list
+  // before Chromium makes it a split.
+  std::set<tabs::TabHandle> done;
+  bool moved = true;
+  while (moved) {
+    moved = false;
+    for (const tabs::TabHandle& handle : list) {
+      tabs::TabInterface* tab = handle.Get();
+      tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
+      if (!partner || done.contains(handle) ||
+          std::ranges::find(list, partner->GetHandle()) == list.end()) {
+        continue;
+      }
+      done.insert(handle);
+      done.insert(partner->GetHandle());
+      tabs::TabInterface* lead = ClairSplits::IsLeading(tab) ? tab : partner;
+      tabs::TabInterface* trail = lead == tab ? partner : tab;
+      SpaceTag* lead_tag = GetTag(lead->GetContents());
+      SpaceTag* trail_tag = GetTag(trail->GetContents());
+      tabs::TabInterface* anchor =
+          lead_tag && trail_tag && trail_tag->listed &&
+                  (!lead_tag->listed || trail_tag->listed < lead_tag->listed)
+              ? trail
+              : lead;
+      std::vector<tabs::TabHandle> block;
+      for (tabs::TabInterface* pane : {lead, trail}) {
+        for (tabs::TabInterface* member : FamilyOf(pane)) {
+          if (std::ranges::find(list, member->GetHandle()) != list.end()) {
+            block.push_back(member->GetHandle());
+          }
+        }
+      }
+      const size_t anchor_at = static_cast<size_t>(
+          std::ranges::find(list, anchor->GetHandle()) - list.begin());
+      size_t before = 0;
+      for (size_t i = 0; i < anchor_at; ++i) {
+        if (std::ranges::find(block, list[i]) != block.end()) {
+          ++before;
+        }
+      }
+      std::vector<tabs::TabHandle> rest;
+      for (const tabs::TabHandle& other : list) {
+        if (std::ranges::find(block, other) == block.end()) {
+          rest.push_back(other);
+        }
+      }
+      rest.insert(rest.begin() + (anchor_at - before), block.begin(),
+                  block.end());
+      if (rest != list) {
+        list = std::move(rest);
+        moved = true;
+        break;
+      }
+    }
+  }
+}
+
 void ClairSpaceTabs::PostFlush() {
   if (flush_posted_) {
     return;
@@ -1597,6 +1808,7 @@ void ClairSpaceTabs::Flush() {
       std::erase_if(list->second, [](const tabs::TabHandle& handle) {
         return !handle.Get();
       });
+      KeepSplitsTogether(list->second);
     }
     if (is_regular()) {
       WriteSessionTags(space);
@@ -1896,9 +2108,11 @@ class PinPusher : public ClairPinStore::Observer {
     pending_.clear();
     for (const PinContainer& container : pending) {
       if (container.is_favorites()) {
-        NSArray<id<ClairPin>>* pins = PinSnapshots(container);
+        // add-split-view D10: favorites and favorited splits.
+        NSArray<id<ClairPinnedItem>>* items =
+            FavoriteItemSnapshots(container.profile);
         for (id<ClairSpacesObserver> observer in Observers().allObjects) {
-          [observer favoritesDidChange:pins
+          [observer favoritesDidChange:items
                              ofProfile:base::SysUTF8ToNSString(container.profile)];
         }
         continue;
@@ -2298,7 +2512,21 @@ void MoveTabToSpace(tabs::TabInterface* tab, const std::string& space) {
     }
   }
   const bool follows = window && window->IsActiveRow(tab);
+  // add-split-view D7: a Today split moves whole, the other pane after this
+  // one; a pinned tab's or favorite's pane stays with its pin, and the split
+  // ends.
+  tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
+  if (partner && (!lists->PinOf(partner).empty() ||
+                  lists->SpaceOf(partner) != lists->SpaceOf(tab))) {
+    if (window && window->splits()) {
+      window->splits()->Separate(tab);
+    }
+    partner = nullptr;
+  }
   lists->SetSpace(tab, space);
+  if (partner) {
+    lists->SetSpace(partner, space);
+  }
   // The window follows its active tab, which stays active (D9, replacing
   // add-spaces D7's next-tab choice).
   if (follows) {
@@ -2380,27 +2608,56 @@ NSArray<id<ClairPin>>* PinSnapshots(const PinContainer& container) {
   return pins;
 }
 
-NSArray<id<ClairPinnedItem>>* PinnedItemSnapshots(const std::string& space) {
+namespace {
+
+// A container's items as snapshots, in order: its pins and splits, and in a
+// Space's section its folders (add-tab-folders D2, add-split-view D10).
+NSArray<id<ClairPinnedItem>>* ItemSnapshots(const PinContainer& container) {
   NSMutableArray<id<ClairPinnedItem>>* items = [NSMutableArray array];
   ClairPinStore* store = ClairPinStore::Get();
   // `id` is Objective-C's type here, so the child's ID is `child`.
-  for (const std::string& child :
-       store->ChildrenOf(PinContainer::OfSpace(space))) {
+  for (const std::string& child : store->ChildrenOf(container)) {
     if (const Pin* pin = store->Find(child)) {
       [items addObject:[[ClairChromiumPinnedItem alloc]
                            initWithPin:PinSnapshotOf(*pin)
+                                 split:nil
                                 folder:nil]];
-    } else if (const Folder* folder = store->FindFolder(child)) {
-      NSArray<id<ClairPin>>* pins =
-          PinSnapshots(PinContainer::OfFolder(space, folder->id));
+    } else if (const PinnedSplit* split = store->FindSplit(child)) {
+      NSMutableArray<id<ClairPin>>* pins = [NSMutableArray array];
+      for (const Pin* pane : store->PinsOfSplit(child)) {
+        [pins addObject:PinSnapshotOf(*pane)];
+      }
       [items addObject:[[ClairChromiumPinnedItem alloc]
                            initWithPin:nil
-                                folder:[[ClairChromiumFolder alloc]
-                                           initWithFolder:*folder
-                                                     pins:pins]]];
+                                 split:[[ClairChromiumPinnedSplit alloc]
+                                           initWithSplit:*split
+                                                    pins:pins]
+                                folder:nil]];
+    } else if (const Folder* folder = store->FindFolder(child);
+               folder && !container.is_folder()) {
+      [items
+          addObject:[[ClairChromiumPinnedItem alloc]
+                        initWithPin:nil
+                              split:nil
+                             folder:[[ClairChromiumFolder alloc]
+                                        initWithFolder:*folder
+                                                 items:ItemSnapshots(
+                                                           PinContainer::OfFolder(
+                                                               folder->space,
+                                                               folder->id))]]];
     }
   }
   return items;
+}
+
+}  // namespace
+
+NSArray<id<ClairPinnedItem>>* PinnedItemSnapshots(const std::string& space) {
+  return ItemSnapshots(PinContainer::OfSpace(space));
+}
+
+NSArray<id<ClairPinnedItem>>* FavoriteItemSnapshots(const std::string& profile) {
+  return ItemSnapshots(PinContainer::OfProfile(profile));
 }
 
 void PinsChanged(const PinContainer& container) {
@@ -2431,12 +2688,58 @@ void PinTab(tabs::TabInterface* tab,
   }
   // add-tab-folders D2: into a folder of its Space; the store refuses one of
   // another Space.
-  lists->PinTab(tab,
-                favorite ? PinContainer::OfProfile(
-                               ClairProfiles::IDOf(lists->profile()))
-                : folder.empty() ? PinContainer::OfSpace(space)
-                                 : PinContainer::OfFolder(space, folder),
-                index);
+  const PinContainer container =
+      favorite ? PinContainer::OfProfile(ClairProfiles::IDOf(lists->profile()))
+      : folder.empty() ? PinContainer::OfSpace(space)
+                       : PinContainer::OfFolder(space, folder);
+  // add-split-view D10: a split of two Today tabs is pinned as one; a split
+  // with a pinned tab or favorite isn't.
+  if (tabs::TabInterface* partner = ClairSplits::PartnerOf(tab)) {
+    if (!lists->PinOf(partner).empty() || lists->SpaceOf(partner) != space) {
+      return;
+    }
+    tabs::TabInterface* lead = ClairSplits::IsLeading(tab) ? tab : partner;
+    lists->PinSplit(lead, lead == tab ? partner : tab, container, index);
+    return;
+  }
+  lists->PinTab(tab, container, index);
+}
+
+void JoinPinnedSplit(const std::string& pin) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const Pin* record = store->Find(pin);
+  const PinnedSplit* split = record ? store->FindSplit(record->split) : nullptr;
+  const std::vector<const Pin*> panes =
+      split ? store->PinsOfSplit(split->id) : std::vector<const Pin*>();
+  if (panes.size() != 2) {
+    return;
+  }
+  tabs::TabInterface* lead = BoundTabOf(panes[0]->id);
+  tabs::TabInterface* trail = BoundTabOf(panes[1]->id);
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(lead);
+  if (!lead || !trail || !holder || holder != ClairBrowserWindow::HolderOf(trail) ||
+      !holder->splits() || ClairSplits::PartnerOf(lead) == trail ||
+      lead->IsSplit() || trail->IsSplit()) {
+    return;
+  }
+  holder->splits()->Make(lead, trail, /*other_leading=*/false, split->ratio,
+                         /*focus=*/nullptr);
+}
+
+void SeparatePinnedSplit(const std::string& split) {
+  ClairPinStore* store = ClairPinStore::Get();
+  const std::vector<const Pin*> panes = store->PinsOfSplit(split);
+  if (panes.size() != 2) {
+    return;
+  }
+  tabs::TabInterface* lead = BoundTabOf(panes[0]->id);
+  tabs::TabInterface* trail = BoundTabOf(panes[1]->id);
+  store->SeparateSplit(split);
+  if (lead && ClairSplits::PartnerOf(lead) == trail) {
+    if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(lead)) {
+      holder->splits()->Separate(lead);
+    }
+  }
 }
 
 namespace {
@@ -2482,13 +2785,25 @@ void MovePin(const std::string& pin, const PinContainer& to, size_t index) {
     return;
   }
   const std::string old_profile = store->ProfileOf(*record);
-  tabs::TabInterface* bound = BoundTabOf(pin);
-  const tabs::TabHandle handle =
-      bound ? bound->GetHandle() : tabs::TabHandle::Null();
+  // add-split-view D10: a pinned split's pins move together.
+  std::vector<std::pair<std::string, tabs::TabHandle>> moved;
+  std::vector<std::string> ids = {pin};
+  if (!record->split.empty()) {
+    ids.clear();
+    for (const Pin* pane : store->PinsOfSplit(record->split)) {
+      ids.push_back(pane->id);
+    }
+  }
+  for (const std::string& id : ids) {
+    tabs::TabInterface* bound = BoundTabOf(id);
+    moved.emplace_back(id, bound ? bound->GetHandle() : tabs::TabHandle::Null());
+  }
   if (!store->Move(pin, to, index)) {
     return;
   }
-  BoundTabMoved(handle, pin, old_profile);
+  for (const auto& [id, handle] : moved) {
+    BoundTabMoved(handle, id, old_profile);
+  }
 }
 
 // --- Folders (add-tab-folders D6 to D8, D11) ---
@@ -2605,15 +2920,37 @@ void RemovePin(const std::string& pin) {
   if (!store->Find(pin)) {
     return;
   }
-  tabs::TabInterface* bound = BoundTabOf(pin);
-  const tabs::TabHandle handle =
-      bound ? bound->GetHandle() : tabs::TabHandle::Null();
+  // add-split-view D10: a pinned split's pins go together, with their tabs.
+  std::vector<tabs::TabHandle> handles;
+  const Pin* record = store->Find(pin);
+  std::vector<std::string> ids = {pin};
+  if (!record->split.empty()) {
+    ids.clear();
+    for (const Pin* pane : store->PinsOfSplit(record->split)) {
+      ids.push_back(pane->id);
+    }
+  }
+  for (const std::string& id : ids) {
+    if (tabs::TabInterface* bound = BoundTabOf(id)) {
+      handles.push_back(bound->GetHandle());
+    }
+  }
   // D3: removed before its tab closes, so the tab's own entry in the
   // recently closed list is the newer, and brings the pin back with it.
   store->Remove(pin, /*remember=*/true);
-  tabs::TabInterface* tab = handle.Get();
-  if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab)) {
-    holder->CloseTab(tab);
+  if (handles.size() == 2 &&
+      ClairSplits::PartnerOf(handles[0].Get()) == handles[1].Get()) {
+    if (ClairBrowserWindow* holder =
+            ClairBrowserWindow::HolderOf(handles[0].Get())) {
+      holder->CloseSplit(handles[0].Get());
+    }
+    return;
+  }
+  for (const tabs::TabHandle& handle : handles) {
+    tabs::TabInterface* tab = handle.Get();
+    if (ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab)) {
+      holder->CloseTab(tab);
+    }
   }
 }
 
@@ -2691,6 +3028,25 @@ void OpenPin(ClairBrowserWindow* window, const std::string& pin) {
       store->ProfileOf(*record) != ClairProfiles::IDOf(lists->profile())) {
     return;
   }
+  // add-split-view D10: a pinned split opens each page that isn't open, and
+  // shows both as a split with its ratio.
+  if (const PinnedSplit* split = store->FindSplit(record->split)) {
+    std::vector<tabs::TabHandle> panes;
+    for (const Pin* pane : store->PinsOfSplit(split->id)) {
+      tabs::TabInterface* tab = lists->BoundTab(pane->id);
+      if (!tab) {
+        tab = OpenTabInSpace(window, pane->url, std::string(), -1, pane->id,
+                             std::string());
+      }
+      if (tab) {
+        panes.push_back(tab->GetHandle());
+      }
+    }
+    if (panes.size() == 2) {
+      window->ShowPinnedSplit(panes[0].Get(), panes[1].Get(), split->ratio);
+    }
+    return;
+  }
   // D2: one tab per pin.
   if (tabs::TabInterface* bound = lists->BoundTab(pin)) {
     window->ActivateRow(bound);
@@ -2720,6 +3076,40 @@ void Unpin(ClairBrowserWindow* window, const std::string& pin, int index) {
                                 ? window->shown_space()
                                 : record->container.space;
   if (!ClairSpaceStore::Get()->Contains(space)) {
+    return;
+  }
+  // add-split-view D10: a pinned split becomes a Today split, its pages
+  // opening when they aren't.
+  if (const PinnedSplit* split = store->FindSplit(record->split)) {
+    const double ratio = split->ratio;
+    std::vector<tabs::TabHandle> panes;
+    std::vector<const Pin*> pins = store->PinsOfSplit(split->id);
+    for (size_t i = 0; i < pins.size(); ++i) {
+      const int at = index + static_cast<int>(i);
+      tabs::TabInterface* tab = lists->BoundTab(pins[i]->id);
+      if (tab) {
+        lists->UnbindToToday(tab, space, at);
+      } else {
+        tab = OpenTabInSpace(window, pins[i]->url, space, at, std::string(),
+                             pins[i]->name);
+      }
+      if (tab) {
+        panes.push_back(tab->GetHandle());
+      }
+    }
+    store->Remove(pin, /*remember=*/false);
+    tabs::TabInterface* lead = panes.size() == 2 ? panes[0].Get() : nullptr;
+    tabs::TabInterface* trail = panes.size() == 2 ? panes[1].Get() : nullptr;
+    ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(lead);
+    if (lead && trail && holder && holder == ClairBrowserWindow::HolderOf(trail) &&
+        ClairSplits::PartnerOf(lead) != trail && !lead->IsSplit() &&
+        !trail->IsSplit()) {
+      holder->splits()->Make(lead, trail, /*other_leading=*/false, ratio,
+                             /*focus=*/nullptr);
+    }
+    if (holder && lead && holder->IsActiveRow(lead)) {
+      holder->FollowActiveTab();
+    }
     return;
   }
   if (tabs::TabInterface* bound = lists->BoundTab(pin)) {

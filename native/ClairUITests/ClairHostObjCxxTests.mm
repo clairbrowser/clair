@@ -78,8 +78,10 @@
 - (NSArray<id<ClairPinnedItem>>*)pinnedItemsInSpace:(ClairSpaceID)spaceID {
   return @[];
 }
-- (NSArray<id<ClairPin>>*)favoritesOfProfile:(ClairProfileID)profileID {
+- (NSArray<id<ClairPinnedItem>>*)favoritesOfProfile:(ClairProfileID)profileID {
   return @[];
+}
+- (void)separatePinnedSplit:(ClairPinnedSplitID)splitID {
 }
 - (void)pinTab:(ClairTabID)tabID inFolder:(ClairFolderID)folderID atIndex:(NSInteger)index {
 }
@@ -208,6 +210,8 @@
   [host setFolder:folder_id open:NO];
   XCTAssertNil([host turnFolderIntoSpace:folder_id]);
   [host setPinnedURL:[NSURL URLWithString:@"https://example.com/"] forPin:pin];
+  // The pinned split calls (add-split-view design D10).
+  [host separatePinnedSplit:@(std::string("0e4b2a10-0000-4000-8000-000000000000").c_str())];
   // The link rule calls (add-link-rules design D4).
   XCTAssertEqual(host.linkRules.count, 0u);
   [host replaceLinkRules:@[ [[ObjCxxLinkRule alloc] init] ]];
@@ -236,6 +240,9 @@
   XCTAssertEqual(ClairSuggestionKindBookmark, 4);
   std::string kinds[] = {"regular", "incognito", "guest"};
   XCTAssertEqual(kinds[ClairProfileKindGuest], "guest");
+  // add-split-view design D2: the side a split's new tab takes.
+  std::string sides[] = {"leading", "trailing"};
+  XCTAssertEqual(sides[ClairSplitSideTrailing], "trailing");
   for (Protocol* protocol in @[
          @protocol(ClairBrowser), @protocol(ClairWindow), @protocol(ClairTab),
          @protocol(ClairAutocomplete), @protocol(ClairAutocompleteDelegate),
@@ -243,7 +250,8 @@
          @protocol(ClairExtensionAction), @protocol(ClairExtensionPrompt), @protocol(ClairInfobar),
          @protocol(ClairHistoryMenu), @protocol(ClairHistoryMenuDelegate), @protocol(ClairHistoryItem),
          @protocol(ClairSpace), @protocol(ClairSpacesObserver), @protocol(ClairProfile),
-         @protocol(ClairPin), @protocol(ClairLinkRule), @protocol(ClairBookmark),
+         @protocol(ClairPin), @protocol(ClairPinnedSplit), @protocol(ClairPinnedItem),
+         @protocol(ClairFolder), @protocol(ClairLinkRule), @protocol(ClairBookmark),
          @protocol(ClairBookmarkFolder)
        ]) {
     XCTAssertTrue(protocol_conformsToProtocol(protocol, @protocol(NSObject)));

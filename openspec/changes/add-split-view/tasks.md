@@ -18,7 +18,7 @@ Suggested order:
 
   Verify that the README lists each. If closing a pinned split's pane differs from the spec's "Pages of a pinned split", update the spec and D10 before 2.6.
 - [ ] 1.2 Change `native/ClairHost.h` as D2 and D10 list:
-  - `ClairTab.splitID` and `splitRatio`;
+  - `ClairTab.splitPartnerID`, `isLeadingPane` and `splitRatio`;
   - the split calls on `ClairBrowser`;
   - the split kind of `ClairPinnedItem`;
   - favorites as items.

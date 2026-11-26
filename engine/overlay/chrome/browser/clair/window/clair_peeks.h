@@ -108,6 +108,10 @@ class ClairPeeks : public TabStripModelObserver {
   // The tab Close Tabs Below counts from: `tab`'s Peek, if it has one.
   tabs::TabInterface* LastOfFamily(tabs::TabInterface* tab) const;
 
+  // add-split-view: a split was made, changed or ended; each Peek goes back
+  // to its place.
+  void SplitsChanged();
+
   // D7: runs a tab command for the active Peek. Returns whether it ran;
   // otherwise the window runs it over its rows (add-spaces D5), or Chromium
   // as usual.
@@ -177,6 +181,13 @@ class ClairPeeks : public TabStripModelObserver {
 
   // Moves the tab at `from` to `to` without unlinking anything.
   void MoveQuietly(int from, int to);
+  // Where `parent`'s Peek belongs in the strip: right after it, or, for a
+  // split's pane, after the split, the leading pane's Peek first
+  // (add-split-view D3), since a tab inside a split would end it.
+  int PeekIndexFor(const tabs::TabInterface* parent) const;
+  // Where a new Peek of `parent` is inserted: after the tabs and Peeks of its
+  // row.
+  int InsertIndexFor(const tabs::TabInterface* parent) const;
   // After the tab strip changes: puts each Peek back right after its parent,
   // closes the Peeks whose parent has gone, and activates the parent of a
   // Peek that closed while it was active.
