@@ -242,6 +242,13 @@ Tabs › Split with Tab › SHALL list the Today tabs as the split button's menu
 - **WHEN** the page is split and the user opens the Tabs menu
 - **THEN** Split with Tab is disabled
 
+### Requirement: No Split with Tab for a tab already in a split
+A Today tab's, pinned tab's or favorite's Split with Tab › SHALL be disabled, New Tab included, while that tab is already in a split, as for a pinned tab or favorite whose page is in a Today split.
+
+#### Scenario: A favorite in a Today split
+- **WHEN** the favorite "Mail" is in a Today split with "News" and the user right-clicks "Mail"'s tile
+- **THEN** Split with Tab is disabled
+
 ### Requirement: Closing a pane
 Each pane's × in its header, Close This Tab in its split menu, Cmd+W and View › Close Split Pane (⌃⇧−) on the focused pane SHALL close that pane's tab only, with its leave-page confirmation. The other tab SHALL then show alone, active, in the split's place in the sidebar. A pinned tab's or favorite's pane SHALL close as Close and Keep Pinned does.
 
