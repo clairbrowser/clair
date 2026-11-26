@@ -203,7 +203,7 @@ struct FavoritesGrid: View {
       FavoritesDropArea(
         slot: { [width] in FavoritesLayout(count: favorites.count, width: width).dropIndex(at: $0) },
         tileSize: { [width] in FavoritesLayout(count: favorites.count + 1, width: width).frame(of: $0).size },
-        icon: { [model] in model.icon(of: $0) },
+        icons: { [model] in model.icons(of: $0) },
         onTarget: { [$dropIndex] in $dropIndex.wrappedValue = $0 },
         onDrop: { [actions] item, slot in actions?.drop(item, on: .favorites(slot)) })
     }
@@ -339,7 +339,7 @@ struct FavoritesHintBox: View {
         FavoritesDropArea(
           slot: { _ in 0 },
           tileSize: { _ in CGSize(width: tileWidth, height: FavoritesLayout.tileHeight) },
-          icon: { [model] in model.icon(of: $0) },
+          icons: { [model] in model.icons(of: $0) },
           onTarget: { [$isTargeted] in $isTargeted.wrappedValue = $0 != nil },
           onDrop: { [actions] item, _ in actions?.drop(item, on: .favorites(0)) })
       }

@@ -61,7 +61,7 @@ In the strip, a pane's Peek sits after the split, the leading pane's Peek first,
 - the tab's page view, a Peek over it, crashed-page view, infobars and docked DevTools;
 - its focus ring (2 pt, `controlAccentColor`), shown only while split and focused.
 
-A `SplitDividerView` sits in the 10 pt gap (Arc's measurement in change 1's `arc-reference/look-and-behaviour.md`, 356 + 10 + 356). It shows a grabber and the resize cursor. While dragging, it sets `BrowserWindowModel.liveSplitRatio`, which lays the panes out, then calls `setSplitRatio` when the drag ends. The ratio is clamped so that each pane's page, below its header and inside its card, is at least about 210 pt wide, Dia's minimum as the owner measured it with DevTools. It needn't be exact. In a page area too narrow for that, the clamp gives way and the ratio holds. When a drag ends within 20 pt of the centre, the panes take equal widths and the ratio is saved as 0.5. The rules are `SplitLogic`'s, apart from the views, for unit tests.
+A `SplitDividerView` sits in the 10 pt gap (Arc's measurement in change 1's `arc-reference/look-and-behaviour.md`, 356 + 10 + 356). It shows the resize cursor and a grabber at 35% of its colour, fading to full while the pointer is over the divider or drags it. While dragging, it sets `BrowserWindowModel.liveSplitRatio`, which lays the panes out, then calls `setSplitRatio` when the drag ends. The ratio is clamped so that each pane's page, below its header and inside its card, is at least about 210 pt wide, Dia's minimum as the owner measured it with DevTools. It needn't be exact. In a page area too narrow for that, the clamp gives way and the ratio holds. While the divider is within 20 pt of the centre, during the drag and when it ends, the panes take equal widths, with the trackpad's alignment feedback as it snaps, and the ratio is saved as 0.5. The rules are `SplitLogic`'s, apart from the views, for unit tests.
 
 `BrowserWindowModel.paneCount` becomes 2 while the active tab has a partner, so `PageHeaderPolicy` shows pane headers and hides the sidebar's controls with no further change (`add-page-toolbar` D1). The Peek, find field, loading indicator and toasts are measured against the page area, the union of the panes. Find is the exception: it uses the focused pane, as the spec says. The loading indicator follows the active tab, as now, and centres on that tab's pane.
 
@@ -110,7 +110,7 @@ The card size, the zone's tint and the slide's timing come from an Arc recording
 
 ### D9. The split button and menus
 
-The split button takes Arc's slot, the trailing one (`add-page-toolbar` D4 measured Arc's split button there, 21 pt from the edge, with site controls 36 pt to its left). In the single-page toolbar, site controls, extensions and indicators each move one slot left. In a pane header, × takes the trailing slot and the split button the next. `ToolbarArrangement` takes the slots as a list, so its narrow-window rules are unchanged: the split button and site controls are never left out. The menu is a SwiftUI `Menu` (`SplitButton`) built from `SplitLogic`'s entries:
+The split button takes Arc's slot, the trailing one (`add-page-toolbar` D4 measured Arc's split button there, 21 pt from the edge, with site controls 36 pt to its left). In the single-page toolbar, site controls, extensions and indicators each move one slot left. In a pane header, × takes the trailing slot and the split button the next. `ToolbarArrangement` takes the slots as a list, so its narrow-window rules are unchanged: the split button and site controls are never left out. The button is the toolbar's `IconButton`, with its hover background and grey, and the SF Symbol `square.split.2x1`; its click pops up an `NSMenu` below it (`SplitButton`), built from `SplitLogic`'s entries:
 - **on a single page:** a section header "Split with Tab", the Space's Today tabs other than the shown one, a separator, then New Tab;
 - **on a split:** Move Left or Move Right, Separate Tabs and Close This Tab.
 
@@ -118,6 +118,8 @@ The split button takes Arc's slot, the trailing one (`add-page-toolbar` D4 measu
 - the leading pane gets the toggle;
 - the focused pane gets reload, the split button, site controls, extensions and indicators, and so does the other pane while the pointer is over it, anywhere in the pane (Arc shows them only near its header). Its hover tracking covers the whole card. Clicking one of them focuses the pane first (`activateTab:`), so it acts on that pane's tab;
 - every pane gets back, forward, the link icon, the host and ×, as Arc's unfocused pane shows.
+
+The other pane's controls fade in and out over 150 ms as the pointer comes and goes, the host sliding to make room, as the header animates its `PageHeaderContent`.
 
 In a pane, × is centred 21 pt from the pane's edge, the split button 57 pt, site controls 93 pt, and extensions and indicators follow at 36 pt steps, as now.
 
@@ -141,13 +143,15 @@ In `ClairHost.h`, `ClairPinnedItem` gains a split kind (`ClairPinnedSplit`) hold
 
 A Today split holding a pin-bound tab (the spec's "A split with a pinned tab or favorite") is a Chromium split whose rows the sidebar shows in Today. The pin keeps its binding, so its row or tile stays and selects the split.
 
+A favorite's page in a split loads URLs from the command bar in its pane: `clair::LeavesFavorite`, which sends another site's URL from a favorite to a new Today tab (`add-pinned-tabs-and-favorites` D7), skips a tab in a split. A split dragged over the favorites turns into its tile, a segment per page (`DraggedTile`, from `BrowserWindowModel.icons(of:)`).
+
 ### D11. Peeks in a split
 
 `PeekLayout` is unchanged and measures from the page area (D3), so a Peek is centred over both panes. Only the parent's card takes the shrink and wash, as in Arc; the other pane keeps its size and colour. A click on the other pane closes the Peek, as Arc does (task 1.1); in Clair it also focuses that pane. Arc keeps Open in Split View on a Peek in a split, since it allows more panes; Clair doesn't show it. Open in Split View expands the Peek as Expand does (`ClairPeeks`), then calls `AddToNewSplit` with the parent. The button isn't built while the parent has a partner, since a split holds two tabs.
 
 ### D12. Closing
 
-Closing a tab in a split dissolves the split in `TabStripModel`, and the other tab stays where it was. `ClairSplits` then activates it, so the spec's "other tab shows alone" holds whatever Clair's next-tab rule would pick. The split row's × closes both tabs: `CloseTabs` on the pair, each with its leave-page confirmation, so tab restore records one `Split` entry.
+Closing a tab in a split dissolves the split in `TabStripModel`, and the other tab stays where it was. `ClairSplits` then activates it, so the spec's "other tab shows alone" holds whatever Clair's next-tab rule would pick. In Today, each chip of a split's row has its own ×, which closes its tab as the pane's × does. A pinned split's − closes both tabs: `CloseTabs` on the pair, each with its leave-page confirmation, so tab restore records one `Split` entry.
 
 ### D13b. The command bar's place
 

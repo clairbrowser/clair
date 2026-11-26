@@ -74,6 +74,26 @@ final class BrowserWindowModel {
     }
   }
 
+  /// The icons of a dragged row or tile: both pages' for a split, in pane
+  /// order, as its favorite tile shows them.
+  func icons(of item: SidebarDragItem) -> [NSImage?] {
+    switch item {
+    case .tab(let tabID):
+      if let tab = allTabs.first(where: { $0.tabID == tabID }),
+        let (leading, trailing) = TabListLogic.panes(of: tab, in: allTabs)
+      {
+        return [leading.favicon, trailing.favicon]
+      }
+    case .pin(let pinID):
+      if let split = PinsLogic.split(containing: pinID, in: pinnedItems + favoriteItems) {
+        return split.pins.map { PinsLogic.icon(of: $0, tab: tab(ofPin: $0)) }
+      }
+    case .folder:
+      break
+    }
+    return [icon(of: item)]
+  }
+
   /// The pin `tabID` is bound to, among the window's.
   func pin(ofTab tabID: TabID) -> (any ClairPin)? {
     guard tabID != ClairTabIDNone else { return nil }

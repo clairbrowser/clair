@@ -196,6 +196,7 @@ struct PageToolbar: View {
         }
         .anchorFrame(.indicator(indicator.rawValue))
         .toolbarRole(.indicator(index))
+        .transition(.opacity)
       }
       ForEach(Array(extensions.enumerated()), id: \.element.extensionID) { index, action in
         if arrangement.extensions.indices.contains(index), arrangement.extensions[index] != nil {
@@ -204,15 +205,18 @@ struct PageToolbar: View {
           ) { onPane { actions?.runExtension(action.extensionID, pinned: true) }() }
             .anchorFrame(.extensionAction(action.extensionID))
             .toolbarRole(.pinnedExtension(index))
+            .transition(.opacity)
         }
       }
       if content.showsSiteControls {
         siteControls(enabled: tab != nil)
           .toolbarRole(.trailingFixed(siteSlot))
+          .transition(.opacity)
       }
       if content.showsSplitButton {
         splitButton(tab: tab)
           .toolbarRole(.trailingFixed(splitSlot))
+          .transition(.opacity)
       }
       if content.showsClose, let paneTabID {
         IconButton(
@@ -223,6 +227,9 @@ struct PageToolbar: View {
           .toolbarRole(.trailingFixed(closeSlot))
       }
     }
+    // The other pane's controls fade in and out as the pointer comes and
+    // goes, as Arc's do (add-split-view, "Controls of the other pane").
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: content)
     .frame(maxWidth: .infinity)
     .frame(height: ToolbarArrangement.height)
     .background { background }
@@ -319,6 +326,7 @@ struct PageToolbar: View {
       .onHover { actions?.reloadButtonHovered($0) }
       .accessibilityIdentifier("clair.reload")
       .toolbarRole(.reload)
+      .transition(.opacity)
     }
   }
 

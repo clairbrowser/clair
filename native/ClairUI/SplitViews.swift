@@ -10,6 +10,8 @@ import SwiftUI
 
 /// The gap between a split's panes: a grabber, the resize pointer, and a drag
 /// that resizes the panes, reporting the divider's centre in the page area.
+/// The grabber stays faint until the pointer is over the divider or drags
+/// it.
 final class SplitDividerView: NSView {
   /// The divider moved to `x`, from the page area's leading edge; `done` on
   /// the drag's last step.
@@ -19,17 +21,23 @@ final class SplitDividerView: NSView {
 
   private let grabber = DynamicFillView(color: SplitDividerView.grabberColor)
   private var dragOffset: CGFloat = 0
+  private var isHovered = false
+  private var isDragging = false
 
   static let grabberColor = NSColor(name: "clair.splitGrabber") { appearance in
     appearance.isDark ? NSColor(white: 1, alpha: 0.28) : NSColor(white: 0, alpha: 0.22)
   }
   static let grabberSize = CGSize(width: 4, height: 32)
+  /// The grabber's opacity while the pointer is elsewhere, and under it.
+  static let restingAlpha: CGFloat = 0.35
+  static let activeAlpha: CGFloat = 1
 
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true
     grabber.wantsLayer = true
     grabber.layer?.cornerRadius = Self.grabberSize.width / 2
+    grabber.alphaValue = Self.restingAlpha
     addSubview(grabber)
     setAccessibilityElement(true)
     setAccessibilityRole(.splitter)
@@ -42,11 +50,32 @@ final class SplitDividerView: NSView {
 
   override var isFlipped: Bool { true }
 
+  /// The grabber's opacity now, for tests.
+  var grabberAlpha: CGFloat { grabber.alphaValue }
+
   override func layout() {
     super.layout()
     grabber.frame = CGRect(
       x: (bounds.width - Self.grabberSize.width) / 2, y: (bounds.height - Self.grabberSize.height) / 2,
       width: Self.grabberSize.width, height: Self.grabberSize.height)
+  }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    for area in trackingAreas { removeTrackingArea(area) }
+    addTrackingArea(
+      NSTrackingArea(
+        rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    isHovered = true
+    updateGrabber()
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    isHovered = false
+    updateGrabber()
   }
 
   override func resetCursorRects() {
@@ -56,6 +85,8 @@ final class SplitDividerView: NSView {
   override func mouseDown(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
     dragOffset = point.x - bounds.midX
+    isDragging = true
+    updateGrabber()
   }
 
   override func mouseDragged(with event: NSEvent) {
@@ -63,13 +94,27 @@ final class SplitDividerView: NSView {
   }
 
   override func mouseUp(with event: NSEvent) {
+    isDragging = false
     report(event, done: true)
+    isHovered = bounds.contains(convert(event.locationInWindow, from: nil))
+    updateGrabber()
   }
 
   private func report(_ event: NSEvent, done: Bool) {
     guard let superview else { return }
     let x = superview.convert(event.locationInWindow, from: nil).x - dragOffset - areaMinX
     onDrag?(x, done)
+  }
+
+  /// Fades the grabber to its full colour under the pointer or a drag, and
+  /// back.
+  private func updateGrabber() {
+    let alpha = isHovered || isDragging ? Self.activeAlpha : Self.restingAlpha
+    guard grabber.alphaValue != alpha else { return }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.15
+      grabber.animator().alphaValue = alpha
+    }
   }
 }
 
@@ -295,20 +340,19 @@ struct SplitChipPage {
 
 /// A split as one row in the sidebar, as in Arc: a chip per page with its
 /// favicon and title, a thin line between them while not selected, a grey
-/// pill each while selected; × in Today, − or × in the pinned section.
+/// pill each while selected. In Today, hovering a chip shows its own ×,
+/// which closes that page; in the pinned section, the row shows − or ×.
 struct SplitRow: View {
   let pages: [SplitChipPage]
   let isActive: Bool
   let isWindowKey: Bool
   /// The button the row shows on hover.
   enum Button: Equatable {
-    case close
     case closeKeepingPins
     case removePin
 
     var help: String {
       switch self {
-      case .close: "Close tab"
       case .closeKeepingPins: "Close and Keep Pinned"
       case .removePin: "Remove Pin"
       }
@@ -318,21 +362,25 @@ struct SplitRow: View {
     var shortcut: [String] { self == .removePin ? [] : ["⌘", "W"] }
     var identifier: String {
       switch self {
-      case .close: "clair.splitClose"
       case .closeKeepingPins: "clair.pinClose"
       case .removePin: "clair.pinRemove"
       }
     }
   }
 
-  let button: Button
+  /// The row's button, or nil for a × on each chip.
+  let button: Button?
   let onTap: () -> Void
   let onButton: () -> Void
+  /// Closes a chip's page, by its index: its × and a middle-click.
+  var onChipClose: ((Int) -> Void)?
+  /// The chip of the focused pane while the split shows, whose × Cmd+W is.
+  var focusedIndex: Int?
   /// Each chip's context menu, by its index.
   let menuItems: (Int) -> [RowClickCatcher.Item]
-  var onMiddleClick: () -> Void = {}
 
   @State private var isHovered = false
+  @State private var hoveredChip: Int?
   @Environment(\.colorScheme) private var colorScheme
 
   /// The gap between the chips.
@@ -348,7 +396,7 @@ struct SplitRow: View {
         }
         chip(page, index: index)
       }
-      if isHovered {
+      if isHovered, let button {
         IconButton(
           systemImage: button.systemImage, help: button.help, shortcut: button.shortcut, size: TabRow.closeSize,
           glyphSize: 12, glyphWeight: .bold, dimsWhenInactive: false, action: onButton
@@ -379,13 +427,16 @@ struct SplitRow: View {
   }
 
   private func chip(_ page: SplitChipPage, index: Int) -> some View {
-    HStack(spacing: 6) {
+    let showsClose = onChipClose != nil && hoveredChip == index
+    return HStack(spacing: 6) {
       PinIcon(icon: page.icon, isLoading: page.tab?.isLoading == true && page.icon == nil, size: TabRow.faviconSize)
         .frame(width: TabRow.iconSize, height: TabRow.iconSize)
       Text(page.title).font(TabRow.titleFont).lineLimit(1)
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 6)
+    .padding(.leading, 6)
+    // Room for the chip's ×, which then covers the title's end.
+    .padding(.trailing, showsClose ? TabRow.closeSize : 6)
     .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
     .background {
       if isActive {
@@ -394,10 +445,28 @@ struct SplitRow: View {
       }
     }
     .contentShape(Rectangle())
-    .overlay(RowClickCatcher(onMiddleClick: onMiddleClick, menuItems: menuItems(index)))
+    .overlay(
+      RowClickCatcher(onMiddleClick: { onChipClose?(index) }, menuItems: menuItems(index)))
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(page.title)
     .accessibilityIdentifier("clair.splitChip.\(index)")
+    .overlay(alignment: .trailing) {
+      if showsClose, let onChipClose {
+        IconButton(
+          systemImage: "xmark", help: "Close tab", shortcut: focusedIndex == index ? ["⌘", "W"] : [],
+          size: TabRow.closeSize, glyphSize: 12, glyphWeight: .bold, dimsWhenInactive: false
+        ) { onChipClose(index) }
+        .padding(.trailing, 1)
+        .accessibilityIdentifier("clair.splitClose.\(index)")
+      }
+    }
+    .onHover { hovering in
+      if hovering {
+        hoveredChip = index
+      } else if hoveredChip == index {
+        hoveredChip = nil
+      }
+    }
   }
 }
 
@@ -459,48 +528,106 @@ struct FavoriteSplitTile: View {
 // MARK: The split button (add-split-view design D9)
 
 /// The split button, as in Arc, with Dia's menu: Split with Tab on a single
-/// page, Move Left or Right, Separate Tabs and Close This Tab in a pane.
+/// page, Move Left or Right, Separate Tabs and Close This Tab in a pane. It's
+/// the toolbar's icon button, whose click opens the menu below it.
 struct SplitButton: View {
   let entries: [SplitLogic.MenuEntry]
   /// Each Today tab's favicon, by ID.
   let icon: (TabID) -> NSImage?
   let choose: (SplitLogic.MenuEntry) -> Void
 
+  @State private var anchor = MenuAnchor.Box()
+
+  static let symbol = "square.split.2x1"
+
   var body: some View {
-    Menu {
-      ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-        switch entry {
-        case .separator:
-          Divider()
-        case .heading(let title):
-          Section(title) {}
-        case .tab(let tabID, let title):
-          Button {
-            choose(entry)
-          } label: {
-            if let icon = icon(tabID) {
-              Label { Text(title) } icon: { Image(nsImage: icon) }
-            } else {
-              Label(title, systemImage: "globe")
-            }
-          }
-        case .moveLeft(let isEnabled), .moveRight(let isEnabled):
-          Button(entry.title) { choose(entry) }.disabled(!isEnabled)
-        case .newTab, .separateTabs, .closeThisTab:
-          Button(entry.title) { choose(entry) }
-        }
-      }
-    } label: {
-      Image(systemName: "rectangle.split.2x1")
-        .font(.system(size: IconButtonSize.toolbarSiteControlsGlyph))
+    IconButton(
+      systemImage: Self.symbol, help: "Split view", height: IconButtonSize.toolbarHeight,
+      glyphSize: IconButtonSize.toolbarSiteControlsGlyph, glyphWeight: .regular
+    ) {
+      anchor.popUp(Self.menu(entries, icon: icon, choose: choose))
     }
-    .menuStyle(.borderlessButton)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .frame(width: ToolbarArrangement.buttonSize, height: IconButtonSize.toolbarHeight)
-    .help("Split view")
-    .accessibilityLabel("Split view")
+    .background(MenuAnchor(box: anchor))
     .accessibilityIdentifier("clair.splitButton")
+  }
+
+  /// The menu for `entries`: a heading as a section header, a tab with its
+  /// favicon.
+  static func menu(
+    _ entries: [SplitLogic.MenuEntry], icon: (TabID) -> NSImage?, choose: @escaping (SplitLogic.MenuEntry) -> Void
+  ) -> NSMenu {
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    for entry in entries {
+      let item: NSMenuItem
+      switch entry {
+      case .separator:
+        menu.addItem(.separator())
+        continue
+      case .heading(let title):
+        menu.addItem(.sectionHeader(title: title))
+        continue
+      case .tab(let tabID, let title):
+        item = MenuAnchor.item(title) { choose(entry) }
+        item.image =
+          icon(tabID).map(SplitRows.menuIcon) ?? NSImage(systemSymbolName: "globe", accessibilityDescription: nil)
+      case .moveLeft(let isEnabled), .moveRight(let isEnabled):
+        item = MenuAnchor.item(entry.title) { choose(entry) }
+        item.isEnabled = isEnabled
+      case .newTab, .separateTabs, .closeThisTab:
+        item = MenuAnchor.item(entry.title) { choose(entry) }
+      }
+      menu.addItem(item)
+    }
+    return menu
+  }
+}
+
+/// An invisible view behind a SwiftUI button that a menu pops up from,
+/// below the button.
+struct MenuAnchor: NSViewRepresentable {
+  /// Holds the view, for the button's action to reach.
+  @MainActor
+  final class Box {
+    weak var view: NSView?
+
+    func popUp(_ menu: NSMenu) {
+      guard let view else { return }
+      menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+    }
+  }
+
+  let box: Box
+
+  func makeNSView(context: Context) -> NSView {
+    let view = AnchorView()
+    box.view = view
+    return view
+  }
+
+  func updateNSView(_ view: NSView, context: Context) {
+    box.view = view
+  }
+
+  private final class AnchorView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+  }
+
+  /// A menu item that runs `action`.
+  static func item(_ title: String, action: @escaping () -> Void) -> NSMenuItem {
+    let item = NSMenuItem(title: title, action: #selector(ItemTarget.run(_:)), keyEquivalent: "")
+    item.target = ItemTarget.shared
+    item.representedObject = RowClickCatcher.ItemAction(run: action)
+    return item
+  }
+
+  @MainActor
+  private final class ItemTarget: NSObject {
+    static let shared = ItemTarget()
+
+    @objc func run(_ sender: NSMenuItem) {
+      (sender.representedObject as? RowClickCatcher.ItemAction)?.run()
+    }
   }
 }
 
@@ -520,11 +647,17 @@ enum SplitRows {
       SplitChipPage(title: SplitLogic.title(of: pane), icon: pane.favicon, tab: pane, pin: model.pin(ofTab: pane.tabID))
     }
     let tabID = tab.tabID
+    let focusedIndex = model.shownSplit.flatMap { split in
+      panes.contains { $0.tabID == split.paneIDs[split.focusedIndex] } ? split.focusedIndex : nil
+    }
     return SplitRow(
       pages: pages, isActive: panes.contains { $0.tabID == highlighted }, isWindowKey: model.isWindowKey,
-      button: .close,
+      button: nil,
       onTap: { [weak actions] in actions?.showSplit(of: tabID) },
-      onButton: { [weak actions] in actions?.closeSplit(of: tabID) },
+      onButton: {},
+      // Each chip's × closes its page only, as a pane's × does.
+      onChipClose: { [weak actions] index in actions?.close(tab: panes[index].tabID) },
+      focusedIndex: focusedIndex,
       menuItems: { [weak actions] index in
         let page = pages[index]
         guard let pane = page.tab else { return [] }
@@ -537,8 +670,7 @@ enum SplitRows {
         }
         return TabRow.menuItems(
           tab: pane, canPin: model.showsPins, moveTargets: moveTargets, actions: actions, inSplit: true)
-      },
-      onMiddleClick: { [weak actions] in actions?.closeSplit(of: tabID) })
+      })
   }
 
   /// A pinned split's row: its pages' titles from when they were last open,

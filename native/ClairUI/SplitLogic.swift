@@ -48,7 +48,7 @@ enum SplitLogic {
   /// The narrowest a pane's page gets while dragging the divider, as Dia's
   /// (dia-reference/README.md).
   static let minimumPageWidth: CGFloat = 210
-  /// A drag ending this near the centre makes the panes equal.
+  /// The divider this near the centre makes the panes equal.
   static let snapDistance: CGFloat = 20
 
   /// The panes' frames in the page area `area`, leading first, the leading
@@ -79,9 +79,9 @@ enum SplitLogic {
     return Double(leading / room)
   }
 
-  /// The ratio a drag ends with: equal panes within `snapDistance` of the
-  /// page area's centre.
-  static func endRatio(forDividerAt x: CGFloat, width: CGFloat, current: Double) -> Double {
+  /// The ratio the divider gives while dragged and when let go: equal panes
+  /// within `snapDistance` of the page area's centre.
+  static func snappedRatio(forDividerAt x: CGFloat, width: CGFloat, current: Double) -> Double {
     if abs(x - width / 2) <= snapDistance, width - gap >= 2 * minimumPageWidth {
       return 0.5
     }

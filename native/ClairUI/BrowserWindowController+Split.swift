@@ -94,16 +94,19 @@ extension BrowserWindowController: SplitActions {
 
   // MARK: The divider (D3)
 
+  /// The divider snaps to equal panes near the centre as it moves, with
+  /// the trackpad's alignment feedback, and the ratio it's let go at sticks.
   private func dividerMoved(to x: CGFloat, done: Bool) {
     guard let split = model.shownSplit else { return }
     let width = rootView.pageArea.width
     let current = model.liveSplitRatio ?? split.ratio
+    let ratio = SplitLogic.snappedRatio(forDividerAt: x, width: width, current: current)
+    if ratio == 0.5, current != 0.5 {
+      NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+    }
+    model.liveSplitRatio = ratio
     if done {
-      let ratio = SplitLogic.endRatio(forDividerAt: x, width: width, current: current)
-      model.liveSplitRatio = ratio
       browser?.setSplitRatio(ratio, of: split.leadingID)
-    } else {
-      model.liveSplitRatio = SplitLogic.ratio(forDividerAt: x, width: width, current: current)
     }
   }
 

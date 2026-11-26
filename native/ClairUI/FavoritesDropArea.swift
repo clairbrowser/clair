@@ -15,8 +15,8 @@ struct FavoritesDropArea: NSViewRepresentable {
   let slot: (CGPoint) -> Int
   /// The size of a tile in that slot.
   let tileSize: (Int) -> CGSize
-  /// The icon of what's dragged.
-  let icon: (SidebarDragItem) -> NSImage?
+  /// The icons of what's dragged: a split's pages', in pane order.
+  let icons: (SidebarDragItem) -> [NSImage?]
   /// The slot the drag is over, or nil once it leaves or drops.
   let onTarget: (Int?) -> Void
   let onDrop: (SidebarDragItem, Int) -> Void
@@ -100,7 +100,7 @@ final class FavoritesDropView: NSView {
   private func tileImage(for item: SidebarDragItem, size: CGSize) -> NSImage? {
     if let tile, tile.size == size { return tile.image }
     guard let area, size.width > 0, size.height > 0 else { return nil }
-    let renderer = ImageRenderer(content: DraggedTile(icon: area.icon(item), size: size, colorScheme: colorScheme))
+    let renderer = ImageRenderer(content: DraggedTile(icons: area.icons(item), size: size, colorScheme: colorScheme))
     renderer.scale = window?.backingScaleFactor ?? 2
     guard let image = renderer.nsImage else { return nil }
     tile = (size, image)
@@ -145,9 +145,10 @@ final class FavoritesDropView: NSView {
 }
 
 /// The tile a dragged row or tile shows over the favorites: a selected tile
-/// with its icon, lifted.
+/// with its icon, lifted; a split's, a segment per page with a thin line
+/// between them, as its tile (add-split-view, "The favorite split tile").
 struct DraggedTile: View {
-  let icon: NSImage?
+  let icons: [NSImage?]
   let size: CGSize
   let colorScheme: ColorScheme
 
@@ -156,7 +157,18 @@ struct DraggedTile: View {
       RoundedRectangle(cornerRadius: FavoriteTile.cornerRadius, style: .continuous)
         .fill(PinFill.tile(colorScheme, hovered: false, selected: true))
         .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
-      PinIcon(icon: icon, size: FavoriteTile.iconSize)
+      HStack(spacing: 0) {
+        ForEach(Array(icons.enumerated()), id: \.offset) { index, icon in
+          if index > 0 {
+            Rectangle()
+              .fill(PinFill.divider)
+              .frame(width: 1)
+              .padding(.vertical, 10)
+          }
+          PinIcon(icon: icon, size: FavoriteTile.iconSize)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+      }
     }
     .frame(width: size.width, height: size.height)
     // Room for the shadow.

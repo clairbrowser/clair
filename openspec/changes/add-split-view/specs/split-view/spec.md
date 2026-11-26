@@ -69,7 +69,7 @@ While the pointer is over the pane that isn't focused, its header SHALL show its
 - **THEN** that pane is focused, and the Site Control Center opens for its page
 
 ### Requirement: Resizing the panes
-A divider in the gap between the panes SHALL show a grabber and the resize pointer. Dragging it SHALL resize both panes, stopping when either pane's page would be narrower than about 210 points, as in Dia. The split SHALL keep the ratio, across tab switches and relaunches. A new split SHALL start with equal panes, and a drag ending near the centre SHALL snap to equal panes. While the page area is too narrow for two such pages, the panes SHALL keep their ratio.
+A divider in the gap between the panes SHALL show the resize pointer and a faint grabber. Dragging it SHALL resize both panes, stopping when either pane's page would be narrower than about 210 points, as in Dia. The split SHALL keep the ratio, across tab switches and relaunches. A new split SHALL start with equal panes, and the divider SHALL snap to equal panes while it's dragged near the centre. While the page area is too narrow for two such pages, the panes SHALL keep their ratio.
 
 #### Scenario: Dragging the divider
 - **WHEN** the user drags the divider of an equal split in a wide window 200 points toward the trailing edge
@@ -80,8 +80,12 @@ A divider in the gap between the panes SHALL show a grabber and the resize point
 - **THEN** the trailing pane's page stops at about 210 points wide
 
 #### Scenario: Snapping to the centre
-- **WHEN** the user drags the divider to within about 20 points of the page area's centre and lets go
-- **THEN** the panes become equal
+- **WHEN** the user drags the divider to within about 20 points of the page area's centre
+- **THEN** the panes become equal before the user lets go, and stay equal once the user does
+
+#### Scenario: The grabber
+- **WHEN** the pointer moves over the divider
+- **THEN** the grabber fades to its full colour, and back to faint once the pointer leaves
 
 #### Scenario: Coming back to the split
 - **WHEN** the user resized a split, selects another tab and then selects the split again
@@ -285,16 +289,16 @@ Clicking anywhere on a split row SHALL show the split with the pane that was foc
 - **WHEN** a split of "News" and "Docs" was last focused on "Docs", another tab is shown, and the user clicks the "News" chip
 - **THEN** the window shows the split with "Docs" focused
 
-### Requirement: Closing a split from its row
-Hovering a split's row in Today SHALL show a close button at its trailing end, with the tooltip "Close tab" and ⌘W, which SHALL close both tabs, each with its leave-page confirmation. Middle-clicking the row SHALL do the same. Restore Last Closed Tab SHALL bring the split back as it was.
+### Requirement: Closing a page from its row
+Hovering a chip of a split's row in Today SHALL show a close button at the chip's trailing end, with the tooltip "Close tab", and ⌘W on the focused pane's chip while the split shows. It SHALL close that chip's tab only, as the pane's × does (see "Closing a pane"). Middle-clicking a chip SHALL do the same.
 
-#### Scenario: Closing the row
-- **WHEN** the user hovers the split's row and clicks its ×
-- **THEN** both tabs close, and the row goes
+#### Scenario: Closing one chip
+- **WHEN** a Today split shows "News" and "Docs" and the user hovers the "Docs" chip and clicks its ×
+- **THEN** "Docs" closes, and "News" shows alone, in the split's place in the list
 
-#### Scenario: Restoring it
-- **WHEN** the user then chooses Restore Last Closed Tab
-- **THEN** the split comes back in its place, with both pages and its ratio
+#### Scenario: The other chip
+- **WHEN** the user hovers the "News" chip instead
+- **THEN** its own × shows, and the "Docs" chip shows none
 
 ### Requirement: The split row's menu
 Right-clicking a split row SHALL open the menu of its kind for the tab whose chip is under the pointer (Today tab menu, `pinned-tabs`, `favorites`), without Split with Tab ›, Back to Pinned URL or Edit Pinned Page ›, with Separate Tabs added. Pin Tab, Pin to Favorites, Unpin Tab, Remove Favorite and Move to Space SHALL act on the whole split.
@@ -378,6 +382,10 @@ A split made of a Today tab and a pinned tab's or favorite's page SHALL show as 
 
 ### Requirement: Pinning a split
 Pin Tab (Cmd+D) on a split, Pin Tab in its row's menu, and dragging its row into the pinned section SHALL pin the split as one item, keeping its pages, ratio and selection. Pin to Favorites and dragging it onto the favorites SHALL make it one favorite. Unpin Tab and dragging it below the divider SHALL make it a Today split again.
+
+#### Scenario: Dragging a split over the favorites
+- **WHEN** the user drags a split's row over the favorites
+- **THEN** the drag shows the tile it would become, a segment per page with its icon, as "The favorite split tile" describes
 
 #### Scenario: Cmd+D on a split
 - **WHEN** the window shows a Today split of "News" and "Docs" and the user presses Cmd+D

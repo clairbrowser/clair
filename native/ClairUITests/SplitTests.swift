@@ -30,9 +30,9 @@ struct SplitLogicTests {
     #expect(SplitLogic.ratio(forDividerAt: 100, width: 400, current: 0.4) == 0.4)
   }
 
-  @Test func aDragEndingNearTheCentreSnapsToEqualPanes() {
-    #expect(SplitLogic.endRatio(forDividerAt: 520, width: 1010, current: 0.5) == 0.5)
-    #expect(SplitLogic.endRatio(forDividerAt: 600, width: 1010, current: 0.5) != 0.5)
+  @Test func theDividerSnapsToEqualPanesNearTheCentre() {
+    #expect(SplitLogic.snappedRatio(forDividerAt: 520, width: 1010, current: 0.5) == 0.5)
+    #expect(SplitLogic.snappedRatio(forDividerAt: 600, width: 1010, current: 0.5) != 0.5)
   }
 
   @Test func theSingleMenuListsTodaysOtherUnsplitTabs() {
@@ -370,6 +370,44 @@ struct SplitWindowTests {
     menu.choose(close)
     #expect(!browser.tabs.contains { $0.tabID == docs.tabID })
     #expect(controller.model.shownSplit == nil)
+  }
+
+  @Test func theDividerSnapsToEqualPanesAsItMoves() {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    let root = controller.rootView
+    root.frame = CGRect(x: 0, y: 0, width: 1400, height: 900)
+    root.layoutSubtreeIfNeeded()
+    let width = root.pageArea.width
+    let divider = root.splitDivider
+    divider.onDrag?(width / 2 - 150, false)
+    #expect(controller.model.liveSplitRatio != 0.5)
+    // Within the snap distance, before letting go: equal panes.
+    divider.onDrag?(width / 2 + 12, false)
+    #expect(controller.model.liveSplitRatio == 0.5)
+    divider.onDrag?(width / 2 + 12, true)
+    #expect(browser.host.tab(mail.tabID)?.splitRatio == 0.5)
+    // The grabber rests faint until the pointer is over it.
+    #expect(divider.grabberAlpha == SplitDividerView.restingAlpha)
+  }
+
+  @Test func aDraggedSplitShowsBothIcons() {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    #expect(controller.model.icons(of: .tab(mail.tabID)).count == 2)
+    let other = browser.addTab(title: "Other", url: "https://other.example/")
+    #expect(controller.model.icons(of: .tab(other.tabID)).count == 1)
+  }
+
+  @Test func theSplitButtonsMenuHasAHeadingAndItsTabs() {
+    var chosen: SplitLogic.MenuEntry?
+    let entries = SplitLogic.singlePageMenu(shown: docs.tabID, today: browser.tabs)
+    let menu = SplitButton.menu(entries, icon: { _ in nil }) { chosen = $0 }
+    #expect(menu.items.map(\.title) == ["Split with Tab", "Mail", "", "New Tab"])
+    #expect(menu.items[0].isSectionHeader)
+    let mailItem = menu.items[1]
+    _ = (mailItem.target as? NSObject)?.perform(mailItem.action, with: mailItem)
+    #expect(chosen == .tab(mail.tabID, title: "Mail"))
+    let pane = SplitButton.menu(SplitLogic.paneMenu(isLeading: true), icon: { _ in nil }) { _ in }
+    #expect(!pane.items[0].isEnabled && pane.items[1].isEnabled)
   }
 
   @Test func theSplitRowStandsForBothTabs() {

@@ -141,10 +141,12 @@ final class SplitViewTests: NativeWindowTestCase {
     let button = browser.element("clair.splitButton", in: header)
     try require(button.waitForExistence(timeout: 5), "The focused pane's header has no split button")
     button.click()
-    let moveLeft = button.menuItems["Move Left"]
-    try require(moveLeft.waitForExistence(timeout: 5), "The pane's split menu has no Move Left")
-    XCTAssertFalse(moveLeft.isEnabled, "Move Left is on in the leading pane")
-    button.menuItems["Move Right"].click()
+    let moveLeft = browser.visibleMenuItem("Move Left")
+    try require(moveLeft != nil, "The pane's split menu has no Move Left")
+    XCTAssertFalse(moveLeft?.isEnabled ?? true, "Move Left is on in the leading pane")
+    let moveRight = browser.visibleMenuItem("Move Right")
+    try require(moveRight != nil, "The pane's split menu has no Move Right")
+    moveRight?.click()
     let swapped = await browser.waitForSplitRows { $0 == ["Counter a, \(Self.links)"] }
     XCTAssertTrue(swapped, "Move Right didn't swap the panes: \(browser.splitRows)")
 
@@ -327,9 +329,8 @@ final class SplitViewTests: NativeWindowTestCase {
     XCTAssertTrue(closed, "A click in the other pane didn't close the Peek")
   }
 
-  /// A split survives Reopen Closed Window and a relaunch with its ratio;
-  /// closing its row and Restore Last Closed Tab bring it back; Move to
-  /// Space moves both tabs.
+  /// A chip's × closes its page only; a split survives Reopen Closed Window
+  /// and a relaunch with its ratio.
   func testASplitComesBack() async throws {
     try Harness.setRestoreWindows(true)
     let (browser, links, counter) = try await startWithLinks()
@@ -340,19 +341,25 @@ final class SplitViewTests: NativeWindowTestCase {
     links.close()
     counter.close()
 
-    // Closing the row closes both; Restore Last Closed Tab brings the split
-    // back.
-    let row = browser.splitRow(split)
-    row.hover()
-    let close = browser.element("clair.splitClose", in: row)
-    try require(close.waitForExistence(timeout: 5), "Hovering the split row shows no ×")
+    // A chip's × closes its page only; the other shows alone.
+    let chip = browser.element("clair.splitChip.1", in: browser.splitRow(split))
+    chip.hover()
+    let close = browser.element("clair.splitClose.1", in: browser.splitRow(split))
+    try require(close.waitForExistence(timeout: 5), "Hovering a split chip shows no ×")
     close.click()
     let closed = await browser.waitForTarget("?split-same", open: false)
-    let linksClosed = await browser.waitForTarget("split.html", open: false)
-    XCTAssertTrue(closed && linksClosed, "× didn't close both panes")
-    browser.ui.typeKey("t", modifierFlags: [.command, .shift])
+    XCTAssertTrue(closed, "The chip's × didn't close its page")
+    let alone = await browser.waitForSplitRows { $0.isEmpty }
+    XCTAssertTrue(alone, "The split row stayed after closing a page: \(browser.splitRows)")
+    let linksOpen = await browser.waitForTarget("split.html")
+    XCTAssertTrue(linksOpen, "The chip's × closed the other page too")
+
+    // Split again for the rest.
+    let again = try await browser.session(endingWith: "split.html")
+    try await again.optionClick("same")
+    again.close()
     made = await browser.waitForSplitRows { $0 == [split] }
-    XCTAssertTrue(made, "Restore Last Closed Tab didn't bring the split back: \(browser.splitRows)")
+    try require(made, "Option+click didn't make the split again")
 
     // A new ratio, from the divider, if the runner may drag.
     let divider = browser.element("clair.splitDivider")

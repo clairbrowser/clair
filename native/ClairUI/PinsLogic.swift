@@ -98,6 +98,16 @@ enum PinsLogic {
     }
   }
 
+  /// The pinned or favorited split of `items`, its folders' included, that
+  /// holds `pinID`.
+  static func split(containing pinID: PinID, in items: [any ClairPinnedItem]) -> (any ClairPinnedSplit)? {
+    for item in items {
+      if let split = item.split, split.pins.contains(where: { $0.pinID == pinID }) { return split }
+      if let folder = item.folder, let split = split(containing: pinID, in: folder.items) { return split }
+    }
+    return nil
+  }
+
   /// A folder's pinned tabs, its splits' two included, in order.
   static func pins(of folder: any ClairFolder) -> [any ClairPin] {
     allPins(folder.items)
