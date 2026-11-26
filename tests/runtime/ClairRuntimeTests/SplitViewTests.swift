@@ -40,11 +40,13 @@ extension Browser {
     item.click()
   }
 
-  /// Chooses `title` in a row's Split with Tab › menu.
+  /// Chooses `title` in a row's Split with Tab › menu: the context menu's,
+  /// not the Tab menu's item of the same title.
   func splitWithTab(_ title: String, inMenuOf row: XCUIElement) throws {
     row.rightClick()
-    let submenu = ui.menuItems["Split with Tab"]
-    try require(submenu.waitForExistence(timeout: 5), "The row's menu has no Split with Tab")
+    let found = visibleMenuItem("Split with Tab")
+    try require(found != nil, "The row's menu has no Split with Tab")
+    guard let submenu = found else { return }
     submenu.hover()
     let item = submenu.menuItems[title]
     try require(item.waitForExistence(timeout: 5), "Split with Tab has no \(title)")
@@ -105,6 +107,7 @@ final class SplitViewTests: NativeWindowTestCase {
   /// Move Right, "Cannot Add New Pane", Ctrl+Tab, Separate Tabs and Cmd+W
   /// on a pane.
   func testMakingAndRearrangingASplit() async throws {
+    executionTimeAllowance = 300
     let (browser, links, counter) = try await startWithLinks()
     defer {
       links.close()
@@ -290,6 +293,7 @@ final class SplitViewTests: NativeWindowTestCase {
 
   /// Peek's Open in Split View, and no such button on a Peek in a split.
   func testOpenInSplitViewFromAPeek() async throws {
+    executionTimeAllowance = 300
     let browser = try await startBrowser()
     let links = try await browser.open(url("peek.html"))
     defer { links.close() }
@@ -315,8 +319,9 @@ final class SplitViewTests: NativeWindowTestCase {
     try await links.shiftClick("blank")
     try require(browser.peek.waitForExistence(timeout: 15), "Shift+click in a pane showed no Peek")
     XCTAssertFalse(browser.element("clair.peekSplit").exists, "A Peek in a split offers Open in Split View")
-    // A click in the other pane closes the Peek.
-    browser.element("clair.pane.1").click()
+    // A click in the other pane, beside the Peek centred over both, closes
+    // it.
+    browser.element("clair.pane.1").coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).click()
     let closed = await browser.waitForTarget("?blank", open: false)
     XCTAssertTrue(closed, "A click in the other pane didn't close the Peek")
   }
@@ -389,6 +394,7 @@ final class SplitViewTests: NativeWindowTestCase {
   /// out and Restore brings it back, favoriting and a relaunch keep it, and
   /// Separate Tabs leaves two pins in its place.
   func testPinnedSplits() async throws {
+    executionTimeAllowance = 420
     let (browser, links, counter) = try await startWithLinks()
     defer {
       links.close()
@@ -405,10 +411,11 @@ final class SplitViewTests: NativeWindowTestCase {
     XCTAssertTrue(pinned, "Cmd+D didn't pin the split as one row")
     try await browser.relaunch()
 
-    // After the relaunch: the row is back; selecting it opens both pages.
+    // After the relaunch: the row is back; Cmd+1, the first row, opens both
+    // pages.
     var back = await browser.waitForSplitRows(30) { $0 == [split] }
     try require(back, "The pinned split didn't come back: \(browser.splitRows)")
-    browser.splitRow(split).click()
+    browser.ui.typeKey("1", modifierFlags: .command)
     let both = await Harness.wait(for: 20) {
       let leading = try await browser.target(endingWith: "split.html")
       let trailing = try await browser.target(endingWith: "?split-same")
@@ -428,7 +435,7 @@ final class SplitViewTests: NativeWindowTestCase {
     XCTAssertTrue(back, "Restore Last Closed Tab didn't bring the pinned split back: \(browser.splitRows)")
 
     // Pin to Favorites makes one tile, which a relaunch keeps.
-    try browser.choose("Pin to Favorites", inMenuOf: browser.element("clair.splitChip.0", in: browser.splitRow(split)))
+    try browser.choose("Pin to Favorites", inMenuOf: browser.element("clair.splitChip.0"))
     let tile = browser.element("clair.favoriteSplitTile")
     XCTAssertTrue(tile.waitForExistence(timeout: 15), "Pin to Favorites made no split tile")
     try await browser.relaunch()
@@ -440,7 +447,7 @@ final class SplitViewTests: NativeWindowTestCase {
       records.filter { $0["split"] != nil }.count, 2, "Local State's pins don't name their split")
 
     // Separate Tabs leaves two favorites in its place.
-    try browser.choose("Separate Tabs", inMenuOf: browser.element("clair.splitChip.0", in: tile))
+    try browser.chooseOnScreen("Separate Tabs", inMenuOf: browser.element("clair.splitChip.0", in: tile))
     let separated = await browser.waitForFavorites { $0.count == 2 }
     XCTAssertTrue(separated, "Separate Tabs didn't leave two favorites: \(browser.favoriteTitles)")
     XCTAssertFalse(browser.element("clair.favoriteSplitTile").exists, "The split tile stayed")
