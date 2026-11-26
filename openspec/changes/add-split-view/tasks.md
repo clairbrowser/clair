@@ -14,8 +14,7 @@ Suggested order:
   - a 60 fps recording of a tab dragged onto the page and across it: the portrait card's size, the drop zone's tint and border, and the slide's timing;
   - the split row with three-word titles at the default sidebar width;
   - closing one pane of a pinned split;
-  - with a Peek open from one pane, a click on the other pane;
-  - Esc in the command bar of Add Split View's empty pane.
+  - with a Peek open from one pane, a click on the other pane.
 
   Verify that the README lists each. If closing a pinned split's pane differs from the spec's "Pages of a pinned split", update the spec and D10 before 2.6.
 - [ ] 1.2 Change `native/ClairHost.h` as D2 and D10 list:

@@ -143,7 +143,7 @@ Closing a tab in a split dissolves the split in `TabStripModel`, and the other t
 
 ### D13b. The command bar's place
 
-The command bar is placed against the window today. While `paneCount` is 2, its horizontal centre becomes the focused `PaneView`'s centre in window coordinates, clamped so that the bar stays inside the window's content. Its vertical place doesn't change. Add Split View and the Split with Tab menus' New Tab make the split first, with a new tab page in the new pane (`splitTabWithNewTab:`, without a URL), so the command bar then centres on that pane like any other. It opens in Cmd+L's mode on the new tab, so a chosen page loads there.
+The command bar is placed against the window today. While `paneCount` is 2, its horizontal centre becomes the focused `PaneView`'s centre in window coordinates, clamped so that the bar stays inside the window's content. Its vertical place doesn't change. Add Split View and the Split with Tab menus' New Tab make the split first, with a new tab page in the new pane (`splitTabWithNewTab:`, without a URL), so the command bar then centres on that pane like any other. It opens in Cmd+L's mode on the new tab, so a chosen page loads there. Esc leaves the new tab page in its pane. Arc closes its empty pane on Esc instead; the owner chose the simpler behaviour for now.
 
 ### D13a. Link status with a modifier
 

@@ -19,6 +19,7 @@ Keep these screenshots. They move with the change when it's archived.
 - A split can be pinned or favorited as one item, and shows as one in both places.
 - Separating a pinned or favorited split leaves both pages pinned, or both favorited.
 - A pinned or favorited split offers no Back to Pinned URL.
+- Esc in the command bar of Add Split View's empty pane closes the pane. Clair keeps the new tab page in it for now, to keep the first version simple (the owner, in PR #259).
 - The pane that isn't focused shows its hidden controls when the pointer comes near its header. Clair shows them while the pointer is anywhere over that pane.
 
 ## To probe (tasks.md 1.1)
@@ -27,7 +28,6 @@ Keep these screenshots. They move with the change when it's archived.
 - The split row with long titles at the default sidebar width.
 - Closing one pane of a pinned split.
 - With a Peek open from one pane, what a click on the other pane does.
-- Esc in the command bar of Add Split View's empty pane: whether the pane stays. Clair keeps a new tab page there.
 
 ## Peek in a split
 
