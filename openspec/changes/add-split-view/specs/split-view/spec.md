@@ -35,6 +35,17 @@ The URL field, back, forward, reload and stop, Copy URL, find in page, DevTools,
 - **WHEN** the leading pane is focused and the user presses Cmd+L, types a URL and presses Return
 - **THEN** the leading pane loads the URL, and the trailing pane doesn't change
 
+### Requirement: The command bar over the focused pane
+While the page is split, the command bar SHALL open centred on the focused pane rather than on the window, however it's opened (Cmd+L, Cmd+T, a pane's host, or New Tab in a split menu), and SHALL stay inside the window when the pane is narrower than it.
+
+#### Scenario: Cmd+L in the trailing pane
+- **WHEN** a split's trailing pane is focused and the user presses Cmd+L
+- **THEN** the command bar opens centred on the trailing pane, with its URL selected
+
+#### Scenario: A narrow pane
+- **WHEN** the focused pane is narrower than the command bar
+- **THEN** the command bar opens as near the pane's centre as it can while staying inside the window
+
 ### Requirement: Pane headers
 While the page is split, each pane SHALL have a header, whatever the toolbar preference, laid out as the toolbar (`page-toolbar`). Each SHALL hold back, forward, the link icon, the host and a close button centred 21 points from its trailing edge. The leading pane's header SHALL also lead with the sidebar toggle. The focused pane's SHALL also show reload and, left of the close button and 36 points apart, the split button, site controls, pinned extensions and indicators, as in Arc.
 

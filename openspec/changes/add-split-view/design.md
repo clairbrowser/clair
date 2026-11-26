@@ -141,6 +141,10 @@ A Today split holding a pin-bound tab (the spec's "A split with a pinned tab or 
 
 Closing a tab in a split dissolves the split in `TabStripModel`, and the other tab stays where it was. `ClairSplits` then activates it, so the spec's "other tab shows alone" holds whatever Clair's next-tab rule would pick. The split row's × closes both tabs: `CloseTabs` on the pair, each with its leave-page confirmation, so tab restore records one `Split` entry.
 
+### D13b. The command bar's place
+
+The command bar is placed against the window today. While `paneCount` is 2, its horizontal centre becomes the focused `PaneView`'s centre in window coordinates, clamped so that the bar stays inside the window's content. Its vertical place doesn't change. The Split with Tab menus' New Tab opens before the split exists, so it centres on the window, as from a single page.
+
 ### D13a. Link status with a modifier
 
 The link status capsule is `ClairUI`'s, fed by the page's hovered URL. It now also reads the modifier flags, from `flagsChanged` on the window while a URL shows:

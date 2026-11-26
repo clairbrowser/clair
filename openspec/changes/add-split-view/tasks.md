@@ -33,7 +33,7 @@ Suggested order:
   - observers of `OnSplitTabChanged` in `chrome/browser/ui` that reach `BrowserView`;
   - what `IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW` and `NEW_SPLIT_VIEW` do in `browser_navigator.cc`.
 
-  Turn on the feature or guard the paths as needed. Verify with an engine build (2.9) and the runtime test of 3.11 that making and closing a split doesn't crash, and record what was guarded in D1.
+  Turn on the feature or guard the paths as needed. Verify with an engine build (2.9) and the runtime test of 3.12 that making and closing a split doesn't crash, and record what was guarded in D1.
 - [ ] 2.2 Add `engine/overlay/chrome/browser/clair/window/clair_splits.{h,mm}` (D1, D7, D12):
   - making a split from two tabs and from a new tab;
   - replacing, swapping, separating and closing a split;
@@ -42,18 +42,18 @@ Suggested order:
   - one row for the tab commands;
   - activating the remaining tab when a pane closes.
 
-  Verify with the runtime tests in 3.11.
-- [ ] 2.3 Focus and visibility (D4, D5): activate the partner on `OnWebContentsFocused`, and mark the partner visible in `ActiveTabChanged`. Verify with the runtime tests in 3.11:
+  Verify with the runtime tests in 3.12.
+- [ ] 2.3 Focus and visibility (D4, D5): activate the partner on `OnWebContentsFocused`, and mark the partner visible in `ActiveTabChanged`. Verify with the runtime tests in 3.12:
   - both panes report `visible`, and both `hidden` after another tab is selected;
   - clicking in the other pane makes it the active tab.
 - [ ] 2.4 Add `engine/patches/clair/split-on-option-click.patch` (D6) for Blink's `navigation_policy.cc` and `ui/base/window_open_disposition_utils.cc`, with a header comment and its `series` entry. Handle `NEW_SPLIT_VIEW` in `ClairSplits::OpenURL` (single page, split pane, Peek). Stop removing Open Link in Split View from the page's context menu. Verify:
   - the patch check applies the series;
-  - the runtime tests in 3.11 cover Option+click on a single page, in each pane of a split (no new tab, Back returns), from a favorite (no Peek), inside a Peek, and from the context menu;
+  - the runtime tests in 3.12 cover Option+click on a single page, in each pane of a split (no new tab, Back returns), from a favorite (no Peek), inside a Peek, and from the context menu;
   - no download starts in any of these.
-- [ ] 2.5 Add the split record to `ClairPinStore` (D10): split records with their place and ratio, pins that name their split and index, and splits in folders, still one level deep. Add pinning, unpinning, favoriting and separating a split, Remove Pin, Remove Favorite, Restore Last Closed Tab, and Move to Space. Verify with the runtime tests in 3.11 that pinned and favorited splits, their order, pages and ratio survive a relaunch, and that Separate leaves two pins in place (each read from `Local State` after quitting).
-- [ ] 2.6 Bind pinned and favorited splits (D10): selecting one opens its unopened pages as a split with its ratio; closing one pane unbinds only that pin; a Today split with a pin-bound tab keeps the binding. Verify with the runtime tests in 3.11.
-- [ ] 2.7 Peek's Open in Split View (D11): expand and split, and no button while the parent has a partner. Verify with the runtime tests in 3.11.
-- [ ] 2.8 Bridge the D2 calls and snapshots, and the menu bar items of D9: Tabs › Split with Tab ›, and View › Add Split View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs, with Add Split View showing "Cannot Add New Pane" while split. Verify with the runtime tests in 3.11.
+- [ ] 2.5 Add the split record to `ClairPinStore` (D10): split records with their place and ratio, pins that name their split and index, and splits in folders, still one level deep. Add pinning, unpinning, favoriting and separating a split, Remove Pin, Remove Favorite, Restore Last Closed Tab, and Move to Space. Verify with the runtime tests in 3.12 that pinned and favorited splits, their order, pages and ratio survive a relaunch, and that Separate leaves two pins in place (each read from `Local State` after quitting).
+- [ ] 2.6 Bind pinned and favorited splits (D10): selecting one opens its unopened pages as a split with its ratio; closing one pane unbinds only that pin; a Today split with a pin-bound tab keeps the binding. Verify with the runtime tests in 3.12.
+- [ ] 2.7 Peek's Open in Split View (D11): expand and split, and no button while the parent has a partner. Verify with the runtime tests in 3.12.
+- [ ] 2.8 Bridge the D2 calls and snapshots, and the menu bar items of D9: Tabs › Split with Tab ›, and View › Add Split View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs, with Add Split View showing "Cannot Add New Pane" while split. Verify with the runtime tests in 3.12.
 - [ ] 2.9 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
 - [ ] 2.10 Update `docs/native-window.md`:
   - a "Split view" section: `ClairSplits` over Chromium's split collections, focus and visibility, the Option+click patch, and splits across windows and Spaces;
@@ -64,8 +64,8 @@ Suggested order:
 ## 3. ClairUI
 
 - [ ] 3.1 Fold split tabs into one row in `TabListLogic` and the window model, and set `paneCount` from the active tab's partner (D2, D3). Verify with `ClairUI` unit tests in CI: rows for a Today split, a pinned split, a favorited split, and a Today split holding a pin-bound tab; and `PageHeaderPolicy` with the toolbar off while split.
-- [ ] 3.2 Lay out the panes in `PageCardView` (D3): `PaneView`s with their own cards, the focus ring, the 10 pt gap, and the find field, loading indicator, Peek and toasts against the right area. Verify with unit tests in CI for the pane frames at a few widths and ratios, and by hand in 3.10.
-- [ ] 3.3 Add `SplitDivider` (D3): grabber, resize cursor, live widths, the page minimum of about 210 pt (and the ratio held when the area is too narrow), the snap to equal panes within 20 pt of the centre, and `setSplitRatio` when the drag ends. Verify with unit tests in CI for the clamp, the narrow case, the snap and the ratio, and by hand in 3.10.
+- [ ] 3.2 Lay out the panes in `PageCardView` (D3): `PaneView`s with their own cards, the focus ring, the 10 pt gap, and the find field, loading indicator, Peek and toasts against the right area. Verify with unit tests in CI for the pane frames at a few widths and ratios, and by hand in 3.11.
+- [ ] 3.3 Add `SplitDivider` (D3): grabber, resize cursor, live widths, the page minimum of about 210 pt (and the ratio held when the area is too narrow), the snap to equal panes within 20 pt of the centre, and `setSplitRatio` when the drag ends. Verify with unit tests in CI for the clamp, the narrow case, the snap and the ratio, and by hand in 3.11.
 - [ ] 3.4 Add the pane headers and the split button (D9):
   - `PageHeaderContent.pane(leading:focused:)`, with × at the trailing slot;
   - the split button in the trailing slot of the toolbar, and before × in a pane header, with site controls, extensions and indicators one slot further left;
@@ -74,17 +74,19 @@ Suggested order:
 
   Verify with unit tests in CI for each variant's controls and `ToolbarArrangement`'s slots, the narrow-window cases included.
 - [ ] 3.5 Add the split button's two menus and Split with Tab › in the Today, pinned and favorite menus (D9), including New Tab through the command bar and Esc creating nothing. Verify with unit tests in CI for each menu's items in order, the disabled Move Left and Move Right, the Today-only list in the sidebar's order with favicons, and the menu bar item disabled while split.
-- [ ] 3.6 Add the link status texts of D13a: "Open <URL> in Split View" with Option, "Open <URL> in Peek" with Shift while the Peek preference is on, the URL alone in a Peek, updates as the keys change, and the capsule in the hovered link's pane. Verify with unit tests in CI for the text from each modifier, preference and Peek case, and by hand in 3.10.
-- [ ] 3.7 Add the split row (D2, D13): chips with favicon, title or custom name, the divider while not selected and pills while selected; × in Today, − and × in the pinned section; the click that shows the split; the row's menu with Separate Tabs and its omitted items; and the row dragged as one, into and out of folders too. Verify with unit tests in CI for the row's states, buttons and menu, and `PinsLogic.listDrop`'s gaps for a split row around open and closed folders.
-- [ ] 3.8 Add the favorite split tile: the segments with icons, the divider line, and the white or light grey selected tile with the blended ring. Verify with unit tests in CI for the grid with a split tile, and by comparing screenshots with `arc-reference/screenshots/favorite-split*.jpg`.
-- [ ] 3.9 Add dragging onto the page (D8): the portrait drag image, the half or pane drop zone and slide with 1.1's metrics, no zone for a split row or the tab already shown, and the drop calls. Verify with unit tests in CI for which zone a point picks, single and split, and by hand in 3.10.
-- [ ] 3.10 Check the flow by hand against `arc-reference/` and `dia-reference/` with `tests/probe/`, using `build/probe/bin/drag` for drags. Verify that each of these matches the spec, and record anything that differs from Arc or Dia in the design:
+- [ ] 3.6 Add the link status texts of D13a: "Open <URL> in Split View" with Option, "Open <URL> in Peek" with Shift while the Peek preference is on, the URL alone in a Peek, updates as the keys change, and the capsule in the hovered link's pane. Verify with unit tests in CI for the text from each modifier, preference and Peek case, and by hand in 3.11.
+- [ ] 3.7 Centre the command bar on the focused pane while split, clamped inside the window (D13b). Verify with unit tests in CI for its frame over each pane, a narrow pane, and a single page, and by hand in 3.11.
+- [ ] 3.8 Add the split row (D2, D13): chips with favicon, title or custom name, the divider while not selected and pills while selected; × in Today, − and × in the pinned section; the click that shows the split; the row's menu with Separate Tabs and its omitted items; and the row dragged as one, into and out of folders too. Verify with unit tests in CI for the row's states, buttons and menu, and `PinsLogic.listDrop`'s gaps for a split row around open and closed folders.
+- [ ] 3.9 Add the favorite split tile: the segments with icons, the divider line, and the white or light grey selected tile with the blended ring. Verify with unit tests in CI for the grid with a split tile, and by comparing screenshots with `arc-reference/screenshots/favorite-split*.jpg`.
+- [ ] 3.10 Add dragging onto the page (D8): the portrait drag image, the half or pane drop zone and slide with 1.1's metrics, no zone for a split row or the tab already shown, and the drop calls. Verify with unit tests in CI for which zone a point picks, single and split, and by hand in 3.11.
+- [ ] 3.11 Check the flow by hand against `arc-reference/` and `dia-reference/` with `tests/probe/`, using `build/probe/bin/drag` for drags. Verify that each of these matches the spec, and record anything that differs from Arc or Dia in the design:
   - a tab, pinned tab and favorite dragged onto each half of a single page, and onto each pane of a split;
   - Option+click in a single page, in each pane, from a pinned tab and inside a Peek;
   - the split button's place in the toolbar and each pane, both menus, and Move Left and Move Right;
   - Split with Tab from the menu bar and each tab menu, and New Tab with Esc;
   - closing a pane with ×, Cmd+W and ⌃⇧−, and Separate Tabs;
   - the divider and its limit: each page stops at about 210 pt, checked with DevTools' viewport width (no runtime test), and a release near the centre snapping to equal panes;
+  - the command bar from Cmd+L, Cmd+T and a pane's host in each pane;
   - the link status with Option and Shift held, pressed and released over a link, in a split's panes and in a Peek;
   - the other pane's controls on hover;
   - the split row selected and not, its × and menu, and Ctrl+Tab over it;
@@ -92,7 +94,7 @@ Suggested order:
   - pinning, favoriting, a pinned split dragged into and out of a folder, Close and Keep Pinned, one pane of a pinned split closed, separating, unpinning;
   - the toolbar off while split;
   - Light and Dark Mode.
-- [ ] 3.11 Add runtime tests to `tests/runtime/` (`SplitViewTests.swift`) for:
+- [ ] 3.12 Add runtime tests to `tests/runtime/` (`SplitViewTests.swift`) for:
   - making a split from a tab menu, the menu bar and Option+click;
   - Option+click in a split (no new tab, Back returns), from a favorite, inside a Peek, and from the context menu, with no download;
   - both pages visible, and focus by clicking the other pane;
