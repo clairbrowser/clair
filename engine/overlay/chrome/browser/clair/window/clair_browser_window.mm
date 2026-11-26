@@ -1276,7 +1276,10 @@ bool ClairBrowserWindow::ShowNextRow(tabs::TabInterface* row,
 }
 
 bool ClairBrowserWindow::IsEmptiedSpacePage(tabs::TabInterface* row) const {
-  if (!row || !space_tabs_ || !space_tabs_->is_regular() || RowOf(row) != row) {
+  // add-split-view: a split of new tab pages isn't the emptied Space's page;
+  // closing it leaves one.
+  if (!row || !space_tabs_ || !space_tabs_->is_regular() || RowOf(row) != row ||
+      ClairSplits::PartnerOf(row)) {
     return false;
   }
   const std::vector<tabs::TabInterface*> rows = Rows();
@@ -1326,7 +1329,13 @@ void ClairBrowserWindow::CloseTab(tabs::TabInterface* tab) {
     const clair::Pin* other =
         space_tabs_ ? store->Find(space_tabs_->PinOf(partner)) : nullptr;
     if (pin && other && !pin->split.empty() && pin->split == other->split) {
-      store->TakeOutOfSplit(pin->id);
+      // A page that asks before leaving may stay, and its pin with it.
+      if (tab->GetContents()->NeedToFireBeforeUnloadOrUnloadEvents()) {
+        pending_split_close_ = tab->GetHandle();
+        pending_split_pin_ = pin->id;
+      } else {
+        store->TakeOutOfSplit(pin->id);
+      }
     }
     if (browser_->tab_strip_model()->GetActiveTab() == tab ||
         (peeks_ && peeks_->ParentOf(browser_->tab_strip_model()->GetActiveTab()) ==
@@ -1396,6 +1405,14 @@ void ClairBrowserWindow::BeforeUnloadFired(content::WebContents* contents,
     }
   }
   tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
+  if (tab && tab->GetHandle() == pending_split_close_) {
+    pending_split_close_ = tabs::TabHandle::Null();
+    if (proceed) {
+      clair::ClairPinStore::Get()->TakeOutOfSplit(pending_split_pin_);
+    }
+    pending_split_pin_.clear();
+    return;
+  }
   if (!tab || tab->GetHandle() != pending_close_) {
     return;
   }
@@ -1419,13 +1436,16 @@ void ClairBrowserWindow::CloseTabsBelow(tabs::TabInterface* tab) {
   // the Space's rows in every window (share-tabs-across-windows D3).
   ClairBrowserWindow* holder = HolderOf(tab);
   ClairPeeks* peeks = holder ? holder->peeks() : nullptr;
-  tabs::TabInterface* last = peeks ? peeks->LastOfFamily(tab) : tab;
-  // add-split-view: below a split's row is below its trailing pane.
-  if (tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
-      partner && ClairSplits::IsLeading(tab)) {
-    last = peeks ? peeks->LastOfFamily(partner) : partner;
+  // add-split-view: a split is one row, which shows where its Today pane is
+  // listed when its other pane is a pinned tab or favorite. Neither pane is
+  // below it.
+  tabs::TabInterface* row = RowOf(tab);
+  std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(row);
+  if (panes.empty()) {
+    panes = {row};
   }
-  const std::string space = space_tabs_->SpaceOf(tab);
+  const bool row_pinned = !space_tabs_->PinOf(row).empty();
+  const std::string space = space_tabs_->SpaceOf(row);
   // add-pinned-tabs-and-favorites D4: from a pinned tab, the open pinned tabs
   // below it and every Today tab; from a Today tab, the Today tabs below it.
   std::vector<tabs::TabInterface*> tabs;
@@ -1442,16 +1462,32 @@ void ClairBrowserWindow::CloseTabsBelow(tabs::TabInterface* tab) {
   } else {
     tabs = space_tabs_->TabsIn(space, browser_);
   }
-  auto it = std::ranges::find(tabs, last);
-  if (it == tabs.end()) {
-    it = std::ranges::find(tabs, tab);
+  std::vector<tabs::TabInterface*> own;
+  auto cutoff = tabs.end();
+  for (tabs::TabInterface* pane : panes) {
+    own.push_back(pane);
+    tabs::TabInterface* last = peeks ? peeks->LastOfFamily(pane) : pane;
+    if (last != pane) {
+      own.push_back(last);
+    }
+    if (space_tabs_->PinOf(pane).empty() == !row_pinned) {
+      auto at = std::ranges::find(tabs, last);
+      if (at == tabs.end()) {
+        at = std::ranges::find(tabs, pane);
+      }
+      if (at != tabs.end() && (cutoff == tabs.end() || at > cutoff)) {
+        cutoff = at;
+      }
+    }
   }
-  if (it == tabs.end()) {
+  if (cutoff == tabs.end()) {
     return;
   }
   std::vector<tabs::TabHandle> below;
-  for (++it; it != tabs.end(); ++it) {
-    below.push_back((*it)->GetHandle());
+  for (auto it = cutoff + 1; it != tabs.end(); ++it) {
+    if (std::ranges::find(own, *it) == own.end()) {
+      below.push_back((*it)->GetHandle());
+    }
   }
   for (const tabs::TabHandle& handle : below) {
     CloseTab(handle.Get());
@@ -1653,8 +1689,17 @@ void ClairBrowserWindow::ShowPinnedSplit(tabs::TabInterface* lead,
           return;
         }
         if (ClairSplits::PartnerOf(a) != b) {
-          window->splits()->Make(a, b, /*other_leading=*/false, ratio,
-                                 /*focus=*/nullptr);
+          // A pane in another split, as when a Today tab replaced its
+          // partner, leaves it first, keeping both pages.
+          for (tabs::TabInterface* pane : {a, b}) {
+            if (pane->IsSplit()) {
+              window->splits()->Separate(pane);
+            }
+          }
+          if (!window->splits()->Make(a, b, /*other_leading=*/false, ratio,
+                                      /*focus=*/nullptr)) {
+            return;
+          }
         }
         window->ActivateRow(a);
       },
@@ -2040,8 +2085,9 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
       return true;
     }
     auto it = std::ranges::find_if(slots, [&](const Slot& slot) {
-      return slot.tab && (slot.tab == active_row ||
-                          ClairSplits::PartnerOf(slot.tab) == active_row);
+      return slot.tab && active_row &&
+           (slot.tab == active_row ||
+            ClairSplits::PartnerOf(slot.tab) == active_row);
     });
     const bool forward = command == IDC_SELECT_NEXT_TAB ||
                          command == IDC_CYCLE_TO_NEXT_TAB;
@@ -2122,8 +2168,9 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
           others.push_back(row->GetHandle());
         }
       }
+      // add-split-view: a split row closes both its panes.
       for (const tabs::TabHandle& handle : others) {
-        CloseTab(handle.Get());
+        CloseSplit(handle.Get());
       }
       return true;
     }

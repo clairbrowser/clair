@@ -755,6 +755,10 @@ class ClairBrowserWindow : public BrowserWindow {
   bool pending_close_for_another_window_ = false;
   // D4: the active row Clair is closing, while its page is asked; or null.
   tabs::TabHandle pending_close_;
+  // add-split-view D12: a pinned split's pane whose page is asked before it
+  // closes, and its pin, which leaves the split only once the page agrees.
+  tabs::TabHandle pending_split_close_;
+  std::string pending_split_pin_;
   // Owned by the browser's FindBarController once created.
   raw_ptr<ClairFindBar> find_bar_ = nullptr;
   base::CallbackListSubscription zoom_subscription_;

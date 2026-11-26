@@ -101,12 +101,15 @@ bool ContentsMouseEvent(content::WebContents* source, bool exited);
 // AddNewContents: a link Shift+clicked in a native window's page opens in a
 // Peek of its tab (add-peek D2), or, from a Peek, in a new tab at the top.
 // A link Option+clicked there (NEW_SPLIT_VIEW) loads in a Peek it was clicked
-// in, or in the other pane of a split (add-split-view D6); in a page that
-// isn't split, Chromium makes the split.
-// False when that doesn't apply, and Chromium goes on: another window, another
-// disposition, no user gesture or not from the page (the context menu), or
-// the preference off. True when it handled the link, with `*result` the
-// contents it opened or navigated, or null.
+// in, or in the other pane of a split, or becomes the trailing pane of a new
+// split with the page (add-split-view D6).
+// False when that doesn't apply, and Chromium goes on:
+// - Shift+click (NEW_WINDOW): another window, no user gesture, not from the
+//   page (the context menu), or the preference off.
+// - Option+click (NEW_SPLIT_VIEW): another window, and for AddNewContents no
+//   user gesture. OpenURLFromTab takes it from the context menu too.
+// True when it handled the link, with `*result` the contents it opened or
+// navigated, or null.
 bool MaybeOpenLink(BrowserWindowInterface* browser,
                    content::WebContents* source,
                    const content::OpenURLParams& params,

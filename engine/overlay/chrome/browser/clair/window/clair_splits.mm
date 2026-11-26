@@ -433,18 +433,25 @@ void ClairSplits::PaneFocused(content::WebContents* contents) {
       IndexOf(tab) == TabStripModel::kNoTab) {
     return;
   }
-  // Not from inside the page's focus notification.
+  // Not from inside the page's focus notification, and not once the user
+  // has chosen another tab meanwhile.
+  tabs::TabInterface* active = model_->GetActiveTab();
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(
-                     [](base::WeakPtr<ClairSplits> splits,
-                        tabs::TabHandle handle) {
-                       tabs::TabInterface* pane = handle.Get();
-                       if (splits && pane && pane->IsSplit() &&
-                           !pane->IsActivated()) {
-                         splits->ActivateTab(pane);
-                       }
-                     },
-                     weak_factory_.GetWeakPtr(), tab->GetHandle()));
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<ClairSplits> splits, tabs::TabHandle handle,
+             tabs::TabHandle was_active) {
+            tabs::TabInterface* pane = handle.Get();
+            tabs::TabInterface* now_active =
+                splits ? splits->model_->GetActiveTab() : nullptr;
+            if (splits && pane && pane->IsSplit() && !pane->IsActivated() &&
+                (now_active ? now_active->GetHandle()
+                            : tabs::TabHandle::Null()) == was_active) {
+              splits->ActivateTab(pane);
+            }
+          },
+          weak_factory_.GetWeakPtr(), tab->GetHandle(),
+          active ? active->GetHandle() : tabs::TabHandle::Null()));
 }
 
 void ClairSplits::Watch(tabs::TabInterface* tab) {
@@ -541,6 +548,15 @@ void ClairSplits::OnTabStripModelChanged(
   if (change.type() == TabStripModelChange::kRemoved) {
     for (const auto& removed : change.GetRemove()->contents) {
       Unwatch(removed.tab);
+    }
+  }
+  // A pane whose page Chromium replaces keeps its handle; its new page is
+  // watched instead.
+  if (change.type() == TabStripModelChange::kReplaced) {
+    const TabStripModelChange::Replace* replace = change.GetReplace();
+    if (replace->tab && watchers_.contains(replace->tab->GetHandle())) {
+      watchers_[replace->tab->GetHandle()] =
+          std::make_unique<FocusWatcher>(this, replace->new_contents);
     }
   }
   if (!selection.active_tab_changed() || !selection.old_tab ||

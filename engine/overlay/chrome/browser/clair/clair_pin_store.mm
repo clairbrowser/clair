@@ -1011,11 +1011,17 @@ void ClairPinStore::SeparateSplit(std::string_view id) {
   }
   Index();
   // Without room between the two keys, the trailing pin goes right after the
-  // leading one, as KeyAt renumbers.
+  // leading one, as KeyAt renumbers. Its empty key puts it first meanwhile,
+  // so the leading pin's place is counted without it.
   if (panes.size() == 2 && pins_[panes[1]].order.empty()) {
-    const std::optional<size_t> leading = IndexOf(panes[0]);
+    std::vector<std::string> others = ChildrenOf(container);
+    std::erase(others, panes[1]);
+    auto leading = std::ranges::find(others, panes[0]);
     std::string fallback = KeyAt(
-        container, leading ? *leading + 1 : std::numeric_limits<size_t>::max(),
+        container,
+        leading != others.end()
+            ? static_cast<size_t>(leading - others.begin()) + 1
+            : std::numeric_limits<size_t>::max(),
         panes[1]);
     pins_[panes[1]].order = std::move(fallback);
   }

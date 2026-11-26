@@ -6,12 +6,14 @@
 
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <utility>
 
 #include "base/barrier_closure.h"
 #include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
 #include "base/strings/escape.h"
 #include "base/strings/string_util.h"
@@ -1536,7 +1538,16 @@ void ClairSpaceTabs::MoveTab(tabs::TabInterface* tab, int index) {
     return;
   }
   std::vector<tabs::TabHandle>& list = lists_[space];
-  const std::vector<tabs::TabHandle> handles = TakeFamily(list, tab);
+  std::vector<tabs::TabHandle> handles = TakeFamily(list, tab);
+  // add-split-view D7: a Today split moves as one block, its leading pane
+  // first, as the sidebar counts it as one row.
+  if (tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
+      partner && std::ranges::find(list, partner->GetHandle()) != list.end()) {
+    const std::vector<tabs::TabHandle> other = TakeFamily(list, partner);
+    handles.insert(ClairSplits::IsLeading(partner) ? handles.begin()
+                                                   : handles.end(),
+                   other.begin(), other.end());
+  }
   const size_t at = static_cast<size_t>(
       std::clamp(index, 0, static_cast<int>(list.size())));
   list.insert(list.begin() + at, handles.begin(), handles.end());
@@ -2353,7 +2364,9 @@ void SwapGroupsShowing(const std::string& space) {
 // add-profiles D9: reopens each of `rows`, in order, as a tab of `space` in
 // its window group's member for the Space's profile, from `first_rank` on,
 // and closes the originals. In a window that showed one of them, the tab
-// reopened from it becomes active, and the group shows its member.
+// reopened from it becomes active, and the group shows its member. Two rows
+// that were a split's panes are a split again, with its ratio
+// (add-split-view D7).
 void ReopenInProfile(std::vector<tabs::TabHandle> rows,
                      const std::string& space,
                      int first_rank) {
@@ -2367,6 +2380,24 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
             if (!loaded || !ClairSpaceStore::Get()->Contains(space)) {
               return;
             }
+            struct SplitPanes {
+              tabs::TabHandle lead;
+              tabs::TabHandle trail;
+              double ratio;
+            };
+            std::vector<SplitPanes> splits;
+            for (const tabs::TabHandle& handle : rows) {
+              tabs::TabInterface* partner = ClairSplits::PartnerOf(handle.Get());
+              if (partner && ClairSplits::IsLeading(handle.Get()) &&
+                  std::ranges::find(rows, partner->GetHandle()) != rows.end()) {
+                splits.push_back({handle, partner->GetHandle(),
+                                  ClairSplits::RatioOf(handle.Get())});
+              }
+            }
+            // Each row's reopened tab. The profile is loaded, so each member
+            // comes at once and this is complete after the loop.
+            auto reopened_of = base::MakeRefCounted<
+                base::RefCountedData<std::map<tabs::TabHandle, tabs::TabHandle>>>();
             const std::string profile = ClairProfiles::IDOf(loaded);
             int rank = first_rank;
             for (const tabs::TabHandle& handle : rows) {
@@ -2398,6 +2429,9 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
                          int rank, bool shown, std::string previous,
                          std::string pin, std::string name,
                          base::WeakPtr<ClairBrowserWindow> holder,
+                         scoped_refptr<base::RefCountedData<
+                             std::map<tabs::TabHandle, tabs::TabHandle>>>
+                             reopened_of,
                          ClairBrowserWindow* member) {
                         if (!member) {
                           return;
@@ -2414,6 +2448,9 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
                         }
                         tabs::TabInterface* reopened = OpenTabInSpace(
                             member, url, space, rank, pin, name);
+                        if (reopened) {
+                          reopened_of->data[handle] = reopened->GetHandle();
+                        }
                         if (shown && reopened) {
                           ClairWindowGroup* group =
                               ClairWindowGroup::Of(member);
@@ -2433,7 +2470,25 @@ void ReopenInProfile(std::vector<tabs::TabHandle> rows,
                         CloseReopened(handle);
                       },
                       handle, url, space, this_rank, shown, previous, pin,
-                      name, holder->GetWeakPtr()));
+                      name, holder->GetWeakPtr(), reopened_of));
+            }
+            for (const SplitPanes& split : splits) {
+              auto lead = reopened_of->data.find(split.lead);
+              auto trail = reopened_of->data.find(split.trail);
+              if (lead == reopened_of->data.end() ||
+                  trail == reopened_of->data.end()) {
+                continue;
+              }
+              tabs::TabInterface* lead_tab = lead->second.Get();
+              tabs::TabInterface* trail_tab = trail->second.Get();
+              ClairBrowserWindow* window =
+                  ClairBrowserWindow::HolderOf(lead_tab);
+              if (lead_tab && trail_tab && window && window->splits() &&
+                  window == ClairBrowserWindow::HolderOf(trail_tab)) {
+                window->splits()->Make(lead_tab, trail_tab,
+                                       /*other_leading=*/false, split.ratio,
+                                       /*focus=*/nullptr);
+              }
             }
           },
           std::move(rows), space, first_rank));
@@ -2498,10 +2553,21 @@ void MoveTabToSpace(tabs::TabInterface* tab, const std::string& space) {
             std::numeric_limits<size_t>::max());
     return;
   }
+  // add-split-view D7: a Today split moves whole, the other pane after this
+  // one; a pinned tab's or favorite's pane stays with its pin, and the split
+  // ends.
+  tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
+  const bool whole_split = partner && lists->PinOf(partner).empty() &&
+                           lists->SpaceOf(partner) == lists->SpaceOf(tab);
   // add-profiles D9: a page can't change profile; it reopens at the top of
-  // the other Space, in its profile.
+  // the other Space, in its profile, a Today split as a split.
   if (store->ProfileOf(space) != ClairProfiles::IDOf(lists->profile())) {
-    ReopenInProfile({tab->GetHandle()}, space, /*first_rank=*/0);
+    std::vector<tabs::TabHandle> rows{tab->GetHandle()};
+    if (whole_split) {
+      rows = {ClairSplits::PanesOf(tab)[0]->GetHandle(),
+              ClairSplits::PanesOf(tab)[1]->GetHandle()};
+    }
+    ReopenInProfile(std::move(rows), space, /*first_rank=*/0);
     return;
   }
   // Another window with a still of it picks its next tab, as if the tab had
@@ -2512,12 +2578,7 @@ void MoveTabToSpace(tabs::TabInterface* tab, const std::string& space) {
     }
   }
   const bool follows = window && window->IsActiveRow(tab);
-  // add-split-view D7: a Today split moves whole, the other pane after this
-  // one; a pinned tab's or favorite's pane stays with its pin, and the split
-  // ends.
-  tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
-  if (partner && (!lists->PinOf(partner).empty() ||
-                  lists->SpaceOf(partner) != lists->SpaceOf(tab))) {
+  if (partner && !whole_split) {
     if (window && window->splits()) {
       window->splits()->Separate(tab);
     }
@@ -3084,13 +3145,26 @@ void Unpin(ClairBrowserWindow* window, const std::string& pin, int index) {
     const double ratio = split->ratio;
     std::vector<tabs::TabHandle> panes;
     std::vector<const Pin*> pins = store->PinsOfSplit(split->id);
+    // A page that isn't open opens in the window of the one that is, so the
+    // two can be a split.
+    ClairBrowserWindow* home = window;
+    for (const Pin* pane : pins) {
+      if (ClairBrowserWindow* holder =
+              ClairBrowserWindow::HolderOf(lists->BoundTab(pane->id))) {
+        home = holder;
+        break;
+      }
+    }
     for (size_t i = 0; i < pins.size(); ++i) {
-      const int at = index + static_cast<int>(i);
+      // The bridge may pass INT_MAX for the end.
+      const int at = static_cast<int>(std::min<int64_t>(
+          int64_t{index} + static_cast<int64_t>(i),
+          std::numeric_limits<int>::max()));
       tabs::TabInterface* tab = lists->BoundTab(pins[i]->id);
       if (tab) {
         lists->UnbindToToday(tab, space, at);
       } else {
-        tab = OpenTabInSpace(window, pins[i]->url, space, at, std::string(),
+        tab = OpenTabInSpace(home, pins[i]->url, space, at, std::string(),
                              pins[i]->name);
       }
       if (tab) {
@@ -3101,9 +3175,14 @@ void Unpin(ClairBrowserWindow* window, const std::string& pin, int index) {
     tabs::TabInterface* lead = panes.size() == 2 ? panes[0].Get() : nullptr;
     tabs::TabInterface* trail = panes.size() == 2 ? panes[1].Get() : nullptr;
     ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(lead);
-    if (lead && trail && holder && holder == ClairBrowserWindow::HolderOf(trail) &&
-        ClairSplits::PartnerOf(lead) != trail && !lead->IsSplit() &&
-        !trail->IsSplit()) {
+    // Both pages open in two windows come together in this one.
+    if (lead && trail && holder != ClairBrowserWindow::HolderOf(trail) &&
+        ClairSplits::PartnerOf(lead) != trail) {
+      window->ShowPinnedSplit(lead, trail, ratio);
+      return;
+    }
+    if (lead && trail && holder && ClairSplits::PartnerOf(lead) != trail &&
+        !lead->IsSplit() && !trail->IsSplit()) {
       holder->splits()->Make(lead, trail, /*other_leading=*/false, ratio,
                              /*focus=*/nullptr);
     }

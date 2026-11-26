@@ -851,6 +851,12 @@ void ClairPeeks::Repair() {
   for (const Pair& pair : pairs_) {
     pairs.emplace_back(pair.parent, pair.peek);
   }
+  // In their parents' order, so a split's leading pane's Peek is in place
+  // before the trailing pane's place after it is worked out.
+  std::ranges::stable_sort(pairs, {}, [this](const auto& pair) {
+    tabs::TabInterface* parent = pair.first.Get();
+    return parent ? strip()->GetIndexOfTab(parent) : TabStripModel::kNoTab;
+  });
   for (const auto& [parent_handle, peek_handle] : pairs) {
     tabs::TabInterface* parent = parent_handle.Get();
     tabs::TabInterface* peek = peek_handle.Get();
