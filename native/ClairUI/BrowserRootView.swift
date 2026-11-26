@@ -449,6 +449,8 @@ final class BrowserRootView: NSView {
       secondCard.showsFocusRing = split.focusedIndex == 1
       card.peekButtonCount = 2
       secondCard.peekButtonCount = 2
+      card.paneIndex = 0
+      secondCard.paneIndex = 1
       // A Peek covers the page area, over the other pane (D11).
       for pane in [card, secondCard] {
         pane.peekArea = pane.isPeeking ? area.offsetBy(dx: -pane.frame.minX, dy: -pane.frame.minY) : nil
@@ -476,6 +478,7 @@ final class BrowserRootView: NSView {
       splitDivider.isHidden = true
       card.showsFocusRing = false
       card.peekButtonCount = 3
+      card.paneIndex = nil
       card.peekArea = nil
       card.layer?.zPosition = 0
     }

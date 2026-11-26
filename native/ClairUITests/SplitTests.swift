@@ -101,6 +101,20 @@ struct SplitLogicTests {
     #expect(SplitLogic.commandBarMinX(width: 600, pane: CGRect(x: 900, y: 0, width: 300, height: 800), bounds: bounds) == 600)
   }
 
+  /// D9: a pinned tab or favorite whose page is in a split can't make
+  /// another.
+  @MainActor
+  @Test func splitWithTabIsDisabledOnASplitPin() {
+    let split = FakePin(
+      id: "p", url: "https://mail.example/", title: "Mail", tab: FakeTab(id: 1, title: "Mail", splitPartnerID: 2))
+    let lone = FakePin(id: "q", url: "https://news.example/", title: "News", tab: FakeTab(id: 3, title: "News"))
+    let menu = PinsLogic.pinnedMenu(isOpen: true, isMuted: false, canMoveToSpace: false)
+    let splitItem = PinMenus.items(menu, pin: split, actions: nil).first { $0.title == "Split with Tab" }
+    let loneItem = PinMenus.items(menu, pin: lone, actions: nil).first { $0.title == "Split with Tab" }
+    if case .disabledSubmenu = splitItem {} else { Issue.record("Split with Tab isn't disabled") }
+    if case .submenu = loneItem {} else { Issue.record("Split with Tab isn't a submenu") }
+  }
+
   @Test func paneHeadersExpandWhileFocusedOrHovered() {
     let leading = PageHeaderContent.pane(leading: true, expanded: false)
     #expect(leading.showsSidebarToggle && !leading.showsReload && !leading.showsSplitButton && leading.showsClose)

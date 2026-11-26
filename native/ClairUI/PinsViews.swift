@@ -572,6 +572,10 @@ enum PinMenus {
       guard item.isEnabled else { return .disabled(item.title) }
       switch item.command {
       case .splitWithTab:
+        // Disabled while the pin's page is in a split (add-split-view D9).
+        if pin.tabs.contains(where: { $0.splitPartnerID != ClairTabIDNone }) {
+          return .disabledSubmenu(item.title)
+        }
         return .submenu(item.title, actions?.splitWithTabItems(tab: nil, pin: pinID) ?? [])
       case .separateTabs:
         // A pinned split's, or a Today split's holding the pin's page.

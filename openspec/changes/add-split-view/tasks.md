@@ -64,7 +64,7 @@ Suggested order:
 ## 3. ClairUI
 
 - [ ] 3.1 Fold split tabs into one row in `TabListLogic` and the window model, and set `paneCount` from the active tab's partner (D2, D3). Verify with `ClairUI` unit tests in CI: rows for a Today split, a pinned split, a favorited split, and a Today split holding a pin-bound tab; and `PageHeaderPolicy` with the toolbar off while split.
-- [ ] 3.2 Lay out the panes in `PageCardView` (D3): `PaneView`s with their own cards, the focus ring, the 10 pt gap, and the find field, loading indicator, Peek and toasts against the right area. Verify with unit tests in CI for the pane frames at a few widths and ratios, and by hand in 3.11.
+- [ ] 3.2 Lay out the panes (D3): two `PageCardView`s with their own cards, the focus ring, the 10 pt gap, and the find field, loading indicator, Peek and toasts against the right area. Verify with unit tests in CI for the pane frames at a few widths and ratios, and by hand in 3.11.
 - [ ] 3.3 Add `SplitDivider` (D3): grabber, resize cursor, live widths, the page minimum of about 210 pt (and the ratio held when the area is too narrow), the snap to equal panes within 20 pt of the centre, and `setSplitRatio` when the drag ends. Verify with unit tests in CI for the clamp, the narrow case, the snap and the ratio, and by hand in 3.11.
 - [ ] 3.4 Add the pane headers and the split button (D9):
   - `PageHeaderContent.pane(leading:focused:)`, with × at the trailing slot;

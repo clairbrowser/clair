@@ -167,6 +167,16 @@ final class PageCardView: NSView {
   /// Where the shown Peek grew from, which it shrinks back to.
   private var peekOrigin: CGPoint?
 
+  /// The pane the card shows while split, for its accessibility identifier
+  /// (add-split-view D13): `clair.pane.N`, or `clair.card` outside a split.
+  var paneIndex: Int? {
+    didSet {
+      if paneIndex != oldValue {
+        container.setAccessibilityIdentifier(paneIndex.map { "clair.pane.\($0)" } ?? "clair.card")
+      }
+    }
+  }
+
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true

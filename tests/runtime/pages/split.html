@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clair split links</title>
+<style>a { display: inline-block; padding: 12px; font-size: 20px; }</style>
+<!-- add-split-view runtime tests: links Option+click opens in split view,
+     within the site (localhost) and to another (127.0.0.1). -->
+<p><a id="same" href="http://localhost:8123/pages/counter.html?split-same">A counter on the same site</a></p>
+<p><a id="second" href="http://localhost:8123/pages/counter.html?split-second">Another counter</a></p>
+<p><a id="other" href="http://127.0.0.1:8123/pages/peek-target.html?split-other">A page on another site</a></p>
+<script>
+  // Whether the page has the keyboard, to tell which pane is focused.
+  window.focused = () => document.hasFocus();
+</script>
