@@ -41,11 +41,10 @@
 
 namespace {
 
-// The strip holding `tab`, or null.
+// The strip of the native window holding `tab`, or null.
 TabStripModel* StripOf(const tabs::TabInterface* tab) {
-  BrowserWindowInterface* browser =
-      tab ? tab->GetBrowserWindowInterface() : nullptr;
-  return browser ? browser->GetTabStripModel() : nullptr;
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
+  return holder ? holder->browser()->tab_strip_model() : nullptr;
 }
 
 // The ratio the divider allows (ClairHost.h, -setSplitRatio:ofTab:).
