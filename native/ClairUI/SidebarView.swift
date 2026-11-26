@@ -25,12 +25,17 @@ protocol SidebarActions: SpaceActions, PinActions, SplitActions {
   /// that way (arc-navigation-feedback design D3).
   func historyMenu(_ direction: HistoryDirection) -> HistoryMenuBuilder?
   func reloadOrStop()
+  /// Reload or Stop in an unfocused pane's header, for its own page, which
+  /// it focuses (add-split-view D9).
+  func reloadOrStop(pane tabID: TabID)
   func reloadButtonHovered(_ hovering: Bool)
   func toggleSidebar()
   /// A double-click on the top row's empty space, as on a title bar.
   func titleBarDoubleClicked()
   func editURL()
   func copyURL()
+  /// Copies `tabID`'s URL: a pane's, from its header.
+  func copyURL(of tabID: TabID)
   func showSiteControls(indicator: TabIndicators)
   func openInNewTab(_ url: URL)
   // Extensions and downloads.

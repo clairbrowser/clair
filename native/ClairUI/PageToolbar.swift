@@ -135,6 +135,18 @@ struct PageToolbar: View {
     }
   }
 
+  /// Copies the URL of the pane's tab, or the active tab's.
+  private func copyURL() {
+    if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
+  }
+
+  /// The pane's history menu, which focuses it first so the menu and what
+  /// it navigates are the pane's.
+  private func historyMenu(_ direction: HistoryDirection) -> HistoryMenuBuilder? {
+    onPane {}()
+    return actions?.historyMenu(direction)
+  }
+
   /// The tab whose state the toolbar shows: the parent page's behind a Peek,
   /// or the Peek's own, or the pane's.
   private var tab: (any ClairTab)? {
@@ -182,7 +194,7 @@ struct PageToolbar: View {
         IconButton(
           systemImage: "link", help: "Copy URL", shortcut: ["⇧", "⌘", "C"], size: 22,
           height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarLinkGlyph
-        ) { onPane { actions?.copyURL() }() }
+        ) { copyURL() }
           .accessibilityIdentifier("clair.copyURL")
           .toolbarRole(.link)
       }
@@ -276,8 +288,10 @@ struct PageToolbar: View {
   private func leadingControls(content: PageHeaderContent, tab: (any ClairTab)?, arrangement: ToolbarArrangement)
     -> some View
   {
+    // An unfocused pane's button follows its own page (add-split-view D9).
     let reloadStop = model.reloadStop.mode
-    let isLoading = reloadStop.visible == .stop
+    let isLoading = isOtherPane ? tab?.isLoading == true : reloadStop.visible == .stop
+    let canReload = tab != nil && (isOtherPane || reloadStop.isEnabled)
     let canGoBack = tab?.canGoBack ?? false
     let canGoForward = tab?.canGoForward ?? false
     let first = content.showsSidebarToggle ? 1 : 0
@@ -297,7 +311,7 @@ struct PageToolbar: View {
     ) {
       onPane { actions?.goBack() }()
     }
-    .overlay(HistoryButtonCatcher(isEnabled: canGoBack, makeMenu: { actions?.historyMenu(.back) }))
+    .overlay(HistoryButtonCatcher(isEnabled: canGoBack, makeMenu: { historyMenu(.back) }))
     .accessibilityIdentifier("clair.back")
     .toolbarRole(.leading(first))
     IconButton(
@@ -306,16 +320,16 @@ struct PageToolbar: View {
     ) {
       onPane { actions?.goForward() }()
     }
-    .overlay(HistoryButtonCatcher(isEnabled: canGoForward, makeMenu: { actions?.historyMenu(.forward) }))
+    .overlay(HistoryButtonCatcher(isEnabled: canGoForward, makeMenu: { historyMenu(.forward) }))
     .accessibilityIdentifier("clair.forward")
     .toolbarRole(.leading(first + 1))
     if arrangement.reload != nil {
       IconButton(
         help: isLoading ? "Stop loading this page" : "Reload this page",
-        shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: tab != nil && reloadStop.isEnabled,
+        shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: canReload,
         height: IconButtonSize.toolbarHeight
       ) {
-        onPane { actions?.reloadOrStop() }()
+        if isOtherPane, let paneTabID { actions?.reloadOrStop(pane: paneTabID) } else { actions?.reloadOrStop() }
       } label: {
         ZStack {
           SymbolGlyph(systemImage: "arrow.clockwise", size: IconButtonSize.toolbarGlyph).opacity(isLoading ? 0 : 1)
@@ -323,7 +337,9 @@ struct PageToolbar: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.1), value: isLoading)
       }
-      .onHover { actions?.reloadButtonHovered($0) }
+      // The focused pane's Reload/Stop timing; an unfocused pane's follows
+      // its page.
+      .onHover { hovering in if !hovering || !isOtherPane { actions?.reloadButtonHovered(hovering) } }
       .accessibilityIdentifier("clair.reload")
       .toolbarRole(.reload)
       .transition(.opacity)
@@ -388,7 +404,11 @@ struct PageToolbar: View {
   private func menuItems(canCopy: Bool) -> [RowClickCatcher.Item] {
     var items: [RowClickCatcher.Item] = []
     if canCopy {
-      items.append(.action("Copy URL") { [weak actions] in actions?.copyURL() })
+      let paneTabID = self.paneTabID
+      items.append(
+        .action("Copy URL") { [weak actions] in
+          if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
+        })
       items.append(.separator)
     }
     items.append(.action(ToolbarPreference.menuTitle(isOn: true)) { [weak actions] in actions?.setToolbarShown(false) })

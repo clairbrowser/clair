@@ -62,11 +62,15 @@ extension BrowserWindowController {
   /// What the Tabs and View menus' Clair items act on.
   var pinMenuState: PinsLogic.MenuState {
     guard model.showsPins else { return PinsLogic.MenuState(showsPins: false) }
+    // The row's highlight stays on a split's leading pane; the commands are
+    // the focused pane's.
     let highlighted = model.highlightedTab
-    let pin = model.pin(ofTab: highlighted)
+    let commandTab = model.commandTab
+    let pin = model.pin(ofTab: commandTab)
+    let rows = TabListLogic.rows(model.tabs)
     return PinsLogic.MenuState(
       showsPins: true,
-      activeIsToday: pin == nil && TabListLogic.rows(model.tabs).contains { $0.tabID == highlighted },
+      activeIsToday: pin == nil && rows.contains { $0.tabID == highlighted || $0.tabID == commandTab },
       activePinIsFavorite: pin?.isFavorite,
       activePinIsNavigatedAway: pin.map(PinsLogic.isNavigatedAway) ?? false,
       todayRowCount: TabListLogic.rowCount(model.tabs),
@@ -75,7 +79,7 @@ extension BrowserWindowController {
 
   /// One of the main menu's Clair items.
   func perform(_ command: PinsLogic.MainMenuCommand) {
-    let highlighted = model.highlightedTab
+    let highlighted = model.commandTab
     switch command {
     case .togglePin:
       if let pin = model.pin(ofTab: highlighted) {
@@ -261,8 +265,11 @@ extension BrowserWindowController {
       browser?.unpin(pinID, to: index)
     case (.pin(let pinID), .favorites(var index)):
       // A favorite moved within the grid lands where it was dropped, the
-      // others closing up behind it.
-      if let from = model.favorites.firstIndex(where: { $0.pinID == pinID }), from < index {
+      // others closing up behind it. The slot counts tiles, a split one, as
+      // the engine's index does.
+      if let from = model.favoriteItems.firstIndex(where: { item in
+        PinsLogic.allPins([item]).contains { $0.pinID == pinID }
+      }), from < index {
         index -= 1
       }
       model.spaces.movePin(pinID, toFavoritesAt: index)

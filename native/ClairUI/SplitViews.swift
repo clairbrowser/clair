@@ -336,6 +336,22 @@ struct SplitChipPage {
   let tab: (any ClairTab)?
   /// The pin, for a pinned or favorited split's page.
   let pin: (any ClairPin)?
+  /// The row Rename… edits for this chip: its tab's, or its pinned tab's; a
+  /// favorite's is a dialog.
+  var renameRow: RowRename.Row? = nil
+  /// The rename in progress in this chip, or nil.
+  var rename: RowRename? = nil
+
+  /// `page`'s chip, with its rename while `renaming` is its row's.
+  static func editable(
+    title: String, icon: NSImage?, tab: (any ClairTab)?, pin: (any ClairPin)?, renaming: RowRename?
+  ) -> SplitChipPage {
+    let row: RowRename.Row? =
+      if let pin { pin.isFavorite ? nil : .pin(pin.pinID) } else { tab.map { .tab($0.tabID) } }
+    return SplitChipPage(
+      title: title, icon: icon, tab: tab, pin: pin, renameRow: row,
+      rename: row != nil && renaming?.row == row ? renaming : nil)
+  }
 }
 
 /// A split as one row in the sidebar, as in Arc: a chip per page with its
@@ -378,6 +394,8 @@ struct SplitRow: View {
   var focusedIndex: Int?
   /// Each chip's context menu, by its index.
   let menuItems: (Int) -> [RowClickCatcher.Item]
+  /// Ends a chip's rename in place.
+  var onRenameEnd: ((RowRename.Row, PinsLogic.NameChange) -> Void)?
 
   @State private var isHovered = false
   @Environment(\.colorScheme) private var colorScheme
@@ -434,7 +452,14 @@ struct SplitRow: View {
     return HStack(spacing: 6) {
       PinIcon(icon: page.icon, isLoading: page.tab?.isLoading == true && page.icon == nil, size: TabRow.faviconSize)
         .frame(width: TabRow.iconSize, height: TabRow.iconSize)
-      Text(page.title).font(TabRow.titleFont).lineLimit(1)
+      if let rename = page.rename, let row = page.renameRow {
+        RenameField(
+          text: page.title, placeholder: page.pin?.title ?? page.tab?.title ?? "", rename: rename,
+          current: page.pin == nil ? page.tab?.name : nil
+        ) { change in onRenameEnd?(row, change) }
+      } else {
+        Text(page.title).font(TabRow.titleFont).lineLimit(1)
+      }
       Spacer(minLength: 0)
     }
     .padding(.leading, 6)
@@ -641,7 +666,9 @@ enum SplitRows {
   ) -> some View {
     let panes = TabListLogic.panes(of: tab, in: model.allTabs).map { [$0.leading, $0.trailing] } ?? [tab]
     let pages = panes.map { pane in
-      SplitChipPage(title: SplitLogic.title(of: pane), icon: pane.favicon, tab: pane, pin: model.pin(ofTab: pane.tabID))
+      SplitChipPage.editable(
+        title: SplitLogic.title(of: pane), icon: pane.favicon, tab: pane, pin: model.pin(ofTab: pane.tabID),
+        renaming: model.renaming)
     }
     let tabID = tab.tabID
     let focusedIndex = model.shownSplit.flatMap { split in
@@ -667,7 +694,8 @@ enum SplitRows {
         }
         return TabRow.menuItems(
           tab: pane, canPin: model.showsPins, moveTargets: moveTargets, actions: actions, inSplit: true)
-      })
+      },
+      onRenameEnd: { [weak actions] row, change in actions?.endRenaming(row, change: change) })
   }
 
   /// A pinned split's row: its pages' titles from when they were last open,
@@ -680,8 +708,9 @@ enum SplitRows {
     let pins = split.pins
     let pages = pins.map { pin in
       let tab = model.tab(ofPin: pin)
-      return SplitChipPage(
-        title: PinsLogic.title(of: pin, tab: tab), icon: PinsLogic.icon(of: pin, tab: tab), tab: tab, pin: pin)
+      return SplitChipPage.editable(
+        title: PinsLogic.title(of: pin, tab: tab), icon: PinsLogic.icon(of: pin, tab: tab), tab: tab, pin: pin,
+        renaming: model.renaming)
     }
     let isActive = pins.contains { $0.tabID != ClairTabIDNone && $0.tabID == highlighted }
     let openTab = pins.first { $0.tabID != ClairTabIDNone }?.tabID
@@ -700,7 +729,8 @@ enum SplitRows {
       menuItems: { [weak actions] index in
         PinMenus.pinnedItems(
           pin: pages[index].pin!, tab: pages[index].tab, moveTargets: moveTargets, actions: actions, inSplit: true)
-      })
+      },
+      onRenameEnd: { [weak actions] row, change in actions?.endRenaming(row, change: change) })
   }
 
   /// A favorited split's tile.

@@ -770,6 +770,10 @@ final class FakeHost: NSObject, ClairHost {
     guard let tab = tab(tabID), let partner = self.tab(tab.splitPartnerID) else { return }
     replaceSilently(tab.with(splitRatio: ratio))
     replaceSilently(partner.with(splitRatio: ratio))
+    // D10: a pinned split keeps its ratio in its record.
+    if let pinID = tab.pinID, let splitID = records[pinID]?.splitID {
+      splitRecords[splitID]?.ratio = ratio
+    }
     spaceOrPinsChanged(tab)
     spaceOrPinsChanged(partner)
   }
@@ -1021,8 +1025,13 @@ final class FakeHost: NSObject, ClairHost {
     folder.spaceID = spaceID
     folderRecords[folderID] = folder
     Self.insert(folderID, into: &pinOrder[spaceID, default: []], at: index)
-    // D1, D11: its pins follow it, and their tabs as Move to Space moves them.
-    for pinID in folderOrder[folderID] ?? [] {
+    // D1, D11: its pins follow it, a split's two with their split, and their
+    // tabs as Move to Space moves them.
+    for id in folderOrder[folderID] ?? [] {
+      splitRecords[id]?.spaceID = spaceID
+      splitRecords[id]?.profileID = profileID
+    }
+    for pinID in (folderOrder[folderID] ?? []).flatMap({ pinRecords(ofItem: $0).map(\.id) }) {
       guard var record = records[pinID] else { continue }
       let changedProfile = record.profileID != profileID
       record.spaceID = spaceID
@@ -1072,7 +1081,10 @@ final class FakeHost: NSObject, ClairHost {
       let index = pinOrder[folder.spaceID]?.firstIndex(of: folderID)
     else { return }
     pinOrder[folder.spaceID]?.remove(at: index)
-    let pins = (folderOrder.removeValue(forKey: folderID) ?? []).compactMap { records.removeValue(forKey: $0) }
+    // A split's two pins go with their split.
+    let items = folderOrder.removeValue(forKey: folderID) ?? []
+    let pins = items.flatMap { pinRecords(ofItem: $0) }.compactMap { records.removeValue(forKey: $0.id) }
+    for id in items { splitRecords[id] = nil }
     removedFolders.insert((folder, pins, index, closedFolders.remove(folderID) != nil), at: 0)
     let tabs = pins.compactMap { bound.removeValue(forKey: $0.id) }
     spaceChanged(folder.spaceID)
@@ -1324,18 +1336,38 @@ final class FakeHost: NSObject, ClairHost {
     guard tab.spaceID != spaceID else { return }
     operation {
       let wasActive = browser.isActiveRow(tab.tabID)
+      // add-split-view D7: a Today split moves whole; a pinned tab's or
+      // favorite's pane stays with its pin, and the split ends.
+      var partner = self.tab(tab.splitPartnerID)
+      if let other = partner, other.pinID != nil || other.spaceID != tab.spaceID {
+        clearSplit(tab.tabID)
+        tab = self.tab(tab.tabID) ?? tab
+        partner = nil
+      }
       if profile(ofSpace: tab.spaceID) != profile(ofSpace: spaceID) {
         // add-profiles D9: a page can't change profile; it reopens at its URL
-        // at the top of the other Space, without its Peek.
-        let reopened = reopen(tab, inSpace: spaceID, at: 0, by: browser)
-        if wasActive {
-          browser.setActive(reopened.tabID)
+        // at the top of the other Space, without its Peek, a split as one.
+        let panes = partner.map { tab.isLeadingPane ? [tab, $0] : [$0, tab] } ?? [tab]
+        let reopened = panes.enumerated().map { index, pane in reopen(pane, inSpace: spaceID, at: index, by: browser) }
+        if reopened.count == 2 {
+          setSplit(reopened[0].tabID, reopened[1].tabID, ratio: tab.splitRatio)
         }
-        browser.closeReopened(tab.tabID)
+        if wasActive {
+          browser.setActive(reopened[panes.firstIndex { $0.tabID == tab.tabID } ?? 0].tabID)
+        }
+        for pane in panes {
+          browser.closeReopened(pane.tabID)
+        }
       } else {
-        // The tab and its Peek go to the top of the other list (add-spaces D7).
+        // The tab and its Peek go to the top of the other list (add-spaces
+        // D7), with its split's other pane and that pane's Peek.
         let source = tab.spaceID
-        let family = list(source).filter { $0.tabID == tab.tabID || ($0.peekParentID == tab.tabID && tab.peekID == $0.tabID) }
+        var members: Set<TabID> = [tab.tabID]
+        for member in [tab] + (partner.map { [$0] } ?? []) {
+          members.insert(member.tabID)
+          if member.peekID != ClairTabIDNone { members.insert(member.peekID) }
+        }
+        let family = list(source).filter { members.contains($0.tabID) }
         let moved = family.map { $0.with(spaceID: spaceID) }
         setList(list(source).filter { candidate in !family.contains { $0.tabID == candidate.tabID } }, inSpace: source)
         setList(moved + list(spaceID), inSpace: spaceID)
@@ -1345,6 +1377,7 @@ final class FakeHost: NSObject, ClairHost {
           browser.followActiveTab()
         }
         tabClosed(tab.tabID)
+        if let partner { tabClosed(partner.tabID) }
       }
     }
   }

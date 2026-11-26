@@ -53,7 +53,7 @@ The rows ClairUI lists come from `-tabsInSpace:` as now, the trailing pane right
 
 ### D3. Panes in `PageCardView`
 
-In the strip, a pane's Peek sits after the split, the leading pane's Peek first, never between the panes, where Chromium would end the split; `ClairPeeks` places and repairs it there. Focusing the other pane closes a Peek open over a pane, as in Arc (`arc-reference/README.md`).
+In the strip, a pane's Peek sits after the split, the leading pane's Peek first, never between the panes, where Chromium would end the split; `ClairPeeks` places and repairs it there, repairing in pane order. In the window, the leading pane's Peek draws over the trailing pane by lowering that pane's layer, not raising the Peek's, so both stay below the command bar, find and the notice, and the divider hides while a Peek shows. Focusing the other pane closes a Peek open over a pane, as in Arc (`arc-reference/README.md`).
 
 `BrowserRootView` holds two `PageCardView`s, `card` and `secondCard`, and lays them out side by side over the page area while split (`SplitLogic.paneFrames`); outside a split, `secondCard` is hidden and `card` takes the whole area. Each card keeps what it had:
 - its own rounded card and shadow;
@@ -61,7 +61,9 @@ In the strip, a pane's Peek sits after the split, the leading pane's Peek first,
 - the tab's page view, a Peek over it, crashed-page view, infobars and docked DevTools;
 - its focus ring (2 pt, `controlAccentColor`), shown only while split and focused.
 
-A `SplitDividerView` sits in the 10 pt gap (Arc's measurement in change 1's `arc-reference/look-and-behaviour.md`, 356 + 10 + 356). It shows the resize cursor and a grabber at 35% of its colour, fading to full while the pointer is over the divider or drags it. While dragging, it sets `BrowserWindowModel.liveSplitRatio`, which lays the panes out, then calls `setSplitRatio` when the drag ends. The ratio is clamped so that each pane's page, below its header and inside its card, is at least about 210 pt wide, Dia's minimum as the owner measured it with DevTools. It needn't be exact. In a page area too narrow for that, the clamp gives way and the ratio holds. While the divider is within 20 pt of the centre, during the drag and when it ends, the panes take equal widths, with the trackpad's alignment feedback as it snaps, and the ratio is saved as 0.5. The rules are `SplitLogic`'s, apart from the views, for unit tests.
+Page full screen from a pane shows that pane's card alone over the page area: the trailing pane's page stays in `secondCard`, which fills the area while `card` hides. A pane's infobar buttons and crashed-page Reload act on that pane's tab, and an unfocused pane's header shows its own page's Reload or Stop, copies its own URL, and opens its own back and forward history, focusing the pane first where the engine acts on the active tab.
+
+A `SplitDividerView` sits in the 10 pt gap (Arc's measurement in change 1's `arc-reference/look-and-behaviour.md`, 356 + 10 + 356). It shows the resize cursor and a grabber at 35% of its colour, fading to full while the pointer is over the divider or drags it. While dragging, it sets `BrowserWindowModel.liveSplitRatio`, with the panes of the split it's dragged in, which lays that split's panes out, then calls `setSplitRatio` when the drag ends. Another split shown, or none, drops it. The ratio is clamped so that each pane's page, below its header and inside its card, is at least about 210 pt wide, Dia's minimum as the owner measured it with DevTools. It needn't be exact. In a page area too narrow for that, the clamp gives way and the ratio holds. While the divider is within 20 pt of the centre, during the drag and when it ends, the panes take equal widths, with the trackpad's alignment feedback as it snaps, and the ratio is saved as 0.5. The rules are `SplitLogic`'s, apart from the views, for unit tests.
 
 `BrowserWindowModel.paneCount` becomes 2 while the active tab has a partner, so `PageHeaderPolicy` shows pane headers and hides the sidebar's controls with no further change (`add-page-toolbar` D1). The Peek, find field, loading indicator and toasts are measured against the page area, the union of the panes. Find is the exception: it uses the focused pane, as the spec says. The loading indicator follows the active tab, as now, and centres on that tab's pane.
 
@@ -91,7 +93,8 @@ Open Link in Split View (`IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW`) is no longer r
 Chromium keeps a split's tabs adjacent in its tab strip. `ClairSpaceTabs` (the Space's row order across windows) keeps them adjacent too, and moves them together:
 - a split moves as one with `MoveSplitTo` within a window;
 - between windows, it moves with `DetachSplitTabForInsertion` and `InsertDetachedSplitTabAt`, which is how `share-tabs-across-windows` moves a tab when another window selects it;
-- Move to Space moves both tabs.
+- Move to Space moves both tabs; to a Space of another profile, both reopen there and make the split again, with its ratio;
+- dragging the row in Today moves both tabs as one block, leading pane first.
 
 The tab commands' row list (`spaces`) treats the pair as one row, as it treats a tab and its Peek.
 

@@ -915,10 +915,15 @@ final class FakeBrowser: NSObject, ClairBrowser {
   func take(_ tabID: TabID) {
     guard let tab = rowTab(tabID), tab.browserID != browserID, let holder = holder(of: tab) else { return }
     let row = tab.peekParentID != ClairTabIDNone ? tab.peekParentID : tab.tabID
-    if holder.isActiveRow(row) {
+    // add-split-view: a split comes whole, both panes with their Peeks.
+    let partner = host.tab(row)?.splitPartnerID ?? ClairTabIDNone
+    let panes = partner == ClairTabIDNone ? [row] : [row, partner]
+    if panes.contains(where: holder.isActiveRow) {
       holder.beginStill(of: row)
     }
-    moveFamilyHere(row)
+    for pane in panes {
+      moveFamilyHere(pane)
+    }
     setActive(tabID)
   }
 

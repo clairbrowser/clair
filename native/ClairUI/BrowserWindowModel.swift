@@ -144,6 +144,15 @@ final class BrowserWindowModel {
   /// The row or tile highlighted among every tab the window lists.
   var highlightedTab: TabID { highlightedRow(in: allTabs) }
 
+  /// The tab the main menu's pin commands act on: the still's, or the
+  /// active tab, or its parent while a Peek shows. A split's trailing pane
+  /// is itself, not its row's leading pane, as it has a pin of its own.
+  var commandTab: TabID {
+    if isShowingStill { return stillTabID }
+    if let active = activeTab, active.peekParentID != ClairTabIDNone { return active.peekParentID }
+    return activeTabID
+  }
+
   /// The pin or favorite whose row or tile is highlighted, if one is.
   var activePin: (any ClairPin)? { pin(ofTab: highlightedTab) }
 
@@ -171,8 +180,14 @@ final class BrowserWindowModel {
   /// The pane under the pointer, whose header shows all its controls
   /// (add-split-view spec, "Controls of the other pane").
   var hoveredPane: Int?
-  /// The ratio while the divider is dragged, before the engine has it.
+  /// The ratio while the divider is dragged, before the engine has it, and
+  /// the panes of the split it's dragged in.
   var liveSplitRatio: Double?
+  var liveSplitPanes: [TabID]?
+  /// The dragged ratio of `split`, only while it's the split dragged.
+  func liveRatio(of split: ShownSplit) -> Double? {
+    liveSplitPanes == split.paneIDs ? liveSplitRatio : nil
+  }
   /// The modifier keys held while the link status shows (D13a).
   var statusModifiers: NSEvent.ModifierFlags = []
   /// A tab dragged over the page, and the zone under it (D8).

@@ -24,16 +24,19 @@ extension BrowserWindowController: SplitActions {
       }
     }
     let drop = rootView.pageDrop
-    drop.zone = { [weak self] item, point in
-      guard let self else { return nil }
+    // The drop view keeps these, so they take it weakly.
+    drop.zone = { [weak self, weak drop] item, point in
+      guard let self, let drop else { return nil }
       let tab = self.tab(of: item)
+      let isPinnedSplit = item.pinID.flatMap { self.model.spaces.pin($0)?.pinnedSplitID } != nil
       guard item.isTabOrPin, tab != nil || item.pinID != nil,
-        SplitLogic.acceptsDrop(of: tab, shown: self.model.shownSplit, activeTabID: self.shownRowTabID)
+        SplitLogic.acceptsDrop(
+          of: tab, isPinnedSplit: isPinnedSplit, shown: self.model.shownSplit, activeTabID: self.shownRowTabID)
       else { return nil }
       return SplitLogic.dropZone(at: point, in: drop.bounds, split: self.model.shownSplit)
     }
-    drop.zoneFrame = { [weak self] zone in
-      guard let self else { return .zero }
+    drop.zoneFrame = { [weak self, weak drop] zone in
+      guard let self, let drop else { return .zero }
       let area = drop.bounds
       switch zone {
       case .half(let side):
@@ -99,24 +102,30 @@ extension BrowserWindowController: SplitActions {
   private func dividerMoved(to x: CGFloat, done: Bool) {
     guard let split = model.shownSplit else { return }
     let width = rootView.pageArea.width
-    let current = model.liveSplitRatio ?? split.ratio
+    let current = model.liveRatio(of: split) ?? split.ratio
     let ratio = SplitLogic.snappedRatio(forDividerAt: x, width: width, current: current)
     if ratio == 0.5, current != 0.5 {
       NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
+    model.liveSplitPanes = split.paneIDs
     model.liveSplitRatio = ratio
     if done {
       browser?.setSplitRatio(ratio, of: split.leadingID)
     }
   }
 
-  /// Lets go of the dragged ratio once the engine reports it.
+  /// Lets go of the dragged ratio once the engine reports it, or once
+  /// the window shows another split or none.
   func settleSplitRatio() {
     guard let live = model.liveSplitRatio else { return }
-    if let split = model.shownSplit, abs(split.ratio - live) < 0.001 {
+    guard let split = model.shownSplit, split.paneIDs == model.liveSplitPanes else {
       model.liveSplitRatio = nil
-    } else if model.shownSplit == nil {
+      model.liveSplitPanes = nil
+      return
+    }
+    if abs(split.ratio - live) < 0.001 {
       model.liveSplitRatio = nil
+      model.liveSplitPanes = nil
     }
   }
 
@@ -124,15 +133,20 @@ extension BrowserWindowController: SplitActions {
 
   private func dropped(_ item: SidebarDragItem, on zone: SplitLogic.DropZone) {
     model.pageDrop = nil
+    // What it lands on, before a closed pin's page opens and becomes active.
     let shown = shownRowTabID
+    let pane: TabID? =
+      if case .pane(let index) = zone, let split = model.shownSplit { split.paneIDs[index] } else { nil }
     guard let tabID = tab(of: item)?.tabID else {
       // A pinned tab or favorite whose page isn't open opens first.
       if case .pin(let pinID) = item {
-        whenPinOpens(pinID) { [weak self] tabID in self?.split(dropping: tabID, on: zone, shown: shown) }
+        whenPinOpens(pinID) { [weak self] tabID in
+          self?.split(dropping: tabID, on: zone, shown: shown, pane: pane)
+        }
       }
       return
     }
-    split(dropping: tabID, on: zone, shown: shown)
+    split(dropping: tabID, on: zone, shown: shown, pane: pane)
   }
 
   /// Opens a pin whose page is closed, then runs `then` with its tab.
@@ -142,13 +156,13 @@ extension BrowserWindowController: SplitActions {
     finishPendingPinSplit()
   }
 
-  private func split(dropping tabID: TabID, on zone: SplitLogic.DropZone, shown: TabID) {
+  private func split(dropping tabID: TabID, on zone: SplitLogic.DropZone, shown: TabID, pane: TabID?) {
     switch zone {
     case .half(let side):
       browser?.split(tab: shown, with: tabID, side: side)
-    case .pane(let index):
-      guard let split = model.shownSplit else { return }
-      browser?.replacePane(of: split.paneIDs[index], with: tabID)
+    case .pane:
+      guard let pane else { return }
+      browser?.replacePane(of: pane, with: tabID)
     }
   }
 

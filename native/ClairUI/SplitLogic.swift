@@ -170,8 +170,12 @@ enum SplitLogic {
   }
 
   /// Whether a dragged item makes a drop zone over the page: a tab or pin
-  /// that isn't shown there already and isn't a split row.
-  static func acceptsDrop(of tab: (any ClairTab)?, shown split: ShownSplit?, activeTabID: TabID) -> Bool {
+  /// that isn't shown there already and isn't a split row, open or not
+  /// (`isPinnedSplit`, a pinned split's pin).
+  static func acceptsDrop(
+    of tab: (any ClairTab)?, isPinnedSplit: Bool = false, shown split: ShownSplit?, activeTabID: TabID
+  ) -> Bool {
+    if isPinnedSplit { return false }
     guard let tab else { return true }
     if tab.splitPartnerID != ClairTabIDNone { return false }
     if let split { return !split.paneIDs.contains(tab.tabID) }

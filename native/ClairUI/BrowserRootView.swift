@@ -195,6 +195,12 @@ final class BrowserRootView: NSView {
     // Above the materials, not inside them, where they'd blend it.
     addSubview(backgroundTint)
     addSubview(topInset)
+    // Below both panes, so the leading pane's Peek can draw over the trailing
+    // pane without rising above the window's overlays (add-split-view D11).
+    for view in [background, backgroundTint, topInset] as [NSView] {
+      view.wantsLayer = true
+      view.layer?.zPosition = -2
+    }
     addSubview(card)
     secondCard.isHidden = true
     addSubview(secondCard)
@@ -421,15 +427,16 @@ final class BrowserRootView: NSView {
     model.isPageFullscreen ? nil : model.shownSplit
   }
 
-  /// The card of the focused pane, or the single page's.
+  /// The card of the focused pane, or the single page's. In page full
+  /// screen the focused pane's page fills the window from its own card.
   var focusedCard: PageCardView {
-    split?.focusedIndex == 1 ? secondCard : card
+    model.shownSplit?.focusedIndex == 1 ? secondCard : card
   }
 
   /// The card showing `tabID`: a pane's while split, its Peek's parent's for
   /// a Peek, or the single page's.
   func card(showing tabID: TabID) -> PageCardView {
-    guard let split else { return card }
+    guard let split = model.shownSplit else { return card }
     let paneID = model.allTabs.first { $0.tabID == tabID }.map { $0.peekParentID != ClairTabIDNone ? $0.peekParentID : $0.tabID }
     return split.index(of: paneID ?? tabID) == 1 ? secondCard : card
   }
@@ -441,12 +448,14 @@ final class BrowserRootView: NSView {
     pageArea = area
     pageDrop.frame = area
     if let split {
-      let ratio = model.liveSplitRatio ?? split.ratio
+      let ratio = model.liveRatio(of: split) ?? split.ratio
       let panes = SplitLogic.paneFrames(in: area, ratio: ratio)
       card.frame = panes[0]
       secondCard.frame = panes[1]
+      card.isHidden = false
       secondCard.isHidden = false
-      splitDivider.isHidden = false
+      // A Peek covers the divider with the page area.
+      splitDivider.isHidden = card.isPeeking || secondCard.isPeeking
       splitDivider.frame = SplitLogic.dividerFrame(in: area, ratio: ratio)
       splitDivider.areaMinX = area.minX
       card.showsFocusRing = split.focusedIndex == 0
@@ -455,10 +464,27 @@ final class BrowserRootView: NSView {
       secondCard.peekButtonCount = 2
       card.paneIndex = 0
       secondCard.paneIndex = 1
-      // A Peek covers the page area, over the other pane (D11).
+      // A Peek covers the page area, over the other pane (D11): the leading
+      // pane's goes over the trailing pane, which is above it otherwise. Both
+      // stay below the find field, the notice and the command bar.
       for pane in [card, secondCard] {
         pane.peekArea = pane.isPeeking ? area.offsetBy(dx: -pane.frame.minX, dy: -pane.frame.minY) : nil
-        pane.layer?.zPosition = pane.isPeeking ? 1 : 0
+      }
+      card.layer?.zPosition = 0
+      secondCard.layer?.zPosition = card.isPeeking ? -1 : 0
+    } else if model.isPageFullscreen, model.shownSplit?.focusedIndex == 1 {
+      // The trailing pane's page in page full screen fills the window from
+      // its card; the leading pane's hides.
+      secondCard.frame = area
+      secondCard.isHidden = false
+      card.isHidden = true
+      splitDivider.isHidden = true
+      for pane in [card, secondCard] {
+        pane.showsFocusRing = false
+        pane.peekButtonCount = 3
+        pane.paneIndex = nil
+        pane.peekArea = nil
+        pane.layer?.zPosition = 0
       }
     } else {
       // A tab dragged over a single page slides it to the other half (D8).
@@ -478,6 +504,7 @@ final class BrowserRootView: NSView {
         card.frame = frame
       }
       slidForDrop = model.pageDrop != nil
+      card.isHidden = false
       secondCard.isHidden = true
       splitDivider.isHidden = true
       card.showsFocusRing = false
@@ -485,6 +512,7 @@ final class BrowserRootView: NSView {
       card.paneIndex = nil
       card.peekArea = nil
       card.layer?.zPosition = 0
+      secondCard.layer?.zPosition = 0
     }
   }
 

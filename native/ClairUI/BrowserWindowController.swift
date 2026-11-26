@@ -295,9 +295,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       } else if card.infobarView != nil {
         card.infobarView = nil
       }
-      if tab?.isCrashed == true {
-        if card.crashedView == nil {
-          card.crashedView = NSHostingView.edgeToEdge(rootView: CrashedPageView(actions: self))
+      if let tab, tab.isCrashed {
+        let crashed = CrashedPageView(tabID: tab.tabID, actions: self)
+        if let host = card.crashedView as? NSHostingView<CrashedPageView> {
+          if host.rootView.tabID != tab.tabID { host.rootView = crashed }
+        } else {
+          card.crashedView = NSHostingView.edgeToEdge(rootView: crashed)
         }
       } else if card.crashedView != nil {
         card.crashedView = nil
@@ -1067,6 +1070,14 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
   }
 
+  func reloadOrStop(pane tabID: TabID) {
+    // An unfocused pane's button follows its own page; the engine's active
+    // tab is the pane at once, before the window hears of it.
+    let isLoading = model.allTabs.first { $0.tabID == tabID }?.isLoading == true
+    focusPane(tabID)
+    if isLoading { browser?.stop() } else { browser?.reload() }
+  }
+
   func reloadButtonHovered(_ hovering: Bool) {
     if hovering {
       model.reloadStop.pointerEntered()
@@ -1080,7 +1091,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   }
 
   func copyURL() {
-    guard let tab = model.activeTab, !tab.isNewTabPage, let link = TabListLogic.link(of: tab) else { return }
+    copyURL(of: model.activeTabID)
+  }
+
+  func copyURL(of tabID: TabID) {
+    let tab = tabID == model.activeTabID ? model.activeTab : model.allTabs.first { $0.tabID == tabID }
+    guard let tab, !tab.isNewTabPage, let link = TabListLogic.link(of: tab) else { return }
     copyToPasteboard(link)
     // Arc's popup, with a share button for the page.
     model.notice.show(
@@ -1354,11 +1370,13 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     browser?.stopFinding()
   }
 
-  func infobar(_ infobarID: Int, didChoose action: InfobarAction) {
-    browser?.infobar(infobarID, tab: model.activeTabID, didChoose: action)
+  func infobar(_ infobarID: Int, of tabID: TabID, didChoose action: InfobarAction) {
+    browser?.infobar(infobarID, tab: tabID, didChoose: action)
   }
 
-  func reloadCrashedPage() {
+  func reloadCrashedPage(of tabID: TabID) {
+    // The engine reloads its active tab, which the pane becomes at once.
+    focusPane(tabID)
     browser?.reload()
   }
 }

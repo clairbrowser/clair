@@ -392,13 +392,35 @@ final class SplitViewTests: NativeWindowTestCase {
     defer { other.close() }
     _ = try await browser.waitForNativeWindows(2)
     // The split's window is the first one opened, at the back now.
-    browser.nativeWindows.first { $0.element.descendants(matching: .any).matching(identifier: "clair.splitRow").count > 0 }?
-      .click()
+    let splitWindow = browser.nativeWindows.first {
+      $0.element.descendants(matching: .any).matching(identifier: "clair.splitRow").count > 0
+    }
+    try require(splitWindow != nil, "No window lists the split")
+    splitWindow?.click()
     browser.ui.typeKey("w", modifierFlags: [.command, .shift])
-    _ = await Harness.wait(for: 15) { try await browser.windowCount() == 1 }
+    let windowClosed = await Harness.wait(for: 15) { try await browser.windowCount() == 1 }
+    try require(windowClosed, "Close Window didn't close a window")
+    // The split's own window closed, with both its pages.
+    for page in ["split.html", "?split-same"] {
+      let gone = await browser.waitForTarget(page, open: false)
+      try require(gone, "The split's page \(page) is still open after its window closed")
+    }
     browser.ui.typeKey("t", modifierFlags: [.command, .shift])
-    let reopened = await browser.waitForTarget("?split-same", seconds: 30)
-    XCTAssertTrue(reopened, "Reopen Closed Window didn't bring the split's pages back")
+    for page in ["split.html", "?split-same"] {
+      let reopened = await browser.waitForTarget(page, seconds: 30)
+      XCTAssertTrue(reopened, "Reopen Closed Window didn't bring \(page) back")
+    }
+    // As the split: one row, and both panes with the divider between them.
+    made = await browser.waitForSplitRows(30) { $0 == [split] }
+    XCTAssertTrue(made, "The reopened window doesn't list the split: \(browser.splitRows)")
+    browser.splitRow(split).click()
+    XCTAssertTrue(
+      browser.element("clair.splitDivider").waitForExistence(timeout: 15), "The reopened split shows no divider")
+    for pane in 0..<2 {
+      XCTAssertTrue(
+        browser.element("clair.paneToolbar.\(pane)").waitForExistence(timeout: 10),
+        "The reopened split shows no pane \(pane)")
+    }
   }
 
   /// A pinned split: Cmd+D pins both as one item, closing one pane takes it

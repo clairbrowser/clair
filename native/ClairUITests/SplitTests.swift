@@ -75,8 +75,10 @@ struct SplitLogicTests {
     let split = ShownSplit(leadingID: 1, trailingID: 5, ratio: 0.5, focusedIndex: 0)
     #expect(!SplitLogic.acceptsDrop(of: shown, shown: split, activeTabID: 1))
     #expect(SplitLogic.acceptsDrop(of: other, shown: split, activeTabID: 1))
-    // A closed pin opens first.
+    // A closed pin opens first, unless it's a pinned split's, which is a
+    // split row.
     #expect(SplitLogic.acceptsDrop(of: nil, shown: nil, activeTabID: 1))
+    #expect(!SplitLogic.acceptsDrop(of: nil, isPinnedSplit: true, shown: nil, activeTabID: 1))
   }
 
   @Test func theLinkStatusNamesWhatAClickDoes() {
@@ -388,6 +390,68 @@ struct SplitWindowTests {
     #expect(browser.host.tab(mail.tabID)?.splitRatio == 0.5)
     // The grabber rests faint until the pointer is over it.
     #expect(divider.grabberAlpha == SplitDividerView.restingAlpha)
+  }
+
+  @Test func theDividerKeepsTheRatioItsLetGoAt() {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    let root = controller.rootView
+    root.frame = CGRect(x: 0, y: 0, width: 1400, height: 900)
+    root.layoutSubtreeIfNeeded()
+    let width = root.pageArea.width
+    root.splitDivider.onDrag?(width / 2 - 150, true)
+    let ratio = browser.host.tab(mail.tabID)?.splitRatio ?? 0.5
+    #expect(ratio < 0.45)
+    #expect(abs(ratio - (controller.model.liveSplitRatio ?? ratio)) < 0.001)
+  }
+
+  @Test func aDraggedRatioBelongsToItsSplit() {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    guard let split = controller.model.shownSplit else {
+      Issue.record("No split")
+      return
+    }
+    controller.model.liveSplitPanes = split.paneIDs
+    controller.model.liveSplitRatio = 0.3
+    #expect(controller.model.liveRatio(of: split) == 0.3)
+    let other = ShownSplit(leadingID: 90, trailingID: 91, ratio: 0.6, focusedIndex: 0)
+    #expect(controller.model.liveRatio(of: other) == nil)
+    // Another split shown, or none: the dragged ratio goes.
+    browser.separateSplit(of: docs.tabID)
+    controller.settleSplitRatio()
+    #expect(controller.model.liveSplitRatio == nil)
+  }
+
+  @Test func theTrailingPanesPageFillsTheWindowInPageFullScreen() {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    let root = controller.rootView
+    root.frame = CGRect(x: 0, y: 0, width: 1400, height: 900)
+    controller.model.isPageFullscreen = true
+    root.needsLayout = true
+    root.layoutSubtreeIfNeeded()
+    #expect(controller.model.shownSplit?.focusedIndex == 1)
+    #expect(root.focusedCard === root.secondCard)
+    #expect(!root.secondCard.isHidden && root.card.isHidden)
+    #expect(root.secondCard.frame == root.pageArea)
+    #expect(root.secondCard.pageView === browser.pageView(for: docs.tabID))
+  }
+
+  @Test func pinCommandsActOnTheFocusedPane() {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    // The row stays highlighted on its leading pane.
+    #expect(controller.model.highlightedTab == mail.tabID)
+    #expect(controller.model.commandTab == docs.tabID)
+  }
+
+  @Test func aFavoriteDroppedInPlaceStaysThereAfterASplit() {
+    let host = browser.host
+    host.addSplit(("https://news.example/", "News"), ("https://docs.example/", "Docs"), inSpace: nil)
+    let c = host.addPin(url: "https://c.example/", title: "C", inSpace: nil)
+    host.addPin(url: "https://d.example/", title: "D", inSpace: nil)
+    host.addPin(url: "https://e.example/", title: "E", inSpace: nil)
+    // Slot 2, just after C's tile: where it is.
+    controller.drop(.pin(c), on: .favorites(2))
+    #expect(
+      host.favoriteRecords(ofProfile: FakeHost.defaultProfileID).map(\.title) == ["News", "Docs", "C", "D", "E"])
   }
 
   @Test func aDraggedSplitShowsBothIcons() {
