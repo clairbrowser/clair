@@ -108,6 +108,13 @@ final class BrowserRootView: NSView {
   /// The inset above the card, which acts as the window's title bar.
   let topInset = TitleBarAreaView()
   let card = PageCardView()
+  /// A split's trailing pane (add-split-view D3); hidden outside a split. The
+  /// first card is the leading pane, or the single page.
+  let secondCard = PageCardView()
+  /// The gap between the panes, with its grabber.
+  let splitDivider = SplitDividerView()
+  /// Takes tabs dragged onto the page (D8).
+  let pageDrop = PageDropView()
   /// Arc's loading capsule in the inset above the card (arc-navigation-feedback D4).
   let loadingIndicator = LoadingIndicatorView()
   let sidebar: NSView
@@ -185,6 +192,11 @@ final class BrowserRootView: NSView {
     addSubview(backgroundTint)
     addSubview(topInset)
     addSubview(card)
+    secondCard.isHidden = true
+    addSubview(secondCard)
+    splitDivider.isHidden = true
+    addSubview(splitDivider)
+    addSubview(pageDrop)
     addSubview(loadingIndicator)
     addSubview(sidebarBackdrop)
     addSubview(backdropTint)
@@ -256,6 +268,9 @@ final class BrowserRootView: NSView {
       _ = model.commandBar
       _ = model.isSidebarPopoverOpen
       _ = model.showsPageHeader
+      _ = model.shownSplit
+      _ = model.liveSplitRatio
+      _ = model.pageDrop
     } onChange: { [weak self] in
       Task { @MainActor in
         guard let self else { return }
@@ -349,7 +364,7 @@ final class BrowserRootView: NSView {
     backdropTint.color = backgroundTint.color
     backgroundTint.frame = bounds
     let layout = currentLayout
-    card.frame = layout.card
+    layoutPanes(area: layout.card)
     topInset.frame = layout.topInset(windowWidth: bounds.width)
     topInset.isHidden = topInset.frame.isEmpty
     // The floating sidebar while it's revealed or sliding away; the one in
@@ -373,12 +388,16 @@ final class BrowserRootView: NSView {
       roundedRect: revealedPanel.bounds, cornerWidth: 10, cornerHeight: 10, transform: nil)
     revealedBackground.frame = revealedPanel.bounds
     revealedTint.frame = revealedBackground.bounds
-    card.isBare = model.isPageFullscreen
-    card.showsToolbar = model.showsPageHeader
-    // Centred on the card, 3 pt below the window's top with the card 10 pt in.
+    for pane in [card, secondCard] {
+      pane.isBare = model.isPageFullscreen
+      pane.showsToolbar = model.showsPageHeader
+    }
+    // Centred on the card, or the focused pane, 3 pt below the window's top
+    // with the card 10 pt in.
+    let activePane = focusedCard.frame
     loadingIndicator.isHidden = model.isPageFullscreen
     loadingIndicator.frame = CGRect(
-      x: layout.card.midX - LoadingIndicatorModel.trackWidth / 2 - 4,
+      x: (split == nil ? layout.card : activePane).midX - LoadingIndicatorModel.trackWidth / 2 - 4,
       y: layout.card.minY - WindowLayout.shownInset + LoadingIndicatorModel.topOffset,
       width: LoadingIndicatorModel.trackWidth + 8, height: LoadingIndicatorModel.height)
     resizeHandle.isHidden = model.sidebar.isHidden || model.isPageFullscreen
@@ -391,22 +410,119 @@ final class BrowserRootView: NSView {
     updateRevealTracking()
   }
 
+  // MARK: Split view (add-split-view design D3, D8)
+
+  /// The split the window lays out, if any.
+  private var split: ShownSplit? {
+    model.isPageFullscreen ? nil : model.shownSplit
+  }
+
+  /// The card of the focused pane, or the single page's.
+  var focusedCard: PageCardView {
+    split?.focusedIndex == 1 ? secondCard : card
+  }
+
+  /// The card showing `tabID`: a pane's while split, its Peek's parent's for
+  /// a Peek, or the single page's.
+  func card(showing tabID: TabID) -> PageCardView {
+    guard let split else { return card }
+    let paneID = model.allTabs.first { $0.tabID == tabID }.map { $0.peekParentID != ClairTabIDNone ? $0.peekParentID : $0.tabID }
+    return split.index(of: paneID ?? tabID) == 1 ? secondCard : card
+  }
+
+  /// The page area the panes share, as the last layout placed it.
+  private(set) var pageArea: CGRect = .zero
+
+  private func layoutPanes(area: CGRect) {
+    pageArea = area
+    pageDrop.frame = area
+    if let split {
+      let ratio = model.liveSplitRatio ?? split.ratio
+      let panes = SplitLogic.paneFrames(in: area, ratio: ratio)
+      card.frame = panes[0]
+      secondCard.frame = panes[1]
+      secondCard.isHidden = false
+      splitDivider.isHidden = false
+      splitDivider.frame = SplitLogic.dividerFrame(in: area, ratio: ratio)
+      splitDivider.areaMinX = area.minX
+      card.showsFocusRing = split.focusedIndex == 0
+      secondCard.showsFocusRing = split.focusedIndex == 1
+      card.peekButtonCount = 2
+      secondCard.peekButtonCount = 2
+      // A Peek covers the page area, over the other pane (D11).
+      for pane in [card, secondCard] {
+        pane.peekArea = pane.isPeeking ? area.offsetBy(dx: -pane.frame.minX, dy: -pane.frame.minY) : nil
+        pane.layer?.zPosition = pane.isPeeking ? 1 : 0
+      }
+    } else {
+      // A tab dragged over a single page slides it to the other half (D8).
+      let frame: CGRect =
+        if case .half(let side) = model.pageDrop {
+          SplitLogic.slidFrame(in: area, dropSide: side)
+        } else {
+          area
+        }
+      if card.frame != frame, !card.frame.isEmpty, model.pageDrop != nil || slidForDrop {
+        NSAnimationContext.runAnimationGroup { context in
+          context.duration = SplitLogic.slideDuration
+          context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+          card.animator().frame = frame
+        }
+      } else {
+        card.frame = frame
+      }
+      slidForDrop = model.pageDrop != nil
+      secondCard.isHidden = true
+      splitDivider.isHidden = true
+      card.showsFocusRing = false
+      card.peekButtonCount = 3
+      card.peekArea = nil
+      card.layer?.zPosition = 0
+    }
+  }
+
+  /// Whether the page was last slid aside for a drag, so it slides back.
+  private var slidForDrop = false
+
+  /// A Peek of either pane takes clicks over the page area, above the other
+  /// pane (D11).
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    if split != nil, commandBarHost == nil {
+      for pane in [card, secondCard] where pane.isPeeking {
+        if let hit = pane.hitTest(point), hit !== pane {
+          return hit
+        }
+      }
+    }
+    return super.hitTest(point)
+  }
+
   private func layoutOverlays(card: CGRect) {
     func fit(_ view: NSView?, maxWidth: CGFloat) -> CGSize {
       guard let view else { return .zero }
       let size = view.fittingSize
       return CGSize(width: min(size.width, maxWidth), height: size.height)
     }
+    // add-split-view D3: find, the notice and the command bar follow the
+    // focused pane; the toasts the page area.
+    let focused = focusedCard
+    let pane = split == nil ? card : focused.frame
     if let findHost {
-      let size = fit(findHost, maxWidth: card.width - 20)
+      let size = fit(findHost, maxWidth: pane.width - 20)
       // Below the toolbar while it shows (add-page-toolbar D7).
       findHost.frame = CGRect(
-        x: card.maxX - size.width - 10, y: card.minY + self.card.contentTop + 10, width: size.width,
+        x: pane.maxX - size.width - 10, y: pane.minY + focused.contentTop + 10, width: size.width,
         height: size.height)
     }
     if let statusHost {
-      // At the Peek's corner while a Peek shows (add-peek design D11).
-      let page = self.card.isPeeking ? convert(self.card.activePageFrame, from: self.card) : card
+      // At the Peek's corner while a Peek shows (add-peek design D11), or at
+      // the corner of the pane holding the link (add-split-view D13a).
+      let holder = self.card(showing: model.statusTabID)
+      let holderFrame = split == nil ? card : holder.frame
+      let inPeek = holder.isPeeking && model.allTabs.contains {
+        $0.tabID == model.statusTabID && $0.peekParentID != ClairTabIDNone
+      }
+      let page = holder.isPeeking && (split == nil || inPeek) ? convert(holder.activePageFrame, from: holder) : holderFrame
       let size = fit(statusHost, maxWidth: page.width / 2)
       statusHost.frame = CGRect(x: page.minX + 8, y: page.maxY - size.height - 8, width: size.width, height: size.height)
     }
@@ -420,7 +536,7 @@ final class BrowserRootView: NSView {
       let size = noticeHost.fittingSize
       let margin = NoticePopupView.margin
       noticeHost.frame = CGRect(
-        x: card.maxX - 8 + margin - size.width, y: card.minY + self.card.contentTop + 8 - margin, width: size.width,
+        x: pane.maxX - 8 + margin - size.width, y: pane.minY + focused.contentTop + 8 - margin, width: size.width,
         height: size.height)
       if noticeHost !== subviews.last {
         addSubview(noticeHost)
@@ -432,8 +548,10 @@ final class BrowserRootView: NSView {
       commandBarHost.frame.size.width = width
       let height = commandBarHost.fittingSize.height
       // Whole points, so its hairline border stays one crisp pixel.
+      // Centred on the focused pane while split, inside the window (D13b).
+      let minX = SplitLogic.commandBarMinX(width: width, pane: split == nil ? nil : pane, bounds: bounds)
       commandBarHost.frame = CGRect(
-        x: (bounds.midX - width / 2).rounded(), y: CommandBarView.top(inWindowHeight: bounds.height),
+        x: minX.rounded(), y: CommandBarView.top(inWindowHeight: bounds.height),
         width: width.rounded(), height: height)
     }
   }

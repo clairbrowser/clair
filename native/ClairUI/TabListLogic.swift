@@ -19,14 +19,47 @@ enum TabListLogic {
     return target == source ? nil : target
   }
 
-  /// The tabs Close Tabs Below closes: every tab after `tabID` and its Peek,
-  /// which stays (add-peek design D8).
+  /// The tabs Close Tabs Below closes: every tab after `tabID`'s row, its
+  /// Peek and a split's other pane, which stay (add-peek design D8,
+  /// add-split-view D2).
   static func tabsBelow(_ tabID: TabID, in tabs: [any ClairTab]) -> [TabID] {
-    let last = peek(ofRow: tabID, in: tabs)?.tabID ?? tabID
-    guard let index = tabs.firstIndex(where: { $0.tabID == last }) else {
+    let family = Set(rowFamily(tabID, in: tabs))
+    guard let index = tabs.lastIndex(where: { family.contains($0.tabID) }) else {
       return []
     }
     return tabs[(index + 1)...].map(\.tabID)
+  }
+
+  // MARK: Splits (add-split-view design D2)
+
+  /// Whether `tab` is a split's trailing pane whose leading pane is also in
+  /// `ids`: the leading pane's row stands for both.
+  static func isFoldedPane(_ tab: any ClairTab, ids: Set<TabID>) -> Bool {
+    tab.splitPartnerID != ClairTabIDNone && !tab.isLeadingPane && ids.contains(tab.splitPartnerID)
+  }
+
+  /// The tabs a row stands for, in list order: the tab, its Peek, and for a
+  /// split, the other pane and its Peek.
+  static func rowFamily(_ row: TabID, in tabs: [any ClairTab]) -> [TabID] {
+    guard let tab = tabs.first(where: { $0.tabID == row }) else { return [row] }
+    var members: Set<TabID> = [row]
+    if tab.peekID != ClairTabIDNone { members.insert(tab.peekID) }
+    if tab.splitPartnerID != ClairTabIDNone {
+      members.insert(tab.splitPartnerID)
+      if let partner = tabs.first(where: { $0.tabID == tab.splitPartnerID }), partner.peekID != ClairTabIDNone {
+        members.insert(partner.peekID)
+      }
+    }
+    return tabs.map(\.tabID).filter(members.contains)
+  }
+
+  /// The split's two tabs, leading pane first, found among `tabs`, or nil
+  /// outside a split or while the other pane isn't among them.
+  static func panes(of tab: any ClairTab, in tabs: [any ClairTab]) -> (leading: any ClairTab, trailing: any ClairTab)? {
+    guard tab.splitPartnerID != ClairTabIDNone,
+      let partner = tabs.first(where: { $0.tabID == tab.splitPartnerID })
+    else { return nil }
+    return tab.isLeadingPane ? (tab, partner) : (partner, tab)
   }
 
   // MARK: Peeks (add-peek design D4)
@@ -36,18 +69,29 @@ enum TabListLogic {
     tab.peekParentID != ClairTabIDNone
   }
 
-  /// The tabs with a row in the sidebar: every tab but the Peeks, in order.
+  /// The tabs with a row in the sidebar: every tab but the Peeks and a
+  /// split's trailing pane, whose leading pane's row stands for both
+  /// (add-split-view D2), in order.
   static func rows(_ tabs: [any ClairTab]) -> [any ClairTab] {
-    tabs.filter { !isPeek($0) }
+    let ids = Set(tabs.map(\.tabID))
+    return tabs.filter { !isPeek($0) && !isFoldedPane($0, ids: ids) }
   }
 
   /// The row highlighted while `activeTabID` is active: the tab's own, or its
-  /// parent's while a Peek shows.
+  /// parent's while a Peek shows, or for a split's trailing pane, the leading
+  /// pane's row.
   static func highlightedRow(activeTabID: TabID, in tabs: [any ClairTab]) -> TabID {
-    guard let active = tabs.first(where: { $0.tabID == activeTabID }), isPeek(active),
-      tabs.contains(where: { $0.tabID == active.peekParentID })
-    else { return activeTabID }
-    return active.peekParentID
+    guard let active = tabs.first(where: { $0.tabID == activeTabID }) else { return activeTabID }
+    var row = active
+    if isPeek(active), let parent = tabs.first(where: { $0.tabID == active.peekParentID }) {
+      row = parent
+    }
+    if row.splitPartnerID != ClairTabIDNone, !row.isLeadingPane,
+      tabs.contains(where: { $0.tabID == row.splitPartnerID })
+    {
+      return row.splitPartnerID
+    }
+    return row.tabID
   }
 
   /// The tab a click on `row` activates: its Peek, if it has one, so the tab
@@ -56,9 +100,9 @@ enum TabListLogic {
     peek(ofRow: row, in: tabs)?.tabID ?? row
   }
 
-  /// The number of rows: every tab but the Peeks.
+  /// The number of rows: every tab but the Peeks and folded panes.
   static func rowCount(_ tabs: [any ClairTab]) -> Int {
-    tabs.reduce(0) { $0 + (isPeek($1) ? 0 : 1) }
+    rows(tabs).count
   }
 
   /// Each row's Peek, by the row's tab ID, in one pass over the tabs: the
@@ -114,7 +158,7 @@ enum TabListLogic {
     let moving = rows.remove(at: source)
     rows.insert(moving, at: target)
     return rows[..<target].reduce(0) { count, row in
-      count + 1 + (peek(ofRow: row.tabID, in: tabs) == nil ? 0 : 1)
+      count + rowFamily(row.tabID, in: tabs).count
     }
   }
 
@@ -126,9 +170,9 @@ enum TabListLogic {
   static func spaceIndex(
     movingTab tabID: TabID, toWindowIndex index: Int, windowTabs: [any ClairTab], spaceTabs: [any ClairTab]
   ) -> Int? {
-    guard let tab = windowTabs.first(where: { $0.tabID == tabID }) else { return nil }
-    // The tab moves with its Peek.
-    let family: Set<TabID> = [tab.tabID, tab.peekID]
+    guard windowTabs.contains(where: { $0.tabID == tabID }) else { return nil }
+    // The tab moves with its Peek, and a split's other pane with its own.
+    let family = Set(rowFamily(tabID, in: windowTabs))
     let windowRest = windowTabs.filter { !family.contains($0.tabID) }
     let spaceRest = spaceTabs.filter { !family.contains($0.tabID) }
     let target = min(max(index, 0), windowRest.count)

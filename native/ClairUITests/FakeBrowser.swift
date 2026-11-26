@@ -33,15 +33,22 @@ final class FakeTab: NSObject, ClairTab {
   let browserID: BrowserID
   let pinID: PinID?
   let name: String?
+  let splitPartnerID: TabID
+  let isLeadingPane: Bool
+  let splitRatio: Double
 
   init(
     id: TabID, title: String = "", url: String? = nil, isLoading: Bool = false, loadProgress: Double = 0,
     canGoBack: Bool = false, canGoForward: Bool = false, isAudible: Bool = false, isMuted: Bool = false, isCrashed: Bool = false,
     indicators: TabIndicators = [], infobars: [any ClairInfobar] = [], isNotSecure: Bool = false,
     peekParentID: TabID = ClairTabIDNone, peekID: TabID = ClairTabIDNone, spaceID: SpaceID = FakeHost.homeID,
-    browserID: BrowserID = 0, pinID: PinID? = nil, name: String? = nil
+    browserID: BrowserID = 0, pinID: PinID? = nil, name: String? = nil, splitPartnerID: TabID = ClairTabIDNone,
+    isLeadingPane: Bool = false, splitRatio: Double = 0.5
   ) {
     tabID = id
+    self.splitPartnerID = splitPartnerID
+    self.isLeadingPane = splitPartnerID != ClairTabIDNone && isLeadingPane
+    self.splitRatio = splitPartnerID != ClairTabIDNone ? splitRatio : 0.5
     self.pinID = pinID
     self.name = name
     self.peekParentID = peekParentID
@@ -71,7 +78,8 @@ final class FakeTab: NSObject, ClairTab {
     isAudible: Bool? = nil, isMuted: Bool? = nil, canGoBack: Bool? = nil, canGoForward: Bool? = nil,
     isCrashed: Bool? = nil, indicators: TabIndicators? = nil, isNotSecure: Bool? = nil,
     peekParentID: TabID? = nil, peekID: TabID? = nil, spaceID: SpaceID? = nil, browserID: BrowserID? = nil,
-    pinID: PinID?? = nil, name: String?? = nil
+    pinID: PinID?? = nil, name: String?? = nil, splitPartnerID: TabID? = nil, isLeadingPane: Bool? = nil,
+    splitRatio: Double? = nil
   ) -> FakeTab {
     FakeTab(
       id: tabID, title: title ?? self.title, url: url ?? (self.url?.absoluteString),
@@ -82,7 +90,13 @@ final class FakeTab: NSObject, ClairTab {
       indicators: indicators ?? self.indicators, infobars: infobars, isNotSecure: isNotSecure ?? self.isNotSecure,
       peekParentID: peekParentID ?? self.peekParentID, peekID: peekID ?? self.peekID,
       spaceID: spaceID ?? self.spaceID, browserID: browserID ?? self.browserID, pinID: pinID ?? self.pinID,
-      name: name ?? self.name)
+      name: name ?? self.name, splitPartnerID: splitPartnerID ?? self.splitPartnerID,
+      isLeadingPane: isLeadingPane ?? self.isLeadingPane, splitRatio: splitRatio ?? self.splitRatio)
+  }
+
+  /// A copy outside any split.
+  func unsplit() -> FakeTab {
+    with(splitPartnerID: ClairTabIDNone, isLeadingPane: false, splitRatio: 0.5)
   }
 }
 
@@ -100,13 +114,15 @@ final class FakePin: NSObject, ClairPin {
   let tabs: [any ClairTab]
   let isAtPinnedURL: Bool
   let folderID: FolderID?
+  let pinnedSplitID: PinnedSplitID?
 
   init(
     id: PinID, isFavorite: Bool = false, spaceID: SpaceID? = FakeHost.homeID,
     profileID: ProfileID = FakeHost.defaultProfileID, url: String, title: String = "", name: String? = nil,
-    tab: FakeTab? = nil, isAtPinnedURL: Bool = true, folderID: FolderID? = nil
+    tab: FakeTab? = nil, isAtPinnedURL: Bool = true, folderID: FolderID? = nil, pinnedSplitID: PinnedSplitID? = nil
   ) {
     pinID = id
+    self.pinnedSplitID = pinnedSplitID
     self.isFavorite = isFavorite
     self.folderID = isFavorite ? nil : folderID
     self.spaceID = isFavorite ? nil : spaceID
@@ -126,29 +142,71 @@ final class FakeFolder: NSObject, ClairFolder {
   let spaceID: SpaceID
   let name: String
   let isOpen: Bool
-  let pins: [any ClairPin]
+  let items: [any ClairPinnedItem]
 
-  init(id: FolderID, spaceID: SpaceID = FakeHost.homeID, name: String, isOpen: Bool = true, pins: [any ClairPin] = []) {
+  init(
+    id: FolderID, spaceID: SpaceID = FakeHost.homeID, name: String, isOpen: Bool = true,
+    items: [any ClairPinnedItem] = []
+  ) {
     folderID = id
     self.spaceID = spaceID
     self.name = name
     self.isOpen = isOpen
-    self.pins = pins
+    self.items = items
+  }
+
+  /// A folder holding pinned tabs only.
+  convenience init(id: FolderID, spaceID: SpaceID = FakeHost.homeID, name: String, isOpen: Bool = true, pins: [any ClairPin]) {
+    self.init(id: id, spaceID: spaceID, name: name, isOpen: isOpen, items: pins.map { FakePinnedItem(pin: $0) })
   }
 }
 
-/// A stand-in for a pinned item snapshot: a pin or a folder.
+/// A stand-in for a pinned or favorited split snapshot (add-split-view
+/// design D10).
+final class FakePinnedSplit: NSObject, ClairPinnedSplit {
+  let pinnedSplitID: PinnedSplitID
+  let isFavorite: Bool
+  let spaceID: SpaceID?
+  let folderID: FolderID?
+  let profileID: ProfileID
+  let pins: [any ClairPin]
+  let ratio: Double
+
+  init(
+    id: PinnedSplitID, isFavorite: Bool = false, spaceID: SpaceID? = FakeHost.homeID, folderID: FolderID? = nil,
+    profileID: ProfileID = FakeHost.defaultProfileID, pins: [any ClairPin], ratio: Double = 0.5
+  ) {
+    pinnedSplitID = id
+    self.isFavorite = isFavorite
+    self.spaceID = isFavorite ? nil : spaceID
+    self.folderID = isFavorite ? nil : folderID
+    self.profileID = profileID
+    self.pins = pins
+    self.ratio = ratio
+  }
+}
+
+/// A stand-in for a pinned item snapshot: a pin, a split or a folder.
 final class FakePinnedItem: NSObject, ClairPinnedItem {
   let pin: (any ClairPin)?
+  let split: (any ClairPinnedSplit)?
   let folder: (any ClairFolder)?
 
   init(pin: any ClairPin) {
     self.pin = pin
+    split = nil
+    folder = nil
+  }
+
+  init(split: any ClairPinnedSplit) {
+    pin = nil
+    self.split = split
     folder = nil
   }
 
   init(folder: any ClairFolder) {
     pin = nil
+    split = nil
     self.folder = folder
   }
 }
@@ -619,6 +677,10 @@ final class FakeBrowser: NSObject, ClairBrowser {
   func closeTabNow(_ tabID: TabID) {
     host.operation {
       guard let tab = tab(tabID) else { return }
+      // add-split-view D12: the other pane stays, by itself.
+      if tab.splitPartnerID != ClairTabIDNone {
+        host.clearSplit(tabID)
+      }
       // A bound tab closing leaves its pin, unbound (D2).
       if let pinID = tab.pinID, host.boundTab(of: pinID)?.tabID == tabID {
         host.pageViews[tabID] = nil
@@ -793,6 +855,22 @@ final class FakeBrowser: NSObject, ClairBrowser {
   /// window (add-profiles D13).
   fileprivate func closeAsClair(_ tabID: TabID, forAnotherWindow: Bool = false) {
     guard let tab = tab(tabID) else { return }
+    // add-split-view D12: a pane of the shown split closes alone, and the
+    // other shows by itself; a pinned split's pane leaves its item (D10).
+    if let partner = self.tab(tab.splitPartnerID), isShowingSplit(of: tabID) {
+      if let pinID = tab.pinID, let other = partner.pinID,
+        let split = host.pinRecord(pinID)?.splitID, host.pinRecord(other)?.splitID == split
+      {
+        host.takeOutOfSplit(pinID)
+      }
+      if activeTabID == tabID || self.tab(activeTabID)?.peekParentID == tabID {
+        isChoosingNext = true
+        setActive(partner.tabID)
+        isChoosingNext = false
+      }
+      closeTabNow(tabID)
+      return
+    }
     if isActiveRow(tabID) {
       if let next = nextRow(leaving: tabID, avoidingShown: forAnotherWindow) {
         choose(next)
@@ -1148,12 +1226,204 @@ final class FakeBrowser: NSObject, ClairBrowser {
     }
   }
 
+  // MARK: Split view (add-split-view D2, D8, D10 to D12)
+
+  /// Whether the window shows `tabID`'s split: the active tab, or the Peek's
+  /// parent, is one of its panes.
+  func isShowingSplit(of tabID: TabID) -> Bool {
+    guard let tab = host.tab(tabID), tab.splitPartnerID != ClairTabIDNone else { return false }
+    let active = self.tab(activeTabID)
+    let shown = active.flatMap { $0.peekParentID != ClairTabIDNone ? $0.peekParentID : $0.tabID }
+    return shown == tabID || shown == tab.splitPartnerID
+  }
+
+  /// Makes a split of two of the window's tabs, as the engine does once it
+  /// holds both, `other` focused.
+  func makeSplit(_ tabID: TabID, with otherID: TabID, otherLeading: Bool = false, ratio: Double = 0.5) {
+    host.operation {
+      if otherLeading {
+        host.setSplit(otherID, tabID, ratio: ratio)
+      } else {
+        host.setSplit(tabID, otherID, ratio: ratio)
+      }
+      setActive(otherID)
+    }
+  }
+
+  func split(tab tabID: TabID, with otherID: TabID, side: SplitSide) {
+    host.operation {
+      record("split \(tabID) \(otherID) \(side.rawValue)")
+      guard tabID != otherID, let tab = rowTab(tabID), let other = rowTab(otherID),
+        tab.peekParentID == ClairTabIDNone, other.peekParentID == ClairTabIDNone,
+        tab.splitPartnerID == ClairTabIDNone, other.splitPartnerID == ClairTabIDNone
+      else { return }
+      // Both come here first, as a take does.
+      for row in [tab, other] where row.browserID != browserID {
+        moveFamilyHere(row.tabID)
+      }
+      makeSplit(tabID, with: otherID, otherLeading: side == .leading)
+    }
+  }
+
+  func splitWithNewTab(_ tabID: TabID) {
+    host.operation {
+      record("splitWithNewTab \(tabID)")
+      guard let tab = rowTab(tabID), tab.peekParentID == ClairTabIDNone, tab.splitPartnerID == ClairTabIDNone else {
+        return
+      }
+      if tab.browserID != browserID {
+        moveFamilyHere(tabID)
+      }
+      // A new tab page right after the tab's row in Today, or at the top.
+      let page = FakeTab(id: host.newTabID(), url: "chrome://newtab/", spaceID: shownSpaceID, browserID: browserID)
+      host.pageViews[page.tabID] = NSView()
+      mutate(shownSpaceID) { list in
+        let family = TabListLogic.rowFamily(tabID, in: list)
+        let at = list.lastIndex { family.contains($0.tabID) }.map { $0 + 1 } ?? 0
+        list.insert(page, at: at)
+      }
+      makeSplit(tabID, with: page.tabID)
+    }
+  }
+
+  func showSplit(of tabID: TabID) {
+    host.operation {
+      record("showSplit \(tabID)")
+      guard let tab = rowTab(tabID) else { return }
+      guard let partner = host.tab(tab.splitPartnerID) else {
+        activate(tab: tabID)
+        return
+      }
+      // The pane focused last.
+      let last = host.lastActive(row: partner.tabID) > host.lastActive(row: tabID) ? partner.tabID : tabID
+      if self.tab(last) != nil { setActive(last) } else { take(last) }
+    }
+  }
+
+  func replacePane(of tabID: TabID, with newTabID: TabID) {
+    host.operation {
+      record("replacePane \(tabID) \(newTabID)")
+      guard let pane = tab(tabID), let partner = host.tab(pane.splitPartnerID), let replacement = rowTab(newTabID),
+        replacement.splitPartnerID == ClairTabIDNone, replacement.peekParentID == ClairTabIDNone,
+        newTabID != pane.splitPartnerID
+      else { return }
+      if replacement.browserID != browserID {
+        moveFamilyHere(newTabID)
+      }
+      let leading = pane.isLeadingPane
+      let ratio = pane.splitRatio
+      host.clearSplit(tabID)
+      if leading {
+        host.setSplit(newTabID, partner.tabID, ratio: ratio)
+      } else {
+        host.setSplit(partner.tabID, newTabID, ratio: ratio)
+      }
+      // The replaced tab is the row right below the split's.
+      if let moved = host.tab(tabID), host.list(moved.spaceID).contains(where: { $0.tabID == tabID }) {
+        mutate(moved.spaceID) { list in
+          list.removeAll { $0.tabID == tabID }
+          let family = TabListLogic.rowFamily(partner.tabID, in: list)
+          let at = list.lastIndex { family.contains($0.tabID) }.map { $0 + 1 } ?? list.count
+          list.insert(moved, at: at)
+        }
+      }
+      setActive(newTabID)
+    }
+  }
+
+  func swapSplit(of tabID: TabID) {
+    host.operation {
+      record("swapSplit \(tabID)")
+      guard rowTab(tabID) != nil else { return }
+      host.swapSplit(of: tabID)
+    }
+  }
+
+  func separateSplit(of tabID: TabID) {
+    host.operation {
+      record("separateSplit \(tabID)")
+      guard let tab = rowTab(tabID), let partner = host.tab(tab.splitPartnerID) else { return }
+      if let pinID = tab.pinID, let split = host.pinRecord(pinID)?.splitID,
+        partner.pinID.flatMap({ host.pinRecord($0)?.splitID }) == split
+      {
+        host.separatePinnedSplit(split)
+        return
+      }
+      host.clearSplit(tabID)
+    }
+  }
+
+  func closeSplit(of tabID: TabID) {
+    host.operation {
+      record("closeSplit \(tabID)")
+      guard let tab = rowTab(tabID), let partner = host.tab(tab.splitPartnerID), let holder = holder(of: tab) else {
+        return
+      }
+      holder.closeBothPanes(tab.isLeadingPane ? tab.tabID : partner.tabID, tab.isLeadingPane ? partner.tabID : tab.tabID)
+    }
+  }
+
+  /// Closes a split's panes as Clair does: the next row first while it
+  /// shows, and the pins of a pinned split stay.
+  fileprivate func closeBothPanes(_ leadID: TabID, _ trailID: TabID) {
+    if isShowingSplit(of: leadID) {
+      let rowID = TabListLogic.highlightedRow(activeTabID: leadID, in: tabs + pinnedTabs)
+      if let next = nextRow(leaving: rowID), next != leadID, next != trailID {
+        choose(next)
+      }
+    }
+    host.clearSplit(leadID)
+    closeTabNow(trailID)
+    closeTabNow(leadID)
+  }
+
+  func setSplitRatio(_ ratio: Double, of tabID: TabID) {
+    record("setSplitRatio \(ratio) \(tabID)")
+    guard rowTab(tabID) != nil else { return }
+    host.setSplitRatio(min(max(ratio, 0.05), 0.95), of: tabID)
+  }
+
+  func openPeekInSplit(of tabID: TabID) {
+    host.operation {
+      record("openPeekInSplit \(tabID)")
+      guard let peek = peek(of: tabID), let parent = self.tab(peek.peekParentID),
+        parent.splitPartnerID == ClairTabIDNone
+      else { return }
+      unlinkPeek(peek.tabID)
+      host.setSplit(parent.tabID, peek.tabID)
+      setActive(peek.tabID)
+    }
+  }
+
   // MARK: Pins (add-pinned-tabs-and-favorites D4, D5)
 
   func openPin(_ pinID: PinID) {
     host.operation {
       record("openPin \(pinID)")
       guard profileKind == .regular, let record = host.pinRecord(pinID) else { return }
+      // add-split-view D10: a pinned split opens each page that isn't open,
+      // as a split with its ratio.
+      if let splitID = record.splitID, let split = host.splitRecord(splitID) {
+        var panes: [TabID] = []
+        for pin in host.pinRecords(ofSplit: splitID) {
+          if let bound = host.boundTab(of: pin.id) {
+            if bound.browserID != browserID { moveFamilyHere(bound.tabID) }
+            panes.append(bound.tabID)
+          } else {
+            let tab = FakeTab(
+              id: host.newTabID(), title: pin.title, url: pin.url, spaceID: pin.spaceID ?? "", browserID: browserID,
+              pinID: pin.id)
+            host.pageViews[tab.tabID] = NSView()
+            host.bind(pin.id, to: tab)
+            panes.append(tab.tabID)
+          }
+        }
+        if panes.count == 2, host.tab(panes[0])?.splitPartnerID != panes[1] {
+          host.setSplit(panes[0], panes[1], ratio: split.ratio)
+        }
+        showSplit(of: panes[0])
+        return
+      }
       if let bound = host.boundTab(of: pinID) {
         if bound.browserID == browserID { setActive(bound.tabID) } else { take(bound.tabID) }
         return
@@ -1296,7 +1566,9 @@ final class RecordingWindow: NSObject, ClairWindow {
   func showFind(text: String) { calls.append("find \(text)") }
   func hideFind() { calls.append("hideFind") }
   func findResultDidChange(_ result: FindResult) { calls.append("findResult \(result.activeMatch)/\(result.matchCount)") }
-  func statusTextDidChange(_ text: String?) { calls.append("status \(text ?? "-")") }
+  func statusTextDidChange(_ text: String?, isLink: Bool, tab tabID: TabID) {
+    calls.append("status \(text ?? "-")")
+  }
   func showToast(_ message: String) { calls.append("toast \(message)") }
   func pageFullscreenDidChange(_ fullscreen: Bool) { calls.append("pageFullscreen \(fullscreen)") }
   func showExclusiveAccessNotice(_ text: String?) { calls.append("notice \(text ?? "-")") }
@@ -1352,13 +1624,20 @@ final class RecordingSpacesObserver: NSObject, ClairSpacesObserver {
   }
 
   func pinnedItemsDidChange(_ items: [any ClairPinnedItem], inSpace spaceID: SpaceID) {
-    let titles = items.map { item in
-      item.pin?.title ?? item.folder.map { "[\($0.name): \($0.pins.map(\.title).joined(separator: ","))]" } ?? ""
-    }
-    calls.append("pins \(spaceID) \(titles.joined(separator: ","))")
+    calls.append("pins \(spaceID) \(Self.titles(items))")
   }
 
-  func favoritesDidChange(_ favorites: [any ClairPin], ofProfile profileID: ProfileID) {
-    calls.append("favorites \(profileID) \(favorites.map(\.title).joined(separator: ","))")
+  func favoritesDidChange(_ favorites: [any ClairPinnedItem], ofProfile profileID: ProfileID) {
+    calls.append("favorites \(profileID) \(Self.titles(favorites))")
+  }
+
+  /// Items as a test reads them: a pin's title, "News|Docs" for a split, and
+  /// "[Folder: …]" for a folder.
+  static func titles(_ items: [any ClairPinnedItem]) -> String {
+    items.map { item in
+      if let pin = item.pin { return pin.title }
+      if let split = item.split { return split.pins.map(\.title).joined(separator: "|") }
+      return item.folder.map { "[\($0.name): \(titles($0.items))]" } ?? ""
+    }.joined(separator: ",")
   }
 }

@@ -88,31 +88,79 @@ enum PinsLogic {
 
   // MARK: Folders (add-tab-folders design D4)
 
-  /// Every pinned tab of `items`, its folders' included, in order.
+  /// Every pinned tab of `items`, its folders' and splits' included, in
+  /// order (add-split-view D10).
   static func allPins(_ items: [any ClairPinnedItem]) -> [any ClairPin] {
     items.flatMap { item -> [any ClairPin] in
       if let pin = item.pin { return [pin] }
-      return item.folder?.pins ?? []
+      if let split = item.split { return split.pins }
+      return item.folder.map { allPins($0.items) } ?? []
     }
+  }
+
+  /// A folder's pinned tabs, its splits' two included, in order.
+  static func pins(of folder: any ClairFolder) -> [any ClairPin] {
+    allPins(folder.items)
   }
 
   /// One row of the pinned section.
   enum PinnedRow {
     /// A pinned tab, under `folder` when it's listed in one.
     case pin(any ClairPin, folder: (any ClairFolder)?)
+    /// A pinned split, one row for its two pages (add-split-view D10).
+    case split(any ClairPinnedSplit, folder: (any ClairFolder)?)
     case folder(any ClairFolder)
 
     var id: String {
       switch self {
       case .pin(let pin, _): "pin-\(pin.pinID)"
+      case .split(let split, _): "split-\(split.pinnedSplitID)"
       case .folder(let folder): "folder-\(folder.folderID)"
       }
     }
 
+    /// The pinned tab, or a pinned split's leading one, which stands for the
+    /// split in commands.
     var pin: (any ClairPin)? {
-      if case .pin(let pin, _) = self { return pin }
-      return nil
+      switch self {
+      case .pin(let pin, _): pin
+      case .split(let split, _): split.pins.first
+      case .folder: nil
+      }
     }
+
+    /// The ID of the item the row is: a pin's, a split's or a folder's.
+    var itemID: String {
+      switch self {
+      case .pin(let pin, _): pin.pinID
+      case .split(let split, _): split.pinnedSplitID
+      case .folder(let folder): folder.folderID
+      }
+    }
+
+    /// The folder a pin's or split's row is listed in.
+    var parent: (any ClairFolder)? {
+      switch self {
+      case .pin(_, let folder), .split(_, let folder): folder
+      case .folder: nil
+      }
+    }
+  }
+
+  /// The ID of a pinned item: its pin's, split's or folder's.
+  static func itemID(_ item: any ClairPinnedItem) -> String {
+    item.pin?.pinID ?? item.split?.pinnedSplitID ?? item.folder?.folderID ?? ""
+  }
+
+  /// Whether a pinned split's page shows: either pin's bound tab is
+  /// `highlighted`.
+  static func isSelected(_ split: any ClairPinnedSplit, highlighted: TabID) -> Bool {
+    highlighted != ClairTabIDNone && split.pins.contains { $0.tabID == highlighted }
+  }
+
+  /// Whether any of a split's pages is open.
+  static func isOpen(_ split: any ClairPinnedSplit) -> Bool {
+    split.pins.contains { $0.tabID != ClairTabIDNone }
   }
 
   /// The pinned section's rows: each pinned tab; each folder, then its
@@ -123,18 +171,34 @@ enum PinsLogic {
   /// "Folders in a collapsed pinned section").
   static func pinnedRows(_ items: [any ClairPinnedItem], collapsed: Bool, highlighted: TabID) -> [PinnedRow] {
     let isSelected = { (pin: any ClairPin) in pin.tabID != ClairTabIDNone && pin.tabID == highlighted }
+    // A row of an item at the top level or in `folder`: a pin or a split.
+    let row = { (item: any ClairPinnedItem, folder: (any ClairFolder)?) -> PinnedRow? in
+      if let pin = item.pin { return .pin(pin, folder: folder) }
+      if let split = item.split { return .split(split, folder: folder) }
+      return nil
+    }
     if collapsed {
-      return allPins(items).filter(isSelected).map { .pin($0, folder: nil) }
+      let leaves = items.flatMap { item in item.folder?.items ?? [item] }
+      return leaves.compactMap { item -> PinnedRow? in
+        if let pin = item.pin, isSelected(pin) { return .pin(pin, folder: nil) }
+        if let split = item.split, Self.isSelected(split, highlighted: highlighted) {
+          return .split(split, folder: nil)
+        }
+        return nil
+      }
     }
     var rows: [PinnedRow] = []
     for item in items {
-      if let pin = item.pin {
-        rows.append(.pin(pin, folder: nil))
-      } else if let folder = item.folder {
+      if let folder = item.folder {
         rows.append(.folder(folder))
-        for pin in folder.pins where folder.isOpen || pin.tabID != ClairTabIDNone {
-          rows.append(.pin(pin, folder: folder))
+        for child in folder.items {
+          let open = child.pin.map { $0.tabID != ClairTabIDNone } ?? child.split.map(isOpen) ?? false
+          if folder.isOpen || open, let child = row(child, folder) {
+            rows.append(child)
+          }
         }
+      } else if let item = row(item, nil) {
+        rows.append(item)
       }
     }
     return rows
@@ -149,7 +213,7 @@ enum PinsLogic {
   }
 
   static func hasOpenTabs(_ folder: any ClairFolder) -> Bool {
-    folder.pins.contains { $0.tabID != ClairTabIDNone }
+    pins(of: folder).contains { $0.tabID != ClairTabIDNone }
   }
 
   static func folderIcon(_ folder: any ClairFolder) -> FolderIcon {
@@ -307,15 +371,15 @@ enum PinsLogic {
     if let movingTodayRow, movingTodayRow < row {
       row -= 1
     }
-    // Rows before it, each with its Peek, less the moving row's family.
-    let moving = movingTodayRow.flatMap { rows.indices.contains($0) ? rows[$0].tabID : nil }
+    // Rows before it, each with its Peek and a split's other pane, less the
+    // moving row's family.
     var others = rows
     if let movingTodayRow, rows.indices.contains(movingTodayRow) {
       others.remove(at: movingTodayRow)
     }
     let before = others.prefix(row)
     let index = before.reduce(0) { count, tab in
-      count + 1 + (TabListLogic.peek(ofRow: tab.tabID, in: today) == nil || tab.tabID == moving ? 0 : 1)
+      count + TabListLogic.rowFamily(tab.tabID, in: today).count
     }
     return .today(index)
   }
@@ -333,67 +397,57 @@ enum PinsLogic {
     }
     gap = min(max(gap, 0), others.count)
     // The items as they are once the lifted row's item is out of the way.
-    var topItems = items
-    var liftedPin: PinID?
-    switch lifted {
-    case .pin(let pin, _):
-      liftedPin = pin.pinID
-      topItems.removeAll { $0.pin?.pinID == pin.pinID }
-    case .folder(let folder):
-      topItems.removeAll { $0.folder?.folderID == folder.folderID }
-    case nil:
-      break
-    }
+    let liftedID = lifted?.itemID
+    let topItems = items.filter { itemID($0) != liftedID }
     let topIndex = { (id: String) -> Int? in
-      topItems.firstIndex { ($0.pin?.pinID ?? $0.folder?.folderID) == id }
+      topItems.firstIndex { itemID($0) == id }
     }
-    let indexInFolder = { (pin: any ClairPin, folder: any ClairFolder) -> Int in
-      folder.pins.filter { $0.pinID != liftedPin }.firstIndex { $0.pinID == pin.pinID } ?? 0
+    let indexInFolder = { (id: String, folder: any ClairFolder) -> Int in
+      folder.items.filter { itemID($0) != liftedID }.firstIndex { itemID($0) == id } ?? 0
     }
-    /// The place of `pin` itself, in a folder or at the top level.
-    let placeOf = { (pin: any ClairPin) -> ListDrop in
+    /// The place of the item of a pin's or split's row itself, in a folder
+    /// or at the top level.
+    let placeOf = { (row: PinnedRow) -> ListDrop in
       for item in topItems {
-        if let folder = item.folder, folder.pins.contains(where: { $0.pinID == pin.pinID }) {
-          return .folder(folder.folderID, indexInFolder(pin, folder))
+        if let folder = item.folder, folder.items.contains(where: { itemID($0) == row.itemID }) {
+          return .folder(folder.folderID, indexInFolder(row.itemID, folder))
         }
       }
-      return .pinned(topIndex(pin.pinID) ?? topItems.count)
+      return .pinned(topIndex(row.itemID) ?? topItems.count)
     }
     if collapsed {
       // Only the selected tab shows: before it is its own place, after it
       // the end of the section.
-      if gap < others.count, let pin = others[gap].pin {
-        return placeOf(pin)
+      if gap < others.count, others[gap].pin != nil {
+        return placeOf(others[gap])
       }
       return .pinned(topItems.count)
     }
     let below = gap < others.count ? others[gap] : nil
-    switch gap > 0 ? others[gap - 1] : nil {
-    case nil:
-      return .pinned(0)
-    case .folder(let folder):
+    guard gap > 0 else { return .pinned(0) }
+    let above = others[gap - 1]
+    if case .folder(let folder) = above {
       // Under a folder's row: first in it, or before its first listed tab
       // while it's closed; after it when it's closed and lists nothing.
-      if case .pin(let pin, let parent)? = below, parent?.folderID == folder.folderID {
-        return .folder(folder.folderID, indexInFolder(pin, folder))
+      if let below, below.parent?.folderID == folder.folderID {
+        return .folder(folder.folderID, indexInFolder(below.itemID, folder))
       }
       if folder.isOpen {
         return .folder(folder.folderID, 0)
       }
       return .pinned((topIndex(folder.folderID) ?? topItems.count - 1) + 1)
-    case .pin(let pin, let parent):
-      guard let parent else {
-        return .pinned((topIndex(pin.pinID) ?? topItems.count - 1) + 1)
-      }
-      if parent.isOpen {
-        return .folder(parent.folderID, indexInFolder(pin, parent) + 1)
-      }
-      // Between two tabs a closed folder lists: in it, before the lower one.
-      if case .pin(let next, let nextParent)? = below, nextParent?.folderID == parent.folderID {
-        return .folder(parent.folderID, indexInFolder(next, parent))
-      }
-      return .pinned((topIndex(parent.folderID) ?? topItems.count - 1) + 1)
     }
+    guard let parent = above.parent else {
+      return .pinned((topIndex(above.itemID) ?? topItems.count - 1) + 1)
+    }
+    if parent.isOpen {
+      return .folder(parent.folderID, indexInFolder(above.itemID, parent) + 1)
+    }
+    // Between two rows a closed folder lists: in it, before the lower one.
+    if let below, below.parent?.folderID == parent.folderID {
+      return .folder(parent.folderID, indexInFolder(below.itemID, parent))
+    }
+    return .pinned((topIndex(parent.folderID) ?? topItems.count - 1) + 1)
   }
 
   // MARK: Menus (sidebar, pinned-tabs and favorites specs)
@@ -417,6 +471,9 @@ enum PinsLogic {
     // A folder's (add-tab-folders).
     case turnIntoSpace
     case deleteFolder
+    // Split view's (add-split-view D9, D10).
+    case splitWithTab
+    case separateTabs
   }
 
   struct MenuItem: Equatable {
@@ -425,15 +482,21 @@ enum PinsLogic {
     var isEnabled = true
   }
 
+  static let splitWithTab = MenuItem(title: "Split with Tab", command: .splitWithTab)
+  static let separateTabs = MenuItem(title: "Separate Tabs", command: .separateTabs)
+
   /// A Today tab's menu: nil entries are separators. Incognito and guest
-  /// windows have neither pin item.
-  static func todayMenu(isMuted: Bool, canMoveToSpace: Bool, canPin: Bool) -> [MenuItem?] {
+  /// windows have neither pin item. A split row's chip (`inSplit`) has no
+  /// Split with Tab, and Separate Tabs (add-split-view, "The split row's
+  /// menu").
+  static func todayMenu(isMuted: Bool, canMoveToSpace: Bool, canPin: Bool, inSplit: Bool = false) -> [MenuItem?] {
     var items: [MenuItem?] = [
       MenuItem(title: "Copy Link", command: .copyLink),
       MenuItem(title: "Rename…", command: .rename),
       MenuItem(title: "Duplicate", command: .duplicate),
       MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute),
     ]
+    items += inSplit ? [nil, separateTabs] : [splitWithTab]
     if canPin {
       items += [nil, MenuItem(title: "Pin Tab", command: .pin), MenuItem(title: "Pin to Favorites", command: .pinToFavorites)]
     }
@@ -448,15 +511,19 @@ enum PinsLogic {
     return items
   }
 
-  /// A pinned tab's menu.
-  static func pinnedMenu(isOpen: Bool, isMuted: Bool, canMoveToSpace: Bool) -> [MenuItem?] {
+  /// A pinned tab's menu; a pinned split's chip's has no Edit Pinned Page
+  /// or Split with Tab, and Separate Tabs.
+  static func pinnedMenu(isOpen: Bool, isMuted: Bool, canMoveToSpace: Bool, inSplit: Bool = false) -> [MenuItem?] {
     var items: [MenuItem?] = [
       MenuItem(title: "Copy Link", command: .copyLink),
       MenuItem(title: "Rename…", command: .rename),
       MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute, isEnabled: isOpen),
-      MenuItem(title: "Edit Pinned Page", command: .editPinnedPage),
-      MenuItem(title: "Duplicate", command: .duplicate),
     ]
+    if !inSplit {
+      items.append(MenuItem(title: "Edit Pinned Page", command: .editPinnedPage))
+    }
+    items.append(MenuItem(title: "Duplicate", command: .duplicate))
+    items += inSplit ? [nil, separateTabs] : [splitWithTab]
     if canMoveToSpace {
       items += [nil, MenuItem(title: "Move to Space", command: .moveToSpace)]
     }
@@ -468,16 +535,21 @@ enum PinsLogic {
     return items
   }
 
-  /// A favorite's menu; Close Tab only while the window shows its page.
-  static func favoriteMenu(isShown: Bool, isOpen: Bool, isMuted: Bool) -> [MenuItem?] {
+  /// A favorite's menu; Close Tab only while the window shows its page. A
+  /// favorited split's segment's has no Edit Pinned Page or Split with Tab,
+  /// and Separate Tabs.
+  static func favoriteMenu(isShown: Bool, isOpen: Bool, isMuted: Bool, inSplit: Bool = false) -> [MenuItem?] {
     var items: [MenuItem?] = [
       MenuItem(title: "Copy Link", command: .copyLink),
       MenuItem(title: "Rename…", command: .rename),
       MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute, isEnabled: isOpen),
-      MenuItem(title: "Edit Pinned Page", command: .editPinnedPage),
-      MenuItem(title: "Duplicate", command: .duplicate),
-      nil,
     ]
+    if !inSplit {
+      items.append(MenuItem(title: "Edit Pinned Page", command: .editPinnedPage))
+    }
+    items.append(MenuItem(title: "Duplicate", command: .duplicate))
+    items += inSplit ? [nil, separateTabs] : [splitWithTab]
+    items.append(nil)
     if isShown {
       items.append(MenuItem(title: "Close Tab", command: .closeTab))
     }
@@ -515,7 +587,7 @@ enum PinsLogic {
 
   /// Whether Delete asks first: only for a folder with tabs.
   static func folderDeletionNeedsConfirmation(_ folder: any ClairFolder) -> Bool {
-    !folder.pins.isEmpty
+    !folder.items.isEmpty
   }
 
   static func folderDeletionTitle(_ name: String) -> String {

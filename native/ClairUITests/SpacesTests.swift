@@ -149,7 +149,7 @@ struct SpacesLogicTests {
   @Test func tabRowMenuHasNoMoveToSpaceWithOneSpace() {
     let row = TabRow(tab: FakeTab(id: 1, title: "One"), isActive: false, isWindowKey: true, moveTargets: [])
     #expect(!row.menuItems.contains { $0.title == "Move to Space" })
-    #expect(row.menuItems.compactMap(\.title) == ["Copy Link", "Duplicate", "Mute", "Close Tab", "Close Tabs Below"])
+    #expect(row.menuItems.compactMap(\.title) == ["Copy Link", "Duplicate", "Mute", "Split with Tab", "Close Tab", "Close Tabs Below"])
   }
 
   // MARK: Names and the form

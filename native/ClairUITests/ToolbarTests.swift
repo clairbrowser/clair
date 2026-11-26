@@ -69,9 +69,21 @@ struct ToolbarPreferenceTests {
   }
 
   @Test func theModelFollowsThePolicy() {
-    let model = BrowserWindowModel(profileKind: .regular, sidebar: SidebarState(), showsToolbar: false)
+    let toolbarOff = ToolbarPreference(defaults: UserDefaults(suiteName: "ToolbarTests.off")!)
+    toolbarOff.isOn = false
+    let browser = FakeBrowser()
+    let controller = BrowserWindowController(
+      browser: browser, spaces: browser.spaces,
+      preferences: SidebarPreferences(defaults: UserDefaults(suiteName: "ToolbarTests")!),
+      toolbarPreference: toolbarOff)
+    browser.clairWindow = controller
+    let mail = browser.addTab(title: "Mail")
+    let news = browser.addTab(title: "News")
+    let model = controller.model
     #expect(!model.showsPageHeader && model.sidebarShowsControls)
-    model.paneCount = 2
+    // A split shows both panes' headers (add-split-view D9).
+    browser.makeSplit(mail.tabID, with: news.tabID)
+    #expect(model.paneCount == 2)
     #expect(model.showsPageHeader && !model.sidebarShowsControls)
   }
 }

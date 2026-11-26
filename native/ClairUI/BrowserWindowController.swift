@@ -30,8 +30,11 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   let model: BrowserWindowModel
   let rootView: BrowserRootView
   private let sidebarHost: NSHostingView<SidebarView>
-  /// The toolbar above the page, and the Peek's (add-page-toolbar D2, D3).
+  /// The toolbar above the page, and the Peek's (add-page-toolbar D2, D3);
+  /// the first is the leading pane's header while split, the second the
+  /// trailing pane's (add-split-view D9).
   private let toolbarHost: NSHostingView<PageToolbar>
+  private let secondToolbarHost: NSHostingView<PageToolbar>
   private let peekToolbarHost: NSHostingView<PageToolbar>
   private let preferences: SidebarPreferences
   /// The sidebar's controls, in its hosting view's coordinates.
@@ -39,6 +42,8 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   /// The toolbar's controls, in its hosting view's coordinates, apart from
   /// the sidebar's, whose stale frames mustn't win (add-page-toolbar D6).
   private var toolbarFrames: [AnchorControl: CGRect] = [:]
+  /// The pane whose header reported `toolbarFrames`.
+  private var toolbarFramesPane = 0
   private var extensionPopup: ExtensionPopupWindow?
   /// The window's dialogs (add-clair-dialogs D1), for every dialog on it.
   private(set) lazy var dialogs = ClairDialogPresenter(window: window)
@@ -65,6 +70,14 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   private var commandBarKeyMonitor: Any?
   /// When the link status capsule shows and hides.
   private var statusState = StatusCapsuleState()
+  // Split view (add-split-view design D8, D13a, D13b).
+  /// Watches Option and Shift for the link status.
+  nonisolated(unsafe) var flagsMonitor: Any?
+  /// A closed pin dropped on the page, which splits once its page opens.
+  var pendingPinSplit: (pinID: PinID, then: (TabID) -> Void)?
+  /// Add Split View and New Tab open the command bar on the new pane once
+  /// it's active.
+  var opensCommandBarOnNewPane = false
   private var statusTimer: Task<Void, Never>?
 
   /// `spaces` is the app's model of Spaces, and `updateBanner` its update
@@ -91,19 +104,22 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       showsToolbar: toolbarPreference.isOn)
     self.model = model
     sidebarHost = NSHostingView.edgeToEdge(rootView: SidebarView(model: model, actions: nil))
-    toolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, content: .tab, actions: nil))
-    peekToolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, content: .peek, actions: nil))
+    toolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, slot: .pane(0), actions: nil))
+    secondToolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, slot: .pane(1), actions: nil))
+    peekToolbarHost = NSHostingView.edgeToEdge(rootView: PageToolbar(model: model, slot: .peek, actions: nil))
     rootView = BrowserRootView(model: model, sidebar: sidebarHost)
     super.init()
     Self.all.add(self)
     sidebarHost.rootView = SidebarView(model: model, actions: self)
-    for host in [toolbarHost, peekToolbarHost] {
-      host.rootView = PageToolbar(model: model, content: host.rootView.content, actions: self)
+    for host in [toolbarHost, secondToolbarHost, peekToolbarHost] {
+      host.rootView = PageToolbar(model: model, slot: host.rootView.slot, actions: self)
       // The toolbar is laid out by the card, not sized by its content.
       host.sizingOptions = []
     }
     rootView.card.toolbar = toolbarHost
+    rootView.secondCard.toolbar = secondToolbarHost
     rootView.card.peekToolbar = peekToolbarHost
+    setUpSplitView()
     rootView.onScrimClick = { [weak self] in self?.model.commandBar?.cancel() }
     rootView.onCopyURL = { [weak self] in self?.copyURL() }
     rootView.canCopyURL = { [weak self] in
@@ -126,15 +142,17 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
     // The Peek's buttons, and a click beside it, close or expand it
     // (add-peek design D4).
-    let peekControls = NSHostingView(rootView: PeekControlsView(confirm: model.peekConfirm, actions: self))
+    let peekControls = NSHostingView(rootView: PeekControlsView(confirm: model.peekConfirm, model: model, actions: self))
     // Near the window's top edge the title bar's safe area pushed the
     // buttons about 10 pt down from Arc's place.
     peekControls.safeAreaRegions = []
     peekControls.sizingOptions = []
     rootView.card.peekControls = peekControls
-    rootView.card.peekClickCatcher.onClick = { [weak self] in self?.closePeek() }
-    rootView.card.onConfirmDirectionChange = { [weak model] towardPeek in
-      model?.peekConfirm.growsTowardPeek = towardPeek
+    for card in [rootView.card, rootView.secondCard] {
+      card.peekClickCatcher.onClick = { [weak self] in self?.closePeek() }
+      card.onConfirmDirectionChange = { [weak model] towardPeek in
+        model?.peekConfirm.growsTowardPeek = towardPeek
+      }
     }
     WindowStyle.apply(to: window, profileKind: browser.profileKind)
     window.contentView = rootView
@@ -249,8 +267,10 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     } else if rootView.findHost != nil {
       rootView.findHost = nil
     }
-    // The link status.
-    reportStatus(model.commandBar == nil ? model.statusText : nil, commandBarOpen: model.commandBar != nil)
+    settleSplitRatio()
+    // The link status, worded with the modifier keys held (add-split-view
+    // D13a).
+    reportStatus(model.commandBar == nil ? model.wordedStatus : nil, commandBarOpen: model.commandBar != nil)
     // Toasts.
     if let toast = model.toast {
       rootView.toastHost = NSHostingView(
@@ -258,19 +278,30 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     } else if rootView.toastHost != nil {
       rootView.toastHost = nil
     }
-    // The active tab's infobars and crashed page.
-    let tab = model.activeTab
-    if let tab, !tab.infobars.isEmpty {
-      rootView.card.infobarView = NSHostingView.edgeToEdge(rootView: InfobarsView(tab: tab, actions: self))
-    } else if rootView.card.infobarView != nil {
-      rootView.card.infobarView = nil
-    }
-    if tab?.isCrashed == true {
-      if rootView.card.crashedView == nil {
-        rootView.card.crashedView = NSHostingView.edgeToEdge(rootView: CrashedPageView(actions: self))
+    // The active tab's infobars and crashed page, or each pane's while
+    // split (add-split-view D3).
+    let split = model.shownSplit
+    let paneTabs: [(PageCardView, (any ClairTab)?)] =
+      split.map { split in
+        [rootView.card, rootView.secondCard].enumerated().map { index, card in
+          let paneID = split.paneIDs[index]
+          let shown = model.shownPeek?.parentID == paneID ? model.peekTab : model.allTabs.first { $0.tabID == paneID }
+          return (card, shown)
+        }
+      } ?? [(rootView.card, model.activeTab), (rootView.secondCard, nil)]
+    for (card, tab) in paneTabs {
+      if let tab, !tab.infobars.isEmpty {
+        card.infobarView = NSHostingView.edgeToEdge(rootView: InfobarsView(tab: tab, actions: self))
+      } else if card.infobarView != nil {
+        card.infobarView = nil
       }
-    } else if rootView.card.crashedView != nil {
-      rootView.card.crashedView = nil
+      if tab?.isCrashed == true {
+        if card.crashedView == nil {
+          card.crashedView = NSHostingView.edgeToEdge(rootView: CrashedPageView(actions: self))
+        }
+      } else if card.crashedView != nil {
+        card.crashedView = nil
+      }
     }
   }
 
@@ -336,6 +367,9 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   deinit {
     for observer in observers {
       NotificationCenter.default.removeObserver(observer)
+    }
+    if let flagsMonitor {
+      NSEvent.removeMonitor(flagsMonitor)
     }
   }
 
@@ -546,25 +580,34 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     guard spaceID == model.shownSpaceID, model.showsPins else { return }
     pinsChanged()
     tabsChanged()
+    finishPendingPinSplit()
   }
 
   func favoritesDidChange(_ profileID: ProfileID) {
     guard profileID == model.profileID, model.showsPins else { return }
     pinsChanged()
     tabsChanged()
+    finishPendingPinSplit()
   }
 
   /// The window's rows were added, closed or moved, or it shows another
   /// Space.
   private func tabsChanged() {
-    // A Peek opened, closed or expanded.
+    // A Peek opened, closed or expanded, or a split changed.
     showPages()
+    devToolsDidChange()
     model.reloadStop.loadingChanged(model.activeTab?.isLoading == true)
     rootView.loadingIndicator.loadingChanged(model.activeTab?.isLoading == true)
   }
 
   private func tabChanged(_ tab: any ClairTab) {
+    let split = model.shownSplit
     model.updateTab(tab)
+    // A split made, changed or ended shows its panes (add-split-view D3).
+    if model.shownSplit != split {
+      showPages()
+      devToolsDidChange()
+    }
     if tab.tabID == model.activeTabID {
       model.reloadStop.loadingChanged(tab.isLoading)
       rootView.loadingIndicator.loadingChanged(tab.isLoading)
@@ -625,7 +668,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
     showPages()
     devToolsDidChange()
-    offerCommandBarIfNew()
+    if opensCommandBarOnNewPane, switched, model.activeTab?.isNewTabPage != false {
+      opensCommandBarOnNewPane = false
+      showCommandBar(mode: .currentTab)
+    } else {
+      offerCommandBarIfNew()
+    }
   }
 
   /// What the card shows: the active tab's page, or a Peek over its parent's
@@ -639,10 +687,44 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     if model.shownPeek != shown {
       model.shownPeek = shown
     }
-    if let shown {
-      rootView.card.show(page: browser?.pageView(for: shown.peekID), behind: browser?.pageView(for: shown.parentID))
+    if let split = model.shownSplit {
+      // add-split-view D3: each pane its tab's page, a Peek over its
+      // parent's. The card losing a page goes first, so the one taking it
+      // keeps it.
+      let cards = [rootView.card, rootView.secondCard]
+      let pages = split.paneIDs.map { paneID -> (NSView?, NSView?) in
+        if let shown, shown.parentID == paneID {
+          return (browser?.pageView(for: shown.peekID), browser?.pageView(for: paneID))
+        }
+        return (browser?.pageView(for: paneID), nil)
+      }
+      // A card taking a page the other card holds goes first, so the page
+      // moves once, rather than leaving its card and coming back.
+      let takes = cards.indices.map { index in
+        [pages[index].0, pages[index].1].contains { $0?.isDescendant(of: cards[1 - index]) == true }
+      }
+      for index in takes[1] && !takes[0] ? [1, 0] : [0, 1] {
+        cards[index].show(page: pages[index].0, behind: pages[index].1)
+      }
+      // The Peek's buttons go with its card.
+      let peeking = cards.first { $0.isPeeking } ?? rootView.card
+      if let controls = rootView.card.peekControls ?? rootView.secondCard.peekControls, controls.superview !== peeking {
+        cards.forEach { if $0 !== peeking { $0.peekControls = nil } }
+        peeking.peekControls = controls
+        peeking.peekToolbar = peekToolbarHost
+      }
     } else {
-      rootView.card.show(page: browser?.pageView(for: model.activeTabID), behind: nil)
+      rootView.secondCard.show(page: nil)
+      if let controls = rootView.secondCard.peekControls {
+        rootView.secondCard.peekControls = nil
+        rootView.card.peekControls = controls
+        rootView.card.peekToolbar = peekToolbarHost
+      }
+      if let shown {
+        rootView.card.show(page: browser?.pageView(for: shown.peekID), behind: browser?.pageView(for: shown.parentID))
+      } else {
+        rootView.card.show(page: browser?.pageView(for: model.activeTabID), behind: nil)
+      }
     }
     rootView.needsLayout = true
   }
@@ -664,7 +746,11 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
 
   func devToolsDidChange() {
     guard let browser else { return }
-    rootView.card.show(devTools: browser.devToolsView, layout: browser.devToolsLayout)
+    // The active tab's DevTools docks in its pane (add-split-view D3).
+    let holder = rootView.card(showing: model.activeTabID)
+    let other = holder === rootView.card ? rootView.secondCard : rootView.card
+    other.show(devTools: nil, layout: DevToolsLayout(dockSide: .none, pageBounds: .zero, hidesPage: false))
+    holder.show(devTools: browser.devToolsView, layout: browser.devToolsLayout)
   }
 
   func showCommandBar(mode: CommandBarMode) {
@@ -731,8 +817,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     model.find?.result = result
   }
 
-  func statusTextDidChange(_ text: String?) {
+  func statusTextDidChange(_ text: String?, isLink: Bool, tab tabID: TabID) {
+    model.opensPeekOnShiftClick = peekPreference.isEnabled
     model.statusText = text
+    model.statusIsLink = isLink && text != nil
+    model.statusTabID = tabID
+    model.statusModifiers = NSEvent.modifierFlags
   }
 
   /// Waits out a toast's time; tests replace it so they don't depend on the
@@ -792,8 +882,9 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       controls[control] = sidebarHost.convert(frame, to: nil)
     }
     var toolbarControls: [AnchorControl: CGRect] = [:]
+    let reportingHost = toolbarFramesPane == 1 ? secondToolbarHost : toolbarHost
     for (control, frame) in toolbarFrames {
-      toolbarControls[control] = toolbarHost.convert(frame, to: nil)
+      toolbarControls[control] = reportingHost.convert(frame, to: nil)
     }
     return AnchorResolver(
       sidebarInPlace: model.sidebar.isShownInPlace && !model.isPageFullscreen && !isWindowFullscreen,
@@ -869,6 +960,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     closeExtensionPopup()
     dialogs.cancelAll()
     rootView.card.show(page: nil)
+    rootView.secondCard.show(page: nil)
     rootView.card.showStill(false, image: nil)
     removeSafetyNet()
     stopCommandBarKeyMonitor()
@@ -1055,7 +1147,11 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     controlFrames = frames
   }
 
-  func toolbarControlFramesChanged(_ frames: [AnchorControl: CGRect]) {
+  func toolbarControlFramesChanged(_ frames: [AnchorControl: CGRect], pane: Int) {
+    // The focused pane's header holds the bubbles' controls.
+    let focused = model.shownSplit?.focusedIndex ?? 0
+    guard pane == focused else { return }
+    toolbarFramesPane = pane
     toolbarFrames = frames
   }
 

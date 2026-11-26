@@ -332,7 +332,7 @@ extension BrowserWindowController {
   func moveFolder(_ folderID: FolderID, toSpace spaceID: SpaceID) {
     guard let space = model.spaces.space(spaceID), let folder = model.spaces.folder(folderID) else { return }
     let highlighted = model.highlightedTab
-    let holdsActive = highlighted != ClairTabIDNone && folder.pins.contains { $0.tabID == highlighted }
+    let holdsActive = highlighted != ClairTabIDNone && PinsLogic.pins(of: folder).contains { $0.tabID == highlighted }
     model.spaces.moveFolder(folderID, toSpace: spaceID, at: Int.max)
     if !holdsActive {
       model.notice.show(

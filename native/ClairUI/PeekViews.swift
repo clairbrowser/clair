@@ -112,6 +112,8 @@ enum PeekLayout {
 protocol PeekActions: AnyObject {
   func closePeek()
   func expandPeek()
+  /// The Peek as a tab in a split with its parent (add-split-view D11).
+  func openPeekInSplit()
 }
 
 /// The column of round buttons beside the Peek (add-peek design D4, D6):
@@ -119,6 +121,9 @@ protocol PeekActions: AnyObject {
 /// arms the next one, and Expand.
 struct PeekControlsView: View {
   let confirm: PeekConfirmState
+  /// The window's, for whether the parent is in a split, where Open in
+  /// Split View doesn't show (add-split-view D11).
+  var model: BrowserWindowModel?
   weak var actions: (any PeekActions)?
 
   var body: some View {
@@ -137,6 +142,12 @@ struct PeekControlsView: View {
         label: "Expand Peek into a tab",
         identifier: "clair.peekExpand"
       ) { actions?.expandPeek() }
+      if model?.shownSplit == nil {
+        PeekRoundButton(
+          systemImage: "rectangle.split.2x1", glyphSize: PeekLayout.expandGlyphSize, tooltip: "Open in Split View",
+          label: "Open Peek in Split View", identifier: "clair.peekSplit"
+        ) { actions?.openPeekInSplit() }
+      }
     }
     .fixedSize()
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: towardPeek ? .topTrailing : .topLeading)
