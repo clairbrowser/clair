@@ -126,7 +126,7 @@ The tab context menus gain Split with Tab › from the menus `PinsLogic` and the
 `ClairPinStore` gains a **split record**, `{id, sortKey, ratio}`, with the place a pin has: a Space's pinned section, a folder in it, or a profile's favorites. A folder holds pins and splits, still one level deep. Each of its two pins names the split and its index (0 or 1), instead of its own place. The format follows `add-tab-folders`' iCloud-ready records: a move rewrites the split record only.
 
 In `ClairHost.h`, `ClairPinnedItem` gains a split kind holding its two pins and its ratio, and the favorites list returns items in place of bare pins. Selecting a split item binds or opens both pins' tabs and makes them a Chromium split with the saved ratio:
-- **Closing one pane** unbinds that pin only. The split record stays, so selecting the row again reopens it into the split.
+- **Closing one pane** takes its pin out of the item, as Arc does (`arc-reference/README.md`, "Closing one pane of a pinned split"): the split record goes, the other pin takes its place and sort key, and the closed pin is removed as Remove Pin removes one. Restore Last Closed Tab brings back the split record with both pins and its ratio, and reopens the pair as a split.
 - **Separate** turns the record into two pins at its sort key, in pane order.
 - **Unpin and Remove Favorite** move or remove both pins.
 - **Restore Last Closed Tab** brings a removed split record back with its pins.

@@ -11,7 +11,8 @@
 // or as long as a last odd number gives, which leaves time to screenshot the
 // drag. It moves the real pointer, and the shell it runs from needs
 // permission to post events (Privacy & Security > Accessibility). Bring the
-// app forward first (`probe.sh send activate`). Arc ignores these events.
+// app forward first (`probe.sh send activate`). Arc takes these drags too,
+// though the probe's `drag` doesn't start one there.
 
 import CoreGraphics
 import Foundation

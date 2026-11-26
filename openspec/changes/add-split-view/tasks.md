@@ -10,7 +10,7 @@ Suggested order:
 
 ## 1. References, contract and fakes
 
-- [ ] 1.1 Probe Arc with `tests/probe/` for D8's open values, and add the screenshots and numbers to `arc-reference/README.md`:
+- [x] 1.1 Probe Arc with `tests/probe/` for D8's open values, and add the screenshots and numbers to `arc-reference/README.md`:
   - a 60 fps recording of a tab dragged onto the page and across it: the portrait card's size, the drop zone's tint and border, and the slide's timing;
   - the split row with three-word titles at the default sidebar width;
   - closing one pane of a pinned split;
@@ -51,7 +51,7 @@ Suggested order:
   - the runtime tests in 3.12 cover Option+click on a single page, in each pane of a split (no new tab, Back returns), from a favorite (no Peek), inside a Peek, and from the context menu;
   - no download starts in any of these.
 - [ ] 2.5 Add the split record to `ClairPinStore` (D10): split records with their place and ratio, pins that name their split and index, and splits in folders, still one level deep. Add pinning, unpinning, favoriting and separating a split, Remove Pin, Remove Favorite, Restore Last Closed Tab, and Move to Space. Verify with the runtime tests in 3.12 that pinned and favorited splits, their order, pages and ratio survive a relaunch, and that Separate leaves two pins in place (each read from `Local State` after quitting).
-- [ ] 2.6 Bind pinned and favorited splits (D10): selecting one opens its unopened pages as a split with its ratio; closing one pane unbinds only that pin; a Today split with a pin-bound tab keeps the binding. Verify with the runtime tests in 3.12.
+- [ ] 2.6 Bind pinned and favorited splits (D10): selecting one opens its unopened pages as a split with its ratio; closing one pane takes its pin out of the item, leaving the other pin in its place, and Restore Last Closed Tab brings the split back; a Today split with a pin-bound tab keeps the binding. Verify with the runtime tests in 3.12.
 - [ ] 2.7 Peek's Open in Split View (D11): expand and split, and no button while the parent has a partner. Verify with the runtime tests in 3.12.
 - [ ] 2.8 Bridge the D2 calls and snapshots, and the menu bar items of D9: Tabs › Split with Tab ›, and View › Add Split View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs, with Add Split View showing "Cannot Add New Pane" while split. Verify with the runtime tests in 3.12.
 - [ ] 2.9 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
@@ -105,7 +105,7 @@ Suggested order:
   - closing the row and Restore Last Closed Tab;
   - a split and its ratio after a relaunch and Reopen Closed Window;
   - pinning, favoriting, separating and relaunching a pinned split, one in a folder included;
-  - one pane of a pinned split closed and reopened;
+  - one pane of a pinned split closed, and restored with Restore Last Closed Tab;
   - Open in Split View from a Peek, and its absence on a Peek in a split.
 
   Verify that they pass in `quality.yml` on the branch.

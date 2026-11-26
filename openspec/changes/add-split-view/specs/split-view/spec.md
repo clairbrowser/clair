@@ -250,7 +250,7 @@ A Today tab's, pinned tab's or favorite's Split with Tab › SHALL be disabled, 
 - **THEN** Split with Tab is disabled
 
 ### Requirement: Closing a pane
-Each pane's × in its header, Close This Tab in its split menu, Cmd+W and View › Close Split Pane (⌃⇧−) on the focused pane SHALL close that pane's tab only, with its leave-page confirmation. The other tab SHALL then show alone, active, in the split's place in the sidebar. A pinned tab's or favorite's pane SHALL close as Close and Keep Pinned does.
+Each pane's × in its header, Close This Tab in its split menu, Cmd+W and View › Close Split Pane (⌃⇧−) on the focused pane SHALL close that pane's tab only, with its leave-page confirmation. The other tab SHALL then show alone, active, in the split's place in the sidebar. The pane of a pinned tab or favorite in a Today split SHALL close as Close and Keep Pinned does. A pane of a pinned or favorited split SHALL close as "Closing a pane of a pinned split" says.
 
 #### Scenario: × on a pane
 - **WHEN** a split shows "News" and "Docs" and the user clicks × in the "Docs" pane's header
@@ -399,15 +399,22 @@ A pinned split SHALL show in the pinned section as a split row, with the titles 
 - **THEN** both pinned URLs load, as a split with its ratio
 
 ### Requirement: Pages of a pinned split
-A pinned or favorited split SHALL keep a pinned URL for each page. Selecting it SHALL open each page that isn't open, as a split. Closing one pane SHALL keep it in the split; the other page SHALL show alone until the split is selected again. Its row or tile SHALL show no "/" and offer no Back to Pinned URL.
+A pinned or favorited split SHALL keep a pinned URL for each page. Selecting it SHALL open each page that isn't open, as a split. Its row or tile SHALL show no "/" and offer no Back to Pinned URL.
+
+#### Scenario: Navigated away
+- **WHEN** the "Mail" pane of a pinned split follows a link to another page of its site
+- **THEN** the row shows the new title in its chip, with no "/", and Tabs › Back to Pinned URL is disabled
+
+### Requirement: Closing a pane of a pinned split
+Closing one pane of a pinned or favorited split SHALL take that page out of the item, as in Arc: the item SHALL become a pinned tab, or a favorite, of the other page, in the split's place, showing that page alone. Restore Last Closed Tab SHALL bring the closed page back into the item as a split, with its pinned URL and the ratio.
 
 #### Scenario: Closing one pane
 - **WHEN** a pinned split of "Mail" and "Calendar" shows and the user closes the "Calendar" pane
-- **THEN** "Mail" shows alone, the row still holds both chips, and clicking the row opens "Calendar" again beside "Mail"
+- **THEN** "Mail" shows alone, as a pinned tab in the split's place, and the pinned section has no "Calendar"
 
-#### Scenario: Navigated away
-- **WHEN** the "Mail" pane follows a link to another page of its site
-- **THEN** the row shows the new title in its chip, with no "/", and Tabs › Back to Pinned URL is disabled
+#### Scenario: Restoring the closed pane
+- **WHEN** the user then chooses Restore Last Closed Tab
+- **THEN** the pinned split of "Mail" and "Calendar" is back in its place, shown with its ratio
 
 ### Requirement: The favorite split tile
 A favorited split SHALL take one tile in the favorites grid, divided into a segment per page by a thin line, each segment with its page's icon centred, as in Arc. While the window shows it, the tile SHALL turn white in Light Mode, or light grey in Dark Mode, with a 2-point ring that blends from the leading page's icon colour to the trailing page's.
