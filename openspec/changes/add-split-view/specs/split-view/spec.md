@@ -187,15 +187,19 @@ On a page that isn't split, the split button's menu SHALL offer the heading "Spl
 - **THEN** a split shows "Mail" leading and "Docs" trailing and focused, and the sidebar shows one row for both
 
 ### Requirement: Splitting with a new tab
-New Tab in a Split with Tab menu, and View › Add Split View (⌃⇧=), SHALL open the command bar for a new tab, and SHALL make a split of the shown tab and the chosen page, the new tab trailing and focused. Esc SHALL make no split and create no tab. While the page is split, Add Split View SHALL show the toast "Cannot Add New Pane".
+New Tab in a Split with Tab menu, and View › Add Split View (⌃⇧=), SHALL make a split of the shown tab and a new tab on the new tab page, trailing and focused, and open the command bar centred on the new pane, as Arc does with its empty pane. Choosing a page SHALL load it in the new tab. Esc SHALL close the command bar and leave the new tab page in its pane. While the page is split, Add Split View SHALL show the toast "Cannot Add New Pane".
 
 #### Scenario: Add Split View
-- **WHEN** the window shows "News" alone and the user presses ⌃⇧=, types `example.com` and presses Return
-- **THEN** a split shows "News" and `example.com`, the new tab trailing and focused
+- **WHEN** the window shows "News" alone and the user presses ⌃⇧=
+- **THEN** a split shows "News" and a new tab page, the new tab trailing and focused, with the command bar centred on it
+
+#### Scenario: Choosing a page
+- **WHEN** the user then types `example.com` and presses Return
+- **THEN** the trailing pane loads `example.com`
 
 #### Scenario: Esc
 - **WHEN** the user presses ⌃⇧= and then Esc
-- **THEN** the window shows "News" alone, and no tab is added
+- **THEN** the command bar closes, and the split shows "News" and the new tab page
 
 #### Scenario: Already split
 - **WHEN** the page is split and the user presses ⌃⇧=

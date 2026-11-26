@@ -27,6 +27,7 @@ Keep these screenshots. They move with the change when it's archived.
 - The split row with long titles at the default sidebar width.
 - Closing one pane of a pinned split.
 - With a Peek open from one pane, what a click on the other pane does.
+- Esc in the command bar of Add Split View's empty pane: whether the pane stays. Clair keeps a new tab page there.
 
 ## Peek in a split
 

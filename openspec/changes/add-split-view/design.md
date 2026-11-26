@@ -37,7 +37,7 @@ See proposal.md, "Why". The behaviour is in `specs/split-view/spec.md`; this cov
 - on `ClairTab`, `splitID` (an opaque string, or nil) and `splitRatio`;
 - on `ClairBrowser`:
   - `splitTab:withTab:`, which makes the second tab trailing and focused, wherever each was;
-  - `splitTabWithNewTab:url:`, for the command bar's New Tab;
+  - `splitTabWithNewTab:`, which adds a new tab page as the trailing, focused pane, for Add Split View and New Tab;
   - `replacePaneOfTab:withTab:`, `swapSplitOfTab:`, `separateSplitOfTab:`, `closeSplitOfTab:` (both tabs) and `setSplitRatio:ofTab:`;
   - `canAddPaneToTab:`, for the "Cannot Add New Pane" toast.
 
@@ -143,7 +143,7 @@ Closing a tab in a split dissolves the split in `TabStripModel`, and the other t
 
 ### D13b. The command bar's place
 
-The command bar is placed against the window today. While `paneCount` is 2, its horizontal centre becomes the focused `PaneView`'s centre in window coordinates, clamped so that the bar stays inside the window's content. Its vertical place doesn't change. The Split with Tab menus' New Tab opens before the split exists, so it centres on the window, as from a single page.
+The command bar is placed against the window today. While `paneCount` is 2, its horizontal centre becomes the focused `PaneView`'s centre in window coordinates, clamped so that the bar stays inside the window's content. Its vertical place doesn't change. Add Split View and the Split with Tab menus' New Tab make the split first, with a new tab page in the new pane (`splitTabWithNewTab:`, without a URL), so the command bar then centres on that pane like any other. It opens in Cmd+L's mode on the new tab, so a chosen page loads there.
 
 ### D13a. Link status with a modifier
 

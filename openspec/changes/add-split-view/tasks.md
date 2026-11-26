@@ -14,7 +14,8 @@ Suggested order:
   - a 60 fps recording of a tab dragged onto the page and across it: the portrait card's size, the drop zone's tint and border, and the slide's timing;
   - the split row with three-word titles at the default sidebar width;
   - closing one pane of a pinned split;
-  - with a Peek open from one pane, a click on the other pane.
+  - with a Peek open from one pane, a click on the other pane;
+  - Esc in the command bar of Add Split View's empty pane.
 
   Verify that the README lists each. If closing a pinned split's pane differs from the spec's "Pages of a pinned split", update the spec and D10 before 2.6.
 - [ ] 1.2 Change `native/ClairHost.h` as D2 and D10 list:
@@ -73,7 +74,7 @@ Suggested order:
   - the other pane's split button, site controls, extensions and indicators shown while the pointer is over that pane, and a click on one focusing the pane first.
 
   Verify with unit tests in CI for each variant's controls and `ToolbarArrangement`'s slots, the narrow-window cases included.
-- [ ] 3.5 Add the split button's two menus and Split with Tab › in the Today, pinned and favorite menus (D9), including New Tab through the command bar and Esc creating nothing. Verify with unit tests in CI for each menu's items in order, the disabled Move Left and Move Right, the Today-only list in the sidebar's order with favicons, and the menu bar item disabled while split.
+- [ ] 3.5 Add the split button's two menus and Split with Tab › in the Today, pinned and favorite menus (D9), including Add Split View and New Tab making a new-tab-page pane with the command bar centred on it, and Esc leaving that page. Verify with unit tests in CI for each menu's items in order, the disabled Move Left and Move Right, the Today-only list in the sidebar's order with favicons, and the menu bar item disabled while split.
 - [ ] 3.6 Add the link status texts of D13a: "Open <URL> in Split View" with Option, "Open <URL> in Peek" with Shift while the Peek preference is on, the URL alone in a Peek, updates as the keys change, and the capsule in the hovered link's pane. Verify with unit tests in CI for the text from each modifier, preference and Peek case, and by hand in 3.11.
 - [ ] 3.7 Centre the command bar on the focused pane while split, clamped inside the window (D13b). Verify with unit tests in CI for its frame over each pane, a narrow pane, and a single page, and by hand in 3.11.
 - [ ] 3.8 Add the split row (D2, D13): chips with favicon, title or custom name, the divider while not selected and pills while selected; × in Today, − and × in the pinned section; the click that shows the split; the row's menu with Separate Tabs and its omitted items; and the row dragged as one, into and out of folders too. Verify with unit tests in CI for the row's states, buttons and menu, and `PinsLogic.listDrop`'s gaps for a split row around open and closed folders.
@@ -83,7 +84,7 @@ Suggested order:
   - a tab, pinned tab and favorite dragged onto each half of a single page, and onto each pane of a split;
   - Option+click in a single page, in each pane, from a pinned tab and inside a Peek;
   - the split button's place in the toolbar and each pane, both menus, and Move Left and Move Right;
-  - Split with Tab from the menu bar and each tab menu, and New Tab with Esc;
+  - Split with Tab from the menu bar and each tab menu, and Add Split View and New Tab, with a page chosen and with Esc;
   - closing a pane with ×, Cmd+W and ⌃⇧−, and Separate Tabs;
   - the divider and its limit: each page stops at about 210 pt, checked with DevTools' viewport width (no runtime test), and a release near the centre snapping to equal panes;
   - the command bar from Cmd+L, Cmd+T and a pane's host in each pane;
