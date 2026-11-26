@@ -432,8 +432,8 @@ bool CanRestoreLastClosed(ClairBrowserWindow* window);
 // host.
 bool IsOtherSite(const GURL& url, const GURL& current);
 // D7: whether a URL the user enters to open in `window`'s current tab opens
-// in a new Today tab instead: the tab is a favorite's, and `url` is on
-// another site.
+// in a new Today tab instead: the tab is a favorite's, not in a split, and
+// `url` is on another site.
 bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url);
 // D8: every window's title follows its active tab's name.
 void UpdateWindowTitles();

@@ -3247,7 +3247,10 @@ bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url) {
   ClairSpaceTabs* lists = window ? window->space_tabs() : nullptr;
   tabs::TabInterface* active =
       window ? window->browser()->tab_strip_model()->GetActiveTab() : nullptr;
+  // add-split-view: a favorited split's pane loads it in place, as Arc's
+  // does.
   return lists && active && lists->IsFavoriteTab(active) &&
+         !active->IsSplit() &&
          IsOtherSite(url, active->GetContents()->GetLastCommittedURL());
 }
 
