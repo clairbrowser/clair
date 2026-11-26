@@ -70,7 +70,9 @@ final class SplitMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
     let item: NSMenuItem
     switch command {
     case .splitWithTab:
-      item = NSMenuItem(title: command.title, action: nil, keyEquivalent: "")
+      // With an action, the menu asks validateMenuItem whether it's on; an
+      // item with a submenu and none is always on.
+      item = NSMenuItem(title: command.title, action: #selector(choose(_:)), keyEquivalent: "")
       let submenu = NSMenu(title: command.title)
       submenu.delegate = self
       item.submenu = submenu
