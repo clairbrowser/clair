@@ -30,7 +30,7 @@ Suggested order:
   - `IDC_TAB_SEARCH`, `IDC_WINDOW_GROUP_TAB`, `IDC_GROUP_TARGET_TAB` and `IDC_NEW_SPLIT_TAB` from `ClairIsRemovedCommand`.
 
   Before each, grep the Chromium tree (`/Volumes/My Shared Files/clair/build/src`) for other senders of the command, and keep any case that has one, noting why in D5a. Verify that the engine compiles (2.5), and that Opt+Cmd+Down and Up, Cmd+1…9 and Close Tabs Below still work in the runtime suite (5.2).
-- [ ] 2.3 Add `ClairTabPreview` (`engine/overlay/chrome/browser/clair/window/`), as D4 describes:
+- [x] 2.3 Add `ClairTabPreview` (`engine/overlay/chrome/browser/clair/window/`), as D4 describes:
   - on each active-tab change, `CopyPage` copies the outgoing row's page (each pane of a split), scales it to 2× the card width and cuts it to 3:2 from the top;
   - the copy is kept as `WebContents` user data and replaced on each hide;
   - `-requestPreviewOfTab:size:completion:` returns it, or copies the shown tab live, or nil.
@@ -64,7 +64,7 @@ Suggested order:
 
   Verify with `grep -rn "tabMenuTag\|35013\|35051" native/` finding nothing, and the unit tests passing in CI.
 - [ ] 3.7 Rebuild `PinsLogic`'s menus as groups (D6): the Today, pinned and favorite menus, Close Tab on an open pinned tab (as Close and Keep Pinned), and the split chip's Separate Tabs in Split with Tab's place. Add Back to Pinned URL to Edit Pinned Page ›. Verify with unit tests in CI for each menu scenario in the `sidebar`, `pinned-tabs`, `favorites` and `split-view` deltas, including incognito and one Space.
-- [ ] 3.8 Rename the sidebar Clear button's tooltip to "Clear unpinned tabs" (`PinsViews`). Verify with `grep -rn '"[^"]*Today[^"]*"' native/ClairUI` finding no user-facing string.
+- [x] 3.8 Rename the sidebar Clear button's tooltip to "Clear unpinned tabs" (`PinsViews`). Verify with `grep -rn '"[^"]*Today[^"]*"' native/ClairUI` finding no user-facing string.
 
 ## 4. Probe tooling
 
@@ -86,7 +86,7 @@ Suggested order:
 
 ## 6. Hand check, docs and release notes
 
-- [ ] 6.1 Hand check with `tests/probe/launch-clair.sh` and the `keys` tool, against `arc-reference/`, with the same tabs:
+- [x] 6.1 Hand check with `tests/probe/launch-clair.sh` and the `keys` tool, against `arc-reference/`, with the same tabs:
   - the panel's size and position;
   - card and highlight sizes;
   - previews of background and shown tabs, and of a split;

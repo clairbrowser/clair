@@ -44,3 +44,24 @@ Only two are kept. The rest of what was probed (stepping, Shift+Tab, Esc, a clos
 |---|---|
 | switcher-whole-panel.jpg | The whole panel from a screen capture, overhanging the window's right edge, with MDN selected: corners, border, highlight and the full card row |
 | switcher-across-spaces.jpg | From "Probe A": the split's card (two favicons, no title), Weather.com of "Probe B" selected, AP News (pinned), Reuters (favorite), BBC |
+
+## Clair
+
+Checked on 2026-11-27 with `tests/probe/launch-clair.sh` and the `keys` tool, Light Mode, a 1200 × 932 pt window at (22, 52) on the same 1920 × 1080 pt screen, 2 px per point, with Apple, GitHub, Hacker News, Wikipedia "Cat", MDN, Example Domain and BBC opened in that order (engine `chromium-engine-a6215d3cdeceef07`).
+
+| What | Clair | Arc |
+|---|---|---|
+| Panel, five cards | 937 × 189, centred on the window (the window's and the panel's centres within 0.5) | 938 × 189, about 29 right of centre |
+| Panel padding | 27 to a preview; the highlight 15 from the panel's edges | 27; 15–16 |
+| Panel background | #F2F2F2, hairline border, shadow | #F2F2F2 |
+| Card preview | 157.5 × 105, the page's top, fitted to width | 157.5 × 105 |
+| Card pitch | 181.5 | 181.5 |
+| Selection highlight | 181.5 × 157.5, 12 around the preview, the accent colour at 18 % | 181.5 × 157.5, the Space's light accent |
+| Label | 16 favicon, the title at 14 pt; selected semibold and primary, others medium and secondary | the same, selected darker and bolder |
+
+- **Previews.** Background tabs show their page as they were left, the shown tab its page as it is, and a split both pages side by side with both favicons and no title.
+- **Keys.** Each Tab selects the next card, Tab on the last wraps to the first, and Esc with Ctrl held closes the panel and keeps the tab.
+- **Timing.** In 60 fps recordings, Ctrl released right after Tab (about 60 ms) showed no panel in any frame; held about 165 ms, the panel showed.
+- **Animation.** None: the panel appears at full size and opacity between two frames, the highlight moves between two frames, and the panel is gone in the frame after Ctrl is released.
+
+The hand check found two differences, both fixed: the panel's background was white (macOS 27's light `windowBackgroundColor`), and background tabs had no preview, because a hidden page stopped painting before its copy (design D4).
