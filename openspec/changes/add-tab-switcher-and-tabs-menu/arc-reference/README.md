@@ -18,7 +18,7 @@ Keep these screenshots. They move with the change when it's archived.
 - **Closed pages.** Closing a pinned tab's page (Cmd+W, Close and Keep Pinned) took it off the list.
 - **Splits.** A split is one card: both pages side by side in one preview, and both favicons with no title.
 - **Stepping.** Each Tab, Ctrl held, selects the next card. Tab on the last card wraps to the first. Ctrl+Shift+Tab opens with the last card selected, and Tab then wraps to the first.
-- **Committing.** Releasing Ctrl shows the selected tab, and a quick Ctrl+Tab shows the previous tab.
+- **Committing.** Releasing Ctrl shows the selected tab, and a quick Ctrl+Tab shows the previous tab. The panel still flashes up: it was there 80 ms after the key. Clair waits 150 ms instead (design D3).
 - **Cancelling.** Esc, Ctrl still held, closes the panel and keeps the tab.
 - **The pointer.** A click on a card, Ctrl held (so a Ctrl-click), did nothing.
 - **Animation.** None. In a 60 fps recording, the panel appears in one frame (already there 80 ms after the key), the selection moves in one frame, and the panel is gone in the frame after Ctrl is released.

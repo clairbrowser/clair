@@ -87,6 +87,21 @@ Esc SHALL close the switcher without switching tabs, even while Ctrl is still he
 - **WHEN** the switcher is open and another app becomes active
 - **THEN** the switcher closes and the window keeps its tab
 
+### Requirement: A quick Ctrl+Tab shows no panel
+The panel SHALL appear only once Ctrl has been held for 150 ms after Ctrl+Tab or Ctrl+Shift+Tab, or at once when Tab or Shift+Tab is pressed again within that time. Releasing Ctrl sooner SHALL show the selected tab without the panel ever appearing.
+
+#### Scenario: A quick tap
+- **WHEN** the window shows "Docs", which it showed after "Mail", and the user presses Ctrl+Tab and releases Ctrl within 150 ms
+- **THEN** the window shows "Mail", and no panel appeared
+
+#### Scenario: Holding Ctrl
+- **WHEN** the user presses Ctrl+Tab and keeps Ctrl held
+- **THEN** the panel appears 150 ms after the press
+
+#### Scenario: Two quick Tabs
+- **WHEN** the user presses Ctrl+Tab and, within 150 ms, Tab again, Ctrl still held
+- **THEN** the panel appears at once, with the third card selected
+
 ### Requirement: Switcher panel
 The panel SHALL lie over the window, centred on it and kept on its screen, and SHALL hold its cards in one row, from left to right, as Arc's does (`arc-reference/`): about 27 points of padding on each side, cards about 157 points wide with about 24 points between them, a light rounded panel with a shadow. It SHALL appear, move its selection and close with no animation.
 
@@ -96,7 +111,7 @@ The panel SHALL lie over the window, centred on it and kept on its screen, and S
 
 #### Scenario: No animation
 - **WHEN** the user presses Ctrl+Tab
-- **THEN** the panel shows at its full size and opacity in the next frame
+- **THEN** the panel shows at its full size and opacity in a single frame, 150 ms after the press
 
 ### Requirement: Cards
 Each card SHALL show a preview of its tab's page, about 157 by 105 points with rounded corners, filled from the page's top edge, and below it the tab's favicon and its title or custom name, on one line, cut short with an ellipsis. A split's card SHALL show both pages side by side, in pane order, and both favicons with no title. The selected card SHALL show a rounded highlight in the window's accent colour around its preview and label, and its title SHALL be darker.
