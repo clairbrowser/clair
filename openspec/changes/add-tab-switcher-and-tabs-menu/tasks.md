@@ -53,7 +53,7 @@ Suggested order:
   - commit through `showTab`;
   - cancel on resign-key and when the shown tab closes.
 
-  Verify with unit tests in CI that feed it synthetic `NSEvent`s: Ctrl+Tab is swallowed, other keys pass while it's closed, releasing Ctrl commits, a click on a card (with Ctrl held) commits that card, and a click elsewhere passes through to the window.
+  Verify with unit tests in CI that feed it synthetic `NSEvent`s: Ctrl+Tab is swallowed, other keys pass while it's closed, releasing Ctrl commits, and a click on a card (with Ctrl held) commits that card.
 - [ ] 3.4 Add the switcher panel (D3): the child `NSPanel`, the cards with previews (a split's composed in pane order), favicons and titles or custom names, the accent highlight, centring kept on screen, no animation, and the identifiers of D7. Verify with a unit test of the layout maths (panel size for one to five cards, the clamp to the screen's visible frame) in CI, and by the hand check (6.1).
 - [ ] 3.5 Add `TabsMenu` (D5), before the Window menu: Pin Tab, the new Pin to Favorites, New Folder…, Next and Previous Tab through `commandDispatch:`, Split with Tab › (moved from `SplitMenu`), Move to Space ›, and Clear Unpinned Tabs, with the enabled rules of `tabs-menu`. Verify with unit tests in CI for the items, their order, titles, shortcuts and enabled states, including incognito and a favorite.
 - [ ] 3.6 Remove ClairUI's customizations of Chromium's Tab menu (D5a):

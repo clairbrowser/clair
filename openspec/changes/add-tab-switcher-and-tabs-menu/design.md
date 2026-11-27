@@ -42,7 +42,7 @@ Kept in the engine instead, the list would need a new observer call for somethin
 | Other keys, switcher open | Swallowed. |
 | `flagsChanged` without Control, switcher open | Commits. |
 
-Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes a left mouse down over a card, Control held, and commits that card, before AppKit can treat the Control-click as a secondary click. Every other mouse event passes through untouched: Clair never blocks the page while the switcher is open. Arc lets a click choose a card too (the owner checked by hand).
+Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes a left mouse down over a card, Control held, and commits that card, before AppKit can treat the Control-click as a secondary click. It takes no other mouse event. Arc lets a click choose a card too (the owner checked by hand).
 
 With Chromium's Tab menu deleted (D5), Chromium no longer has Ctrl+Tab at all.
 

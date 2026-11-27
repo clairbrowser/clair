@@ -84,15 +84,11 @@ Esc SHALL close the switcher without switching tabs, even while Ctrl is still he
 - **THEN** the switcher closes and the window keeps its tab
 
 ### Requirement: Choosing a card with the pointer
-While the panel shows, clicking a card SHALL close the switcher and show that card's tab, as releasing Ctrl on it does, as in Arc. Ctrl is still held then, since releasing it closes the panel. Clicks outside the cards SHALL reach the window as they always do, and the switcher SHALL stay open.
+While the panel shows, clicking a card SHALL close the switcher and show that card's tab, as releasing Ctrl on it does, as in Arc. Ctrl is still held then, since releasing it closes the panel.
 
 #### Scenario: Clicking a card
 - **WHEN** the switcher shows "BBC", "Example", "MDN", "Cat" and "Hacker News", "Example" is selected, and the user clicks "Cat" with Ctrl held
 - **THEN** the switcher closes and the window shows "Cat", and releasing Ctrl then changes nothing
-
-#### Scenario: Clicking outside the cards
-- **WHEN** the switcher is open and the user clicks a link on the page beside the panel
-- **THEN** the page handles the click as usual, and the switcher stays open with the same card selected
 
 ### Requirement: A quick Ctrl+Tab shows no panel
 The panel SHALL appear only once Ctrl has been held for 100 ms after Ctrl+Tab or Ctrl+Shift+Tab, or at once when Tab or Shift+Tab is pressed again within that time. Releasing Ctrl before the panel appears SHALL show the selected tab without the panel ever appearing.
