@@ -3213,15 +3213,19 @@ void ClairBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
           FROM_HERE, base::BindOnce(&GiveBackToStill, old_row->GetHandle()));
     }
   }
+  // A tab and its Peek show together (add-peek D4).
+  const std::set<content::WebContents*> shown = PagesShownWith(new_contents);
+  // add-tab-switcher-and-tabs-menu D4: the switcher's previews, while the
+  // pages leaving are still in the card: once ClairUI takes a page's view out
+  // of the window, its surface can't be copied.
+  if (old_contents) {
+    KeepPreviews(old_contents, shown);
+  }
   // ClairUI swaps the page in the card now, before visibility changes.
   [bridge_ activeTabChanged];
   // As WebUIBrowserWindow: the old page reports hidden, the new one the
-  // window's visibility. A tab and its Peek show together (add-peek D4).
-  const std::set<content::WebContents*> shown = PagesShownWith(new_contents);
+  // window's visibility.
   if (old_contents) {
-    // add-tab-switcher-and-tabs-menu D4: the switcher's previews, while the
-    // pages leaving are still shown.
-    KeepPreviews(old_contents, shown);
     for (content::WebContents* page : PagesShownWith(old_contents)) {
       if (!shown.contains(page)) {
         page->UpdateWebContentsVisibility(content::Visibility::HIDDEN);

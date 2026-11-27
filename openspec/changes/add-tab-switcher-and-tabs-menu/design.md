@@ -73,7 +73,7 @@ The contract (`ClairHost.h`, `ClairBrowser`):
                  completion:(void (^)(NSImage *_Nullable preview))completion;
 ```
 
-- **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
+- **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before ClairUI takes the page out of the card and Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
 - **Lifetime and memory.** One bitmap per tab, 315 × 210 pixels, replaced on each hide, freed with the tab: about 260 KB each.
 - **The shown tab** is copied live on request.
 - **Peeks.** A tab with a Peek gets the parent's page; the still's convention is followed.
