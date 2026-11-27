@@ -609,7 +609,7 @@ final class FoldersTests: NativeWindowTestCase {
   /// directories, dropped with the profile, and an entry for a missing
   /// directory dropped at the next launch.
   func testProfileIDs() async throws {
-    // Six relaunches.
+    // Five relaunches.
     executionTimeAllowance = 420
     try Harness.setRestoreWindows(false)
     let (browser, home) = try await startWithPage("counter.html?home")
@@ -649,12 +649,13 @@ final class FoldersTests: NativeWindowTestCase {
     try require(work, "Ctrl+2 didn't show Work")
     let favoriteBack = await browser.waitForFavorites { $0 == ["Counter fav"] }
     XCTAssertTrue(favoriteBack, "Work's profile's favorite didn't come back: \(browser.favoriteTitles)")
-    try await browser.relaunch()
-    let again = try browser.clairState()["profiles"] as? [String: String] ?? [:]
-    XCTAssertEqual(again, profiles, "The profile IDs changed across a relaunch")
 
-    // An entry for a directory that doesn't exist is dropped at launch.
+    // Read while Clair is quit, the IDs it saved at quitting are the ones it
+    // launched with. Then an entry for a directory that doesn't exist is
+    // dropped at launch.
     try await browser.relaunch {
+      let again = try browser.clairState()["profiles"] as? [String: String] ?? [:]
+      XCTAssertEqual(again, profiles, "The profile IDs changed across a relaunch")
       try browser.editClairState { clair in
         var profiles = clair["profiles"] as? [String: String] ?? [:]
         profiles["0f0e0d0c-0b0a-4908-8706-050403020100"] = "Profile 99"
