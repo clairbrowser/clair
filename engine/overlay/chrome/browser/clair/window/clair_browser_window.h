@@ -477,8 +477,10 @@ class ClairBrowserWindow : public BrowserWindow {
                          bool command_bar = true);
   // D6: shows `space` on the new tab page a launch opens: the one Chromium
   // already opened in it, as it does when there was nothing to restore, or
-  // else a new one. Without the command bar.
-  void ShowSpaceOnLaunchNewTab(const std::string& space);
+  // else a new one, without the command bar. Returns whether it opened one:
+  // Chromium's is then the Space's only tab, for which ClairUI opens the
+  // command bar once the window is key (replace-browser-window D18).
+  bool ShowSpaceOnLaunchNewTab(const std::string& space);
   // Opens the command bar on the active tab once the window has shown, as a
   // window opened on a new tab page does.
   void OpenCommandBarWhenShown();

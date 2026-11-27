@@ -358,7 +358,7 @@ final class RestoreTests: NativeWindowTestCase {
 
   /// A launch with nothing to restore, and a relaunch after quitting on only
   /// its new tab page, each list one new tab page, not Chromium's as well as
-  /// Clair's.
+  /// Clair's, with the command bar open.
   func testRelaunchOnANewTabPage() async throws {
     try Harness.setRestoreWindows(false)
     let browser = try await startBrowser()
@@ -368,6 +368,11 @@ final class RestoreTests: NativeWindowTestCase {
       XCTAssertTrue(one, "The sidebar lists \(browser.tabTitles) \(when)")
       let pages = try? await browser.pageTargets().filter { $0.url.hasPrefix("chrome://newtab") }.count
       XCTAssertEqual(pages, 1, "\(pages ?? 0) new tab pages are open \(when)")
+      // Opened once, not opened and closed again by a second request.
+      try? await Task.sleep(for: .seconds(2))
+      XCTAssertTrue(
+        browser.element("clair.commandBarField").waitForExistence(timeout: 10),
+        "The window didn't open the command bar \(when)")
     }
     await assertOneNewTabPage("at launch")
     try await browser.quit()
