@@ -22,7 +22,7 @@
 
 ### D1. Recents live in ClairUI, one list per window
 
-`BrowserWindowController` keeps a `RecentTabs` value: up to 16 entry IDs, most recent first, where an entry is the row's tab ID. A split counts once, through its leading pane, as `RowOf` does. A Peek counts as its parent. On `activeTabDidChange`, the shown row moves to the front. The still's placeholder tab never enters the list.
+`BrowserWindowController` keeps a `RecentTabs` value: entry IDs, most recent first, with no cap (it only ever holds tabs that are open, and the panel shows the first five), where an entry is the row's tab ID. A split counts once, through its leading pane, as `RowOf` does. A Peek counts as its parent. On `activeTabDidChange`, the shown row moves to the front. The still's placeholder tab never enters the list.
 
 On every `tabsDidChange` and pins change, an entry whose tab no longer exists is dropped, in any Space or favorites. A closed page, a closed tab and a tab of a removed Space all go this way. On a profile swap (`shownSpaceDidChange(…swappedInFor:)`), the incoming window takes the outgoing window's list, as it takes its sidebar. The list belongs to the window as the user sees it.
 
@@ -42,7 +42,7 @@ Kept in the engine instead, the list would need a new observer call for somethin
 | Other keys, switcher open | Swallowed. |
 | `flagsChanged` without Control, switcher open | Commits. |
 
-Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes left mouse downs, with or without Control: one over a card commits that card, and any other is swallowed, so the page never sees it. A click with Control held would otherwise be a secondary click, so the monitor handles it before AppKit can open a context menu. Arc ignores clicks; the owner wants them ("Choosing a card with the pointer").
+Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes a left mouse down over a card, Control held, and commits that card, before AppKit can treat the Control-click as a secondary click. Every other mouse event passes through untouched: Clair never blocks the page while the switcher is open. Arc lets a click choose a card too (the owner checked by hand).
 
 With Chromium's Tab menu deleted (D5), Chromium no longer has Ctrl+Tab at all.
 

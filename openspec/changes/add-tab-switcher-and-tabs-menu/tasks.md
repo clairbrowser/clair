@@ -46,14 +46,14 @@ Suggested order:
 
 ## 3. ClairUI
 
-- [ ] 3.1 Add `RecentTabs` (D1): the front-on-show rule, splits and Peeks as their row, the still's placeholder left out, pruning on tab and pin changes, at most 16 entries. The incoming window takes the list on a profile swap. Verify with unit tests in CI for each scenario of `tab-switcher` "Recent tabs".
+- [ ] 3.1 Add `RecentTabs` (D1): the front-on-show rule, splits and Peeks as their row, the still's placeholder left out, pruning on tab and pin changes, and no cap, so open tabs never fall off the list. The incoming window takes the list on a profile swap. Verify with unit tests in CI for each scenario of `tab-switcher` "Recent tabs".
 - [ ] 3.2 Add `SwitcherState` (D2, D3): open forward or back, step and wrap, commit, cancel, no-op with fewer than two entries, at most five cards, and the 100 ms delay before the panel shows (at once on a second Tab, never on a commit before it). Verify with unit tests in CI, with an injected clock, for the scenarios of "Opening the switcher", "Moving the selection", "Choosing a tab", "Cancelling the switcher" and "A quick Ctrl+Tab shows no panel".
 - [ ] 3.3 Add `TabSwitcher`:
   - the local key and mouse monitors of D2, acting only in a normal browser window with no dialog or sheet;
   - commit through `showTab`;
   - cancel on resign-key and when the shown tab closes.
 
-  Verify with unit tests in CI that feed it synthetic `NSEvent`s: Ctrl+Tab is swallowed, other keys pass while it's closed, releasing Ctrl commits, a click on a card (with Ctrl held) commits that card, and a click elsewhere is swallowed.
+  Verify with unit tests in CI that feed it synthetic `NSEvent`s: Ctrl+Tab is swallowed, other keys pass while it's closed, releasing Ctrl commits, a click on a card (with Ctrl held) commits that card, and a click elsewhere passes through to the window.
 - [ ] 3.4 Add the switcher panel (D3): the child `NSPanel`, the cards with previews (a split's composed in pane order), favicons and titles or custom names, the accent highlight, centring kept on screen, no animation, and the identifiers of D7. Verify with a unit test of the layout maths (panel size for one to five cards, the clamp to the screen's visible frame) in CI, and by the hand check (6.1).
 - [ ] 3.5 Add `TabsMenu` (D5), before the Window menu: Pin Tab, the new Pin to Favorites, New Folder…, Next and Previous Tab through `commandDispatch:`, Split with Tab › (moved from `SplitMenu`), Move to Space ›, and Clear Unpinned Tabs, with the enabled rules of `tabs-menu`. Verify with unit tests in CI for the items, their order, titles, shortcuts and enabled states, including incognito and a favorite.
 - [ ] 3.6 Remove ClairUI's customizations of Chromium's Tab menu (D5a):
@@ -94,7 +94,7 @@ Suggested order:
   - a quick tap: no panel in a 60 fps recording;
   - no animation in a 60 fps recording.
 
-  Record the numbers in `arc-reference/README.md` under "Clair", and fix any difference larger than 2 pt.
+  Record the numbers in `arc-reference/README.md` under "Clair", and fix any size or spacing more than 2 pt off Arc's. Check the panel's position against D3's rule (centred on the window, kept on screen), not Arc's absolute position.
 - [ ] 6.2 Update the docs:
   - `docs/native-window.md`'s "Rows and commands" (Ctrl+Tab leaves the row commands; the switcher and its previews get a short section);
   - `docs/building.md`'s "Updating the engine" gains a note to grep Chromium for new `IDC_TAB_MENU` users (design "Risks").

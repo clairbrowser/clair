@@ -84,29 +84,29 @@ Esc SHALL close the switcher without switching tabs, even while Ctrl is still he
 - **THEN** the switcher closes and the window keeps its tab
 
 ### Requirement: Choosing a card with the pointer
-While the panel shows, clicking a card SHALL close the switcher and show that card's tab, as releasing Ctrl on it does, whether or not Ctrl is still held. A click outside the cards SHALL do nothing, and the switcher SHALL stay open. Arc ignores clicks; Clair allows them.
+While the panel shows, clicking a card SHALL close the switcher and show that card's tab, as releasing Ctrl on it does, as in Arc. Ctrl is still held then, since releasing it closes the panel. Clicks outside the cards SHALL reach the window as they always do, and the switcher SHALL stay open.
 
 #### Scenario: Clicking a card
 - **WHEN** the switcher shows "BBC", "Example", "MDN", "Cat" and "Hacker News", "Example" is selected, and the user clicks "Cat" with Ctrl held
 - **THEN** the switcher closes and the window shows "Cat", and releasing Ctrl then changes nothing
 
 #### Scenario: Clicking outside the cards
-- **WHEN** the switcher is open and the user clicks the page beside the panel
-- **THEN** nothing happens, and the switcher stays open with the same card selected
+- **WHEN** the switcher is open and the user clicks a link on the page beside the panel
+- **THEN** the page handles the click as usual, and the switcher stays open with the same card selected
 
 ### Requirement: A quick Ctrl+Tab shows no panel
-The panel SHALL appear only once Ctrl has been held for 100 ms after Ctrl+Tab or Ctrl+Shift+Tab, or at once when Tab or Shift+Tab is pressed again within that time. Releasing Ctrl sooner SHALL show the selected tab without the panel ever appearing.
+The panel SHALL appear only once Ctrl has been held for 100 ms after Ctrl+Tab or Ctrl+Shift+Tab, or at once when Tab or Shift+Tab is pressed again within that time. Releasing Ctrl before the panel appears SHALL show the selected tab without the panel ever appearing.
 
 #### Scenario: A quick tap
 - **WHEN** the window shows "Docs", which it showed after "Mail", and the user presses Ctrl+Tab and releases Ctrl within 100 ms
 - **THEN** the window shows "Mail", and no panel appeared
 
 #### Scenario: Holding Ctrl
-- **WHEN** the user presses Ctrl+Tab and keeps Ctrl held
+- **WHEN** the window has two or more recent tabs, and the user presses Ctrl+Tab, keeps Ctrl held and presses nothing else
 - **THEN** the panel appears 100 ms after the press
 
 #### Scenario: Two quick Tabs
-- **WHEN** the user presses Ctrl+Tab and, within 100 ms, Tab again, Ctrl still held
+- **WHEN** the window has three or more recent tabs, and the user presses Ctrl+Tab and, within 100 ms, Tab again, Ctrl still held
 - **THEN** the panel appears at once, with the third card selected
 
 ### Requirement: Switcher panel

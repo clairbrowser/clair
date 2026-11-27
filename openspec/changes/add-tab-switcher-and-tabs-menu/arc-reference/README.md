@@ -20,7 +20,7 @@ Keep these screenshots. They move with the change when it's archived.
 - **Stepping.** Each Tab, Ctrl held, selects the next card. Tab on the last card wraps to the first. Ctrl+Shift+Tab opens with the last card selected, and Tab then wraps to the first.
 - **Committing.** Releasing Ctrl shows the selected tab, and a quick Ctrl+Tab shows the previous tab without the panel. Recorded at 60 fps with Ctrl released about 50, 90, 130, 180 and 280 ms after Tab: no panel at 50 or 90 ms; at 130 ms it showed for 3 frames, at 180 ms for 5, at 280 ms for 13. The delay is therefore between 90 and 130 ms.
 - **Cancelling.** Esc, Ctrl still held, closes the panel and keeps the tab.
-- **The pointer.** A click on a card, Ctrl held (so a Ctrl-click), did nothing.
+- **The pointer.** Clicking a card chooses it (the owner checked by hand). The probe's synthetic XCUITest click on a card did nothing, so don't trust the probe for this.
 - **Animation.** None. In a 60 fps recording, the panel appears in one frame, the selection moves in one frame, and the panel is gone in the frame after Ctrl is released.
 - **Two tabs.** In a window with two recent tabs, the panel held two cards and was centred on the window.
 

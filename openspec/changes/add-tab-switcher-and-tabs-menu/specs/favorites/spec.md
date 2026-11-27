@@ -12,7 +12,7 @@ A favorite's context menu SHALL offer, with a divider between each group: Remove
 - **THEN** the menu ends with Edit Pinned Page, with no Close Tab
 
 ### Requirement: Leaving a favorite's site
-From a favorite, a URL the user enters in the command bar or URL field that is on another site (another scheme or host, as for Peeks in `peek`) SHALL open in a new Today tab at the top, leaving the favorite's page as it was. A URL on the same site SHALL load in the favorite. A favorite's page in a split (`split-view`) SHALL load either in its pane. A favorite's page navigated away from its pinned URL SHALL offer Edit Pinned Page › Back to Pinned URL in its menu (`pinned-tabs`).
+From a favorite, a URL the user enters in the command bar or URL field that is on another site (another scheme or host, as for Peeks in `peek`) SHALL open in a new Today tab at the top, leaving the favorite's page as it was. A URL on the same site SHALL load in the favorite. A favorite's page in a split (`split-view`) SHALL load either in its pane. Its menu's Edit Pinned Page › offers Back to Pinned URL (`pinned-tabs`), except in a favorited split (`split-view`).
 
 #### Scenario: Another site from the URL field
 - **WHEN** the window shows the favorite "Mail" at `https://mail.example.com/` and the user enters `https://news.example.org/` in the URL field
@@ -25,3 +25,7 @@ From a favorite, a URL the user enters in the command bar or URL field that is o
 #### Scenario: Another site in a favorited split's pane
 - **WHEN** the window shows a favorited split of "Mail" and "Calendar", with "Mail" focused, and the user enters `https://news.example.org/` in the command bar
 - **THEN** "Mail"'s pane loads `https://news.example.org/`, and no Today tab opens
+
+#### Scenario: A favorited split navigated away
+- **WHEN** a favorited split's "Mail" pane follows a link to another page on its site, and the user right-clicks its chip
+- **THEN** the menu has no Edit Pinned Page and no Back to Pinned URL
