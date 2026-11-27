@@ -96,6 +96,7 @@ Coordinates are in points from the top-left corner of the app's main window
 | `type <text>` | type text |
 | `paste <text>` | put text on the pasteboard and press Cmd+V, for emoji, which `type` doesn't type reliably |
 | `tree` | the accessibility tree, with identifiers, labels and frames |
+| `element <identifier>` | the first such element's label, value and title in full, which `tree` shortens |
 | `frame` | the main window's frame |
 | `sleep <s>` | wait |
 | `menu <title>` | click a menu item; with several of that title, the one in the open menu |

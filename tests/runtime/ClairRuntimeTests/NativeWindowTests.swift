@@ -455,7 +455,7 @@ final class FullscreenTests: NativeWindowTestCase {
     XCTAssertFalse(browser.isSidebarInWindow, "The sidebar shows in page full screen")
     // The notice appears once the window has finished moving into full screen.
     let shown = await waitForNotice(browser, Self.pageNotice)
-    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeLabel(browser))")
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeText(browser))")
     browser.ui.typeKey(.escape, modifierFlags: [])
     let ended = await Harness.wait(for: 30) {
       try await tab.evaluate("document.fullscreenElement === null") as? Bool == true
@@ -474,7 +474,7 @@ final class FullscreenTests: NativeWindowTestCase {
     let locked = try await tab.evaluate("lock()") as? String
     try require(locked == "locked", "The page couldn't lock the pointer")
     let shown = await waitForNotice(browser, Self.hiddenCursorNotice)
-    XCTAssertTrue(shown, "No notice says the cursor is hidden: \(noticeLabel(browser))")
+    XCTAssertTrue(shown, "No notice says the cursor is hidden: \(noticeText(browser))")
     browser.ui.typeKey(.escape, modifierFlags: [])
     let unlocked = await Harness.wait(for: 15) {
       try await tab.evaluate("document.pointerLockElement === null") as? Bool == true
@@ -493,12 +493,12 @@ final class FullscreenTests: NativeWindowTestCase {
     let entered = try await tab.evaluate("enter()") as? String
     try require(entered == "entered", "The page couldn't enter full screen")
     let shown = await waitForNotice(browser, Self.pageNotice)
-    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeLabel(browser))")
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeText(browser))")
     let locked = try await tab.evaluate("lock()") as? String
     try require(locked == "locked", "The page couldn't lock the pointer in full screen")
-    let hidden = await Harness.wait(for: 3) { self.noticeLabel(browser) == Self.hiddenCursorNotice }
+    let hidden = await Harness.wait(for: 3) { self.noticeText(browser) == Self.hiddenCursorNotice }
     XCTAssertFalse(hidden, "Page full screen showed the hidden-cursor notice")
-    XCTAssertEqual(noticeLabel(browser), Self.pageNotice)
+    XCTAssertEqual(noticeText(browser), Self.pageNotice)
     browser.ui.typeKey(.escape, modifierFlags: [])
     let ended = await Harness.wait(for: 30) {
       try await tab.evaluate("document.fullscreenElement === null") as? Bool == true
@@ -512,13 +512,15 @@ final class FullscreenTests: NativeWindowTestCase {
     let (browser, tab) = try await startWithPage()
     defer { tab.close() }
     browser.ui.menuBars.menuBarItems["View"].click()
-    let enter = browser.ui.menuBars.menuItems["Enter Full Screen"]
-    try require(enter.waitForExistence(timeout: 5), "View doesn't offer Enter Full Screen")
+    // The View menu holds Chromium's item and AppKit's, one of them hidden.
+    let items = browser.ui.menuBars.menuItems.matching(NSPredicate(format: "title == %@", "Enter Full Screen"))
+    try require(items.firstMatch.waitForExistence(timeout: 5), "View doesn't offer Enter Full Screen")
+    let enter = try XCTUnwrap(items.allElementsBoundByIndex.first { $0.isHittable }, "Enter Full Screen isn't shown")
     enter.click()
     let entered = await Harness.wait(for: 30) { try await self.isWindowFullscreen(browser, tab) }
     try require(entered, "View > Enter Full Screen didn't enter full screen")
     let shown = await waitForNotice(browser, Self.windowNotice)
-    XCTAssertTrue(shown, "No notice says to hold Esc: \(noticeLabel(browser))")
+    XCTAssertTrue(shown, "No notice says to hold Esc: \(noticeText(browser))")
 
     // A quick Esc closes the command bar, and full screen stays.
     browser.ui.typeKey("t", modifierFlags: .command)
@@ -572,7 +574,7 @@ final class FullscreenTests: NativeWindowTestCase {
     let entered = try await tab.evaluate("enter()") as? String
     try require(entered == "entered", "The page couldn't enter full screen")
     let shown = await waitForNotice(browser, Self.pageNotice)
-    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeLabel(browser))")
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeText(browser))")
     _ = try await tab.evaluate(
       """
       (() => {
@@ -586,13 +588,13 @@ final class FullscreenTests: NativeWindowTestCase {
       """)
     var mentioned = false
     let saved = await Harness.wait(for: 30) {
-      if self.noticeLabel(browser).contains("Download") { mentioned = true }
+      if self.noticeText(browser).contains("Download") { mentioned = true }
       return FileManager.default.fileExists(atPath: folder.appending(path: "clair.txt").path)
     }
     try require(saved, "The download didn't finish")
     // The popup would show it right away; give it a moment.
     _ = await Harness.wait(for: 2) {
-      if self.noticeLabel(browser).contains("Download") { mentioned = true }
+      if self.noticeText(browser).contains("Download") { mentioned = true }
       return false
     }
     XCTAssertFalse(mentioned, "A notice mentioned the download")
@@ -612,14 +614,15 @@ final class FullscreenTests: NativeWindowTestCase {
     browser.ui.descendants(matching: .any).matching(identifier: "clair.fullscreenNotice").firstMatch
   }
 
-  /// The notice's label, or "none" when no notice shows.
-  func noticeLabel(_ browser: Browser) -> String {
+  /// The notice's text, without its key's bars, or "none" when no notice
+  /// shows. The popup's text is its value, as a toast's is.
+  func noticeText(_ browser: Browser) -> String {
     let notice = notice(browser)
-    return notice.exists ? notice.label : "none"
+    return notice.exists ? notice.value as? String ?? "" : "none"
   }
 
   func waitForNotice(_ browser: Browser, _ label: String) async -> Bool {
-    await Harness.wait(for: 15) { self.noticeLabel(browser) == label }
+    await Harness.wait(for: 15) { self.noticeText(browser) == label }
   }
 
   func isWindowFullscreen(_ browser: Browser, _ tab: DevToolsSession) async throws -> Bool {
@@ -644,10 +647,10 @@ final class ZoomTests: NativeWindowTestCase {
     browser.ui.typeKey("=", modifierFlags: .command)
     let notice = browser.element("clair.zoomNotice")
     XCTAssertTrue(notice.waitForExistence(timeout: 10), "Zooming in showed no zoom notice")
-    XCTAssertEqual(notice.label, "110%")
+    XCTAssertEqual(notice.value as? String, "110%")
     XCTAssertFalse(browser.element("clair.toast").exists, "Zooming in showed a toast")
     browser.ui.typeKey("=", modifierFlags: .command)
-    let updated = await Harness.wait(for: 10) { notice.exists && notice.label == "125%" }
+    let updated = await Harness.wait(for: 10) { notice.exists && notice.value as? String == "125%" }
     XCTAssertTrue(updated, "Zooming again didn't update the popup")
     XCTAssertFalse(browser.element("clair.toast").exists, "Zooming again showed a toast")
     browser.ui.typeKey("0", modifierFlags: .command)
