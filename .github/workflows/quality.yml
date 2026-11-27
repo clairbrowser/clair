@@ -70,7 +70,7 @@ jobs:
           esac
 
   quality:
-    name: Quality checks (${{ matrix.name }})
+    name: "Runtime Tests: Group ${{ matrix.name }}"
     needs: lookup
     if: ${{ !cancelled() && needs.lookup.outputs.passed != 'true' }}
     runs-on: xcode-27
@@ -79,8 +79,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Numbered, not described: tests move between them to keep them even.
           - shard: updates
-            name: app, updates, restore and shared tabs
+            name: 1
             tests: >-
               -only-testing:ClairRuntimeTests/AppTests
               -only-testing:ClairRuntimeTests/UpdateMenuTests
@@ -90,16 +91,18 @@ jobs:
               -only-testing:ClairRuntimeTests/SharedTabsTests
               -only-testing:ClairRuntimeTests/CommandBarTests
           - shard: profiles
-            name: profiles, link rules and extensions
+            name: 2
             tests: >-
               -only-testing:ClairRuntimeTests/ProfilesTests
               -only-testing:ClairRuntimeTests/LinkRulesTests
               -only-testing:ClairRuntimeTests/ExtensionActionTests
               -only-testing:ClairRuntimeTests/DialogTests
               -only-testing:ClairRuntimeTests/FullscreenTests
+              -only-testing:ClairRuntimeTests/BookmarksTests
+              -only-testing:ClairRuntimeTests/ToolbarTests
           # Everything else, so it must skip every class named above.
           - shard: app
-            name: window, Spaces and pins
+            name: 3
             tests: >-
               -skip-testing:ClairRuntimeTests/AppTests
               -skip-testing:ClairRuntimeTests/UpdateMenuTests
@@ -113,6 +116,8 @@ jobs:
               -skip-testing:ClairRuntimeTests/ExtensionActionTests
               -skip-testing:ClairRuntimeTests/DialogTests
               -skip-testing:ClairRuntimeTests/FullscreenTests
+              -skip-testing:ClairRuntimeTests/BookmarksTests
+              -skip-testing:ClairRuntimeTests/ToolbarTests
     steps:
       - name: Check out
         uses: actions/checkout@v7
