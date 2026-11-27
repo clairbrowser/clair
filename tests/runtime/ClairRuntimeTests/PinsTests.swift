@@ -43,23 +43,22 @@ extension Browser {
     await Harness.wait(for: seconds) { condition(self.favoriteTitles) }
   }
 
-  var tabMenu: XCUIElement { ui.menuBars.menuBarItems["Tab"] }
+  /// Clair's Tabs menu (add-tab-switcher-and-tabs-menu D5).
+  var tabMenu: XCUIElement { ui.menuBars.menuBarItems["Tabs"] }
 
-  /// A Tab menu item, opened and read; Esc closes the menu again.
+  /// A Tabs menu item, opened and read; Esc closes the menu again.
   func tabMenuItem(_ title: String) throws -> XCUIElement {
-    try require(tabMenu.waitForExistence(timeout: 30), "The menu bar has no Tab menu")
+    try require(tabMenu.waitForExistence(timeout: 30), "The menu bar has no Tabs menu")
     tabMenu.click()
     let item = tabMenu.menuItems[title]
-    try require(item.waitForExistence(timeout: 5), "The Tab menu has no \(title)")
+    try require(item.waitForExistence(timeout: 5), "The Tabs menu has no \(title)")
     return item
   }
 
-  /// Chooses an item of a row's context menu.
+  /// Chooses an item of a row's context menu, the one on screen: the Tabs
+  /// menu has items of the same titles, as Pin to Favorites.
   func choose(_ title: String, inMenuOf row: XCUIElement) throws {
-    row.rightClick()
-    let item = ui.menuItems[title]
-    try require(item.waitForExistence(timeout: 5), "The menu has no \(title)")
-    item.click()
+    try chooseOnScreen(title, inMenuOf: row)
   }
 }
 
@@ -81,8 +80,8 @@ final class PinsTests: NativeWindowTestCase {
   }
 
   /// A pin's life: pinning keeps the page; Cmd+1 counts the pin first and
-  /// opens it when closed; Cmd+W closes its page and keeps it; Clear Today
-  /// leaves it; × removes it, open or closed, and Restore Last Closed Tab
+  /// opens it when closed; Cmd+W closes its page and keeps it; Clear
+  /// Unpinned Tabs leaves it; × removes it, open or closed, and Restore Last Closed Tab
   /// brings it back as it was; a tab's name survives navigation and pinning;
   /// and unpinning and Pin to Favorites keep the page.
   func testPinLifecycle() async throws {
@@ -91,9 +90,11 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertFalse(browser.tabTitles.contains(pinsTitle), "The pinned tab stayed among the Today tabs")
     let open = try await browser.target(endingWith: "pins.html")
     XCTAssertNotNil(open, "Pinning closed the page")
+    // tabs-menu, "The menu bar": Clair's Tabs menu, and no Chromium Tab menu.
     let unpin = try browser.tabMenuItem("Unpin Tab")
-    XCTAssertTrue(unpin.isEnabled, "Tab › Unpin Tab is off on a pinned tab")
+    XCTAssertTrue(unpin.isEnabled, "Tabs › Unpin Tab is off on a pinned tab")
     browser.ui.typeKey(.escape, modifierFlags: [])
+    XCTAssertFalse(browser.ui.menuBars.menuBarItems["Tab"].exists, "The menu bar still has Chromium's Tab menu")
 
     // Cmd+1 counts the pinned tab first; Cmd+W closes its page, keeps the pin
     // and shows the tab it was selected from; Cmd+1 then opens it again.
@@ -118,13 +119,13 @@ final class PinsTests: NativeWindowTestCase {
     let opened = await browser.waitForTarget("pins.html")
     XCTAssertTrue(opened, "Cmd+1 didn't open the pinned tab")
 
-    // Clear Today closes the Today tabs only.
-    let clear = try browser.tabMenuItem("Clear Today")
-    XCTAssertTrue(clear.isEnabled, "Clear Today is off with Today tabs")
+    // Clear Unpinned Tabs closes the Today tabs only.
+    let clear = try browser.tabMenuItem("Clear Unpinned Tabs")
+    XCTAssertTrue(clear.isEnabled, "Clear Unpinned Tabs is off with Today tabs")
     clear.click()
     let cleared = await browser.waitForTabs { !$0.contains("Counter a") && !$0.contains("Counter b") }
-    XCTAssertTrue(cleared, "Clear Today left Today tabs: \(browser.tabTitles)")
-    XCTAssertEqual(browser.pinTitles, [pinsTitle], "Clear Today touched the pinned tab")
+    XCTAssertTrue(cleared, "Clear Unpinned Tabs left Today tabs: \(browser.tabTitles)")
+    XCTAssertEqual(browser.pinTitles, [pinsTitle], "Clear Unpinned Tabs touched the pinned tab")
     browser.ui.typeKey("t", modifierFlags: [.command, .shift])
     let one = await browser.waitForTabs { $0.contains("Counter a") || $0.contains("Counter b") }
     try require(one, "Restore Last Closed Tab didn't bring back a Today tab")
@@ -228,7 +229,8 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertTrue(shown, "The navigated row doesn't show the page's title: \(browser.pinTitles)")
     XCTAssertTrue(browser.element("clair.backToPinnedURL").waitForExistence(timeout: 5), "No Back to Pinned URL")
     let history = try await tab.evaluate("history.length") as? Int ?? 0
-    try browser.tabMenuItem("Back to Pinned URL").click()
+    // The row's icon.
+    browser.element("clair.backToPinnedURL").click()
     let returned = await Harness.wait(for: 15) {
       try await tab.evaluate("location.pathname") as? String == "/pages/pins.html"
     }
@@ -264,7 +266,14 @@ final class PinsTests: NativeWindowTestCase {
     field.typeText(url("pins.html?edited"))
     browser.ui.buttons["clair.dialogDefault"].click()
     try await Task.sleep(for: .seconds(1))
-    try browser.tabMenuItem("Back to Pinned URL").click()
+    // Edit Pinned Page › Back to Pinned URL (add-tab-switcher-and-tabs-menu
+    // D6).
+    browser.pinRow("Clair pins guide").rightClick()
+    browser.ui.menuItems["Edit Pinned Page"].hover()
+    let backItem = browser.ui.menuItems["Back to Pinned URL"]
+    try require(backItem.waitForExistence(timeout: 5), "Edit Pinned Page has no Back to Pinned URL")
+    XCTAssertTrue(backItem.isEnabled, "Back to Pinned URL is off on a page away from its pinned URL")
+    backItem.click()
     let edited = await browser.waitForTarget("pins.html?edited")
     try require(edited, "Back to Pinned URL didn't load the edited URL")
 
@@ -308,7 +317,9 @@ final class PinsTests: NativeWindowTestCase {
     XCTAssertFalse(browser.peek.exists, "A scripted navigation opened a Peek")
 
     // With the toggle off on Settings' Links page, the pinned tab navigates.
-    try browser.tabMenuItem("Back to Pinned URL").click()
+    let away = browser.element("clair.backToPinnedURL")
+    try require(away.waitForExistence(timeout: 10), "The navigated pinned tab shows no Back to Pinned URL")
+    away.click()
     let returnedAgain = await Harness.wait(for: 15) {
       try await tab.evaluate("location.search") as? String == "?edited"
     }

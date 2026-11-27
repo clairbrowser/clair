@@ -2,6 +2,7 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
+import AppKit
 import ClairHost
 import Foundation
 import Testing
@@ -633,5 +634,83 @@ struct FakeFolderTests {
     host.addFolder("Docs", inSpace: work)
     host.deleteSpace(work)
     #expect(host.folderRecords(inSpace: work).isEmpty)
+  }
+}
+
+/// The tab switcher's calls (add-tab-switcher-and-tabs-menu D1, D4).
+@MainActor
+struct FakeSwitcherCallTests {
+  @Test func showingATabOfAnotherSpaceShowsTheSpaceFirst() {
+    let host = FakeHost()
+    let work = host.addSpaces("Work")[0]
+    let browser = FakeBrowser(host: host)
+    let window = RecordingWindow()
+    browser.clairWindow = window
+    let mail = browser.addTab(title: "Mail")
+    browser.showSpace(work)
+    let recipes = browser.addTab(title: "Recipes")
+    let before = window.calls.count
+    browser.show(tab: mail.tabID)
+    #expect(browser.shownSpaceID == FakeHost.homeID)
+    #expect(browser.activeTabID == mail.tabID)
+    #expect(Array(window.calls[before...]) == ["space \(FakeHost.homeID) from \(work)", "active \(mail.tabID)"])
+    #expect(recipes.spaceID == work)
+  }
+
+  @Test func showingATabWithAPeekShowsThePeek() {
+    let browser = FakeBrowser()
+    let docs = browser.addTab(title: "Docs")
+    let peek = browser.openPeek(of: docs.tabID, title: "Peek")!
+    browser.addTab(title: "Mail")
+    browser.show(tab: docs.tabID)
+    #expect(browser.activeTabID == peek.tabID)
+  }
+
+  @Test func showingASplitsPaneShowsTheSplit() {
+    let browser = FakeBrowser()
+    let news = browser.addTab(title: "News")
+    let docs = browser.addTab(title: "Docs")
+    browser.makeSplit(news.tabID, with: docs.tabID)
+    browser.activate(tab: news.tabID)
+    browser.addTab(title: "Mail")
+    browser.show(tab: docs.tabID)
+    #expect(browser.commands.contains("showSplit \(docs.tabID)"))
+    // The pane focused last.
+    #expect(browser.activeTabID == news.tabID)
+  }
+
+  @Test func showingAFavoriteKeepsTheShownSpace() {
+    let host = FakeHost()
+    let mail = host.addPin(url: "https://mail.example/", title: "Mail", inSpace: nil)
+    let browser = FakeBrowser(host: host)
+    browser.addTab(title: "Docs")
+    browser.openPin(mail)
+    let favorite = host.boundTab(of: mail)!.tabID
+    browser.addTab(title: "News")
+    browser.show(tab: favorite)
+    #expect(browser.activeTabID == favorite)
+    #expect(browser.shownSpaceID == FakeHost.homeID)
+  }
+
+  @Test func showingAnUnknownTabDoesNothing() {
+    let browser = FakeBrowser()
+    let docs = browser.addTab(title: "Docs")
+    browser.show(tab: 999)
+    #expect(browser.activeTabID == docs.tabID)
+  }
+
+  @Test func previewsAreNilUntilATestSetsThem() {
+    let browser = FakeBrowser()
+    let docs = browser.addTab(title: "Docs")
+    var got: [NSImage?] = []
+    browser.requestPreview(of: docs.tabID, size: NSSize(width: 157.5, height: 105)) { got.append($0) }
+    let image = NSImage(size: NSSize(width: 4, height: 4))
+    browser.host.previews[docs.tabID] = image
+    browser.requestPreview(of: docs.tabID, size: NSSize(width: 157.5, height: 105)) { got.append($0) }
+    browser.requestPreview(of: 999, size: NSSize(width: 157.5, height: 105)) { got.append($0) }
+    #expect(got.count == 3)
+    #expect(got[0] == nil)
+    #expect(got[1] === image)
+    #expect(got[2] == nil)
   }
 }

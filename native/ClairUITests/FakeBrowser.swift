@@ -1452,6 +1452,27 @@ final class FakeBrowser: NSObject, ClairBrowser {
 
   func duplicate(tab tabID: TabID) { record("duplicate \(tabID)") }
   func setMuted(_ muted: Bool, tab tabID: TabID) { record("\(muted ? "mute" : "unmute") \(tabID)") }
+
+  // MARK: The tab switcher (add-tab-switcher-and-tabs-menu D1, D4)
+
+  func show(tab tabID: TabID) {
+    host.operation {
+      record("show \(tabID)")
+      guard tabID != placeholderID, let tab = rowTab(tabID) else { return }
+      // A split shows as its row does; a tab with a Peek shows its Peek.
+      // Activating a tab of another Space shows that Space first (setActive).
+      if tab.splitPartnerID != ClairTabIDNone {
+        showSplit(of: tabID)
+      } else {
+        activateRow(tab.peekParentID != ClairTabIDNone ? tab.peekParentID : tabID)
+      }
+    }
+  }
+
+  func requestPreview(of tabID: TabID, size: NSSize, completion: @escaping (NSImage?) -> Void) {
+    record("preview \(tabID)")
+    completion(rowTab(tabID) != nil ? host.previews[tabID] : nil)
+  }
   func goBack() { record("back") }
   func goForward() { record("forward") }
   func reload() { record("reload") }

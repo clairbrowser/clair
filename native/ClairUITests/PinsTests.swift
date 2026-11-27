@@ -222,75 +222,114 @@ struct PinsLogicTests {
     #expect(SidebarDragItem(payload: SidebarDragItem.pin("p").payload) == .pin("p"))
   }
 
-  @Test func theMenusListTheirItemsInOrder() {
-    let today = PinsLogic.todayMenu(isMuted: false, canMoveToSpace: false, canPin: true).compactMap { $0?.title }
-    #expect(
-      today == [
-        "Copy Link", "Rename…", "Duplicate", "Mute", "Split with Tab", "Pin Tab", "Pin to Favorites", "Close Tab",
-        "Close Tabs Below",
-      ])
-    let pinned = PinsLogic.pinnedMenu(isOpen: true, isMuted: false, canMoveToSpace: true).compactMap { $0?.title }
-    #expect(
-      pinned == [
-        "Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Split with Tab", "Move to Space",
-        "Pin to Favorites", "Unpin Tab",
-      ])
-    let favorite = PinsLogic.favoriteMenu(isShown: true, isOpen: true, isMuted: false).compactMap { $0?.title }
-    #expect(
-      favorite == [
-        "Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Split with Tab", "Close Tab",
-        "Remove Favorite",
-      ])
-    #expect(!PinsLogic.favoriteMenu(isShown: false, isOpen: false, isMuted: false).contains { $0?.title == "Close Tab" })
+  /// A menu's titles, "|" for each divider.
+  private func titles(_ menu: [PinsLogic.MenuItem?]) -> [String] {
+    menu.map { $0?.title ?? "|" }
   }
 
-  /// add-split-view, "The split row's menu": a chip's menu has no Split
-  /// with Tab or Edit Pinned Page, and Separate Tabs.
+  /// sidebar, "Today tab menu"; pinned-tabs, "Pinned tab menu"; favorites,
+  /// "Favorite menu" (add-tab-switcher-and-tabs-menu D6).
+  @Test func theMenusListTheirGroupsInOrder() {
+    #expect(
+      titles(PinsLogic.todayMenu(isMuted: false, canMoveToSpace: false, canPin: true)) == [
+        "Pin Tab", "Pin to Favorites", "|", "Copy Link", "Duplicate", "|", "Split with Tab", "|", "Rename…", "Mute",
+        "|", "Close Tab", "Close Tabs Below",
+      ])
+    // With another Space, Move to Space follows Split with Tab.
+    #expect(
+      titles(PinsLogic.todayMenu(isMuted: false, canMoveToSpace: true, canPin: true)) == [
+        "Pin Tab", "Pin to Favorites", "|", "Copy Link", "Duplicate", "|", "Split with Tab", "Move to Space", "|",
+        "Rename…", "Mute", "|", "Close Tab", "Close Tabs Below",
+      ])
+    #expect(
+      titles(PinsLogic.pinnedMenu(isOpen: true, isMuted: false, canMoveToSpace: false)) == [
+        "Unpin Tab", "Pin to Favorites", "|", "Copy Link", "Duplicate", "|", "Split with Tab", "|", "Rename…", "Mute",
+        "Edit Pinned Page", "|", "Close Tab",
+      ])
+    #expect(
+      titles(PinsLogic.pinnedMenu(isOpen: true, isMuted: false, canMoveToSpace: true)) == [
+        "Unpin Tab", "Pin to Favorites", "|", "Copy Link", "Duplicate", "|", "Split with Tab", "Move to Space", "|",
+        "Rename…", "Mute", "Edit Pinned Page", "|", "Close Tab",
+      ])
+    #expect(
+      titles(PinsLogic.favoriteMenu(isShown: true, isOpen: true, isMuted: false)) == [
+        "Remove Favorite", "|", "Copy Link", "Duplicate", "|", "Split with Tab", "|", "Rename…", "Mute",
+        "Edit Pinned Page", "|", "Close Tab",
+      ])
+    // A favorite that isn't shown ends with Edit Pinned Page.
+    #expect(titles(PinsLogic.favoriteMenu(isShown: false, isOpen: true, isMuted: false)).last == "Edit Pinned Page")
+  }
+
+  /// pinned-tabs, "A closed pinned tab": no Close Tab, no divider before
+  /// where it would be, and Mute disabled.
+  @Test func aClosedPinnedTabsMenuEndsWithEditPinnedPage() {
+    let menu = PinsLogic.pinnedMenu(isOpen: false, isMuted: false, canMoveToSpace: false)
+    #expect(titles(menu).suffix(4) == ["|", "Rename…", "Mute", "Edit Pinned Page"])
+    #expect(menu.compactMap { $0 }.first { $0.command == .mute }?.isEnabled == false)
+  }
+
+  /// add-split-view, "The split row's menu": a chip's menu has Separate Tabs
+  /// where Split with Tab would be, and no Edit Pinned Page.
   @Test func aSplitChipsMenusSeparateTheSplit() {
-    let today = PinsLogic.todayMenu(isMuted: false, canMoveToSpace: false, canPin: true, inSplit: true)
-      .compactMap { $0?.title }
     #expect(
-      today == [
-        "Copy Link", "Rename…", "Duplicate", "Mute", "Separate Tabs", "Pin Tab", "Pin to Favorites", "Close Tab",
-        "Close Tabs Below",
+      titles(PinsLogic.todayMenu(isMuted: false, canMoveToSpace: false, canPin: true, inSplit: true)) == [
+        "Pin Tab", "Pin to Favorites", "|", "Copy Link", "Duplicate", "|", "Separate Tabs", "|", "Rename…", "Mute",
+        "|", "Close Tab", "Close Tabs Below",
       ])
-    let pinned = PinsLogic.pinnedMenu(isOpen: false, isMuted: false, canMoveToSpace: false, inSplit: true)
-      .compactMap { $0?.title }
-    #expect(pinned == ["Copy Link", "Rename…", "Mute", "Duplicate", "Separate Tabs", "Pin to Favorites", "Unpin Tab"])
-    let favorite = PinsLogic.favoriteMenu(isShown: false, isOpen: false, isMuted: false, inSplit: true)
-      .compactMap { $0?.title }
-    #expect(favorite == ["Copy Link", "Rename…", "Mute", "Duplicate", "Separate Tabs", "Remove Favorite"])
+    #expect(
+      titles(PinsLogic.pinnedMenu(isOpen: false, isMuted: false, canMoveToSpace: false, inSplit: true)) == [
+        "Unpin Tab", "Pin to Favorites", "|", "Copy Link", "Duplicate", "|", "Separate Tabs", "|", "Rename…", "Mute",
+      ])
+    #expect(
+      titles(PinsLogic.favoriteMenu(isShown: false, isOpen: false, isMuted: false, inSplit: true)) == [
+        "Remove Favorite", "|", "Copy Link", "Duplicate", "|", "Separate Tabs", "|", "Rename…", "Mute",
+      ])
   }
 
+  /// sidebar, "Incognito": the menu starts with Copy Link and Duplicate,
+  /// with no divider before them.
   @Test func privateWindowsMenusHaveNoPinItems() {
-    let today = PinsLogic.todayMenu(isMuted: true, canMoveToSpace: false, canPin: false).compactMap { $0?.title }
-    #expect(!today.contains("Pin Tab") && !today.contains("Pin to Favorites"))
-    #expect(today.contains("Unmute"))
+    let today = titles(PinsLogic.todayMenu(isMuted: true, canMoveToSpace: false, canPin: false))
+    #expect(
+      today == ["Copy Link", "Duplicate", "|", "Split with Tab", "|", "Unmute", "|", "Close Tab", "Close Tabs Below"])
   }
 
-  @Test func aClosedPinCantMuteOrReplaceItsURL() {
-    let closed = pin("Docs")
-    #expect(PinsLogic.pinnedMenu(isOpen: false, isMuted: false, canMoveToSpace: false).compactMap { $0 }
-      .first { $0.command == .mute }?.isEnabled == false)
-    #expect(PinsLogic.editPinnedPageMenu(closed).first?.isEnabled == false)
+  @Test func emptyGroupsDropOutWithTheirDividers() {
+    let a = PinsLogic.MenuItem(title: "A", command: .copyLink)
+    let b = PinsLogic.MenuItem(title: "B", command: .duplicate)
+    #expect(titles(PinsLogic.joined([[], [a], [], [b], []])) == ["A", "|", "B"])
+    #expect(PinsLogic.joined([[], []]).isEmpty)
+  }
+
+  /// pinned-tabs, "Editing the pinned URL": Back to Pinned URL first, then
+  /// Replace, both only while the page is away from its pinned URL.
+  @Test func editPinnedPageGoesBackOnlyWhenAway() {
+    let closed = PinsLogic.editPinnedPageMenu(pin("Docs"))
+    #expect(closed.map(\.title) == ["Back to Pinned URL", "Replace Pinned URL with Current", "Edit…"])
+    #expect(closed.map(\.isEnabled) == [false, false, true])
+    let atPinnedURL = PinsLogic.editPinnedPageMenu(pin("Docs", tab: FakeTab(id: 1, title: "Docs", pinID: "Docs")))
+    #expect(atPinnedURL.map(\.isEnabled) == [false, false, true])
     let guide = FakeTab(id: 1, title: "Guide", pinID: "Docs")
-    #expect(PinsLogic.editPinnedPageMenu(pin("Docs", tab: guide, atPinnedURL: false)).first?.isEnabled == true)
+    let away = PinsLogic.editPinnedPageMenu(pin("Docs", tab: guide, atPinnedURL: false))
+    #expect(away.map(\.isEnabled) == [true, true, true])
+    #expect(away.first?.command == .backToPinnedURL)
   }
 
   @Test func theMainMenuItemsFollowTheSelectedRow() {
     var state = PinsLogic.MenuState(activeIsToday: true, todayRowCount: 2)
     #expect(PinsLogic.title(of: .togglePin, in: state) == "Pin Tab")
     #expect(PinsLogic.isEnabled(.togglePin, in: state))
-    #expect(!PinsLogic.isEnabled(.backToPinnedURL, in: state))
-    #expect(!PinsLogic.isEnabled(.closeKeepingPin, in: state))
+    #expect(PinsLogic.isEnabled(.pinToFavorites, in: state))
     #expect(PinsLogic.isEnabled(.clearToday, in: state))
-    state = PinsLogic.MenuState(activePinIsFavorite: false, activePinIsNavigatedAway: false, todayRowCount: 0)
+    #expect(PinsLogic.title(of: .clearToday, in: state) == "Clear Unpinned Tabs")
+    state = PinsLogic.MenuState(activePinIsFavorite: false, todayRowCount: 0)
     #expect(PinsLogic.title(of: .togglePin, in: state) == "Unpin Tab")
-    #expect(!PinsLogic.isEnabled(.backToPinnedURL, in: state))
-    #expect(PinsLogic.isEnabled(.closeKeepingPin, in: state))
+    #expect(PinsLogic.isEnabled(.pinToFavorites, in: state))
     #expect(!PinsLogic.isEnabled(.clearToday, in: state))
-    state.activePinIsNavigatedAway = true
-    #expect(PinsLogic.isEnabled(.backToPinnedURL, in: state))
+    // tabs-menu, "On a favorite".
+    state = PinsLogic.MenuState(activePinIsFavorite: true, todayRowCount: 1)
+    #expect(!PinsLogic.isEnabled(.togglePin, in: state))
+    #expect(!PinsLogic.isEnabled(.pinToFavorites, in: state))
     state.isCollapsed = true
     #expect(PinsLogic.title(of: .toggleCollapse, in: state) == "Expand Pinned Tabs")
   }
@@ -383,7 +422,7 @@ struct FakePinsTests {
     w.browser.setActive(news.tabID)
     w.controller.openPin(w.model.pins[0].pinID)
     #expect(w.model.activePin?.title == "Mail")
-    w.controller.perform(.closeKeepingPin)
+    w.controller.closeKeepingPin(w.model.pins[0].pinID)
     #expect(w.pinTitles == ["Mail"])
     #expect(w.model.pins[0].tabID == ClairTabIDNone)
     #expect(w.model.activeTabID == news.tabID)
@@ -421,8 +460,17 @@ struct FakePinsTests {
     // The engine posts the pins again once the navigation commits.
     w.host.rebind(pinID, to: w.host.boundTab(of: pinID)!)
     #expect(PinsLogic.isNavigatedAway(w.model.pins[0]))
-    #expect(w.controller.pinMenuState.activePinIsNavigatedAway)
-    w.controller.perform(.backToPinnedURL)
+    // From the menu's Edit Pinned Page › (add-tab-switcher-and-tabs-menu D6).
+    let pin = w.model.pins[0]
+    let items = PinMenus.pinnedItems(pin: pin, tab: w.model.tab(ofPin: pin), moveTargets: [], actions: w.controller)
+    guard case .submenu(_, let edit)? = items.first(where: { $0.title == "Edit Pinned Page" }),
+      case .action(let title, let back)? = edit.first
+    else {
+      Issue.record("Edit Pinned Page has no Back to Pinned URL")
+      return
+    }
+    #expect(title == "Back to Pinned URL")
+    back()
     #expect(!PinsLogic.isNavigatedAway(w.model.pins[0]))
     #expect(w.model.activeTab?.canGoBack == true)
   }

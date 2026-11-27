@@ -118,7 +118,8 @@ build/probe/bin/measure track build/probe/rec/peek/frames white 0 0 2400 2012 80
   use (or by `tools/build.sh`); each describes its arguments at the top:
   `windows` (window IDs and frames, by app name or process ID), `drag` (a drag
   with real mouse events, in screen points), `mouse` (a real pointer move, double-click or
-  click, in screen points), `cdp` (DevTools
+  click, in screen points), `keys` (real key events with Ctrl and Shift held
+  across steps, and screenshots between them), `cdp` (DevTools
   protocol commands for the test copy), `frames` (a movie's frames), `sheet` (a
   labelled contact sheet), `crop` (a pixel rectangle; `sips --cropOffset`
   centres instead), and `measure`:
@@ -206,6 +207,12 @@ These come from the add-peek change (its design.md has the numbers):
   coordinates (and `click-element.sh`'s) start at its corner, and its `hover`
   doesn't bring up a sidebar row's close button. Use `build/probe/bin/mouse
   move|click x y` in screen points instead.
+- **Held modifiers**: the probe's `key` releases its modifiers after each key,
+  so it can't hold Ctrl across Tabs for the tab switcher. Use
+  `build/probe/bin/keys` after `activate`, for example
+  `keys ctrldown tab sleep:0.5 shot:build/probe/s.png:0,30,963,976 tab ctrlup`:
+  `shot:` captures a screen rectangle in points while Ctrl is still held, and
+  the tool lets go of Ctrl and Shift at the end. Arc takes these events.
 - **Read a frame before clicking**: a button can disappear after the click,
   failing a later query.
 - **The emoji picker takes typing.** A field that opens macOS's emoji picker,

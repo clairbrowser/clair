@@ -45,18 +45,14 @@ bool ClairIsRemovedCommand(int command) {
     case IDC_SHOW_FULL_URLS:
     case IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL:
     case IDC_SHOW_CUSTOMIZE_CHROME_TOOLBAR:
-    case IDC_TAB_SEARCH:
     case IDC_TAB_SEARCH_CLOSE:
     case IDC_CREATE_NEW_TAB_GROUP:
-    case IDC_WINDOW_GROUP_TAB:
-    case IDC_GROUP_TARGET_TAB:
     case IDC_SHOW_CHROME_LABS:
     case IDC_SHOW_READING_MODE:
     case IDC_READING_LIST_MENU_SHOW_UI:
     case IDC_TOGGLE_VERTICAL_TABS:
     case IDC_TOGGLE_VERTICAL_TABS_COLLAPSE:
     case IDC_SHOW_HISTORY_SIDE_PANEL:
-    case IDC_NEW_SPLIT_TAB:
     // Omnibox settings, with no omnibox to apply to, and Cast.
     case IDC_SHOW_GOOGLE_LENS_SHORTCUT:
     case IDC_SHOW_AI_MODE_OMNIBOX_BUTTON:
@@ -223,12 +219,10 @@ bool ExecuteCommand(ClairBrowserWindow* window,
       enable |= clair::CanRestoreLastClosed(browser_window);
       break;
     case IDC_BACK:
-    case IDC_DUPLICATE_TAB:
     case IDC_FOCUS_LOCATION:
     case IDC_FORWARD:
     case IDC_HOME:
     case IDC_MANAGE_EXTENSIONS:
-    case IDC_MOVE_TAB_TO_NEW_WINDOW:
     case IDC_NEW_TAB:
     case IDC_OPEN_FILE:
     case IDC_PRINT:
@@ -238,8 +232,6 @@ bool ExecuteCommand(ClairBrowserWindow* window,
     case IDC_SELECT_PREVIOUS_TAB:
     case IDC_SHOW_DOWNLOADS:
     case IDC_STOP:
-    case IDC_WINDOW_CLOSE_OTHER_TABS:
-    case IDC_WINDOW_CLOSE_TABS_TO_RIGHT:
       // Commands that would put up their own dialog are off while a modal
       // dialog is up.
       enable &= ![AppController.sharedController keyWindowIsModal];

@@ -1212,6 +1212,28 @@ NS_SWIFT_NAME(ClairBrowser)
 // Mutes or unmutes the tab.
 - (void)setMuted:(BOOL)muted forTab:(ClairTabID)tabID NS_SWIFT_NAME(setMuted(_:tab:));
 
+// --- The tab switcher (add-tab-switcher-and-tabs-menu design D1, D4) ---
+// Shows a tab of any of the window's Spaces, or a favorite's, as selecting its
+// row or tile does: a split shows as -showSplitOfTab: does, and a tab with a
+// Peek shows its Peek. A tab of the shown Space is activated as -activateTab:
+// does, taking it from another window. A tab of another Space of the window's
+// profile shows that Space with the tab active, -[ClairWindow
+// shownSpaceDidChange:…] coming before -activeTabDidChange:. A tab of another
+// profile's Space goes through the window group's swap, as -showSpace: does
+// for that Space, and the window swapped in activates the tab. Ignored for an
+// unknown tab and the still's placeholder.
+- (void)showTab:(ClairTabID)tabID NS_SWIFT_NAME(show(tab:));
+// A preview of the tab's page for the tab switcher, `size` in points: the
+// shown tab's page as it is now; any other tab's as it was when this or
+// another window last hid it, cut from its top to `size`'s shape; nil when
+// there is none (never shown, crashed, or a copy that failed). A Peek's parent
+// gets its own page, without the Peek. `completion` runs once, on the main
+// thread, maybe before this returns.
+- (void)requestPreviewOfTab:(ClairTabID)tabID
+                       size:(NSSize)size
+                 completion:(void (^)(NSImage *_Nullable preview))completion
+    NS_SWIFT_NAME(requestPreview(of:size:completion:));
+
 // --- Pins (add-pinned-tabs-and-favorites design D4, D5) ---
 // Selects a pinned tab or favorite of the window's profile: activates its
 // bound tab as -activateTab: does, or opens its pinned URL in a new tab bound

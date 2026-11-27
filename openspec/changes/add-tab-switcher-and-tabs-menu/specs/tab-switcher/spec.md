@@ -106,11 +106,15 @@ The panel SHALL appear only once Ctrl has been held for 100 ms after Ctrl+Tab or
 - **THEN** the panel appears at once, with the third card selected
 
 ### Requirement: Switcher panel
-The panel SHALL lie over the window, centred on it and kept on its screen, and SHALL hold its cards in one row, from left to right, as Arc's does (`arc-reference/`): about 27 points of padding on each side, cards about 157 points wide with about 24 points between them, a light rounded panel with a shadow. It SHALL appear, move its selection and close with no animation.
+The panel SHALL lie over the window, centred on it and kept on its screen at least about 40 points from the screen's left and right edges, and SHALL hold its cards in one row, from left to right, as Arc's does (`arc-reference/`): about 27 points of padding on each side, cards about 157 points wide with about 24 points between them, a light rounded panel with a shadow. It SHALL appear, move its selection and close with no animation.
 
 #### Scenario: Five cards
 - **WHEN** the switcher shows five cards
 - **THEN** the panel is about 938 by 189 points, centred on the window
+
+#### Scenario: A window at the screen's edge
+- **WHEN** the switcher shows five cards over a window about 963 points wide at the screen's left edge
+- **THEN** the panel's left edge is about 40 points from the screen's, about 29 points right of the window's centre
 
 #### Scenario: No animation
 - **WHEN** the user presses Ctrl+Tab

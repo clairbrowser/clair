@@ -69,9 +69,12 @@ class ClairWindowGroup {
   // Shows `space`, of any profile: the shown member shows it, or the group
   // swaps to its member for the Space's profile, created hidden if need be.
   // `then` runs with the member showing it, once it does, which may wait for
-  // the profile to load; with null if it can't.
+  // the profile to load; with null if it can't. With `tab`, a row of `space`
+  // or a favorite of its profile, the member shows that tab
+  // (add-tab-switcher-and-tabs-menu D1).
   void ShowSpace(const std::string& space,
-                 base::OnceCallback<void(ClairBrowserWindow*)> then = {});
+                 base::OnceCallback<void(ClairBrowserWindow*)> then = {},
+                 tabs::TabHandle tab = tabs::TabHandle::Null());
   // Runs `done` with the member for `profile_id`, created hidden if the group
   // has none; with null when the profile can't be loaded.
   void EnsureMember(const std::string& profile_id,

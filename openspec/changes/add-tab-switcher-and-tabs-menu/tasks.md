@@ -30,7 +30,7 @@ Suggested order:
   - `IDC_TAB_SEARCH`, `IDC_WINDOW_GROUP_TAB`, `IDC_GROUP_TARGET_TAB` and `IDC_NEW_SPLIT_TAB` from `ClairIsRemovedCommand`.
 
   Before each, grep the Chromium tree (`/Volumes/My Shared Files/clair/build/src`) for other senders of the command, and keep any case that has one, noting why in D5a. Verify that the engine compiles (2.5), and that Opt+Cmd+Down and Up, Cmd+1…9 and Close Tabs Below still work in the runtime suite (5.2).
-- [ ] 2.3 Add `ClairTabPreview` (`engine/overlay/chrome/browser/clair/window/`), as D4 describes:
+- [x] 2.3 Add `ClairTabPreview` (`engine/overlay/chrome/browser/clair/window/`), as D4 describes:
   - on each active-tab change, `CopyPage` copies the outgoing row's page (each pane of a split), scales it to 2× the card width and cuts it to 3:2 from the top;
   - the copy is kept as `WebContents` user data and replaced on each hide;
   - `-requestPreviewOfTab:size:completion:` returns it, or copies the shown tab live, or nil.
@@ -42,7 +42,7 @@ Suggested order:
   - a tab of another profile's Space goes through the profile swap of `ShowSpace`, and the incoming window activates the tab.
 
   Verify with the runtime test of 5.3.
-- [ ] 2.5 Push the branch and build the engine (`gh workflow run engine.yml -f ref=<branch>`). Verify that `chromium-engine-<key>` is published.
+- [x] 2.5 Push the branch and build the engine (`gh workflow run engine.yml -f ref=<branch>`). Verify that `chromium-engine-<key>` is published.
 
 ## 3. ClairUI
 
@@ -64,11 +64,11 @@ Suggested order:
 
   Verify with `grep -rn "tabMenuTag\|35013\|35051" native/` finding nothing, and the unit tests passing in CI.
 - [ ] 3.7 Rebuild `PinsLogic`'s menus as groups (D6): the Today, pinned and favorite menus, Close Tab on an open pinned tab (as Close and Keep Pinned), and the split chip's Separate Tabs in Split with Tab's place. Add Back to Pinned URL to Edit Pinned Page ›. Verify with unit tests in CI for each menu scenario in the `sidebar`, `pinned-tabs`, `favorites` and `split-view` deltas, including incognito and one Space.
-- [ ] 3.8 Rename the sidebar Clear button's tooltip to "Clear unpinned tabs" (`PinsViews`). Verify with `grep -rn '"[^"]*Today[^"]*"' native/ClairUI` finding no user-facing string.
+- [x] 3.8 Rename the sidebar Clear button's tooltip to "Clear unpinned tabs" (`PinsViews`). Verify with `grep -rn '"[^"]*Today[^"]*"' native/ClairUI` finding no user-facing string.
 
 ## 4. Probe tooling
 
-- [ ] 4.1 Add `tests/probe/tools/keys.swift` (D8): steps `ctrldown`, `ctrlup`, `shiftdown`, `shiftup`, `tab`, `esc`, `sleep:<s>` and `shot:<png>:<x,y,w,h>`. Build it in `tools/build.sh`, and document it in the README beside `drag` and `mouse`. Verify by running `build/probe/bin/keys ctrldown tab sleep:0.5 shot:… ctrlup` against Arc and seeing the switcher in the shot.
+- [x] 4.1 Add `tests/probe/tools/keys.swift` (D8): steps `ctrldown`, `ctrlup`, `shiftdown`, `shiftup`, `tab`, `esc`, `sleep:<s>` and `shot:<png>:<x,y,w,h>`. Build it in `tools/build.sh`, and document it in the README beside `drag` and `mouse`. Verify by running `build/probe/bin/keys ctrldown tab sleep:0.5 shot:… ctrlup` against Arc and seeing the switcher in the shot.
 
 ## 5. Runtime suite
 
@@ -86,7 +86,7 @@ Suggested order:
 
 ## 6. Hand check, docs and release notes
 
-- [ ] 6.1 Hand check with `tests/probe/launch-clair.sh` and the `keys` tool, against `arc-reference/`, with the same tabs:
+- [x] 6.1 Hand check with `tests/probe/launch-clair.sh` and the `keys` tool, against `arc-reference/`, with the same tabs:
   - the panel's size and position;
   - card and highlight sizes;
   - previews of background and shown tabs, and of a split;
@@ -95,12 +95,12 @@ Suggested order:
   - no animation in a 60 fps recording.
 
   Record the numbers in `arc-reference/README.md` under "Clair", and fix any size or spacing more than 2 pt off Arc's. Check the panel's position against D3's rule (centred on the window, kept on screen), not Arc's absolute position.
-- [ ] 6.2 Update the docs:
+- [x] 6.2 Update the docs:
   - `docs/native-window.md`'s "Rows and commands" (Ctrl+Tab leaves the row commands; the switcher and its previews get a short section);
   - `docs/building.md`'s "Updating the engine" gains a note to grep Chromium for new `IDC_TAB_MENU` users (design "Risks").
 
   Verify by reading both pages.
-- [ ] 6.3 Add a Changie fragment (`changie new`) for the switcher, the Tabs menu and the tab menus. Verify that `.changes/unreleased/` holds it.
+- [x] 6.3 Add a Changie fragment (`changie new`) for the switcher, the Tabs menu and the tab menus. Verify that `.changes/unreleased/` holds it.
 - [ ] 6.4 Run CI and `quality.yml` on the last push together, with every note in that push. Verify that both pass.
 
 ## Workflow follow-up

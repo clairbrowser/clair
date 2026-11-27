@@ -42,7 +42,7 @@ Kept in the engine instead, the list would need a new observer call for somethin
 | Other keys, switcher open | Swallowed. |
 | `flagsChanged` without Control, switcher open | Commits. |
 
-Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes a left mouse down over a card, Control held, and commits that card, before AppKit can treat the Control-click as a secondary click. It takes no other mouse event. Arc lets a click choose a card too (the owner checked by hand).
+Every handled key-down returns nil, so the page, the command bar and Chromium never see it, and so does the key-up of a key whose key-down it took. A `flagsChanged` event always goes on, even the one that commits, so the page never thinks Ctrl is still held. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes a left mouse down over a card, Control held, and commits that card, before AppKit can treat the Control-click as a secondary click. It takes no other mouse event. Arc lets a click choose a card too (the owner checked by hand).
 
 With Chromium's Tab menu deleted (D5), Chromium no longer has Ctrl+Tab at all.
 
@@ -52,10 +52,10 @@ The open/step/commit/cancel state is a pure `SwitcherState` with unit tests. The
 
 A borderless, non-activating `NSPanel`, a child window of the browser window, hosting SwiftUI. It is laid out from Arc's measurements:
 
-- **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Light background (`windowBackgroundColor` at Arc's #F2F2F2 in light mode), about 22 pt corner radius, hairline border and shadow.
+- **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Arc's #F2F2F2 background in light mode (the system's light `windowBackgroundColor` is white), about 22 pt corner radius, hairline border and shadow.
 - **Selection:** a 12 pt inset rounded highlight, about 12 pt radius, in the accent colour at the sidebar's selection opacity. The selected title is in the primary colour, the others secondary.
-- **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis.
-- **Position:** centred on the window, then moved inside the screen's visible frame. Arc centred a two-card panel on the window, but its five-card panel sat about 29 pt right of centre in a 963 pt window; centring is the simpler rule.
+- **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis. The selected card's title is in the primary label colour and the others' in the secondary one; the weight stays the same, so selecting a card doesn't shift its text.
+- **Position:** centred on the window, then moved inside the screen's visible frame, at least 40 pt from its left and right edges, as Arc does. Arc's five-card panel sat about 29 pt right of centre in the probe's 963 pt window at the screen's left edge only because of that margin: re-probed with the window away from the edges, it was centred on the window, and with the window at either edge it stopped 40 pt from the screen's side (`arc-reference/`).
 
 Shown with `orderFront` and no animation, 100 ms after Ctrl+Tab (a timer `SwitcherState` starts on opening), or at once on a second Tab or Shift+Tab. A commit before the timer fires never shows the panel, so a quick Ctrl+Tab just switches, as in Arc, whose delay measured between 90 and 130 ms. The panel is re-rendered in place as the selection moves. Previews arriving late replace the placeholder in place. Dark mode uses the system's dark window background. Arc wasn't probed in dark mode.
 
@@ -73,14 +73,17 @@ The contract (`ClairHost.h`, `ClairBrowser`):
                  completion:(void (^)(NSImage *_Nullable preview))completion;
 ```
 
-- **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
-- **Lifetime and memory.** One image per tab, replaced on each hide, freed with the tab: about 100 KB each.
+- **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before ClairUI takes the page out of the card and Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. A hidden page gives up its compositor at once, so viz would never draw the surface the copy waits for: as Chromium's background thumbnails do, a hidden capture (`IncrementCapturerCount` with `stay_hidden`) keeps the page painting, told it's hidden, until the copy is back. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
+- **Profile swaps.** A window the group conceals hides its pages without an active-tab change, so `Conceal` keeps their previews first.
+- **Lifetime and memory.** One bitmap per tab, 315 × 210 pixels, replaced on each hide, freed with the tab: about 260 KB each.
 - **The shown tab** is copied live on request.
 - **Peeks.** A tab with a Peek gets the parent's page; the still's convention is followed.
 
 Turning on `kTabHoverCardImages` was rejected: it needs a patch to a Chromium default, and brings JPEG compression and background video capture that Clair doesn't need.
 
 A split's card asks for both panes and draws them side by side in pane order.
+
+**Showing a tab of another profile.** `-showTab:` passes the tab through the window group's swap (`ClairWindowGroup::ShowSpace`), and the member swapped in shows it in place of the tab `ShowSpace` would pick. Otherwise the Space's last tab would show first, and enter the recents. It takes the tab without waiting for its page's copy, so the tab is active before the group reveals the member; a window that showed it gets its still's image when the copy comes.
 
 ### D5. Delete Chromium's Tab menu, add Clair's Tabs menu
 
@@ -131,7 +134,7 @@ With Chromium's Tab menu deleted, nothing Clair did to it or for it is needed. E
 
 **Docs:** `docs/native-window.md`'s "Rows and commands" stops listing Ctrl+Tab among the row commands.
 
-Before deleting each engine case, the implementation greps the Chromium tree for other senders of the command (extension APIs, context menus Clair shows). A command with another sender keeps its case.
+Before deleting each engine case, the implementation greps the Chromium tree for other senders of the command (extension APIs, context menus Clair shows). A command with another sender keeps its case. None has one that reaches a native window: on macOS their accelerators are only the Tab menu's key equivalents (`accelerators_cocoa.mm`), `global_keyboard_shortcuts_mac.mm` lists none of them, the app menu and the Views tab strip's context menu aren't shown, and DevTools' `Browser.executeBrowserCommand` (Open Tab Search) calls `chrome::ExecuteCommand` directly, past Clair's handler, as it did before.
 
 ### D6. Context menus in groups
 
@@ -162,7 +165,6 @@ Before deleting each engine case, the implementation greps the Chromium tree for
 - **[A hide copy can miss]** If the surface is gone before `CopyFromSurface` answers, the tab keeps its older preview or none. → Fall back to a blank card with the favicon (spec), and check timing in the hand check.
 - **[The local monitor sees every key]** → It returns early unless Control is down or the switcher is open, so the cost per key is one flag test.
 - **[A later Chromium looks the Tab menu up without a nil check]** → The engine-update patch check won't catch it, but the runtime suite's window activation would crash. Grep for `IDC_TAB_MENU` on each engine update (a note in `docs/building.md`'s "Updating the engine").
-- **[Arc's horizontal position]** Arc's panel wasn't centred on the probe window. → Centred and kept on screen. Revisit if the owner sees a difference.
 
 ## Migration Plan
 

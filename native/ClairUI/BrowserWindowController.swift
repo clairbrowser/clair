@@ -77,6 +77,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   nonisolated(unsafe) var flagsMonitor: Any?
   /// A closed pin dropped on the page, which splits once its page opens.
   var pendingPinSplit: (pinID: PinID, then: (TabID) -> Void)?
+  /// The window's recent tabs, and a shown tab no list has yet
+  /// (add-tab-switcher-and-tabs-menu D1).
+  var recents = RecentTabs()
+  var pendingRecent: TabID = ClairTabIDNone
+  /// Ctrl+Tab's switcher (D2).
+  private(set) lazy var tabSwitcher = TabSwitcher(host: self)
   /// Add Split View and New Tab open the command bar on the new pane once
   /// it's active.
   var opensCommandBarOnNewPane = false
@@ -190,6 +196,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     model.setDownloads(browser.downloads, progress: browser.downloadProgress)
     stillDidChange()
     activeTabDidChange(browser.activeTabID)
+    tabSwitcher.start()
   }
 
   /// Reads the toolbar preference again; only a change touches the model.
@@ -208,6 +215,10 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
           MainActor.assumeIsolated {
             guard let self else { return }
             self.model.isWindowKey = self.window.isKeyWindow
+            // Another window or app: the switcher closes without switching.
+            if !self.window.isKeyWindow {
+              self.tabSwitcher.cancel()
+            }
             self.offerCommandBarIfNew()
           }
         })
@@ -528,6 +539,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     model.renaming = nil
     model.setShownSpace(spaceID)
     refreshPinPreferences()
+    // add-tab-switcher-and-tabs-menu D1: the recents belong to the window as
+    // the user sees it.
+    if let outgoing {
+      recents = outgoing.recents
+      recentTabsChanged()
+    }
     tabsChanged()
     if let outgoing {
       takeManageSpaces(from: outgoing)
@@ -576,9 +593,13 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   }
 
   func spaceTabsDidChange(_ spaceID: SpaceID) {
-    guard spaceID == model.shownSpaceID else { return }
+    guard spaceID == model.shownSpaceID else {
+      recentTabsChanged()
+      return
+    }
     model.reloadTabs()
     tabsChanged()
+    recentTabsChanged()
   }
 
   func spaceTabDidChange(_ tab: any ClairTab) {
@@ -586,19 +607,29 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     tabChanged(tab)
   }
 
-  func spacesDidChange() {}
+  func spacesDidChange() {
+    recentTabsChanged()
+  }
 
   func spacePinsDidChange(_ spaceID: SpaceID) {
-    guard spaceID == model.shownSpaceID, model.showsPins else { return }
+    guard spaceID == model.shownSpaceID, model.showsPins else {
+      recentTabsChanged()
+      return
+    }
     pinsChanged()
     tabsChanged()
+    recentTabsChanged()
     finishPendingPinSplit()
   }
 
   func favoritesDidChange(_ profileID: ProfileID) {
-    guard profileID == model.profileID, model.showsPins else { return }
+    guard profileID == model.profileID, model.showsPins else {
+      recentTabsChanged()
+      return
+    }
     pinsChanged()
     tabsChanged()
+    recentTabsChanged()
     finishPendingPinSplit()
   }
 
@@ -674,6 +705,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
       model.commandBar?.cancel()
     }
     model.setActiveTab(tabID)
+    noteShownTab()
     if switched {
       model.reloadStop.tabSwitched(isLoading: model.activeTab?.isLoading == true)
       rootView.loadingIndicator.tabSwitched(isLoading: model.activeTab?.isLoading == true)
@@ -978,6 +1010,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     rootView.card.showStill(false, image: nil)
     removeSafetyNet()
     stopCommandBarKeyMonitor()
+    tabSwitcher.stop()
     rootView.card.show(devTools: nil, layout: DevToolsLayout(dockSide: .none, pageBounds: .zero, hidesPage: false))
     browser = nil
   }

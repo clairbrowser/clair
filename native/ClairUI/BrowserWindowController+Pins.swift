@@ -59,7 +59,7 @@ extension BrowserWindowController {
     }
   }
 
-  /// What the Tabs and View menus' Clair items act on.
+  /// What the Tabs menu's pin items and View › Collapse Pinned Tabs act on.
   var pinMenuState: PinsLogic.MenuState {
     guard model.showsPins else { return PinsLogic.MenuState(showsPins: false) }
     // The row's highlight stays on a split's leading pane; the commands are
@@ -72,12 +72,11 @@ extension BrowserWindowController {
       showsPins: true,
       activeIsToday: pin == nil && rows.contains { $0.tabID == highlighted || $0.tabID == commandTab },
       activePinIsFavorite: pin?.isFavorite,
-      activePinIsNavigatedAway: pin.map(PinsLogic.isNavigatedAway) ?? false,
       todayRowCount: TabListLogic.rowCount(model.tabs),
       isCollapsed: model.isPinnedSectionCollapsed)
   }
 
-  /// One of the main menu's Clair items.
+  /// One of the Tabs menu's pin items, or View › Collapse Pinned Tabs.
   func perform(_ command: PinsLogic.MainMenuCommand) {
     let highlighted = model.commandTab
     switch command {
@@ -89,13 +88,13 @@ extension BrowserWindowController {
       } else if highlighted != ClairTabIDNone {
         pin(tab: highlighted)
       }
-    case .backToPinnedURL:
+    case .pinToFavorites:
       if let pin = model.pin(ofTab: highlighted) {
-        returnToPinnedURL(pin.pinID)
-      }
-    case .closeKeepingPin:
-      if let pin = model.pin(ofTab: highlighted) {
-        closeKeepingPin(pin.pinID)
+        if !pin.isFavorite {
+          pinToFavorites(pin: pin.pinID)
+        }
+      } else if highlighted != ClairTabIDNone {
+        pinToFavorites(tab: highlighted)
       }
     case .clearToday:
       clearToday()

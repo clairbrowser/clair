@@ -120,11 +120,12 @@ final class PeekTests: NativeWindowTestCase {
     XCTAssertEqual(parentVisibility, "visible", "The parent page isn't visible behind its Peek")
     XCTAssertEqual(peekVisibility, "visible", "The Peek's page isn't visible")
 
-    // Ctrl+Tab moves on to the next row and leaves the Peek open; both pages
-    // are hidden, and selecting the parent's row shows the Peek again.
+    // Ctrl+Tab goes back to the tab shown before, the other page, and leaves
+    // the Peek open; both pages are hidden, and selecting the parent's row
+    // shows the Peek again.
     browser.ui.typeKey(.tab, modifierFlags: .control)
     let switched = await Harness.wait(for: 15) { try await browser.visibility(of: other) == "visible" }
-    XCTAssertTrue(switched, "Ctrl+Tab didn't select the next row")
+    XCTAssertTrue(switched, "Ctrl+Tab didn't go back to the tab shown before")
     parentVisibility = try await browser.visibility(of: links)
     peekVisibility = try await browser.visibility(of: peek)
     XCTAssertEqual(parentVisibility, "hidden", "The parent page is still visible behind another tab")
@@ -215,7 +216,7 @@ final class PeekTests: NativeWindowTestCase {
     XCTAssertTrue(peekClosed, "Closing the parent left its Peek open")
   }
 
-  func testThePeekComesBackSurvivesACancelledCloseAndStaysBehindAMove() async throws {
+  func testThePeekComesBackSurvivesACancelledCloseAndMovesWithItsTab() async throws {
     let (browser, links, other) = try await startWithLinks()
     defer {
       links.close()
@@ -261,18 +262,13 @@ final class PeekTests: NativeWindowTestCase {
     XCTAssertTrue(browser.peek.waitForExistence(timeout: 15), "The parent's row doesn't show its Peek after staying")
     _ = try await asking.evaluate("window.guard = false; 1")
 
-    // Move Tab to New Window moves the parent alone and closes its Peek.
-    browser.ui.menuItems["Move Tab to New Window"].click()
-    let moved = await Harness.wait(for: 15) { try await browser.windowCount() == 2 }
-    XCTAssertTrue(moved, "Move Tab to New Window didn't open a window")
-    let peekGone = await browser.waitForTarget("?plain", open: false)
-    XCTAssertTrue(peekGone, "The Peek stayed behind after its parent moved")
-    let parentOpen = try await browser.target(endingWith: "peek.html") != nil
-    XCTAssertTrue(parentOpen, "Moving the parent closed it")
-
     // With another window open, closing the parent's window keeps the parent
     // and its Peek in the other (share-tabs-across-windows D4).
-    try await openPeek("plain", in: links, browser: browser, suffix: "?plain")
+    let second = try await browser.open(url("index.html?second"), newWindow: true)
+    defer { second.close() }
+    _ = try await browser.waitForNativeWindows(2)
+    _ = try await links.send("Page.bringToFront", [:])
+    try await Task.sleep(for: .seconds(1))
     browser.ui.typeKey("w", modifierFlags: [.command, .shift])
     let oneWindow = await Harness.wait(for: 15) { try await browser.windowCount() == 1 }
     try require(oneWindow, "Cmd+Shift+W didn't close the parent's window")

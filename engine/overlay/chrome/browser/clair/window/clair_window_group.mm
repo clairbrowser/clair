@@ -346,7 +346,8 @@ void ClairWindowGroup::ShownSpaceChanged(ClairBrowserWindow* member) {
 
 void ClairWindowGroup::ShowSpace(
     const std::string& space,
-    base::OnceCallback<void(ClairBrowserWindow*)> then) {
+    base::OnceCallback<void(ClairBrowserWindow*)> then,
+    tabs::TabHandle tab) {
   clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
   if (!is_regular() || !store->Contains(space)) {
     if (then) {
@@ -358,7 +359,7 @@ void ClairWindowGroup::ShowSpace(
   // The group switches on purpose: start-up's shows are over for it.
   holds_startup_show_.clear();
   if (ProfileIDOf(shown_) == profile) {
-    shown_->ShowSpace(space);
+    shown_->ShowSpace(space, /*again=*/false, tab.Get());
     if (then) {
       std::move(then).Run(shown_);
     }
@@ -371,7 +372,7 @@ void ClairWindowGroup::ShowSpace(
           [](base::WeakPtr<ClairWindowGroup> group, std::string space,
              std::string previous,
              base::OnceCallback<void(ClairBrowserWindow*)> then,
-             ClairBrowserWindow* member) {
+             tabs::TabHandle tab, ClairBrowserWindow* member) {
             if (!group || !member) {
               if (then) {
                 std::move(then).Run(nullptr);
@@ -382,13 +383,13 @@ void ClairWindowGroup::ShowSpace(
             // group's earlier Space, in place of the shown member, before
             // the member's tab shows it.
             member->BeginSwapIn(previous, group->shown_);
-            member->ShowSpace(space, /*again=*/true);
+            member->ShowSpace(space, /*again=*/true, tab.Get());
             group->SwapTo(member, previous);
             if (then) {
               std::move(then).Run(member);
             }
           },
-          weak_factory_.GetWeakPtr(), space, previous, std::move(then)));
+          weak_factory_.GetWeakPtr(), space, previous, std::move(then), tab));
 }
 
 void ClairWindowGroup::EnsureMember(
