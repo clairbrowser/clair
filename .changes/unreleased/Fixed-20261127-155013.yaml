@@ -1,0 +1,3 @@
+kind: Fixed
+body: Clair no longer opens two new tab pages at launch when it has no tabs to bring back, such as after quitting on a new tab page.
+time: 2026-11-27T15:50:13.000000-05:00

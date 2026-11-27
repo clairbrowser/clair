@@ -1032,9 +1032,13 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
                 }
                 group->shown_ = member;
                 [member->ns_window() setFrame:frame display:NO];
-                member->ShowSpaceOnNewTab(space, GURL(), /*command_bar=*/false);
+                const bool opened = member->ShowSpaceOnLaunchNewTab(space);
                 member->Show();
-                member->OpenCommandBarWhenShown();
+                // On Chromium's new tab page alone, ClairUI opens the command
+                // bar; asking as well would close it.
+                if (opened) {
+                  member->OpenCommandBarWhenShown();
+                }
                 group->ShownSpaceChanged(member);
               },
               group->weak_factory_.GetWeakPtr(), space, frame));

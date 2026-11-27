@@ -1929,6 +1929,22 @@ void ClairBrowserWindow::ShowSpaceOnNewTab(const std::string& space,
   OpenInShownSpace(url);
 }
 
+bool ClairBrowserWindow::ShowSpaceOnLaunchNewTab(const std::string& space) {
+  // With every tab of the session dropped or none to restore, Chromium opens
+  // a window on a new tab page (SessionRestoreImpl::FinishedTabCreation),
+  // which joined the Space the window shows. Restored tabs are never on one
+  // (clair::DropNewTabPages), so that page is the launch's.
+  tabs::TabInterface* active = browser_->tab_strip_model()->GetActiveTab();
+  if (active && space_tabs_ && space_tabs_->is_regular() &&
+      space_tabs_->SpaceOf(active) == space &&
+      clair::IsNewTabPageURL(active->GetContents()->GetVisibleURL())) {
+    SetShownSpace(space);
+    return false;
+  }
+  ShowSpaceOnNewTab(space, GURL(), /*command_bar=*/false);
+  return true;
+}
+
 void ClairBrowserWindow::OpenCommandBarWhenShown() {
   // Once the window is key and the page has taken focus, which would close
   // it.
