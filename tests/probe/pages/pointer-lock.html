@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pointer lock</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #206040; }
+  button { position: absolute; inset: 0; width: 100%; height: 100%; font: 32px system-ui; background: none; color: #ffd000; border: 0; }
+</style>
+<!-- A click anywhere locks the pointer, hiding the cursor; Esc ends it. -->
+<button onclick="this.requestPointerLock()">Click to hide the cursor</button>

@@ -118,8 +118,9 @@ build/probe/bin/measure track build/probe/rec/peek/frames white 0 0 2400 2012 80
   use (or by `tools/build.sh`); each describes its arguments at the top:
   `windows` (window IDs and frames, by app name or process ID), `drag` (a drag
   with real mouse events, in screen points), `mouse` (a real pointer move, double-click or
-  click, in screen points), `keys` (real key events with Ctrl and Shift held
-  across steps, and screenshots between them), `cdp` (DevTools
+  click, in screen points), `keys` (real key events with Ctrl, Shift or Esc held
+  across steps, as for holding Esc to leave full screen, and screenshots
+  between them), `cdp` (DevTools
   protocol commands for the test copy), `frames` (a movie's frames), `sheet` (a
   labelled contact sheet), `crop` (a pixel rectangle; `sips --cropOffset`
   centres instead), and `measure`:

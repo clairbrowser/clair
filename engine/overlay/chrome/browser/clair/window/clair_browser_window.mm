@@ -574,16 +574,21 @@ void ClairExclusiveAccessContext::EnterFullscreen(
 }
 
 void ClairExclusiveAccessContext::ExitFullscreen() {
+  // Without a page in full screen, Chromium is leaving the window's own,
+  // however it was entered, as when Esc is held (arc-popup-notices D3).
+  const bool window_fullscreen_only = !page_fullscreen_;
   SetPageFullscreen(false);
   HideNotice(ExclusiveAccessBubbleHideReason::kInterrupted);
   // add-profiles D4: the group's full-screen window, while this one covers
   // it. A cover leaves the group's full screen only when asked to by the
-  // user (IDC_FULLSCREEN, toggleFullScreen:), never with a page's.
+  // user (IDC_FULLSCREEN, toggleFullScreen:, holding Esc), never with a
+  // page's.
   NSWindow* window = window_->FullscreenNSWindow();
-  // Leave only what entering changed: a window already in full screen stays.
-  // add-profiles D3, D4: so does a hidden member's, as the full-screen owner
-  // under a cover, whose full screen the cover now shows.
-  if (entered_window_fullscreen_ && !window_->IsHiddenMember() &&
+  // A page leaves only what entering changed: a window already in full
+  // screen stays. add-profiles D3, D4: so does a hidden member's, as the
+  // full-screen owner under a cover, whose full screen the cover now shows.
+  if ((entered_window_fullscreen_ || window_fullscreen_only) &&
+      !window_->IsHiddenMember() &&
       (window.styleMask & NSWindowStyleMaskFullScreen)) {
     [window toggleFullScreen:nil];
   }

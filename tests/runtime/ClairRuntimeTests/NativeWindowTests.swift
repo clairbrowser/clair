@@ -480,7 +480,8 @@ final class FullscreenTests: NativeWindowTestCase {
       try await tab.evaluate("document.pointerLockElement === null") as? Bool == true
     }
     XCTAssertTrue(unlocked, "Esc didn't end the pointer lock")
-    let gone = await Harness.wait(for: 5) { !self.notice(browser).exists }
+    // Well within the popup's own 5 s, so the end of the lock hid it.
+    let gone = await Harness.wait(for: 1.5) { !self.notice(browser).exists }
     XCTAssertTrue(gone, "The hidden-cursor notice stayed after the lock ended")
   }
 
