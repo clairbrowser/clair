@@ -249,6 +249,9 @@ final class StubSwitcherHost: TabSwitcherHost {
   var recentTabIDs: [TabID] = [1, 2, 3, 4]
   private(set) var shown: [TabID] = []
   private(set) var previewRequests: [TabID] = []
+  /// When set, previews wait here instead of arriving at once.
+  var holdsPreviews = false
+  var heldPreviews: [(TabID, (NSImage?) -> Void)] = []
 
   init() {
     switcherWindow.isReleasedWhenClosed = false
@@ -260,7 +263,11 @@ final class StubSwitcherHost: TabSwitcherHost {
 
   func requestSwitcherPreview(of tabID: TabID, size: NSSize, completion: @escaping (NSImage?) -> Void) {
     previewRequests.append(tabID)
-    completion(NSImage(size: size))
+    if holdsPreviews {
+      heldPreviews.append((tabID, completion))
+    } else {
+      completion(NSImage(size: size))
+    }
   }
 
   func showFromSwitcher(_ tabID: TabID) {
@@ -305,6 +312,26 @@ struct TabSwitcherKeyTests {
     #expect(switcher.handle(key(48, .control, type: .keyUp)))
     #expect(switcher.state.entries == [1, 2, 3, 4])
     #expect(host.previewRequests == [1, 2, 3, 4])
+    switcher.cancel()
+  }
+
+  @Test func aPreviewFromAnEarlierOpeningIsDropped() {
+    host.holdsPreviews = true
+    switcher.handle(key(48, .control))
+    let earlier = host.heldPreviews
+    switcher.handle(key(53, .control))
+    switcher.handle(flags([]))
+    switcher.handle(key(48, .control))
+    for (_, completion) in earlier {
+      completion(NSImage(size: NSSize(width: 1, height: 1)))
+    }
+    #expect(switcher.panelModel.previews.isEmpty)
+    let current = host.heldPreviews.dropFirst(earlier.count)
+    for (_, completion) in current {
+      completion(NSImage(size: NSSize(width: 2, height: 2)))
+    }
+    #expect(switcher.panelModel.previews.count == 4)
+    #expect(switcher.panelModel.previews.values.allSatisfy { $0.size.width == 2 })
     switcher.cancel()
   }
 

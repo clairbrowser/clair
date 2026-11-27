@@ -54,7 +54,7 @@ A borderless, non-activating `NSPanel`, a child window of the browser window, ho
 
 - **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Arc's #F2F2F2 background in light mode (the system's light `windowBackgroundColor` is white), about 22 pt corner radius, hairline border and shadow.
 - **Selection:** a 12 pt inset rounded highlight, about 12 pt radius, in the accent colour at the sidebar's selection opacity. The selected title is in the primary colour, the others secondary.
-- **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis.
+- **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis. The selected card's title is in the primary label colour and the others' in the secondary one; the weight stays the same, so selecting a card doesn't shift its text.
 - **Position:** centred on the window, then moved inside the screen's visible frame. Arc centred a two-card panel on the window, but its five-card panel sat about 29 pt right of centre in a 963 pt window; centring is the simpler rule.
 
 Shown with `orderFront` and no animation, 100 ms after Ctrl+Tab (a timer `SwitcherState` starts on opening), or at once on a second Tab or Shift+Tab. A commit before the timer fires never shows the panel, so a quick Ctrl+Tab just switches, as in Arc, whose delay measured between 90 and 130 ms. The panel is re-rendered in place as the selection moves. Previews arriving late replace the placeholder in place. Dark mode uses the system's dark window background. Arc wasn't probed in dark mode.

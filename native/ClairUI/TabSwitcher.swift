@@ -45,6 +45,8 @@ final class TabSwitcher {
   private var keyMonitor: Any?
   private var mouseMonitor: Any?
   private var delay: Task<Void, Never>?
+  /// Counts the openings, for the previews each one asked for.
+  private var opening = 0
   /// The keys whose key-down the switcher took, whose key-up it takes too.
   private var takenKeys: Set<UInt16> = []
 
@@ -136,7 +138,8 @@ final class TabSwitcher {
     }
     panelModel.cards = cards
     panelModel.previews = [:]
-    requestPreviews(for: cards)
+    opening += 1
+    requestPreviews(for: cards, opening: opening)
     render()
     let wait = self.wait
     delay = Task { [weak self] in
@@ -147,13 +150,15 @@ final class TabSwitcher {
     }
   }
 
-  private func requestPreviews(for cards: [SwitcherCard]) {
+  /// A preview arriving after its opening ended is dropped, so it can't land
+  /// in a later one.
+  private func requestPreviews(for cards: [SwitcherCard], opening: Int) {
     for card in cards {
       let width = SwitcherLayout.previewSize.width / CGFloat(card.paneIDs.count)
       let size = NSSize(width: width, height: SwitcherLayout.previewSize.height)
       for paneID in card.paneIDs {
         host?.requestSwitcherPreview(of: paneID, size: size) { [weak self] image in
-          guard let self, self.state.isOpen, let image else { return }
+          guard let self, self.state.isOpen, self.opening == opening, let image else { return }
           // A preview arriving late replaces the placeholder in place.
           self.panelModel.previews[paneID] = image
         }
@@ -388,7 +393,9 @@ struct TabSwitcherCardView: View {
       }
       if !card.title.isEmpty {
         Text(card.title)
-          .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+          // One weight for every card, so the selection doesn't shift the
+          // text; only its colour marks it.
+          .font(.system(size: 14, weight: .medium))
           .foregroundStyle(isSelected ? .primary : .secondary)
           .lineLimit(1)
           .truncationMode(.tail)
