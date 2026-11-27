@@ -70,7 +70,7 @@ jobs:
           esac
 
   quality:
-    name: "Runtime Test: Group ${{ matrix.name }}"
+    name: "Runtime Tests: Group ${{ matrix.name }}"
     needs: lookup
     if: ${{ !cancelled() && needs.lookup.outputs.passed != 'true' }}
     runs-on: xcode-27
