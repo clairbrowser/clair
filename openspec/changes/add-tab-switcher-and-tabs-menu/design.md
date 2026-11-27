@@ -55,7 +55,7 @@ A borderless, non-activating `NSPanel`, a child window of the browser window, ho
 - **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Arc's #F2F2F2 background in light mode (the system's light `windowBackgroundColor` is white), about 22 pt corner radius, hairline border and shadow.
 - **Selection:** a 12 pt inset rounded highlight, about 12 pt radius, in the accent colour at the sidebar's selection opacity. The selected title is in the primary colour, the others secondary.
 - **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis. The selected card's title is in the primary label colour and the others' in the secondary one; the weight stays the same, so selecting a card doesn't shift its text.
-- **Position:** centred on the window, then moved inside the screen's visible frame. Arc centred a two-card panel on the window, but its five-card panel sat about 29 pt right of centre in a 963 pt window; centring is the simpler rule.
+- **Position:** centred on the window, then moved inside the screen's visible frame, at least 40 pt from its left and right edges, as Arc does. Arc's five-card panel sat about 29 pt right of centre in the probe's 963 pt window at the screen's left edge only because of that margin: re-probed with the window away from the edges, it was centred on the window, and with the window at either edge it stopped 40 pt from the screen's side (`arc-reference/`).
 
 Shown with `orderFront` and no animation, 100 ms after Ctrl+Tab (a timer `SwitcherState` starts on opening), or at once on a second Tab or Shift+Tab. A commit before the timer fires never shows the panel, so a quick Ctrl+Tab just switches, as in Arc, whose delay measured between 90 and 130 ms. The panel is re-rendered in place as the selection moves. Previews arriving late replace the placeholder in place. Dark mode uses the system's dark window background. Arc wasn't probed in dark mode.
 
@@ -165,7 +165,6 @@ Before deleting each engine case, the implementation greps the Chromium tree for
 - **[A hide copy can miss]** If the surface is gone before `CopyFromSurface` answers, the tab keeps its older preview or none. → Fall back to a blank card with the favicon (spec), and check timing in the hand check.
 - **[The local monitor sees every key]** → It returns early unless Control is down or the switcher is open, so the cost per key is one flag test.
 - **[A later Chromium looks the Tab menu up without a nil check]** → The engine-update patch check won't catch it, but the runtime suite's window activation would crash. Grep for `IDC_TAB_MENU` on each engine update (a note in `docs/building.md`'s "Updating the engine").
-- **[Arc's horizontal position]** Arc's panel wasn't centred on the probe window. → Centred and kept on screen. Revisit if the owner sees a difference.
 
 ## Migration Plan
 

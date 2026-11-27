@@ -425,21 +425,26 @@ struct SwitcherLayoutTests {
   }
 
   /// Kept on screen: a five-card panel over a narrow window at the screen's
-  /// edge moves inside the visible frame.
+  /// edge moves inside the visible frame, 40 from its sides, as Arc's does.
   @Test func itStaysOnScreen() {
     let visible = CGRect(x: 0, y: 0, width: 1920, height: 1050)
-    let left = SwitcherLayout.panelFrame(cards: 5, window: CGRect(x: 0, y: 30, width: 600, height: 976), visible: visible)
-    #expect(left.minX == 0)
+    // Arc's probe window: 40 from the left, so about 29 right of centre.
+    let left = SwitcherLayout.panelFrame(cards: 5, window: CGRect(x: 0, y: 30, width: 963, height: 976), visible: visible)
+    #expect(left.minX == 40)
+    #expect(left.midY == 518)
+    // Centred while it stays 40 from the edge.
+    let near = SwitcherLayout.panelFrame(cards: 5, window: CGRect(x: 30, y: 30, width: 964, height: 976), visible: visible)
+    #expect(near.midX == 512)
     let right = SwitcherLayout.panelFrame(
       cards: 5, window: CGRect(x: 1500, y: 0, width: 420, height: 300), visible: visible)
-    #expect(right.maxX == 1920)
+    #expect(right.maxX == 1880)
     #expect(right.midY == 150)
     let low = SwitcherLayout.panelFrame(cards: 2, window: CGRect(x: 0, y: -50, width: 600, height: 100), visible: visible)
     #expect(low.minY == 0)
     // Wider than the screen: its leading edge stays on it.
     let narrow = SwitcherLayout.panelFrame(
       cards: 5, window: CGRect(x: 0, y: 0, width: 800, height: 600), visible: CGRect(x: 0, y: 0, width: 800, height: 600))
-    #expect(narrow.minX == 0)
+    #expect(narrow.minX == 40)
   }
 }
 

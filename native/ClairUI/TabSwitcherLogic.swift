@@ -173,14 +173,19 @@ enum SwitcherLayout {
     (0..<cards).first { cardFrame($0).contains(point) }
   }
 
+  /// How close the panel comes to the screen's left and right edges, as in
+  /// Arc, which moves a panel that would come closer.
+  static let screenMargin: CGFloat = 40
+
   /// The panel's frame on screen: centred on `window`, then moved inside
-  /// `visible`, the screen's visible frame, its leading edge first when it's
-  /// wider.
+  /// `visible`, the screen's visible frame, `screenMargin` from its left and
+  /// right edges; its leading edge first when it's wider.
   static func panelFrame(cards: Int, window: CGRect, visible: CGRect) -> CGRect {
     let size = panelSize(cards: cards)
     var frame = CGRect(
       x: window.midX - size.width / 2, y: window.midY - size.height / 2, width: size.width, height: size.height)
-    frame.origin.x = max(min(frame.origin.x, visible.maxX - size.width), visible.minX)
+    frame.origin.x = max(
+      min(frame.origin.x, visible.maxX - screenMargin - size.width), visible.minX + screenMargin)
     frame.origin.y = min(max(frame.origin.y, visible.minY), visible.maxY - size.height)
     return frame
   }
