@@ -279,12 +279,13 @@ struct TabSwitcherKeyTests {
     switcher.wait = { _ in try? await Task.sleep(for: .seconds(3600)) }
   }
 
-  private func key(_ code: UInt16, _ flags: NSEvent.ModifierFlags = [], type: NSEvent.EventType = .keyDown) -> NSEvent
-  {
+  private func key(
+    _ code: UInt16, _ flags: NSEvent.ModifierFlags = [], type: NSEvent.EventType = .keyDown, repeat: Bool = false
+  ) -> NSEvent {
     let characters = code == 48 ? "\t" : (code == 53 ? "\u{1b}" : "a")
     return NSEvent.keyEvent(
       with: type, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil,
-      characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code)!
+      characters: characters, charactersIgnoringModifiers: characters, isARepeat: `repeat`, keyCode: code)!
   }
 
   private func flags(_ flags: NSEvent.ModifierFlags) -> NSEvent {
@@ -340,6 +341,17 @@ struct TabSwitcherKeyTests {
     switcher.handle(flags([]))
     #expect(host.shown == [4])
     #expect(!switcher.click(at: CGPoint(x: card.midX, y: 10)))
+  }
+
+  /// A key held down before the switcher opened keeps its release: the
+  /// switcher swallows its repeats, but its key-up goes on to the page.
+  @Test func aKeyPressedBeforeKeepsItsRelease() {
+    switcher.handle(key(48, .control))
+    #expect(switcher.handle(key(125, .control, repeat: true)))
+    switcher.handle(key(53, .control))
+    #expect(!switcher.handle(key(125, type: .keyUp)))
+    // Esc, pressed inside the switcher, has its release taken.
+    #expect(switcher.handle(key(53, type: .keyUp)))
   }
 
   @Test func nothingHappensWhileADialogIsUp() {

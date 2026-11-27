@@ -74,6 +74,7 @@ The contract (`ClairHost.h`, `ClairBrowser`):
 ```
 
 - **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before ClairUI takes the page out of the card and Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. A hidden page gives up its compositor at once, so viz would never draw the surface the copy waits for: as Chromium's background thumbnails do, a hidden capture (`IncrementCapturerCount` with `stay_hidden`) keeps the page painting, told it's hidden, until the copy is back. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
+- **Profile swaps.** A window the group conceals hides its pages without an active-tab change, so `Conceal` keeps their previews first.
 - **Lifetime and memory.** One bitmap per tab, 315 × 210 pixels, replaced on each hide, freed with the tab: about 260 KB each.
 - **The shown tab** is copied live on request.
 - **Peeks.** A tab with a Peek gets the parent's page; the still's convention is followed.
@@ -82,7 +83,7 @@ Turning on `kTabHoverCardImages` was rejected: it needs a patch to a Chromium de
 
 A split's card asks for both panes and draws them side by side in pane order.
 
-**Showing a tab of another profile.** `-showTab:` passes the tab through the window group's swap (`ClairWindowGroup::ShowSpace`), and the member swapped in shows it in place of the tab `ShowSpace` would pick. Otherwise the Space's last tab would show first, and enter the recents.
+**Showing a tab of another profile.** `-showTab:` passes the tab through the window group's swap (`ClairWindowGroup::ShowSpace`), and the member swapped in shows it in place of the tab `ShowSpace` would pick. Otherwise the Space's last tab would show first, and enter the recents. It takes the tab without waiting for its page's copy, so the tab is active before the group reveals the member; a window that showed it gets its still's image when the copy comes.
 
 ### D5. Delete Chromium's Tab menu, add Clair's Tabs menu
 

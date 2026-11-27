@@ -1808,6 +1808,9 @@ void ClairBrowserWindow::Conceal(bool order_out) {
   CancelPendingTake();
   if (content::WebContents* active =
           browser_->tab_strip_model()->GetActiveWebContents()) {
+    // add-tab-switcher-and-tabs-menu D4: the pages leave without an active
+    // tab change; the switcher's previews are taken here too.
+    KeepPreviews(active, {});
     for (content::WebContents* page : PagesShownWith(active)) {
       page->UpdateWebContentsVisibility(content::Visibility::HIDDEN);
     }
@@ -2094,7 +2097,11 @@ void ClairBrowserWindow::ShowSpace(const std::string& space,
   if (tab && space_tabs_->IsListed(tab) &&
       (space_tabs_->SpaceOf(tab) == space || space_tabs_->IsFavoriteTab(tab))) {
     SetShownSpace(space);
-    ActivateRow(RowOf(tab));
+    // The group reveals this member right after: the tab moves here at once,
+    // a window that showed it getting its still's image when the copy comes.
+    ClairTakeOptions options;
+    options.wait_for_copy = false;
+    ActivateRow(RowOf(tab), std::move(options));
     return;
   }
   // Shown again: the active tab stays if it's a row of the Space.

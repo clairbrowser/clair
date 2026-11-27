@@ -74,6 +74,17 @@ func modifier(_ key: CGKeyCode, _ flag: CGEventFlags, down: Bool) {
   post(key, down: down)
 }
 
+/// Lets go of what's held, so a failure leaves no key down.
+func releaseHeld() {
+  if held.contains(.maskShift) { modifier(shiftKey, .maskShift, down: false) }
+  if held.contains(.maskControl) { modifier(controlKey, .maskControl, down: false) }
+}
+
+func releaseAndFail(_ message: String) -> Never {
+  releaseHeld()
+  fail(message, status: 1)
+}
+
 func press(_ key: CGKeyCode) {
   post(key, down: true)
   usleep(30_000)
@@ -85,7 +96,7 @@ func shoot(_ argument: Substring) {
   let parts = argument.split(separator: ":", maxSplits: 1)
   let numbers = parts.count == 2 ? parts[1].split(separator: ",").compactMap { Double($0) } : []
   guard parts.count == 2, !parts[0].isEmpty, numbers.count == 4 else {
-    fail("shot needs <png>:<x,y,w,h>, got \(argument)")
+    releaseAndFail("shot needs <png>:<x,y,w,h>, got \(argument)")
   }
   let rect = numbers.map { String(Int($0.rounded())) }.joined(separator: ",")
   let capture = Process()
@@ -95,9 +106,12 @@ func shoot(_ argument: Substring) {
     try capture.run()
     capture.waitUntilExit()
   } catch {
-    fail("screencapture didn't run: \(error)", status: 1)
+    releaseAndFail("screencapture didn't run: \(error)")
   }
-  guard capture.terminationStatus == 0 else { fail("screencapture failed", status: 1) }
+  // screencapture exits 0 when it can't write the file.
+  guard capture.terminationStatus == 0, FileManager.default.fileExists(atPath: String(parts[0])) else {
+    releaseAndFail("screencapture didn't write \(parts[0])")
+  }
 }
 
 for step in steps {
@@ -120,5 +134,4 @@ for step in steps {
 }
 
 // Nothing stays held once the tool is done.
-if held.contains(.maskShift) { modifier(shiftKey, .maskShift, down: false) }
-if held.contains(.maskControl) { modifier(controlKey, .maskControl, down: false) }
+releaseHeld()

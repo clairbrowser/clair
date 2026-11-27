@@ -100,11 +100,11 @@ final class TabSwitcher {
       guard event.keyCode == Self.tabKey, flags.contains(.control),
         flags.isDisjoint(with: [.command, .option]), host?.switcherMayAct == true
       else { return false }
-      takenKeys.insert(event.keyCode)
+      take(event)
       open(forward: !flags.contains(.shift))
       return true
     }
-    takenKeys.insert(event.keyCode)
+    take(event)
     switch event.keyCode {
     case Self.tabKey:
       state.step(forward: !flags.contains(.shift))
@@ -115,6 +115,14 @@ final class TabSwitcher {
       break
     }
     return true
+  }
+
+  /// The key's release is the switcher's too, unless the key was down
+  /// before: a repeat's release belongs to whoever had its first press.
+  private func take(_ event: NSEvent) {
+    if !event.isARepeat {
+      takenKeys.insert(event.keyCode)
+    }
   }
 
   private func open(forward: Bool) {
