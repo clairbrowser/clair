@@ -18,6 +18,7 @@ generate_grd("clair_store_fixups_grd") {
 
   input_files_base_dir = rebase_path(".", "//")
   input_files = [
+    "chrome-webstore.css",
     "chrome-webstore.js",
     "manifest.json",
   ]
