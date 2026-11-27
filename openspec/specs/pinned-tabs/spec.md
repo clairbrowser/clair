@@ -17,7 +17,7 @@ A pinned tab SHALL keep its pinned URL, its page title, its icon and any custom 
 - **THEN** that page shows as it was, without reloading
 
 ### Requirement: Pinned section
-Between the Space header and the "New Tab" row, the sidebar SHALL list the Space's pinned tabs in the user's order, with the icon and title each had when last open. A pinned tab whose page isn't open SHALL look like one whose page is open and isn't selected. A divider SHALL separate the pinned section from "New Tab" while the Space has Today tabs.
+Between the Space header and the "New Tab" row, the sidebar SHALL list the Space's pinned tabs, and its pinned splits as split rows (`split-view`), in the user's order, with the icon and title each had when last open. A pinned tab whose page isn't open SHALL look like one whose page is open and isn't selected. A divider SHALL separate the pinned section from "New Tab" while the Space has Today tabs.
 
 #### Scenario: Pinned and Today tabs
 - **WHEN** a Space has the pinned tabs "Mail" and "Docs" and two Today tabs
@@ -30,6 +30,10 @@ Between the Space header and the "New Tab" row, the sidebar SHALL list the Space
 #### Scenario: Another Space
 - **WHEN** "Mail" is pinned in "Work" and the window shows "Home"
 - **THEN** the sidebar doesn't list "Mail"
+
+#### Scenario: A pinned split
+- **WHEN** "Work" has the pinned tab "Mail" and then a pinned split of "News" and "Docs"
+- **THEN** the pinned section lists "Mail" and then one row holding a "News" chip and a "Docs" chip
 
 ### Requirement: Pinning and unpinning
 Tabs › Pin Tab (Cmd+D) and Pin Tab in a Today tab's menu SHALL pin the tab at the bottom of the pinned section, keeping its page and its selection. On a pinned tab, the item SHALL read Unpin Tab and SHALL move the tab to the top of the Today tabs, keeping its page, or opening it if closed, and its custom name. The pinned URL SHALL be the page's URL when it was pinned.
@@ -149,7 +153,7 @@ A pinned tab's menu SHALL offer Edit Pinned Page › with "Replace Pinned URL wi
 - **THEN** Save is disabled
 
 ### Requirement: Pinned tab menu
-A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Edit Pinned Page ›, Duplicate, Move to Space (with more than one Space), Pin to Favorites and Unpin Tab, and no Remove Pin. Copy Link SHALL copy the page's current URL, or the pinned URL while the page is closed. Duplicate SHALL open the same URL as a new Today tab at the top.
+A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Edit Pinned Page ›, Duplicate, Split with Tab › (`split-view`), Move to Space (with more than one Space), Pin to Favorites and Unpin Tab, and no Remove Pin. Copy Link SHALL copy the page's current URL, or the pinned URL while the page is closed. Duplicate SHALL open the same URL as a new Today tab at the top.
 
 #### Scenario: Copy Link on a closed pinned tab
 - **WHEN** the pinned tab "Mail" has no open page and the user chooses Copy Link
@@ -162,6 +166,10 @@ A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Ed
 #### Scenario: The menu's last items
 - **WHEN** the user right-clicks a pinned tab
 - **THEN** the menu ends with Pin to Favorites and Unpin Tab
+
+#### Scenario: Split with Tab
+- **WHEN** the user right-clicks the pinned tab "Mail" and chooses Split with Tab › "News"
+- **THEN** the window shows a split of "Mail" and "News", "News" focused
 
 ### Requirement: Collapsing the pinned section
 While the Space has pinned tabs, hovering the Space header SHALL show a chevron at its leading edge, sliding the name aside as in Arc; without pinned tabs the header shows no chevron. Clicking it or anywhere else on the header, or View › Collapse Pinned Tabs, SHALL hide the pinned rows except the active one, and turn the chevron to point sideways, shown without hover. Clicking it again or View › Expand Pinned Tabs SHALL show them. Each Space SHALL remember the choice across windows and launches.
