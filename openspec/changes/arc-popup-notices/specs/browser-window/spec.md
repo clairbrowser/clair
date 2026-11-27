@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Notice popup
-Every notice in the popup at the card's top-trailing corner, Copy URL's and those below, SHALL show for the same time, about 5 seconds, and then hide by itself. A new notice SHALL replace the one showing and show for the full time. A notice SHALL hide sooner only when what it describes ends, such as the full screen or the pointer lock it explains.
+Every notice in the popup at the card's top-trailing corner, Copy URL's and those below, SHALL show for the same time, about 5 seconds, and then hide by itself. A new notice SHALL replace the one showing and show for the full time. A notice SHALL hide sooner only when a newer notice replaces it, or when what it describes ends, such as the full screen or the pointer lock it explains; that end SHALL hide only its own notice.
 
 #### Scenario: One time for every notice
 - **WHEN** the popup shows the full-screen notice, and later the zoom level
@@ -17,6 +17,10 @@ Every notice in the popup at the card's top-trailing corner, Copy URL's and thos
 - **WHEN** the user leaves page full screen while its notice shows
 - **THEN** the notice hides at once
 
+#### Scenario: Ending after a newer notice
+- **WHEN** the zoom level has replaced the full-screen notice and the user then leaves page full screen
+- **THEN** the zoom level stays for the rest of its time
+
 ### Requirement: Hidden cursor notice
 When a page locks the pointer outside page full screen, hiding the cursor, the popup in the card's top-trailing corner SHALL read "Your cursor is hidden. Press [esc] to show cursor.", as in Arc, with esc drawn as a key cap. Esc SHALL end the lock and show the cursor. In page full screen, the full-screen notice SHALL show instead.
 
@@ -26,7 +30,7 @@ When a page locks the pointer outside page full screen, hiding the cursor, the p
 
 #### Scenario: Esc shows the cursor
 - **WHEN** a page holds the pointer lock and the user presses Esc
-- **THEN** the lock ends, the cursor shows, and the popup hides
+- **THEN** the lock ends, the cursor shows, and the hidden-cursor notice hides if it is still the one showing
 
 #### Scenario: Pointer lock in page full screen
 - **WHEN** a page in page full screen locks the pointer

@@ -42,7 +42,7 @@ Lowercase, as in Arc's wording and its tooltips ("Stop loading this page esc"). 
 
 `UpdateExclusiveAccessBubble` stops hiding the browser and extension full-screen types and shows them like the others, so every route into window full screen shows "To exit full screen, press and hold |esc|", the text following Chromium's feature. `HideNotice` on leaving full screen already covers them.
 
-Holding Esc must work wherever the focus is, but the page's path already feeds Chromium. So in window full screen, `HandleExclusiveAccessKey` passes unmodified Esc key-downs and key-ups to `ExclusiveAccessManager::HandleUserKeyEvent` only when the window's first responder isn't the page's view, and always returns false there, so the key goes on to the command bar, find, a sheet or the sidebar as before. While a page is in full screen, it keeps today's behavior.
+Holding Esc must work wherever the focus is, but the page's path already feeds Chromium. So in window full screen, `HandleExclusiveAccessKey` passes unmodified Esc key-downs, and every Esc key-up whatever modifiers are held, to `ExclusiveAccessManager::HandleUserKeyEvent` only when the window's first responder isn't the page's view, and always returns false there, so the key goes on to the command bar, find, a sheet or the sidebar as before. Chromium cancels the hold on any Esc key-up, so one released with Shift held still cancels it, and a quick Esc never leaves an exit pending. While a page is in full screen, it keeps today's behavior.
 
 **Alternatives:** feed every Esc from `sendEvent:` (the page's would reach Chromium twice, and a second key-up after the timer was cancelled reaches the controllers as a press); a tap-to-exit Esc (the owner chose Chromium's hold, so a quick Esc still closes things).
 
