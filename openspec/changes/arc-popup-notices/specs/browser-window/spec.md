@@ -2,12 +2,27 @@
 
 ## ADDED Requirements
 
+### Requirement: Notice popup
+Every notice in the popup at the card's top-trailing corner, Copy URL's and those below, SHALL show for the same time, about 5 seconds, and then hide by itself. A new notice SHALL replace the one showing and show for the full time. A notice SHALL hide sooner only when what it describes ends, such as the full screen or the pointer lock it explains.
+
+#### Scenario: One time for every notice
+- **WHEN** the popup shows the full-screen notice, and later the zoom level
+- **THEN** each stays for about 5 seconds
+
+#### Scenario: A newer notice
+- **WHEN** a notice has shown for 3 seconds and another one comes
+- **THEN** the new one replaces it and stays for about 5 seconds
+
+#### Scenario: Ending early
+- **WHEN** the user leaves page full screen while its notice shows
+- **THEN** the notice hides at once
+
 ### Requirement: Hidden cursor notice
-When a page locks the pointer outside page full screen, hiding the cursor, the popup in the card's top-trailing corner SHALL read "Your cursor is hidden. Press [esc] to show cursor.", as in Arc, with esc drawn as a key cap. It SHALL hide after a few seconds or when the lock ends. Esc SHALL end the lock and show the cursor. In page full screen, the full-screen notice SHALL show instead.
+When a page locks the pointer outside page full screen, hiding the cursor, the popup in the card's top-trailing corner SHALL read "Your cursor is hidden. Press [esc] to show cursor.", as in Arc, with esc drawn as a key cap. Esc SHALL end the lock and show the cursor. In page full screen, the full-screen notice SHALL show instead.
 
 #### Scenario: Page locks the pointer
 - **WHEN** a page in the card locks the pointer after a click
-- **THEN** the popup in the card's top-trailing corner reads "Your cursor is hidden. Press [esc] to show cursor." with esc as a key cap, and hides after a few seconds
+- **THEN** the popup in the card's top-trailing corner reads "Your cursor is hidden. Press [esc] to show cursor." with esc as a key cap
 
 #### Scenario: Esc shows the cursor
 - **WHEN** a page holds the pointer lock and the user presses Esc
@@ -18,11 +33,11 @@ When a page locks the pointer outside page full screen, hiding the cursor, the p
 - **THEN** the popup shows the full-screen notice, not the hidden-cursor one
 
 ### Requirement: Window full-screen notice
-Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press and hold [esc]" for a few seconds, as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is. A quick Esc SHALL do what it does outside full screen.
+Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press and hold [esc]", as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is. A quick Esc SHALL do what it does outside full screen.
 
 #### Scenario: Entering from the menu
 - **WHEN** the user chooses View › Enter Full Screen
-- **THEN** the popup reads "To exit full screen, press and hold [esc]" with esc as a key cap, and hides after a few seconds
+- **THEN** the popup reads "To exit full screen, press and hold [esc]" with esc as a key cap
 
 #### Scenario: Entering from the green button
 - **WHEN** the user clicks the window's green button
@@ -48,7 +63,7 @@ A download that starts while the window or a page is in full screen, or while a 
 - **THEN** the popup reads "To exit full screen, press [esc]", with no mention of the download
 
 ### Requirement: Zoom notice
-When the user changes a page's zoom, by View's zoom commands, their shortcuts or a pinch, the popup SHALL show the new level alone, such as "110%", as in Arc, and hide after a few seconds. Each further change SHALL update the shown level in place and restart its time. No toast SHALL show for the zoom.
+When the user changes a page's zoom, by View's zoom commands, their shortcuts or a pinch, the popup SHALL show the new level alone, such as "110%", as in Arc. Each further change SHALL show its level in the same popup. No toast SHALL show for the zoom.
 
 #### Scenario: Zooming in
 - **WHEN** a page is at 100% and the user presses Cmd+=
@@ -56,7 +71,7 @@ When the user changes a page's zoom, by View's zoom commands, their shortcuts or
 
 #### Scenario: Zooming again
 - **WHEN** the zoom popup shows "110%" and the user presses Cmd+= again
-- **THEN** the same popup reads "125%" and stays for a few seconds more
+- **THEN** the same popup reads "125%"
 
 ## MODIFIED Requirements
 

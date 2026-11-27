@@ -4,7 +4,7 @@
 
 See proposal.md for why and `specs/browser-window/spec.md` for the behavior.
 
-**The popup today:** `ClairExclusiveAccessContext::UpdateExclusiveAccessBubble` (`engine/overlay/chrome/browser/clair/window/clair_browser_window.mm`) turns each exclusive-access bubble into text with Chromium's `exclusive_access_bubble::GetInstructionTextForType` and sends it to `showExclusiveAccessNotice:`. `ClairUI` shows it in the top-trailing popup (`NoticeState`, identifier `clair.fullscreenNotice`; `replace-browser-window` design D18), drawing each `|key|` as a `KeyCap`. A timer of `ExclusiveAccessBubble::kShowTime` (3.8 s) hides it and runs Chromium's first-hide callback, and the end of the mode hides it at once. Types for which `IsExclusiveAccessModeBrowserFullscreen` is true, the browser's and an extension's full screen, are hidden on purpose.
+**The popup today:** `ClairExclusiveAccessContext::UpdateExclusiveAccessBubble` (`engine/overlay/chrome/browser/clair/window/clair_browser_window.mm`) turns each exclusive-access bubble into text with Chromium's `exclusive_access_bubble::GetInstructionTextForType` and sends it to `showExclusiveAccessNotice:`. `ClairUI` shows it in the top-trailing popup (`NoticeState`, identifier `clair.fullscreenNotice`; `replace-browser-window` design D18), drawing each `|key|` as a `KeyCap`. `ClairUI` keeps it until the engine hides it: a timer of `ExclusiveAccessBubble::kShowTime` (3.8 s) does, and runs Chromium's first-hide callback, and the end of the mode does at once. Copy URL's notice shows for `NoticeState.copiedDuration` (5 s). Types for which `IsExclusiveAccessModeBrowserFullscreen` is true, the browser's and an extension's full screen, are hidden on purpose.
 
 **What Chromium sends:**
 - A pointer lock: `POINTERLOCK_EXIT_INSTRUCTION` outside full screen ("To show your cursor, press |Esc|"), `FULLSCREEN_POINTERLOCK_EXIT_INSTRUCTION` in tab full screen, whose text is the full-screen one.
@@ -40,7 +40,7 @@ Lowercase, as in Arc's wording and its tooltips ("Stop loading this page esc"). 
 
 ### D3. The window's full screen shows its notice
 
-`UpdateExclusiveAccessBubble` stops hiding the browser and extension full-screen types and shows them like the others, so every route into window full screen shows "To exit full screen, press and hold |esc|" for 3.8 s, the text following Chromium's feature. `HideNotice` on leaving full screen already covers them.
+`UpdateExclusiveAccessBubble` stops hiding the browser and extension full-screen types and shows them like the others, so every route into window full screen shows "To exit full screen, press and hold |esc|", the text following Chromium's feature. `HideNotice` on leaving full screen already covers them.
 
 Holding Esc must work wherever the focus is, but the page's path already feeds Chromium. So in window full screen, `HandleExclusiveAccessKey` passes unmodified Esc key-downs and key-ups to `ExclusiveAccessManager::HandleUserKeyEvent` only when the window's first responder isn't the page's view, and always returns false there, so the key goes on to the command bar, find, a sheet or the sidebar as before. While a page is in full screen, it keeps today's behavior.
 
@@ -48,7 +48,7 @@ Holding Esc must work wherever the focus is, but the page's path already feeds C
 
 ### D4. The zoom level goes to the popup through the contract
 
-A new `ClairWindow` method, `- (void)showZoomLevel:(NSInteger)percent`, replaces the toast in `ZoomChanged`. `ClairUI` shows `Notice(text: "\(percent)%", identifier: "clair.zoomNotice")` in the popup for `NoticeState.copiedDuration` (5 s). `NoticeState.show` already replaces a showing notice's text in place and restarts its time, so repeated zooms update one popup. A zoom replaces an exclusive-access notice that's up, as Copy URL does; a later exclusive-access notice replaces the zoom one.
+A new `ClairWindow` method, `- (void)showZoomLevel:(NSInteger)percent`, replaces the toast in `ZoomChanged`. `ClairUI` shows `Notice(text: "\(percent)%", identifier: "clair.zoomNotice")` in the popup. `NoticeState.show` already replaces a showing notice in place, so repeated zooms update one popup. A zoom replaces an exclusive-access notice that's up, as Copy URL does; a later exclusive-access notice replaces the zoom one.
 
 The engine sends the number and `ClairUI` formats it, so the text has no Chromium string and no locale-dependent format in it.
 
@@ -58,7 +58,15 @@ The engine sends the number and `ClairUI` formats it, so the text has no Chromiu
 
 Esc outside full screen reaches `ExclusiveAccessManager` through the page's keyboard pre-handling, which unlocks the pointer and sends `EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE`, hiding the popup. The runtime test checks it.
 
-### D6. No download notices
+### D6. The popup times every notice itself
+
+`NoticeState` gets one duration for every notice, today's `copiedDuration` (5 s, Arc's for Copy URL) renamed `duration`, and `show` always uses it; callers no longer pass one. `showExclusiveAccessNotice:` with text shows it like any other notice, and with nil hides it only if it is still the one showing, as now.
+
+So the engine only hides a notice early: when the mode ends (`HideNotice` with `kInterrupted`) it sends nil, and when `kShowTime` runs out it no longer does. The timer stays for Chromium's bookkeeping, `IsExclusiveAccessBubbleDisplayed()` and the first-hide callback with `kTimeout`, so Chromium sees what it saw before.
+
+**Alternative:** let the engine keep timing its notices: they'd show for 3.8 s and Clair's own for 5 s.
+
+### D7. No download notices
 
 `UpdateExclusiveAccessBubble` always asks `GetInstructionTextForType` for the text with `has_download` false, so a mode's notice never mentions a download. Params with `has_download` and `EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE`, Chromium's "keep the current notice and add the download to it", change nothing: the popup stays as it is, and the first-hide callback runs at once with `kNotShown`, as for any notice that isn't shown. The download still appears in the downloads list as usual.
 
@@ -69,6 +77,5 @@ Esc outside full screen reaches `ExclusiveAccessManager` through the page's keyb
 - [Esc doesn't end a pointer lock in Clair's native window] → The runtime test reads `document.pointerLockElement` after Esc. If it fails, D3's routing also covers a pointer lock.
 - [The full-screen notice now shows on every entry, including a window restored in full screen at launch] → That is Arc's behavior as the owner describes it.
 - [Pointer lock needs a user gesture and the window's focus on the runner] → The test asks for the lock through the harness's `Runtime.evaluate`, which passes `userGesture: true`, after bringing the window forward.
-- [The zoom notice's 5 s is a guess, since Arc wasn't measured] → It's one constant; adjust it once measured.
 - [The popup's identifier for exclusive-access notices stays `clair.fullscreenNotice`] → Not shown to anyone; tests tell the notices apart by label.
 - [The engine key and the contract change] → One engine build before merging, with `ClairUI` updated in the same PR.
