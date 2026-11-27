@@ -64,6 +64,7 @@ Suggested order:
 
   Verify with `grep -rn "tabMenuTag\|35013\|35051" native/` finding nothing, and the unit tests passing in CI.
 - [ ] 3.7 Rebuild `PinsLogic`'s menus as groups (D6): the Today, pinned and favorite menus, Close Tab on an open pinned tab (as Close and Keep Pinned), and the split chip's Separate Tabs in Split with Tab's place. Add Back to Pinned URL to Edit Pinned Page ›. Verify with unit tests in CI for each menu scenario in the `sidebar`, `pinned-tabs`, `favorites` and `split-view` deltas, including incognito and one Space.
+- [ ] 3.8 Rename the sidebar Clear button's tooltip to "Clear unpinned tabs" (`PinsViews`). Verify with `grep -rn '"[^"]*Today[^"]*"' native/ClairUI` finding no user-facing string.
 
 ## 4. Probe tooling
 

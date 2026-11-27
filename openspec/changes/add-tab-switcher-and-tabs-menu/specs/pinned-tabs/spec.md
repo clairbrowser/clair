@@ -62,7 +62,7 @@ While a pinned tab's page is at another URL than its pinned URL, its row SHALL s
 - **THEN** the icon isn't a button and no "Back to Pinned URL" shows
 
 ### Requirement: Clear Today
-While the pointer is over the sidebar and the Space has Today tabs, the divider SHALL show "↓ Clear" at its trailing end, with the tooltip "Clear Today tabs" and Shift+Cmd+K. It and Tabs › Clear Unpinned Tabs (Shift+Cmd+K, `tabs-menu`) SHALL close every Today tab of the Space, each with its leave-page confirmation, and leave pinned tabs and favorites as they are.
+While the pointer is over the sidebar and the Space has Today tabs, the divider SHALL show "↓ Clear" at its trailing end, with the tooltip "Clear unpinned tabs" and Shift+Cmd+K. It and Tabs › Clear Unpinned Tabs (Shift+Cmd+K, `tabs-menu`) SHALL close every Today tab of the Space, each with its leave-page confirmation, and leave pinned tabs and favorites as they are.
 
 #### Scenario: Clearing
 - **WHEN** "Work" has two pinned tabs and three Today tabs, and the user clicks Clear

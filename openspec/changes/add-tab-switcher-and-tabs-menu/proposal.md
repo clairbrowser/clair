@@ -48,7 +48,7 @@ In Clair, Ctrl+Tab still steps through the sidebar's rows in order, as Chromium'
 - `pinned-tabs`:
   - "Pinned tab menu" takes the new sections.
   - "Closing a pinned tab keeps it pinned" and "Navigated away from the pinned URL" lose their Tabs menu items.
-  - "Clear Today" is renamed Clear Unpinned Tabs in the Tabs menu.
+  - "Clear Today" is renamed Clear Unpinned Tabs in the Tabs menu, and the sidebar's Clear button's tooltip reads "Clear unpinned tabs".
   - "Editing the pinned URL" adds Back to Pinned URL to Edit Pinned Page ›, so a favorite navigated away still has it.
   - "No pins in private windows" drops the removed items.
 - `favorites`:
