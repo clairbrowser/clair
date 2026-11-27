@@ -1,0 +1,25 @@
+# Tasks
+
+Wherever a task needs a build, it means the engine that `engine.yml` builds for the branch's key and the CI and quality runs on the pull request's branch.
+
+## 1. Exclusive-access notices
+
+- [ ] 1.1 In `ClairExclusiveAccessContext::UpdateExclusiveAccessBubble`, send "Your cursor is hidden. Press |esc| to show cursor." for `POINTERLOCK_EXIT_INSTRUCTION` without a download, pass `u"esc"` as the accelerator for every other type, and stop hiding the browser and extension full-screen types (design D1–D3). Verify that `engine.yml` builds the engine for the branch and that CI's engine check passes.
+- [ ] 1.2 In `ClairBrowserWindow::HandleExclusiveAccessKey`, pass unmodified Esc key-downs and key-ups to `ExclusiveAccessManager::HandleUserKeyEvent` in window full screen when the first responder isn't the page's view, returning false (design D3). Verify with task 1.5's test.
+- [ ] 1.3 Have `NoticePopupView.markingKeys` mark a bare "Esc" as `|esc|`, and update its tests in `StatusCapsuleTests` (design D2). Verify that `ClairUI`'s unit tests pass in CI.
+- [ ] 1.4 Add `tests/runtime/pages/pointer-lock.html` (a page whose `lock()` locks the pointer) and tests in `FullscreenTests`: outside full screen, the `clair.fullscreenNotice` label is "Your cursor is hidden. Press esc to show cursor.", and Esc leaves `document.pointerLockElement` null and the notice gone; in page full screen, the label is "To exit full screen, press esc", also checked in `testPageFullscreenFillsTheScreenAndEndsWithEscape` (spec "Hidden cursor notice", "Full screen"). Verify that they pass in `quality.yml` on the branch.
+- [ ] 1.5 Add a test to `FullscreenTests` that enters window full screen from View › Enter Full Screen and checks the label "Press and hold esc to exit full screen"; that a quick Esc with the command bar open closes it and stays in full screen; and that holding Esc for 2 s with the focus in the sidebar's URL field leaves full screen (spec "Window full-screen notice"). Verify that it passes in `quality.yml` on the branch.
+
+## 2. Zoom notice
+
+- [ ] 2.1 Add `showZoomLevel:` to `ClairWindow` in `native/ClairHost.h`, call it from `ClairBrowserWindow::ZoomChanged` in place of the toast, and implement it in `BrowserWindowController` as a `clair.zoomNotice` popup for `NoticeState.copiedDuration`, with `FakeBrowser` updated (design D4). Verify with a `ClairUI` unit test that a zoom shows "110%" in the popup and no toast, and that a second zoom updates the same notice, passing in CI.
+- [ ] 2.2 Add a runtime test that presses Cmd+= on a page and checks that the `clair.zoomNotice` label is "110%" and that no `clair.toast` shows (spec "Zoom notice"). Verify that it passes in `quality.yml` on the branch.
+
+## 3. Release
+
+- [ ] 3.1 Add a Changie fragment (`changie new`) for the notices. Verify that `changie batch --dry-run` lists it.
+- [ ] 3.2 Check by hand with `tests/probe/launch-clair.sh` on a pointer-lock page, on `fullscreen.html`, in window full screen and while zooming that each popup shows its text with an "esc" key cap where it has a key, and that Esc, or holding it, does what each says. Verify with a screenshot of each popup.
+
+## Workflow follow-up
+
+- After the implementation PR merges, one docs-only PR ticks any task its last checks verified, syncs the delta spec into `openspec/specs/browser-window/spec.md` and archives the change.

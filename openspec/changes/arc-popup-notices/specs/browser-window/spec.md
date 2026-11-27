@@ -17,6 +17,36 @@ When a page locks the pointer outside page full screen, hiding the cursor, the p
 - **WHEN** a page in page full screen locks the pointer
 - **THEN** the popup shows the full-screen notice, not the hidden-cursor one
 
+### Requirement: Window full-screen notice
+Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "Press and hold [esc] to exit full screen" for a few seconds, as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is. A quick Esc SHALL do what it does outside full screen.
+
+#### Scenario: Entering from the menu
+- **WHEN** the user chooses View › Enter Full Screen
+- **THEN** the popup reads "Press and hold [esc] to exit full screen" with esc as a key cap, and hides after a few seconds
+
+#### Scenario: Entering from the green button
+- **WHEN** the user clicks the window's green button
+- **THEN** the same notice shows
+
+#### Scenario: Holding Esc
+- **WHEN** the window is in full screen and the user holds Esc for about 1.5 s, with the focus on the page or in the sidebar
+- **THEN** the window leaves full screen
+
+#### Scenario: A quick Esc
+- **WHEN** the window is in full screen with the command bar open and the user presses Esc briefly
+- **THEN** the command bar closes and the window stays in full screen
+
+### Requirement: Zoom notice
+When the user changes a page's zoom, by View's zoom commands, their shortcuts or a pinch, the popup SHALL show the new level alone, such as "110%", as in Arc, and hide after a few seconds. Each further change SHALL update the shown level in place and restart its time. No toast SHALL show for the zoom.
+
+#### Scenario: Zooming in
+- **WHEN** a page is at 100% and the user presses Cmd+=
+- **THEN** the popup in the card's top-trailing corner reads "110%", and no toast shows at the bottom of the card
+
+#### Scenario: Zooming again
+- **WHEN** the zoom popup shows "110%" and the user presses Cmd+= again
+- **THEN** the same popup reads "125%" and stays for a few seconds more
+
 ## MODIFIED Requirements
 
 ### Requirement: Full screen
