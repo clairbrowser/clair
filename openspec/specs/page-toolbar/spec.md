@@ -37,7 +37,7 @@ The toolbar SHALL sit inside the card, across its top, 32 points tall, with a 1-
 - **THEN** the toolbar is hidden and the video fills the screen, and the toolbar returns when full screen ends
 
 ### Requirement: Toolbar controls
-The toolbar SHALL hold, from its leading edge, the sidebar toggle, back, forward and reload, centred 21, 57.75, 94.75 and 132 points from the card's leading edge, and the host in the middle. At its trailing end it SHALL hold the site-controls button, centred 21 points from the card's trailing edge, with the pinned extensions and then the permission indicators to its left, 36 points apart. All of them SHALL be vertically centred in the toolbar.
+The toolbar SHALL hold, from its leading edge, the sidebar toggle, back, forward and reload, centred 21, 57.75, 94.75 and 132 points from the card's leading edge, and the host in the middle. At its trailing end it SHALL hold the split button (`split-view`), centred 21 points from the card's trailing edge, as in Arc, then to its left the site-controls button, the pinned extensions and the permission indicators, 36 points apart. All of them SHALL be vertically centred in the toolbar.
 
 #### Scenario: Leading controls
 - **WHEN** a window shows the toolbar, with the sidebar shown or hidden
@@ -45,7 +45,7 @@ The toolbar SHALL hold, from its leading edge, the sidebar toggle, back, forward
 
 #### Scenario: Trailing controls
 - **WHEN** the active tab uses the camera and two extensions are pinned
-- **THEN** from the trailing end, the toolbar shows the site-controls button centred 21 points from the card's edge, the second and first pinned extensions centred 57 and 93 points from it, and the camera indicator centred 129 points from it
+- **THEN** from the trailing end, the toolbar shows the split button centred 21 points from the card's edge, the site-controls button centred 57 points from it, the second and first pinned extensions centred 93 and 129 points from it, and the camera indicator centred 165 points from it
 
 ### Requirement: Same controls in the toolbar or the sidebar
 The toolbar's controls SHALL be the sidebar's browser controls, moved: its host is the URL field, and its toggle, back, forward, reload, indicators, pinned extensions and site-controls button are the sidebar's. Every requirement on those controls in other capabilities, including their behaviour, tooltips, VoiceOver labels, highlights, menus and what they act on while a Peek shows, SHALL apply wherever they show.
