@@ -193,7 +193,7 @@ extension Browser {
   /// Tabs › New Folder…, named `name` in its dialog.
   func newFolderFromTabMenu(_ name: String) throws {
     try tabMenuItem("New Folder…").click()
-    try require(dialog.waitForExistence(timeout: 10), "Tab › New Folder… opened no dialog")
+    try require(dialog.waitForExistence(timeout: 10), "Tabs › New Folder… opened no dialog")
     let field = element("clair.newFolderField", in: dialog)
     try require(field.waitForExistence(timeout: 5), "The New Folder dialog has no field")
     ui.typeText("\(name)\r")
@@ -227,7 +227,7 @@ final class FoldersTests: NativeWindowTestCase {
     return tabs
   }
 
-  /// Creating through the plus menu and Tab › New Folder…, renaming,
+  /// Creating through the plus menu and Tabs › New Folder…, renaming,
   /// closing, and the tab commands over a closed and an open folder, across
   /// a relaunch (tab-folders spec, "Creating a folder in place", "New Folder
   /// dialog", "Opening and closing a folder", "Folders after a relaunch";
@@ -252,7 +252,7 @@ final class FoldersTests: NativeWindowTestCase {
 
     try browser.newFolderFromTabMenu("Inbox")
     let inbox = await browser.waitForPinnedSection { $0 == order + ["[Trip]", "[Inbox]"] }
-    try require(inbox, "Tab › New Folder… didn't add Inbox last: \(browser.pinnedSection)")
+    try require(inbox, "Tabs › New Folder… didn't add Inbox last: \(browser.pinnedSection)")
 
     try browser.choose("Rename…", inMenuOf: browser.folderRow("Inbox"))
     let field = browser.element("clair.renameField")

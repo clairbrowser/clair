@@ -59,13 +59,8 @@ extension Browser {
   }
 }
 
-/// Spaces (add-spaces task 3.11), driven through the sidebar, the menu bar
-/// and the keyboard, with a counter page whose state shows that a tab kept
-/// its page.
 @MainActor
-final class SpacesTests: NativeWindowTestCase {
-  func counter(_ name: String) -> String { url("counter.html?\(name)") }
-
+extension NativeWindowTestCase {
   /// Creates a Space from the Spaces menu or the footer's plus menu.
   func createSpace(_ name: String, in browser: Browser, fromPlusMenu: Bool = false) async throws {
     if fromPlusMenu {
@@ -90,6 +85,14 @@ final class SpacesTests: NativeWindowTestCase {
     // The new Space opens on a new tab page with the command bar; close it.
     browser.ui.typeKey(.escape, modifierFlags: [])
   }
+}
+
+/// Spaces (add-spaces task 3.11), driven through the sidebar, the menu bar
+/// and the keyboard, with a counter page whose state shows that a tab kept
+/// its page.
+@MainActor
+final class SpacesTests: NativeWindowTestCase {
+  func counter(_ name: String) -> String { url("counter.html?\(name)") }
 
   /// The first launch has one Space and no switcher; a Space made from the
   /// plus menu joins the switcher; tab commands stay in the shown Space; and

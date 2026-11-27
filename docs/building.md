@@ -200,6 +200,8 @@ Check the Xcode that ungoogled-chromium-macos's CI builds that tag with (`BASE_X
 
 Fix the Clair patches the comment lists from the top, using ungoogled-chromium-macos's and Helium's updates as references: a skipped patch can make a later one that builds on it fail too.
 
+Clair deletes Chromium's Tab menu at start-up (`add-tab-switcher-and-tabs-menu` design D5), and Chromium's code that looks it up today handles its absence. On each update, grep the new Chromium for `IDC_TAB_MENU` (`chrome/browser/app_controller_mac.mm`, `chrome/browser/ui/cocoa/`): a new user that doesn't check for nil would crash when a window becomes main, which the patch check can't see.
+
 To move the pin by hand instead, for a tag the bot doesn't follow (ungoogled-chromium-macos doesn't tag every version: of 157, it skipped `157.0.8103.38` and `157.0.8103.50`):
 
 ```sh

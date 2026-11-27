@@ -68,7 +68,7 @@ Suggested order:
 
 ## 4. Probe tooling
 
-- [ ] 4.1 Add `tests/probe/tools/keys.swift` (D8): steps `ctrldown`, `ctrlup`, `shiftdown`, `shiftup`, `tab`, `esc`, `sleep:<s>` and `shot:<png>:<x,y,w,h>`. Build it in `tools/build.sh`, and document it in the README beside `drag` and `mouse`. Verify by running `build/probe/bin/keys ctrldown tab sleep:0.5 shot:… ctrlup` against Arc and seeing the switcher in the shot.
+- [x] 4.1 Add `tests/probe/tools/keys.swift` (D8): steps `ctrldown`, `ctrlup`, `shiftdown`, `shiftup`, `tab`, `esc`, `sleep:<s>` and `shot:<png>:<x,y,w,h>`. Build it in `tools/build.sh`, and document it in the README beside `drag` and `mouse`. Verify by running `build/probe/bin/keys ctrldown tab sleep:0.5 shot:… ctrlup` against Arc and seeing the switcher in the shot.
 
 ## 5. Runtime suite
 
@@ -95,12 +95,12 @@ Suggested order:
   - no animation in a 60 fps recording.
 
   Record the numbers in `arc-reference/README.md` under "Clair", and fix any size or spacing more than 2 pt off Arc's. Check the panel's position against D3's rule (centred on the window, kept on screen), not Arc's absolute position.
-- [ ] 6.2 Update the docs:
+- [x] 6.2 Update the docs:
   - `docs/native-window.md`'s "Rows and commands" (Ctrl+Tab leaves the row commands; the switcher and its previews get a short section);
   - `docs/building.md`'s "Updating the engine" gains a note to grep Chromium for new `IDC_TAB_MENU` users (design "Risks").
 
   Verify by reading both pages.
-- [ ] 6.3 Add a Changie fragment (`changie new`) for the switcher, the Tabs menu and the tab menus. Verify that `.changes/unreleased/` holds it.
+- [x] 6.3 Add a Changie fragment (`changie new`) for the switcher, the Tabs menu and the tab menus. Verify that `.changes/unreleased/` holds it.
 - [ ] 6.4 Run CI and `quality.yml` on the last push together, with every note in that push. Verify that both pass.
 
 ## Workflow follow-up

@@ -33,15 +33,15 @@ extension Browser {
   /// Chooses `title` in Tabs › Split with Tab ›.
   func splitWithTabFromMenuBar(_ title: String) throws {
     let submenu = try tabMenuItem("Split with Tab")
-    try require(submenu.isEnabled, "Tab › Split with Tab is off")
+    try require(submenu.isEnabled, "Tabs › Split with Tab is off")
     submenu.hover()
     let item = submenu.menuItems[title]
-    try require(item.waitForExistence(timeout: 5), "Tab › Split with Tab has no \(title)")
+    try require(item.waitForExistence(timeout: 5), "Tabs › Split with Tab has no \(title)")
     item.click()
   }
 
   /// Chooses `title` in a row's Split with Tab › menu: the context menu's,
-  /// not the Tab menu's item of the same title.
+  /// not the Tabs menu's item of the same title.
   func splitWithTab(_ title: String, inMenuOf row: XCUIElement) throws {
     row.rightClick()
     let found = visibleMenuItem("Split with Tab")
