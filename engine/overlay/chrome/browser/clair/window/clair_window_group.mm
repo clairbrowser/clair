@@ -1032,7 +1032,7 @@ void ClairWindowGroup::ArrangeRestoredWindows() {
                 }
                 group->shown_ = member;
                 [member->ns_window() setFrame:frame display:NO];
-                member->ShowSpaceOnNewTab(space, GURL(), /*command_bar=*/false);
+                member->ShowSpaceOnLaunchNewTab(space);
                 member->Show();
                 member->OpenCommandBarWhenShown();
                 group->ShownSpaceChanged(member);
