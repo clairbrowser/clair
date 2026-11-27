@@ -52,7 +52,7 @@ The open/step/commit/cancel state is a pure `SwitcherState` with unit tests. The
 
 A borderless, non-activating `NSPanel`, a child window of the browser window, hosting SwiftUI. It is laid out from Arc's measurements:
 
-- **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Light background (`windowBackgroundColor` at Arc's #F2F2F2 in light mode), about 22 pt corner radius, hairline border and shadow.
+- **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Arc's #F2F2F2 background in light mode (the system's light `windowBackgroundColor` is white), about 22 pt corner radius, hairline border and shadow.
 - **Selection:** a 12 pt inset rounded highlight, about 12 pt radius, in the accent colour at the sidebar's selection opacity. The selected title is in the primary colour, the others secondary.
 - **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis.
 - **Position:** centred on the window, then moved inside the screen's visible frame. Arc centred a two-card panel on the window, but its five-card panel sat about 29 pt right of centre in a 963 pt window; centring is the simpler rule.
@@ -73,7 +73,7 @@ The contract (`ClairHost.h`, `ClairBrowser`):
                  completion:(void (^)(NSImage *_Nullable preview))completion;
 ```
 
-- **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before ClairUI takes the page out of the card and Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
+- **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before ClairUI takes the page out of the card and Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. A hidden page gives up its compositor at once, so viz would never draw the surface the copy waits for: as Chromium's background thumbnails do, a hidden capture (`IncrementCapturerCount` with `stay_hidden`) keeps the page painting, told it's hidden, until the copy is back. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
 - **Lifetime and memory.** One bitmap per tab, 315 × 210 pixels, replaced on each hide, freed with the tab: about 260 KB each.
 - **The shown tab** is copied live on request.
 - **Peeks.** A tab with a Peek gets the parent's page; the still's convention is followed.

@@ -146,6 +146,12 @@ enum SwitcherLayout {
   static let cornerRadius: CGFloat = 22
   static let previewRadius: CGFloat = 5
   static let faviconSize: CGFloat = 16
+  /// Arc's #F2F2F2 in Light Mode; the system's dark window background in
+  /// Dark Mode, where Arc wasn't probed. The system's light one is white.
+  static let background = NSColor(name: "clair.tabSwitcher") { appearance in
+    appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+      ? .windowBackgroundColor : NSColor(srgbRed: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF2 / 255, alpha: 1)
+  }
 
   /// From one card to the next.
   static var pitch: CGFloat { previewSize.width + gap }

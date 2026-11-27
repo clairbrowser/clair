@@ -301,7 +301,7 @@ struct TabSwitcherView: View {
     )
     .background {
       RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
-        .fill(Color(nsColor: .windowBackgroundColor))
+        .fill(Color(nsColor: SwitcherLayout.background))
         .overlay {
           RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
             .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)

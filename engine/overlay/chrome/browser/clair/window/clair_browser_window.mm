@@ -22,6 +22,7 @@
 #include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
@@ -2051,13 +2052,22 @@ void ClairBrowserWindow::KeepPreviews(
         (peeks_ && peeks_->ParentOf(tab))) {
       continue;
     }
+    // Hidden, a page gives up its compositor, and viz never draws the
+    // surface the copy waits for. As Chromium's background thumbnails do, a
+    // hidden capture keeps it painting, the page told it's hidden, until the
+    // copy is back.
+    base::ScopedClosureRunner painting = page->IncrementCapturerCount(
+        gfx::Size(), /*stay_hidden=*/true, /*stay_awake=*/false,
+        /*is_activity=*/false);
     CopyPage(tab, base::BindOnce(
-                      [](tabs::TabHandle handle, const SkBitmap& copy) {
+                      [](tabs::TabHandle handle,
+                         base::ScopedClosureRunner painting,
+                         const SkBitmap& copy) {
                         if (tabs::TabInterface* tab = handle.Get()) {
                           ClairTabPreview::Keep(tab->GetContents(), copy);
                         }
                       },
-                      tab->GetHandle()));
+                      tab->GetHandle(), std::move(painting)));
   }
 }
 
