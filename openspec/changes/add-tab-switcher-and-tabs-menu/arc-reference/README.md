@@ -37,12 +37,9 @@ Keep these screenshots. They move with the change when it's archived.
 
 ## Screenshots
 
+Only two are kept. The rest of what was probed (stepping, Shift+Tab, Esc, a closed pinned page leaving the list, the recording's frames) is described above.
+
 | File | Shows |
 |---|---|
-| switcher-first-press.jpg | Window, 0.7 s after Ctrl+Tab: BBC (shown), Example Domain selected, MDN, Cat, Hacker News |
-| switcher-whole-panel.jpg | The whole panel from a screen capture, overhanging the window's right edge, with MDN selected |
-| switcher-second-press.jpg | After a second Tab: MDN selected |
-| switcher-shift-tab.jpg | Ctrl+Shift+Tab: the last card (Hacker News) selected |
-| switcher-across-spaces.jpg | From "Probe A": the split's card (two favicons), Weather.com of "Probe B" selected, AP News (pinned), Reuters (favorite), BBC |
-| switcher-pinned-page-closed.jpg | After AP News's page was closed: it's gone from the list |
-| switcher-frames.jpg | Recording frames around opening, stepping and closing, 16.7 ms apart: no transition frames |
+| switcher-whole-panel.jpg | The whole panel from a screen capture, overhanging the window's right edge, with MDN selected: corners, border, highlight and the full card row |
+| switcher-across-spaces.jpg | From "Probe A": the split's card (two favicons, no title), Weather.com of "Probe B" selected, AP News (pinned), Reuters (favorite), BBC |
