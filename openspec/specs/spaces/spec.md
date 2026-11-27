@@ -270,7 +270,7 @@ When the user closes a tab that another window shows, that window SHALL show its
 - **THEN** B shows "Other", and A keeps showing "Notes"
 
 ### Requirement: Tab commands follow the Space
-Tabs › Next Tab (Opt+Cmd+Down), Previous Tab (Opt+Cmd+Up), Ctrl+Tab, Cmd+1 to Cmd+9 and Close Tabs Below SHALL act on the rows the sidebar lists, pinned tabs first and then Today tabs, in its order, whichever window holds them, and never on a tab of another Space or on favorites. Selecting a pinned tab whose page isn't open SHALL open it. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move the active row one row down or up within its section, stopping at its ends.
+Tabs › Next Tab (Opt+Cmd+Down), Previous Tab (Opt+Cmd+Up), Cmd+1 to Cmd+9 and Close Tabs Below SHALL act on the rows the sidebar lists, pinned tabs first and then Today tabs, in its order, whichever window holds them, and never on a tab of another Space or on favorites. Selecting a pinned tab whose page isn't open SHALL open it. Ctrl+Shift+PageDown and Ctrl+Shift+PageUp SHALL move the active row one row down or up within its section, stopping at its ends. Ctrl+Tab follows `tab-switcher`.
 
 #### Scenario: Moving a row with the keyboard
 - **WHEN** a window shows "Work", whose rows are X, Y and Z, Z is active, and the user presses Ctrl+Shift+PageUp

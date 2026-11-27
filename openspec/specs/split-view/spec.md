@@ -316,11 +316,11 @@ Hovering a split's row in Today SHALL show a close button at the trailing end of
 - **THEN** both the "News" chip and the "Docs" chip show a ×
 
 ### Requirement: The split row's menu
-Right-clicking a split row SHALL open the menu of its kind for the tab whose chip is under the pointer (Today tab menu, `pinned-tabs`, `favorites`), without Split with Tab ›, Back to Pinned URL or Edit Pinned Page ›, with Separate Tabs added. Pin Tab, Pin to Favorites, Unpin Tab, Remove Favorite and Move to Space SHALL act on the whole split.
+Right-clicking a split row SHALL open the menu of its kind for the tab whose chip is under the pointer (Today tab menu, `pinned-tabs`, `favorites`), without Back to Pinned URL or Edit Pinned Page ›, and with Separate Tabs in place of Split with Tab ›. Pin Tab, Pin to Favorites, Unpin Tab, Remove Favorite and Move to Space SHALL act on the whole split.
 
 #### Scenario: A Today split's menu
 - **WHEN** the user right-clicks the "Docs" chip of a Today split
-- **THEN** the menu offers the Today tab menu's items for "Docs", and Separate Tabs, and no Split with Tab
+- **THEN** the menu offers the Today tab menu's items for "Docs", with Separate Tabs where Split with Tab would be
 
 #### Scenario: Copy Link
 - **WHEN** the user chooses Copy Link from that menu
@@ -338,11 +338,15 @@ Dragging a split row SHALL move the whole split: within Today, into the pinned s
 - **THEN** the split is pinned as the first item of "Work", as one row
 
 ### Requirement: Tab commands treat a split as one row
-The tab commands of `spaces` (Next Tab, Previous Tab, Ctrl+Tab, Cmd+1 to Cmd+9, Close Tabs Below, and Ctrl+Shift+PageDown and PageUp) SHALL count a split as one row. Selecting it SHALL show the split as clicking its row does.
+The tab commands of `spaces` (Next Tab, Previous Tab, Cmd+1 to Cmd+9, Close Tabs Below, and Ctrl+Shift+PageDown and PageUp) SHALL count a split as one row, and the switcher (`tab-switcher`) SHALL count it as one tab. Selecting it SHALL show the split as clicking its row does.
+
+#### Scenario: Next Tab
+- **WHEN** Today lists "Mail", a split, and "Docs", "Mail" is shown, and the user presses Opt+Cmd+Down twice
+- **THEN** the window shows the split and then "Docs"
 
 #### Scenario: Ctrl+Tab
-- **WHEN** Today lists "Mail", a split, and "Docs", "Mail" is shown, and the user presses Ctrl+Tab twice
-- **THEN** the window shows the split and then "Docs"
+- **WHEN** the window showed a split and then "Docs", and the user presses Ctrl+Tab
+- **THEN** the window shows the split, with the pane focused last focused
 
 ### Requirement: A split moves as one
 Moving a split to another Space, showing it in another window, closing its window and Clear Today SHALL treat both tabs as one: they SHALL stay a split, with their order and ratio, and never show in two windows at once.
