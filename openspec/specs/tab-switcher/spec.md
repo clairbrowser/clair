@@ -119,7 +119,7 @@ The panel SHALL lie over the window, centred on it and kept on its screen at lea
 - **THEN** the panel's left edge is about 40 points from the screen's, about 29 points right of the window's centre
 
 #### Scenario: No animation
-- **WHEN** the user presses Ctrl+Tab
+- **WHEN** the user presses Ctrl+Tab and holds Ctrl for at least 100 ms, pressing no other key
 - **THEN** the panel shows at its full size and opacity in a single frame, 100 ms after the press
 
 ### Requirement: Cards
