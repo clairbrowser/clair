@@ -90,13 +90,15 @@ jobs:
               -only-testing:ClairRuntimeTests/SharedTabsTests
               -only-testing:ClairRuntimeTests/CommandBarTests
           - shard: profiles
-            name: profiles, link rules and extensions
+            name: profiles, link rules, extensions and bookmarks
             tests: >-
               -only-testing:ClairRuntimeTests/ProfilesTests
               -only-testing:ClairRuntimeTests/LinkRulesTests
               -only-testing:ClairRuntimeTests/ExtensionActionTests
               -only-testing:ClairRuntimeTests/DialogTests
               -only-testing:ClairRuntimeTests/FullscreenTests
+              -only-testing:ClairRuntimeTests/BookmarksTests
+              -only-testing:ClairRuntimeTests/ToolbarTests
           # Everything else, so it must skip every class named above.
           - shard: app
             name: window, Spaces and pins
@@ -113,6 +115,8 @@ jobs:
               -skip-testing:ClairRuntimeTests/ExtensionActionTests
               -skip-testing:ClairRuntimeTests/DialogTests
               -skip-testing:ClairRuntimeTests/FullscreenTests
+              -skip-testing:ClairRuntimeTests/BookmarksTests
+              -skip-testing:ClairRuntimeTests/ToolbarTests
     steps:
       - name: Check out
         uses: actions/checkout@v7
