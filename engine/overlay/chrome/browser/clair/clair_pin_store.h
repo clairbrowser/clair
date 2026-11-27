@@ -85,6 +85,24 @@ struct Pin {
   std::string title;
   // The custom name, or empty.
   std::string name;
+  // add-split-view D10: the pinned or favorited split holding the pin, or
+  // empty, and its pane there, 0 for the leading one. A pin in a split takes
+  // no place of its own: its container is the split's, and `order` is empty.
+  std::string split;
+  int split_index = 0;
+};
+
+// A pinned or favorited split (add-split-view D10): two pins in one place,
+// shown side by side when selected.
+struct PinnedSplit {
+  // A lowercase UUID, which never changes.
+  std::string id;
+  // Where it shows, as a pin's.
+  PinContainer container;
+  // Its sort key in its container.
+  std::string order;
+  // The leading pane's share of the width.
+  double ratio = 0.5;
 };
 
 // A folder of pinned tabs in a Space's pinned section (add-tab-folders D1).
@@ -110,7 +128,12 @@ struct Folder {
 //                               "url": "https://…", "title": "…",
 //                               "name": "…" },
 //                   "<uuid>": { "kind": "pin", "profile": "<profile ID>",
-//                               "order": "a0", … } } }
+//                               "order": "a0", … },
+//                   "<uuid>": { "kind": "split", "space": "<space uuid>",
+//                               "folder": "<folder uuid>", "order": "a1",
+//                               "ratio": 0.5 },
+//                   "<uuid>": { "kind": "pin", "split": "<split uuid>",
+//                               "index": 0, "url": "https://…", … } } }
 //   clair.closed_folders  ["<folder uuid>", …]   // this Mac's (D3)
 //
 // A folder names its Space; a pinned tab its Space and, in a folder, the
@@ -119,8 +142,12 @@ struct Folder {
 // it, then by ID, so a move rewrites only the record that moved, except a
 // folder moving to another Space, which rewrites its pins' Space too. A pin
 // shows in its folder's Space while the folder exists, and at the top level
-// of its own Space when it's missing. Folders hold pins only, one level deep;
-// the store refuses any other write. On load, a record whose Space or profile
+// of its own Space when it's missing. Folders hold pins and splits, one level
+// deep; the store refuses any other write. add-split-view D10: a split has
+// the place a pin has, and its two pins name it and their pane instead of a
+// place of their own, so moving a split rewrites its record only. A split
+// that hasn't exactly a pin for each pane on load keeps the pins it has as
+// pins in its place. On load, a record whose Space or profile
 // is missing, or without a valid sort key, is dropped with its icon.
 //
 // Each pin's icon is a PNG of at most 64 × 64 pixels in
@@ -150,6 +177,11 @@ class ClairPinStore {
     bool folder_was_closed = false;
     // The pin, or the folder's pins in order, each with its place and key.
     std::vector<Pin> pins;
+    // add-split-view D10: the split removed with its pins, or the folder's
+    // splits; or, with `partner`, the split one pane closed out of, whose
+    // other pin, `partner`, kept its place.
+    std::vector<PinnedSplit> splits;
+    std::string partner;
     base::Time time;
   };
 
@@ -170,18 +202,26 @@ class ClairPinStore {
 
   const Pin* Find(std::string_view id) const;
   const Folder* FindFolder(std::string_view id) const;
+  const PinnedSplit* FindSplit(std::string_view id) const;
+  // add-split-view D10: a split's pins, leading pane first; empty for an
+  // unknown split.
+  std::vector<const Pin*> PinsOfSplit(std::string_view id) const;
+  // The other pin of `pin`'s split, or null.
+  const Pin* PartnerOf(std::string_view pin) const;
   // The IDs of a container's children, in order: a Space's pinned section
-  // lists its top-level pins and its folders, a folder and the favorites
-  // their pins.
+  // lists its top-level pins, splits and folders, a folder and the favorites
+  // their pins and splits.
   std::vector<std::string> ChildrenOf(const PinContainer& container) const;
-  // A container's pins, in order; a Space's section's top-level ones only.
+  // A container's pins, in order, a split's two in pane order; a Space's
+  // section's top-level ones only.
   std::vector<const Pin*> PinsIn(const PinContainer& container) const;
   // Every pinned tab of a Space, its folders' included, in the sidebar's
   // order (add-tab-folders D9).
   std::vector<const Pin*> AllPinsIn(std::string_view space) const;
   // A Space's folders, in order.
   std::vector<const Folder*> FoldersIn(std::string_view space) const;
-  // A pin's or folder's index among its container's children.
+  // A pin's, split's or folder's index among its container's children; a
+  // pin in a split has its split's.
   std::optional<size_t> IndexOf(std::string_view id) const;
   // The profile a pin's tab uses: a favorite's own, or its Space's.
   std::string ProfileOf(const Pin& pin) const;
@@ -197,15 +237,40 @@ class ClairPinStore {
                      const GURL& url,
                      std::string_view title,
                      std::string_view name);
-  // Moves a pin to `index` in `container`, which may be another, or a folder
-  // to `index` in a Space's section, with its pins. Refuses a folder
-  // anywhere else and a folder container of another Space. Returns whether
-  // anything moved.
+  // Moves a pin or a split to `index` in `container`, which may be another,
+  // or a folder to `index` in a Space's section, with its pins. A pin of a
+  // split moves its split. Refuses a folder anywhere else and a folder
+  // container of another Space. Returns whether anything moved.
   bool Move(std::string_view id, const PinContainer& container, size_t index);
-  // Removes the pin. With `remember`, Restore Last Closed Tab can bring it
-  // back (D3): the caller removes it before closing its tab, so the tab's
-  // own entry in Chromium's recently closed list is the newer.
+  // Removes the pin, or the split holding it with both its pins. With
+  // `remember`, Restore Last Closed Tab can bring it back (D3): the caller
+  // removes it before closing its tab, so the tab's own entry in Chromium's
+  // recently closed list is the newer.
   void Remove(std::string_view id, bool remember);
+
+  // --- Splits (add-split-view D10) ---
+  struct NewPin {
+    GURL url;
+    std::string title;
+    std::string name;
+  };
+  // Adds a split of two new pins, leading pane first, at `index` in
+  // `container`, and returns its ID, or an empty string for an invalid URL or
+  // an unknown container.
+  std::string CreateSplit(const PinContainer& container,
+                          size_t index,
+                          double ratio,
+                          const NewPin& leading,
+                          const NewPin& trailing);
+  // Separate Tabs: the split's pins take its place, in pane order.
+  void SeparateSplit(std::string_view id);
+  // One pane of the split holding `pin` closed (Arc's behaviour): the other
+  // pin takes the split's place, and `pin` goes. Restore Last Closed Tab puts
+  // both back as the split.
+  void TakeOutOfSplit(std::string_view pin);
+  void SetSplitRatio(std::string_view id, double ratio);
+  // Move Left and Move Right on an open pinned split: its pins swap panes.
+  void SwapSplitPanes(std::string_view id);
   // An empty name clears it.
   void SetName(std::string_view id, std::string_view name);
   void SetTitle(std::string_view id, std::string_view title);
@@ -268,6 +333,10 @@ class ClairPinStore {
   void Notify(const PinContainer& container);
   // Rebuilds every container's children, sorted by key, then by ID.
   void Index();
+  // add-split-view D10: a split's pins follow its container.
+  void PlaceSplitPins(const PinnedSplit& split);
+  // Turns each split that hasn't a pin for each pane into the pins it has.
+  void RepairSplits();
   // Whether `container` exists: its Space or profile, and its folder, which
   // must be of that Space.
   bool IsValid(const PinContainer& container) const;
@@ -290,6 +359,7 @@ class ClairPinStore {
   const raw_ptr<PrefService> prefs_;
   std::map<std::string, Pin> pins_;
   std::map<std::string, Folder> folders_;
+  std::map<std::string, PinnedSplit> splits_;
   // The children of each container, in order.
   std::map<PinContainer, std::vector<std::string>> children_;
   std::set<std::string> closed_;

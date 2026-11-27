@@ -224,16 +224,42 @@ struct PinsLogicTests {
 
   @Test func theMenusListTheirItemsInOrder() {
     let today = PinsLogic.todayMenu(isMuted: false, canMoveToSpace: false, canPin: true).compactMap { $0?.title }
-    #expect(today == ["Copy Link", "Rename…", "Duplicate", "Mute", "Pin Tab", "Pin to Favorites", "Close Tab", "Close Tabs Below"])
+    #expect(
+      today == [
+        "Copy Link", "Rename…", "Duplicate", "Mute", "Split with Tab", "Pin Tab", "Pin to Favorites", "Close Tab",
+        "Close Tabs Below",
+      ])
     let pinned = PinsLogic.pinnedMenu(isOpen: true, isMuted: false, canMoveToSpace: true).compactMap { $0?.title }
     #expect(
       pinned == [
-        "Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Move to Space", "Pin to Favorites",
-        "Unpin Tab",
+        "Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Split with Tab", "Move to Space",
+        "Pin to Favorites", "Unpin Tab",
       ])
     let favorite = PinsLogic.favoriteMenu(isShown: true, isOpen: true, isMuted: false).compactMap { $0?.title }
-    #expect(favorite == ["Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Close Tab", "Remove Favorite"])
+    #expect(
+      favorite == [
+        "Copy Link", "Rename…", "Mute", "Edit Pinned Page", "Duplicate", "Split with Tab", "Close Tab",
+        "Remove Favorite",
+      ])
     #expect(!PinsLogic.favoriteMenu(isShown: false, isOpen: false, isMuted: false).contains { $0?.title == "Close Tab" })
+  }
+
+  /// add-split-view, "The split row's menu": a chip's menu has no Split
+  /// with Tab or Edit Pinned Page, and Separate Tabs.
+  @Test func aSplitChipsMenusSeparateTheSplit() {
+    let today = PinsLogic.todayMenu(isMuted: false, canMoveToSpace: false, canPin: true, inSplit: true)
+      .compactMap { $0?.title }
+    #expect(
+      today == [
+        "Copy Link", "Rename…", "Duplicate", "Mute", "Separate Tabs", "Pin Tab", "Pin to Favorites", "Close Tab",
+        "Close Tabs Below",
+      ])
+    let pinned = PinsLogic.pinnedMenu(isOpen: false, isMuted: false, canMoveToSpace: false, inSplit: true)
+      .compactMap { $0?.title }
+    #expect(pinned == ["Copy Link", "Rename…", "Mute", "Duplicate", "Separate Tabs", "Pin to Favorites", "Unpin Tab"])
+    let favorite = PinsLogic.favoriteMenu(isShown: false, isOpen: false, isMuted: false, inSplit: true)
+      .compactMap { $0?.title }
+    #expect(favorite == ["Copy Link", "Rename…", "Mute", "Duplicate", "Separate Tabs", "Remove Favorite"])
   }
 
   @Test func privateWindowsMenusHaveNoPinItems() {

@@ -8,7 +8,7 @@ import SwiftUI
 
 /// What the sidebar asks the window to do.
 @MainActor
-protocol SidebarActions: SpaceActions, PinActions {
+protocol SidebarActions: SpaceActions, PinActions, SplitActions {
   // Tabs.
   func activate(tab: TabID)
   func close(tab: TabID)
@@ -25,12 +25,17 @@ protocol SidebarActions: SpaceActions, PinActions {
   /// that way (arc-navigation-feedback design D3).
   func historyMenu(_ direction: HistoryDirection) -> HistoryMenuBuilder?
   func reloadOrStop()
+  /// Reload or Stop in an unfocused pane's header, for its own page, which
+  /// it focuses (add-split-view D9).
+  func reloadOrStop(pane tabID: TabID)
   func reloadButtonHovered(_ hovering: Bool)
   func toggleSidebar()
   /// A double-click on the top row's empty space, as on a title bar.
   func titleBarDoubleClicked()
   func editURL()
   func copyURL()
+  /// Copies `tabID`'s URL: a pane's, from its header.
+  func copyURL(of tabID: TabID)
   func showSiteControls(indicator: TabIndicators)
   func openInNewTab(_ url: URL)
   // Extensions and downloads.
@@ -49,7 +54,7 @@ protocol SidebarActions: SpaceActions, PinActions {
   func controlFramesChanged(_ frames: [AnchorControl: CGRect])
   /// The toolbar's controls, in its own coordinate space (add-page-toolbar
   /// D6).
-  func toolbarControlFramesChanged(_ frames: [AnchorControl: CGRect])
+  func toolbarControlFramesChanged(_ frames: [AnchorControl: CGRect], pane: Int)
   /// Shows or hides the toolbar in every window (add-page-toolbar D8).
   func setToolbarShown(_ shown: Bool)
   // The update banner (add-update-banners).
@@ -1098,6 +1103,8 @@ struct TabList: View {
         case .pinned(let row):
           switch row {
           case .pin(let pin, _): dragged = .pin(pin.pinID)
+          // add-split-view D10: a pinned split moves as one.
+          case .split(let split, _): dragged = .pin(split.pins.first?.pinID ?? "")
           case .folder(let folder): dragged = .folder(folder.folderID)
           }
           drop = PinsLogic.listDrop(
@@ -1184,6 +1191,12 @@ struct TabList: View {
       // add-tab-folders D4: a folder's tabs are indented under it.
       .padding(.leading, folder == nil ? 0 : FolderRow.indent)
       .itemProvider { SidebarDragItem.pin(pin.pinID).itemProvider() }
+    case .pinned(.split(let split, let folder)):
+      SplitRows.pinned(
+        split, model: model, highlighted: highlighted, moveTargets: moveTargets, actions: actions
+      )
+      .padding(.leading, folder == nil ? 0 : FolderRow.indent)
+      .itemProvider { split.pins.first.map { SidebarDragItem.pin($0.pinID).itemProvider() } }
     case .pinned(.folder(let folder)):
       FolderRow(
         folder: folder, moveTargets: moveTargets,
@@ -1213,6 +1226,10 @@ struct TabList: View {
             }
           }
       }
+    case .tab(let tab) where tab.splitPartnerID != ClairTabIDNone:
+      // add-split-view D2: a split's row, its chips in pane order.
+      SplitRows.today(tab, model: model, highlighted: highlighted, moveTargets: moveTargets, actions: actions)
+        .itemProvider { model.showsPins ? SidebarDragItem.tab(tab.tabID).itemProvider() : nil }
     case .tab(let tab):
       TabRow(
         tab: tab, isActive: tab.tabID == highlighted, isWindowKey: model.isWindowKey,
@@ -1531,8 +1548,18 @@ extension TabRow {
   /// The row's context menu (sidebar spec, "Today tab menu"): Rename… and
   /// the pin items only where the window shows pins.
   var menuItems: [RowClickCatcher.Item] {
+    Self.menuItems(tab: tab, canPin: canPin, moveTargets: moveTargets, actions: actions)
+  }
+
+  /// A Today tab's menu, or a Today split's chip's with `inSplit`
+  /// (add-split-view, "The split row's menu").
+  static func menuItems(
+    tab: any ClairTab, canPin: Bool, moveTargets: [any ClairSpace], actions: (any SidebarActions)?,
+    inSplit: Bool = false
+  ) -> [RowClickCatcher.Item] {
     let tabID = tab.tabID, isMuted = tab.isMuted
-    let menu = PinsLogic.todayMenu(isMuted: isMuted, canMoveToSpace: !moveTargets.isEmpty, canPin: canPin)
+    let menu = PinsLogic.todayMenu(
+      isMuted: isMuted, canMoveToSpace: !moveTargets.isEmpty, canPin: canPin, inSplit: inSplit)
     return menu.compactMap { item -> RowClickCatcher.Item? in
       guard let item else { return .separator }
       switch item.command {
@@ -1556,6 +1583,8 @@ extension TabRow {
           })
       case .closeTab: return .action(item.title) { actions?.close(tab: tabID) }
       case .closeTabsBelow: return .action(item.title) { actions?.closeTabs(below: tabID) }
+      case .splitWithTab: return .submenu(item.title, actions?.splitWithTabItems(tab: tabID, pin: nil) ?? [])
+      case .separateTabs: return .action(item.title) { actions?.separateSplit(of: tabID) }
       default: return nil
       }
     }
@@ -1573,12 +1602,18 @@ struct RowClickCatcher: NSViewRepresentable {
     /// Shown, but can't be chosen.
     case disabled(String)
     case submenu(String, [Item])
+    /// An action with an icon, as a tab with its favicon (add-split-view D9).
+    case icon(String, NSImage?, () -> Void)
+    /// A disabled submenu.
+    case disabledSubmenu(String)
     case separator
 
     /// The item's title, or nil for a separator.
     var title: String? {
       switch self {
-      case .action(let title, _), .checked(let title, _), .disabled(let title), .submenu(let title, _): title
+      case .action(let title, _), .checked(let title, _), .disabled(let title), .submenu(let title, _),
+        .icon(let title, _, _), .disabledSubmenu(let title):
+        title
       case .separator: nil
       }
     }
@@ -1661,6 +1696,17 @@ struct RowClickCatcher: NSViewRepresentable {
         case .disabled(let title):
           let menuItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
           menuItem.isEnabled = false
+          menu.addItem(menuItem)
+        case .disabledSubmenu(let title):
+          let menuItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+          menuItem.submenu = NSMenu()
+          menuItem.isEnabled = false
+          menu.addItem(menuItem)
+        case .icon(let title, let image, let action):
+          let menuItem = NSMenuItem(title: title, action: #selector(runItem(_:)), keyEquivalent: "")
+          menuItem.target = target
+          menuItem.representedObject = ItemAction(run: action)
+          menuItem.setFavicon(image)
           menu.addItem(menuItem)
         case .submenu(let title, let items):
           let menuItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")

@@ -180,7 +180,9 @@ These come from the add-peek change (its design.md has the numbers):
   `key l cmd` and `type` load the URL in the tab that was showing, which
   may be the owner's. Then a closing Cmd+W closes that tab, not yours.
   Check which tab is selected in a screenshot before navigating or closing.
-- **Drags in Clair**: on the owner's Mac the probe's `drag` reaches Clair
+- **Drags in Clair and Arc**: Arc takes real mouse drags from `build/probe/bin/drag`
+  (a tab dragged onto the page, into a folder), but the probe's `drag`
+  doesn't start one there. On the owner's Mac the probe's `drag` reaches Clair
   with no events at all, though `click` and `hover` do, so it moves nothing
   there. Drag with the mouse's own events instead:
   `build/probe/bin/drag x1 y1 x2 y2`, in screen points, after `activate`.

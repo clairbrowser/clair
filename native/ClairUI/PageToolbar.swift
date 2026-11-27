@@ -6,22 +6,70 @@ import AppKit
 import ClairHost
 import SwiftUI
 
-/// Which of the toolbar's groups a page header shows (add-page-toolbar D4).
-/// Split view will add its pane variants here.
-enum PageHeaderContent {
-  /// The tab's toolbar: everything.
+/// Which of the toolbar's groups a page header shows (add-page-toolbar D4,
+/// add-split-view D9).
+enum PageHeaderContent: Equatable {
+  /// The tab's toolbar: everything, with the split button at the trailing
+  /// end.
   case tab
   /// A Peek's: back, forward, reload, the link icon and the host.
   case peek
+  /// A split's pane's header: the sidebar toggle in the leading pane, back,
+  /// forward, the link icon, the host and ×; with `expanded`, while the pane
+  /// is focused or under the pointer, also reload, the split button, site
+  /// controls, pinned extensions and indicators.
+  case pane(leading: Bool, expanded: Bool)
 
   /// The leading controls that always show before reload.
-  var leadingCount: Int { self == .tab ? 3 : 2 }
-  var showsSidebarToggle: Bool { self == .tab }
-  var showsSiteControls: Bool { self == .tab }
-  var showsExtensions: Bool { self == .tab }
-  var showsIndicators: Bool { self == .tab }
+  var leadingCount: Int {
+    switch self {
+    case .tab: 3
+    case .peek: 2
+    case .pane(let leading, _): leading ? 3 : 2
+    }
+  }
+  var showsSidebarToggle: Bool { leadingCount == 3 }
+  var showsReload: Bool {
+    if case .pane(_, let expanded) = self { return expanded }
+    return true
+  }
+  private var showsAll: Bool {
+    switch self {
+    case .tab: true
+    case .peek: false
+    case .pane(_, let expanded): expanded
+    }
+  }
+  var showsSiteControls: Bool { showsAll }
+  var showsExtensions: Bool { showsAll }
+  var showsIndicators: Bool { showsAll }
+  var showsSplitButton: Bool { showsAll }
+  var showsClose: Bool {
+    if case .pane = self { return true }
+    return false
+  }
+  /// The trailing controls that always show, from the trailing edge: ×, the
+  /// split button and the site controls, as each shows.
+  var trailingFixedCount: Int {
+    (showsClose ? 1 : 0) + (showsSplitButton ? 1 : 0) + (showsSiteControls ? 1 : 0)
+  }
 
-  var identifier: String { self == .tab ? "clair.toolbar" : "clair.peekToolbar" }
+  var identifier: String {
+    switch self {
+    case .tab: "clair.toolbar"
+    case .peek: "clair.peekToolbar"
+    case .pane(let leading, _): "clair.paneToolbar.\(leading ? 0 : 1)"
+    }
+  }
+}
+
+/// Which page header a toolbar host shows: a page's, which is a split's pane
+/// while split, or a Peek's.
+enum PageHeaderSlot: Equatable {
+  /// The card of a split's pane by its index; the first is the single
+  /// page's card outside a split.
+  case pane(Int)
+  case peek
 }
 
 /// The toolbar's coordinate space, which its hosting view's is.
@@ -48,7 +96,7 @@ enum ToolbarFill {
 /// host, offers Copy URL and Hide Toolbar.
 struct PageToolbar: View {
   let model: BrowserWindowModel
-  let content: PageHeaderContent
+  let slot: PageHeaderSlot
   weak var actions: (any SidebarActions)?
 
   @State private var width: CGFloat = 0
@@ -56,11 +104,60 @@ struct PageToolbar: View {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+  /// What the toolbar shows: a page's toolbar, a split's pane's header,
+  /// expanded while focused or under the pointer, or a Peek's.
+  var content: PageHeaderContent {
+    switch slot {
+    case .peek: return .peek
+    case .pane(let index):
+      guard let split = model.shownSplit else { return .tab }
+      return .pane(leading: index == 0, expanded: split.focusedIndex == index || model.hoveredPane == index)
+    }
+  }
+
+  /// The pane's tab while split, or nil.
+  private var paneTabID: TabID? {
+    guard case .pane(let index) = slot, let split = model.shownSplit else { return nil }
+    return split.paneIDs[index]
+  }
+
+  /// Whether the pane isn't the focused one: its controls focus it first.
+  private var isOtherPane: Bool {
+    guard case .pane(let index) = slot, let split = model.shownSplit else { return false }
+    return split.focusedIndex != index
+  }
+
+  /// Runs `action` on the pane's tab: the pane is focused first.
+  private func onPane(_ action: @escaping () -> Void) -> () -> Void {
+    { [weak actions] in
+      if isOtherPane, let paneTabID { actions?.focusPane(paneTabID) }
+      action()
+    }
+  }
+
+  /// Copies the URL of the pane's tab, or the active tab's.
+  private func copyURL() {
+    if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
+  }
+
+  /// The pane's history menu, which focuses it first so the menu and what
+  /// it navigates are the pane's.
+  private func historyMenu(_ direction: HistoryDirection) -> HistoryMenuBuilder? {
+    onPane {}()
+    return actions?.historyMenu(direction)
+  }
+
   /// The tab whose state the toolbar shows: the parent page's behind a Peek,
-  /// or the Peek's own.
-  private var tab: (any ClairTab)? { content == .tab ? model.toolbarTab : model.peekTab }
+  /// or the Peek's own, or the pane's.
+  private var tab: (any ClairTab)? {
+    switch slot {
+    case .peek: return model.peekTab
+    case .pane(let index): return model.shownSplit == nil ? model.toolbarTab : model.paneTab(index)
+    }
+  }
 
   var body: some View {
+    let content = self.content
     let tab = self.tab
     let display = URLDisplay.text(for: tab)
     let hostText = display ?? URLDisplay.placeholder
@@ -69,13 +166,18 @@ struct PageToolbar: View {
       content.showsIndicators ? URLField.indicatorSymbols.filter { tab?.indicators.contains($0.0) == true } : []
     let extensions = content.showsExtensions ? model.pinnedExtensionActions : []
     let layoutContent = ToolbarArrangement.Content(
-      leadingCount: content.leadingCount, hasLink: display != nil, hasNotSecure: notSecure,
-      hostWidth: ToolbarArrangement.hostWidth(for: hostText),
-      trailingFixedCount: content.showsSiteControls ? 1 : 0, extensionCount: extensions.count,
+      leadingCount: content.leadingCount, hasReload: content.showsReload, hasLink: display != nil,
+      hasNotSecure: notSecure, hostWidth: ToolbarArrangement.hostWidth(for: hostText),
+      trailingFixedCount: content.trailingFixedCount, extensionCount: extensions.count,
       indicatorCount: indicators.count)
     let arrangement = ToolbarArrangement(width: width, content: layoutContent)
+    // The trailing slots, from the edge: ×, then the split button, then the
+    // site controls (add-split-view D9).
+    let closeSlot = 0
+    let splitSlot = content.showsClose ? 1 : 0
+    let siteSlot = splitSlot + (content.showsSplitButton ? 1 : 0)
     ToolbarLayout(content: layoutContent) {
-      leadingControls(tab: tab, arrangement: arrangement)
+      leadingControls(content: content, tab: tab, arrangement: arrangement)
       if arrangement.notSecure != nil {
         Image(systemName: "lock.slash.fill")
           .font(.system(size: 11))
@@ -92,7 +194,7 @@ struct PageToolbar: View {
         IconButton(
           systemImage: "link", help: "Copy URL", shortcut: ["⇧", "⌘", "C"], size: 22,
           height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarLinkGlyph
-        ) { actions?.copyURL() }
+        ) { copyURL() }
           .accessibilityIdentifier("clair.copyURL")
           .toolbarRole(.link)
       }
@@ -102,25 +204,44 @@ struct PageToolbar: View {
           systemImage: symbol, help: label, height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarIndicatorGlyph,
           glyphWeight: .regular, foreground: .red
         ) {
-          actions?.showSiteControls(indicator: indicator)
+          onPane { actions?.showSiteControls(indicator: indicator) }()
         }
         .anchorFrame(.indicator(indicator.rawValue))
         .toolbarRole(.indicator(index))
+        .transition(.opacity)
       }
       ForEach(Array(extensions.enumerated()), id: \.element.extensionID) { index, action in
         if arrangement.extensions.indices.contains(index), arrangement.extensions[index] != nil {
           ToolbarExtensionButton(
             action: action, contextMenu: { actions?.contextMenu(forExtension: action.extensionID) }
-          ) { actions?.runExtension(action.extensionID, pinned: true) }
+          ) { onPane { actions?.runExtension(action.extensionID, pinned: true) }() }
             .anchorFrame(.extensionAction(action.extensionID))
             .toolbarRole(.pinnedExtension(index))
+            .transition(.opacity)
         }
       }
       if content.showsSiteControls {
         siteControls(enabled: tab != nil)
-          .toolbarRole(.trailingFixed(0))
+          .toolbarRole(.trailingFixed(siteSlot))
+          .transition(.opacity)
+      }
+      if content.showsSplitButton {
+        splitButton(tab: tab)
+          .toolbarRole(.trailingFixed(splitSlot))
+          .transition(.opacity)
+      }
+      if content.showsClose, let paneTabID {
+        IconButton(
+          systemImage: "xmark", help: "Close tab", shortcut: ["⌘", "W"], height: IconButtonSize.toolbarHeight,
+          glyphSize: IconButtonSize.toolbarGlyph
+        ) { actions?.close(tab: paneTabID) }
+          .accessibilityIdentifier("clair.closePane")
+          .toolbarRole(.trailingFixed(closeSlot))
       }
     }
+    // The other pane's controls fade in and out as the pointer comes and
+    // goes, as Arc's do (add-split-view, "Controls of the other pane").
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: content)
     .frame(maxWidth: .infinity)
     .frame(height: ToolbarArrangement.height)
     .background { background }
@@ -130,19 +251,47 @@ struct PageToolbar: View {
     .coordinateSpace(name: toolbarCoordinateSpace)
     .onPreferenceChange(AnchorFramesKey.self) { frames in
       MainActor.assumeIsolated {
-        if content == .tab { actions?.toolbarControlFramesChanged(frames) }
+        if case .pane(let index) = slot {
+          actions?.toolbarControlFramesChanged(frames, pane: index)
+        }
       }
     }
     .accessibilityElement(children: .contain)
-    .accessibilityLabel(content == .tab ? "Toolbar" : "Peek toolbar")
+    .accessibilityLabel(slot == .peek ? "Peek toolbar" : (content == .tab ? "Toolbar" : "Pane toolbar"))
     .accessibilityIdentifier(content.identifier)
+  }
+
+  /// The split button: Split with Tab on a single page, the pane's moves in
+  /// a split (add-split-view D9).
+  private func splitButton(tab: (any ClairTab)?) -> some View {
+    let tabID = paneTabID ?? tab?.tabID ?? ClairTabIDNone
+    let entries =
+      paneTabID != nil
+      ? SplitLogic.paneMenu(isLeading: slot == .pane(0))
+      : SplitLogic.singlePageMenu(shown: tabID, today: model.tabs)
+    let favicons = Dictionary(model.allTabs.map { ($0.tabID, $0) }, uniquingKeysWith: { first, _ in first })
+    return SplitButton(entries: entries, icon: { favicons[$0]?.favicon }) { entry in
+      if isOtherPane { actions?.focusPane(tabID) }
+      switch entry {
+      case .tab(let other, _): actions?.split(tab: tabID, with: other, side: .trailing)
+      case .newTab: actions?.splitWithNewTab(tabID)
+      case .moveLeft, .moveRight: actions?.swapSplit(of: tabID)
+      case .separateTabs: actions?.separateSplit(of: tabID)
+      case .closeThisTab: actions?.close(tab: tabID)
+      case .heading, .separator: break
+      }
+    }
   }
 
   /// The sidebar toggle, back, forward and reload, at their slots.
   @ViewBuilder
-  private func leadingControls(tab: (any ClairTab)?, arrangement: ToolbarArrangement) -> some View {
+  private func leadingControls(content: PageHeaderContent, tab: (any ClairTab)?, arrangement: ToolbarArrangement)
+    -> some View
+  {
+    // An unfocused pane's button follows its own page (add-split-view D9).
     let reloadStop = model.reloadStop.mode
-    let isLoading = reloadStop.visible == .stop
+    let isLoading = isOtherPane ? tab?.isLoading == true : reloadStop.visible == .stop
+    let canReload = tab != nil && (isOtherPane || reloadStop.isEnabled)
     let canGoBack = tab?.canGoBack ?? false
     let canGoForward = tab?.canGoForward ?? false
     let first = content.showsSidebarToggle ? 1 : 0
@@ -160,27 +309,27 @@ struct PageToolbar: View {
       systemImage: "arrow.left", help: "Go back", shortcut: ["⌘", "["], isEnabled: canGoBack,
       height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarGlyph
     ) {
-      actions?.goBack()
+      onPane { actions?.goBack() }()
     }
-    .overlay(HistoryButtonCatcher(isEnabled: canGoBack, makeMenu: { actions?.historyMenu(.back) }))
+    .overlay(HistoryButtonCatcher(isEnabled: canGoBack, makeMenu: { historyMenu(.back) }))
     .accessibilityIdentifier("clair.back")
     .toolbarRole(.leading(first))
     IconButton(
       systemImage: "arrow.right", help: "Go forward", shortcut: ["⌘", "]"], isEnabled: canGoForward,
       height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarGlyph
     ) {
-      actions?.goForward()
+      onPane { actions?.goForward() }()
     }
-    .overlay(HistoryButtonCatcher(isEnabled: canGoForward, makeMenu: { actions?.historyMenu(.forward) }))
+    .overlay(HistoryButtonCatcher(isEnabled: canGoForward, makeMenu: { historyMenu(.forward) }))
     .accessibilityIdentifier("clair.forward")
     .toolbarRole(.leading(first + 1))
     if arrangement.reload != nil {
       IconButton(
         help: isLoading ? "Stop loading this page" : "Reload this page",
-        shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: tab != nil && reloadStop.isEnabled,
+        shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: canReload,
         height: IconButtonSize.toolbarHeight
       ) {
-        actions?.reloadOrStop()
+        if isOtherPane, let paneTabID { actions?.reloadOrStop(pane: paneTabID) } else { actions?.reloadOrStop() }
       } label: {
         ZStack {
           SymbolGlyph(systemImage: "arrow.clockwise", size: IconButtonSize.toolbarGlyph).opacity(isLoading ? 0 : 1)
@@ -188,9 +337,12 @@ struct PageToolbar: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.1), value: isLoading)
       }
-      .onHover { actions?.reloadButtonHovered($0) }
+      // The focused pane's Reload/Stop timing; an unfocused pane's follows
+      // its page.
+      .onHover { hovering in if !hovering || !isOtherPane { actions?.reloadButtonHovered(hovering) } }
       .accessibilityIdentifier("clair.reload")
       .toolbarRole(.reload)
+      .transition(.opacity)
     }
   }
 
@@ -208,7 +360,7 @@ struct PageToolbar: View {
         ToolbarFill.hostHover(colorScheme).opacity(isHostHovered ? 1 : 0), in: .rect(cornerRadius: 6))
       .contentShape(Rectangle())
       .onHover { hovering in withAnimation(sidebarHoverFade) { isHostHovered = hovering } }
-      .onTapGesture { actions?.editURL() }
+      .onTapGesture { onPane { actions?.editURL() }() }
       .overlay(RowClickCatcher(onMiddleClick: {}, menuItems: menuItems(canCopy: !isPlaceholder)))
       .accessibilityElement()
       .accessibilityLabel(text)
@@ -225,12 +377,13 @@ struct PageToolbar: View {
       height: IconButtonSize.toolbarHeight, glyphSize: IconButtonSize.toolbarSiteControlsGlyph,
       glyphWeight: .regular
     ) {
-      model.isSiteControlCenterOpen = true
+      onPane { model.isSiteControlCenterOpen = true }()
     }
     // A click while the popover is open only closes it (arc-site-control-center
     // design D2).
     .allowsHitTesting(!model.isSiteControlCenterOpen)
-    .popover(isPresented: $model.isSiteControlCenterOpen, arrowEdge: .bottom) {
+    // Only the focused pane's button holds the popover (add-split-view D9).
+    .popover(isPresented: isOtherPane ? .constant(false) : $model.isSiteControlCenterOpen, arrowEdge: .bottom) {
       SiteControlCenter(model: model, actions: actions) { model.isSiteControlCenterOpen = false }
     }
     .anchorFrame(.siteControls)
@@ -251,7 +404,11 @@ struct PageToolbar: View {
   private func menuItems(canCopy: Bool) -> [RowClickCatcher.Item] {
     var items: [RowClickCatcher.Item] = []
     if canCopy {
-      items.append(.action("Copy URL") { [weak actions] in actions?.copyURL() })
+      let paneTabID = self.paneTabID
+      items.append(
+        .action("Copy URL") { [weak actions] in
+          if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
+        })
       items.append(.separator)
     }
     items.append(.action(ToolbarPreference.menuTitle(isOn: true)) { [weak actions] in actions?.setToolbarShown(false) })

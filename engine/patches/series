@@ -49,3 +49,4 @@ clair/pinned-link-peek.patch
 clair/quit-confirmation.patch
 clair/link-rules.patch
 clair/bookmarks-menu-root.patch
+clair/split-on-option-click.patch

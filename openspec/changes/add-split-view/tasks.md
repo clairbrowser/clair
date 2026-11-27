@@ -10,7 +10,7 @@ Suggested order:
 
 ## 1. References, contract and fakes
 
-- [ ] 1.1 Probe Arc with `tests/probe/` for D8's open values, and add the screenshots and numbers to `arc-reference/README.md`:
+- [x] 1.1 Probe Arc with `tests/probe/` for D8's open values, and add the screenshots and numbers to `arc-reference/README.md`:
   - a 60 fps recording of a tab dragged onto the page and across it: the portrait card's size, the drop zone's tint and border, and the slide's timing;
   - the split row with three-word titles at the default sidebar width;
   - closing one pane of a pinned split;
@@ -18,7 +18,7 @@ Suggested order:
 
   Verify that the README lists each. If closing a pinned split's pane differs from the spec's "Pages of a pinned split", update the spec and D10 before 2.6.
 - [ ] 1.2 Change `native/ClairHost.h` as D2 and D10 list:
-  - `ClairTab.splitID` and `splitRatio`;
+  - `ClairTab.splitPartnerID`, `isLeadingPane` and `splitRatio`;
   - the split calls on `ClairBrowser`;
   - the split kind of `ClairPinnedItem`;
   - favorites as items.
@@ -51,7 +51,7 @@ Suggested order:
   - the runtime tests in 3.12 cover Option+click on a single page, in each pane of a split (no new tab, Back returns), from a favorite (no Peek), inside a Peek, and from the context menu;
   - no download starts in any of these.
 - [ ] 2.5 Add the split record to `ClairPinStore` (D10): split records with their place and ratio, pins that name their split and index, and splits in folders, still one level deep. Add pinning, unpinning, favoriting and separating a split, Remove Pin, Remove Favorite, Restore Last Closed Tab, and Move to Space. Verify with the runtime tests in 3.12 that pinned and favorited splits, their order, pages and ratio survive a relaunch, and that Separate leaves two pins in place (each read from `Local State` after quitting).
-- [ ] 2.6 Bind pinned and favorited splits (D10): selecting one opens its unopened pages as a split with its ratio; closing one pane unbinds only that pin; a Today split with a pin-bound tab keeps the binding. Verify with the runtime tests in 3.12.
+- [ ] 2.6 Bind pinned and favorited splits (D10): selecting one opens its unopened pages as a split with its ratio; closing one pane takes its pin out of the item, leaving the other pin in its place, and Restore Last Closed Tab brings the split back; a Today split with a pin-bound tab keeps the binding. Verify with the runtime tests in 3.12.
 - [ ] 2.7 Peek's Open in Split View (D11): expand and split, and no button while the parent has a partner. Verify with the runtime tests in 3.12.
 - [ ] 2.8 Bridge the D2 calls and snapshots, and the menu bar items of D9: Tabs › Split with Tab ›, and View › Add Split View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs, with Add Split View showing "Cannot Add New Pane" while split. Verify with the runtime tests in 3.12.
 - [ ] 2.9 Build the engine with `gh workflow run engine.yml -f ref=<branch>`. Verify that `chromium-engine-<key>` is published and CI's engine check passes.
@@ -64,7 +64,7 @@ Suggested order:
 ## 3. ClairUI
 
 - [ ] 3.1 Fold split tabs into one row in `TabListLogic` and the window model, and set `paneCount` from the active tab's partner (D2, D3). Verify with `ClairUI` unit tests in CI: rows for a Today split, a pinned split, a favorited split, and a Today split holding a pin-bound tab; and `PageHeaderPolicy` with the toolbar off while split.
-- [ ] 3.2 Lay out the panes in `PageCardView` (D3): `PaneView`s with their own cards, the focus ring, the 10 pt gap, and the find field, loading indicator, Peek and toasts against the right area. Verify with unit tests in CI for the pane frames at a few widths and ratios, and by hand in 3.11.
+- [ ] 3.2 Lay out the panes (D3): two `PageCardView`s with their own cards, the focus ring, the 10 pt gap, and the find field, loading indicator, Peek and toasts against the right area. Verify with unit tests in CI for the pane frames at a few widths and ratios, and by hand in 3.11.
 - [ ] 3.3 Add `SplitDivider` (D3): grabber, resize cursor, live widths, the page minimum of about 210 pt (and the ratio held when the area is too narrow), the snap to equal panes within 20 pt of the centre, and `setSplitRatio` when the drag ends. Verify with unit tests in CI for the clamp, the narrow case, the snap and the ratio, and by hand in 3.11.
 - [ ] 3.4 Add the pane headers and the split button (D9):
   - `PageHeaderContent.pane(leading:focused:)`, with × at the trailing slot;
@@ -105,7 +105,7 @@ Suggested order:
   - closing the row and Restore Last Closed Tab;
   - a split and its ratio after a relaunch and Reopen Closed Window;
   - pinning, favoriting, separating and relaunching a pinned split, one in a folder included;
-  - one pane of a pinned split closed and reopened;
+  - one pane of a pinned split closed, and restored with Restore Last Closed Tab;
   - Open in Split View from a Peek, and its absence on a Peek in a split.
 
   Verify that they pass in `quality.yml` on the branch.

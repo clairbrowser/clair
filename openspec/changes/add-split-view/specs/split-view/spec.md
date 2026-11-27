@@ -69,7 +69,7 @@ While the pointer is over the pane that isn't focused, its header SHALL show its
 - **THEN** that pane is focused, and the Site Control Center opens for its page
 
 ### Requirement: Resizing the panes
-A divider in the gap between the panes SHALL show a grabber and the resize pointer. Dragging it SHALL resize both panes, stopping when either pane's page would be narrower than about 210 points, as in Dia. The split SHALL keep the ratio, across tab switches and relaunches. A new split SHALL start with equal panes, and a drag ending near the centre SHALL snap to equal panes. While the page area is too narrow for two such pages, the panes SHALL keep their ratio.
+A divider in the gap between the panes SHALL show the resize pointer and a faint grabber. Dragging it SHALL resize both panes, stopping when either pane's page would be narrower than about 210 points, as in Dia. The split SHALL keep the ratio, across tab switches and relaunches. A new split SHALL start with equal panes, and the divider SHALL snap to equal panes while it's dragged near the centre. While the page area is too narrow for two such pages, the panes SHALL keep their ratio.
 
 #### Scenario: Dragging the divider
 - **WHEN** the user drags the divider of an equal split in a wide window 200 points toward the trailing edge
@@ -80,8 +80,12 @@ A divider in the gap between the panes SHALL show a grabber and the resize point
 - **THEN** the trailing pane's page stops at about 210 points wide
 
 #### Scenario: Snapping to the centre
-- **WHEN** the user drags the divider to within about 20 points of the page area's centre and lets go
-- **THEN** the panes become equal
+- **WHEN** the user drags the divider to within about 20 points of the page area's centre
+- **THEN** the panes become equal before the user lets go, and stay equal once the user does
+
+#### Scenario: The grabber
+- **WHEN** the pointer moves over the divider
+- **THEN** the grabber fades to its full colour, and back to faint once the pointer leaves
 
 #### Scenario: Coming back to the split
 - **WHEN** the user resized a split, selects another tab and then selects the split again
@@ -250,7 +254,7 @@ A Today tab's, pinned tab's or favorite's Split with Tab › SHALL be disabled, 
 - **THEN** Split with Tab is disabled
 
 ### Requirement: Closing a pane
-Each pane's × in its header, Close This Tab in its split menu, Cmd+W and View › Close Split Pane (⌃⇧−) on the focused pane SHALL close that pane's tab only, with its leave-page confirmation. The other tab SHALL then show alone, active, in the split's place in the sidebar. A pinned tab's or favorite's pane SHALL close as Close and Keep Pinned does.
+Each pane's × in its header, Close This Tab in its split menu, Cmd+W and View › Close Split Pane (⌃⇧−) on the focused pane SHALL close that pane's tab only, with its leave-page confirmation. The other tab SHALL then show alone, active, in the split's place in the sidebar. The pane of a pinned tab or favorite in a Today split SHALL close as Close and Keep Pinned does. A pane of a pinned or favorited split SHALL close as "Closing a pane of a pinned split" says.
 
 #### Scenario: × on a pane
 - **WHEN** a split shows "News" and "Docs" and the user clicks × in the "Docs" pane's header
@@ -268,11 +272,15 @@ Separate Tabs, in a pane's split menu, the split row's menu and View, SHALL end 
 - **THEN** the sidebar lists "News" and then "Docs" where the split's row was, and the window shows "Docs" alone
 
 ### Requirement: The split row
-In the sidebar, a split SHALL show as one row with a chip per tab, in pane order, each with the tab's favicon and title (or custom name), truncated to share the row, as in Arc. While the split isn't selected, a thin divider SHALL separate the chips. While it's selected, the row SHALL be highlighted and each chip SHALL show as its own grey pill.
+In the sidebar, a split SHALL show as one row with a chip per tab, in pane order, each with the tab's favicon and title (or custom name), truncated to share the row, as in Arc. While the split isn't selected, a thin divider SHALL separate the chips. While it's selected, the row SHALL be highlighted and each chip SHALL show as its own grey pill, in the same place as before, as in Arc.
 
 #### Scenario: A split in Today
 - **WHEN** a Space has the Today tabs "Mail" and a split of "News" and "Docs"
 - **THEN** the sidebar lists "Mail" and one row holding a "News" chip and a "Docs" chip
+
+#### Scenario: Selecting it
+- **WHEN** the user selects that split
+- **THEN** the row is highlighted, each chip is a grey pill, and neither chip moves
 
 #### Scenario: The selected split
 - **WHEN** the window shows the split
@@ -285,16 +293,16 @@ Clicking anywhere on a split row SHALL show the split with the pane that was foc
 - **WHEN** a split of "News" and "Docs" was last focused on "Docs", another tab is shown, and the user clicks the "News" chip
 - **THEN** the window shows the split with "Docs" focused
 
-### Requirement: Closing a split from its row
-Hovering a split's row in Today SHALL show a close button at its trailing end, with the tooltip "Close tab" and ⌘W, which SHALL close both tabs, each with its leave-page confirmation. Middle-clicking the row SHALL do the same. Restore Last Closed Tab SHALL bring the split back as it was.
+### Requirement: Closing a page from its row
+Hovering a split's row in Today SHALL show a close button at the trailing end of each chip, with the tooltip "Close tab", and ⌘W on the focused pane's chip while the split shows. Each SHALL close its chip's tab only, as the pane's × does (see "Closing a pane"). Middle-clicking a chip SHALL do the same.
 
-#### Scenario: Closing the row
-- **WHEN** the user hovers the split's row and clicks its ×
-- **THEN** both tabs close, and the row goes
+#### Scenario: Closing one chip
+- **WHEN** a Today split shows "News" and "Docs" and the user hovers its row and clicks the "Docs" chip's ×
+- **THEN** "Docs" closes, and "News" shows alone, in the split's place in the list
 
-#### Scenario: Restoring it
-- **WHEN** the user then chooses Restore Last Closed Tab
-- **THEN** the split comes back in its place, with both pages and its ratio
+#### Scenario: Hovering the row
+- **WHEN** the user hovers either chip of the row
+- **THEN** both the "News" chip and the "Docs" chip show a ×
 
 ### Requirement: The split row's menu
 Right-clicking a split row SHALL open the menu of its kind for the tab whose chip is under the pointer (Today tab menu, `pinned-tabs`, `favorites`), without Split with Tab ›, Back to Pinned URL or Edit Pinned Page ›, with Separate Tabs added. Pin Tab, Pin to Favorites, Unpin Tab, Remove Favorite and Move to Space SHALL act on the whole split.
@@ -379,6 +387,10 @@ A split made of a Today tab and a pinned tab's or favorite's page SHALL show as 
 ### Requirement: Pinning a split
 Pin Tab (Cmd+D) on a split, Pin Tab in its row's menu, and dragging its row into the pinned section SHALL pin the split as one item, keeping its pages, ratio and selection. Pin to Favorites and dragging it onto the favorites SHALL make it one favorite. Unpin Tab and dragging it below the divider SHALL make it a Today split again.
 
+#### Scenario: Dragging a split over the favorites
+- **WHEN** the user drags a split's row over the favorites
+- **THEN** the drag shows the tile it would become, a segment per page with its icon, as "The favorite split tile" describes
+
 #### Scenario: Cmd+D on a split
 - **WHEN** the window shows a Today split of "News" and "Docs" and the user presses Cmd+D
 - **THEN** the split is the last item of the pinned section, as one row, and stays shown
@@ -399,15 +411,22 @@ A pinned split SHALL show in the pinned section as a split row, with the titles 
 - **THEN** both pinned URLs load, as a split with its ratio
 
 ### Requirement: Pages of a pinned split
-A pinned or favorited split SHALL keep a pinned URL for each page. Selecting it SHALL open each page that isn't open, as a split. Closing one pane SHALL keep it in the split; the other page SHALL show alone until the split is selected again. Its row or tile SHALL show no "/" and offer no Back to Pinned URL.
+A pinned or favorited split SHALL keep a pinned URL for each page. Selecting it SHALL open each page that isn't open, as a split. Its row or tile SHALL show no "/" and offer no Back to Pinned URL.
+
+#### Scenario: Navigated away
+- **WHEN** the "Mail" pane of a pinned split follows a link to another page of its site
+- **THEN** the row shows the new title in its chip, with no "/", and Tabs › Back to Pinned URL is disabled
+
+### Requirement: Closing a pane of a pinned split
+Closing one pane of a pinned or favorited split SHALL take that page out of the item, as in Arc: the item SHALL become a pinned tab, or a favorite, of the other page, in the split's place, showing that page alone. Restore Last Closed Tab SHALL bring the closed page back into the item as a split, with its pinned URL and the ratio.
 
 #### Scenario: Closing one pane
 - **WHEN** a pinned split of "Mail" and "Calendar" shows and the user closes the "Calendar" pane
-- **THEN** "Mail" shows alone, the row still holds both chips, and clicking the row opens "Calendar" again beside "Mail"
+- **THEN** "Mail" shows alone, as a pinned tab in the split's place, and the pinned section has no "Calendar"
 
-#### Scenario: Navigated away
-- **WHEN** the "Mail" pane follows a link to another page of its site
-- **THEN** the row shows the new title in its chip, with no "/", and Tabs › Back to Pinned URL is disabled
+#### Scenario: Restoring the closed pane
+- **WHEN** the user then chooses Restore Last Closed Tab
+- **THEN** the pinned split of "Mail" and "Calendar" is back in its place, shown with its ratio
 
 ### Requirement: The favorite split tile
 A favorited split SHALL take one tile in the favorites grid, divided into a segment per page by a thin line, each segment with its page's icon centred, as in Arc. While the window shows it, the tile SHALL turn white in Light Mode, or light grey in Dark Mode, with a 2-point ring that blends from the leading page's icon colour to the trailing page's.

@@ -22,6 +22,7 @@
 #import "chrome/browser/clair/window/clair_autocomplete.h"
 #import "chrome/browser/clair/window/clair_bookmarks.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
+#include "chrome/browser/clair/window/clair_splits.h"
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #include "chrome/browser/clair/window/clair_downloads.h"
 #include "chrome/browser/clair/window/clair_extensions.h"
@@ -770,6 +771,73 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   tabs::TabInterface* tab = [self rowTabWithID:tabID];
   if (ClairPeeks* peeks = tab ? [self peeksHolding:tab] : nullptr) {
     peeks->Expand(tab);
+  }
+}
+
+- (void)openPeekInSplitOfTab:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self rowTabWithID:tabID]) {
+    _browserWindow->OpenPeekInSplit(tab);
+  }
+}
+
+// --- ClairBrowser: split view (add-split-view D2) ---
+
+- (void)splitTab:(ClairTabID)tabID
+         withTab:(ClairTabID)otherID
+            side:(ClairSplitSide)side {
+  tabs::TabInterface* tab = [self rowTabWithID:tabID];
+  tabs::TabInterface* other = [self rowTabWithID:otherID];
+  if (tab && other) {
+    _browserWindow->SplitTabs(tab, other,
+                              /*other_leading=*/side == ClairSplitSideLeading);
+  }
+}
+
+- (void)splitTabWithNewTab:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self rowTabWithID:tabID]) {
+    _browserWindow->SplitWithNewTab(tab);
+  }
+}
+
+- (void)showSplitOfTab:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self rowTabWithID:tabID]) {
+    _browserWindow->ShowSplit(tab);
+  }
+}
+
+- (void)replacePaneOfTab:(ClairTabID)tabID withTab:(ClairTabID)newTabID {
+  tabs::TabInterface* pane = [self tabWithID:tabID];
+  tabs::TabInterface* replacement = [self rowTabWithID:newTabID];
+  if (pane && replacement) {
+    _browserWindow->ReplacePane(pane, replacement);
+  }
+}
+
+- (void)swapSplitOfTab:(ClairTabID)tabID {
+  tabs::TabInterface* tab = [self rowTabWithID:tabID];
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
+  if (holder && holder->splits()) {
+    holder->splits()->Swap(tab);
+  }
+}
+
+- (void)separateSplitOfTab:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self rowTabWithID:tabID]) {
+    _browserWindow->SeparateSplit(tab);
+  }
+}
+
+- (void)closeSplitOfTab:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self rowTabWithID:tabID]) {
+    _browserWindow->CloseSplit(tab);
+  }
+}
+
+- (void)setSplitRatio:(double)ratio ofTab:(ClairTabID)tabID {
+  tabs::TabInterface* tab = [self rowTabWithID:tabID];
+  ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
+  if (holder && holder->splits()) {
+    holder->splits()->SetRatio(tab, ratio);
   }
 }
 

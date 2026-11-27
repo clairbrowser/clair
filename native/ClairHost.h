@@ -93,6 +93,10 @@ typedef NSString *ClairPinID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(PinID);
 // which never changes (add-tab-folders design D1).
 typedef NSString *ClairFolderID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(FolderID);
 
+// A pinned or favorited split's ID: the UUID string of its record, which never
+// changes (add-split-view design D10).
+typedef NSString *ClairPinnedSplitID NS_SWIFT_BRIDGED_TYPEDEF NS_SWIFT_NAME(PinnedSplitID);
+
 // A bookmark's ID and a bookmark folder's: Chromium's bookmark node IDs,
 // stable while Clair runs (add-bookmarks-menu design D3).
 typedef int64_t ClairBookmarkID NS_SWIFT_NAME(BookmarkID);
@@ -104,6 +108,7 @@ static const ClairBookmarkFolderID ClairBookmarkFolderIDNone = -1;
 @protocol ClairLinkRule;
 @protocol ClairPin;
 @protocol ClairPinnedItem;
+@protocol ClairPinnedSplit;
 @protocol ClairProfile;
 @protocol ClairSpace;
 @protocol ClairSpacesObserver;
@@ -150,7 +155,8 @@ NS_SWIFT_NAME(ClairHost)
 // The Today tabs of a Space, in its order, across every browser window of the
 // profile: every window showing the Space lists all of them, whichever window
 // holds each (share-tabs-across-windows design D1). A Peek directly follows its
-// parent. The tabs of pinned tabs and favorites aren't among them: they reach
+// parent, and the trailing pane of a split directly follows the leading pane
+// and its Peek (add-split-view design D2, D7). The tabs of pinned tabs and favorites aren't among them: they reach
 // ClairUI through their pins (-pinnedItemsInSpace:, -favoritesOfProfile:). An
 // incognito or guest window's Space (-[ClairBrowser shownSpaceID]) lists that
 // window's tabs alone, whose `browserID` is its own. Empty for an unknown
@@ -182,7 +188,9 @@ NS_SWIFT_NAME(ClairHost)
 - (void)deleteSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(deleteSpace(_:));
 // Moves a tab, with its Peek, to the top of another Space's list, or a pinned
 // tab's bound tab, with its pin, to the end of that Space's pinned section,
-// outside any folder (add-pinned-tabs-and-favorites design D5). Within a
+// outside any folder (add-pinned-tabs-and-favorites design D5). A tab of a
+// split moves with the other, as one split, and a pinned split's with its
+// item (add-split-view design D7). Within a
 // profile it keeps its
 // page and its window. To a Space of another profile it
 // reopens at its URL in that profile, without its Peek and without asking
@@ -193,12 +201,16 @@ NS_SWIFT_NAME(ClairHost)
 - (void)moveTab:(ClairTabID)tabID toSpace:(ClairSpaceID)spaceID NS_SWIFT_NAME(move(tab:toSpace:));
 
 // --- Pinned tabs, folders and favorites (add-pinned-tabs-and-favorites
-// design D1 to D6, D10; add-tab-folders design D1 to D3, D7, D8, D11) ---
+// design D1 to D6, D10; add-tab-folders design D1 to D3, D7, D8, D11;
+// add-split-view design D10) ---
 // A pin is a saved item, kept in Chromium's Local State whether or not a page
 // is open: a pinned tab belongs to a Space, a favorite to a profile. While its
 // page is open, one tab is bound to it. A Space's pinned section lists items,
-// each a pinned tab or a folder; a folder holds pinned tabs only, one level
-// deep. Changes reach every observer through
+// each a pinned tab, a pinned split or a folder; a folder holds pinned tabs
+// and pinned splits, one level deep. A profile's favorites are favorites and
+// favorited splits. A pinned or favorited split holds two pins, in pane order,
+// and takes one place: a call naming either of its pins moves, unpins or
+// removes the whole split, and opening either opens both pages as a split. Changes reach every observer through
 // -[ClairSpacesObserver pinnedItemsDidChange:inSpace:] and
 // -favoritesDidChange:ofProfile:. A place in a Space's pinned section is an
 // index among its items, pins and folders alike, or, with a folder, an index
@@ -210,14 +222,17 @@ NS_SWIFT_NAME(ClairHost)
 // A Space's pinned items, in its order. Empty for an unknown Space.
 - (NSArray<id<ClairPinnedItem>> *)pinnedItemsInSpace:(ClairSpaceID)spaceID
     NS_SWIFT_NAME(pinnedItems(inSpace:));
-// A profile's favorites, in its order. Empty for an unknown profile.
-- (NSArray<id<ClairPin>> *)favoritesOfProfile:(ClairProfileID)profileID
+// A profile's favorites, in its order: each a favorite or a favorited split.
+// Empty for an unknown profile.
+- (NSArray<id<ClairPinnedItem>> *)favoritesOfProfile:(ClairProfileID)profileID
     NS_SWIFT_NAME(favorites(ofProfile:));
 
 // Pins a Today tab at `index` in its Space's pinned section, or in
 // `folderID`, a folder of that Space (D5): the pin takes the tab's URL as its
 // pinned URL, its title, icon and custom name, and the tab, with its Peek,
-// stays open and bound to it. A folder of another Space is ignored.
+// stays open and bound to it. A folder of another Space is ignored. A tab of a
+// split of two Today tabs pins the split, as one pinned split with its ratio;
+// a tab of a split with a pinned tab or favorite is ignored.
 - (void)pinTab:(ClairTabID)tabID
       inFolder:(nullable ClairFolderID)folderID
        atIndex:(NSInteger)index NS_SWIFT_NAME(pin(tab:inFolder:at:));
@@ -242,6 +257,10 @@ NS_SWIFT_NAME(ClairHost)
 // leave-page confirmation. Restore Last Closed Tab brings it back in place,
 // in its folder while the folder exists (D3, add-tab-folders design D7).
 - (void)removePin:(ClairPinID)pinID NS_SWIFT_NAME(removePin(_:));
+// Separate Tabs on a pinned or favorited split: its two pins take its place,
+// in pane order, each keeping its pinned URL, name and bound tab, and a split
+// of their open tabs ends (add-split-view design D10).
+- (void)separatePinnedSplit:(ClairPinnedSplitID)splitID NS_SWIFT_NAME(separatePinnedSplit(_:));
 // Loads the pinned URL in the bound tab as a new navigation, so Back returns
 // (D6).
 - (void)returnToPinnedURL:(ClairPinID)pinID NS_SWIFT_NAME(returnToPinnedURL(_:));
@@ -284,7 +303,7 @@ NS_SWIFT_NAME(ClairHost)
 // Adds a copy of the folder right after it, open, with a copy of each of its
 // pins in order: their pinned URLs, titles, names and icons, none open (D11).
 - (void)duplicateFolder:(ClairFolderID)folderID NS_SWIFT_NAME(duplicateFolder(_:));
-// Removes a folder and its pins, then closes their bound tabs, each with its
+// Removes a folder and its items, then closes their bound tabs, each with its
 // leave-page confirmation. Restore Last Closed Tab brings the folder back with
 // its pins, in place (D7). ClairUI asks the user first when it has pins.
 - (void)deleteFolder:(ClairFolderID)folderID NS_SWIFT_NAME(deleteFolder(_:));
@@ -411,6 +430,12 @@ typedef NS_OPTIONS(NSUInteger, ClairTabIndicators) {
   // A permission request from the page was blocked.
   ClairTabIndicatorsBlockedPermission = 1 << 4,
 } NS_SWIFT_NAME(TabIndicators);
+
+// The side of a split a tab goes to.
+typedef NS_ENUM(NSInteger, ClairSplitSide) {
+  ClairSplitSideLeading = 0,
+  ClairSplitSideTrailing = 1,
+} NS_SWIFT_NAME(SplitSide);
 
 // Where something chosen in the window opens.
 typedef NS_ENUM(NSInteger, ClairOpenDisposition) {
@@ -627,6 +652,16 @@ NS_SWIFT_NAME(ClairTab)
 // The tab's custom name, which rows and the window's title show in place of
 // `title`, or nil (design D8). A bound tab's is its pin's.
 @property(nonatomic, readonly, copy, nullable) NSString *name;
+// The other tab of the tab's split, or ClairTabIDNone outside a split
+// (add-split-view design D1, D2). A split holds two tabs of one window, shown
+// side by side; the active tab is the focused pane. Its tabs may be two Today
+// tabs, a pinned split's, or a Today tab and a pinned tab's or favorite's.
+@property(nonatomic, readonly) ClairTabID splitPartnerID;
+// Whether the tab is a split's leading pane. NO outside a split.
+@property(nonatomic, readonly) BOOL isLeadingPane;
+// The leading pane's share of the page area's width, from 0 to 1, the same for
+// both tabs of a split: 0.5 for a new split. 0.5 outside a split.
+@property(nonatomic, readonly) double splitRatio;
 @end
 
 // A pinned tab or favorite, as a snapshot (add-pinned-tabs-and-favorites design
@@ -665,6 +700,29 @@ NS_SWIFT_NAME(ClairPin)
 // first requested before redirects, is the pinned URL, ignoring the fragment
 // (design D2). YES while unbound.
 @property(nonatomic, readonly) BOOL isAtPinnedURL;
+// The pinned or favorited split holding the pin, or nil (add-split-view design
+// D10). Its folder and place are the split's.
+@property(nonatomic, readonly, copy, nullable) ClairPinnedSplitID pinnedSplitID;
+@end
+
+// A pinned or favorited split, as a snapshot (add-split-view design D10).
+// Chromium implements it.
+NS_SWIFT_UI_ACTOR
+NS_SWIFT_NAME(ClairPinnedSplit)
+@protocol ClairPinnedSplit <NSObject>
+@property(nonatomic, readonly, copy) ClairPinnedSplitID pinnedSplitID;
+// Whether it is a favorited split rather than a pinned one.
+@property(nonatomic, readonly) BOOL isFavorite;
+// As a pin's: the Space, or nil for a favorited split; the folder holding it,
+// or nil; and the profile.
+@property(nonatomic, readonly, copy, nullable) ClairSpaceID spaceID;
+@property(nonatomic, readonly, copy, nullable) ClairFolderID folderID;
+@property(nonatomic, readonly, copy) ClairProfileID profileID;
+// Its two pins, leading pane first.
+@property(nonatomic, readonly, copy) NSArray<id<ClairPin>> *pins;
+// The leading pane's share of the width, from 0 to 1, as -[ClairTab
+// splitRatio].
+@property(nonatomic, readonly) double ratio;
 @end
 
 // A folder in a Space's pinned section, as a snapshot (add-tab-folders design
@@ -678,16 +736,20 @@ NS_SWIFT_NAME(ClairFolder)
 @property(nonatomic, readonly, copy) NSString *name;
 // Whether it's open on this Mac (D3). A new folder is.
 @property(nonatomic, readonly) BOOL isOpen;
-// Its pinned tabs, in its order.
-@property(nonatomic, readonly, copy) NSArray<id<ClairPin>> *pins;
+// Its pinned tabs and pinned splits, in its order; never a folder
+// (add-split-view design D10).
+@property(nonatomic, readonly, copy) NSArray<id<ClairPinnedItem>> *items;
 @end
 
-// One item of a Space's pinned section: a pinned tab or a folder; exactly one
-// of the two is set (add-tab-folders design D2). Chromium implements it.
+// One item of a Space's pinned section, a folder or the favorites: a pinned
+// tab or favorite, a pinned or favorited split, or, in a pinned section, a
+// folder; exactly one of them is set (add-tab-folders design D2,
+// add-split-view design D10). Chromium implements it.
 NS_SWIFT_UI_ACTOR
 NS_SWIFT_NAME(ClairPinnedItem)
 @protocol ClairPinnedItem <NSObject>
 @property(nonatomic, readonly, nullable) id<ClairPin> pin;
+@property(nonatomic, readonly, nullable) id<ClairPinnedSplit> split;
 @property(nonatomic, readonly, nullable) id<ClairFolder> folder;
 @end
 
@@ -792,8 +854,9 @@ NS_SWIFT_NAME(ClairSpacesObserver)
 // -[ClairHost pinnedItemsInSpace:] returns it.
 - (void)pinnedItemsDidChange:(NSArray<id<ClairPinnedItem>> *)items inSpace:(ClairSpaceID)spaceID
     NS_SWIFT_NAME(pinnedItemsDidChange(_:inSpace:));
-// The same for a profile's favorites.
-- (void)favoritesDidChange:(NSArray<id<ClairPin>> *)favorites ofProfile:(ClairProfileID)profileID
+// The same for a profile's favorites, as -[ClairHost favoritesOfProfile:]
+// returns them.
+- (void)favoritesDidChange:(NSArray<id<ClairPinnedItem>> *)favorites ofProfile:(ClairProfileID)profileID
     NS_SWIFT_NAME(favoritesDidChange(_:ofProfile:));
 @end
 
@@ -1133,6 +1196,9 @@ NS_SWIFT_NAME(ClairBrowser)
 // selected it from, the row above or the row below in the window's Space
 // (add-spaces design D4), taking it from another window if need be. A bound
 // tab's pin stays, unbound (add-pinned-tabs-and-favorites design D2, D4).
+// Closing a pane of a split shows the other pane alone, in the split's place
+// (add-split-view design D12); a pane of a pinned or favorited split takes its
+// pin out of the split, which Restore Last Closed Tab brings back (D10).
 - (void)closeTab:(ClairTabID)tabID NS_SWIFT_NAME(close(tab:));
 // Closes every row below it in its Space, in whichever window holds each, each
 // with its leave-page confirmation.
@@ -1155,6 +1221,8 @@ NS_SWIFT_NAME(ClairBrowser)
 // Unpins a pinned tab or favorite: the pin goes, and its bound tab, or a new
 // one opened at its pinned URL in this window, joins the Today tabs of its
 // Space (the shown Space for a favorite) at `index`, keeping the custom name.
+// A pin of a pinned or favorited split unpins the split: both pages join the
+// Today tabs at `index`, as a split with its ratio.
 - (void)unpin:(ClairPinID)pinID toIndex:(NSInteger)index NS_SWIFT_NAME(unpin(_:to:));
 
 // --- Peek (add-peek design D3); `tabID` names the parent or its Peek ---
@@ -1163,6 +1231,49 @@ NS_SWIFT_NAME(ClairBrowser)
 - (void)closePeekOfTab:(ClairTabID)tabID NS_SWIFT_NAME(closePeek(of:));
 // Turns the tab's Peek into a normal, active tab directly below its parent.
 - (void)expandPeekOfTab:(ClairTabID)tabID NS_SWIFT_NAME(expandPeek(of:));
+// Turns the tab's Peek into a normal tab, as -expandPeekOfTab: does, as the
+// trailing, focused pane of a split with its parent (add-split-view design
+// D11). Ignored while the parent is in a split.
+- (void)openPeekInSplitOfTab:(ClairTabID)tabID NS_SWIFT_NAME(openPeekInSplit(of:));
+
+// --- Split view (add-split-view design D1, D2, D4, D8, D12) ---
+// Every call naming a tab works on any tab of the window's rows, whichever
+// window holds it, and the split it makes or changes is shown here. Focusing
+// a pane is -activateTab:.
+// Makes a split of `tabID` and `otherID`, `otherID` on `side`, focused, with
+// equal panes. Either may be a Today tab, a pinned tab's or a favorite's.
+// Ignored when they're the same tab, either is a Peek, or either is in a
+// split.
+- (void)splitTab:(ClairTabID)tabID
+         withTab:(ClairTabID)otherID
+            side:(ClairSplitSide)side NS_SWIFT_NAME(split(tab:with:side:));
+// Makes a split of the tab and a new tab page, the new tab trailing and
+// focused, for Add Split View and the menus' New Tab. The command bar doesn't
+// open: ClairUI opens it. Ignored for a tab in a split or a Peek.
+- (void)splitTabWithNewTab:(ClairTabID)tabID NS_SWIFT_NAME(splitWithNewTab(_:));
+// Shows the tab's split, focusing the pane focused last (add-split-view spec
+// "Selecting the split row"). A tab outside a split is activated as
+// -activateTab: does.
+- (void)showSplitOfTab:(ClairTabID)tabID NS_SWIFT_NAME(showSplit(of:));
+// Puts `newTabID` in the pane of `tabID`, focused. The tab it replaces leaves
+// the split with its page, as a row directly below the split's. Ignored when
+// `tabID` isn't in a split, or `newTabID` is in one or is a Peek.
+- (void)replacePaneOfTab:(ClairTabID)tabID
+                 withTab:(ClairTabID)newTabID NS_SWIFT_NAME(replacePane(of:with:));
+// Swaps the panes of the tab's split, keeping the focused pane focused (Move
+// Left and Move Right).
+- (void)swapSplitOfTab:(ClairTabID)tabID NS_SWIFT_NAME(swapSplit(of:));
+// Separate Tabs: ends the tab's split, both tabs keeping their pages, as two
+// rows in its place, in pane order, and shows the focused pane's tab alone. A
+// pinned or favorited split's pins take its place, as
+// -[ClairHost separatePinnedSplit:] does.
+- (void)separateSplitOfTab:(ClairTabID)tabID NS_SWIFT_NAME(separateSplit(of:));
+// Closes both tabs of the split, each with its leave-page confirmation, as the
+// split row's × and a pinned split's − (Close and Keep Pinned) do: a pinned or
+// favorited split keeps both pins. Closing one pane is -closeTab:.
+- (void)closeSplitOfTab:(ClairTabID)tabID NS_SWIFT_NAME(closeSplit(of:));
+// Sets the leading pane's share of the width, clamped to 0.05 to 0.95.
+- (void)setSplitRatio:(double)ratio ofTab:(ClairTabID)tabID NS_SWIFT_NAME(setSplitRatio(_:of:));
 
 // --- Navigation of the active tab: back, forward, reload (which also
 // reloads a crashed page) and stop ---
@@ -1361,8 +1472,13 @@ NS_SWIFT_NAME(ClairWindow)
 // The window started or stopped showing a still, or its image changed
 // (-[ClairBrowser stillTabID] and -stillImage).
 - (void)stillDidChange;
-// The URL of the link under the pointer, or nil to hide the status capsule.
-- (void)statusTextDidChange:(nullable NSString *)text NS_SWIFT_NAME(statusTextDidChange(_:));
+// The link status (add-split-view design D13a): the URL of the link under the
+// pointer, or a status text the page set, or nil to hide the capsule. `isLink`
+// says it is a link's URL, which ClairUI words with the modifier keys held.
+// `tabID` is the page's tab, a pane of a split or the active tab.
+- (void)statusTextDidChange:(nullable NSString *)text
+                     isLink:(BOOL)isLink
+                        tab:(ClairTabID)tabID NS_SWIFT_NAME(statusTextDidChange(_:isLink:tab:));
 // Shows a short confirmation at the bottom of the card, such as "Copied Link".
 - (void)showToast:(NSString *)message NS_SWIFT_NAME(showToast(_:));
 // The page asked for full screen, or left it: the card shows the page alone,

@@ -383,10 +383,17 @@ extension Browser {
       XCTAssertEqual(control.frame.midX - card.minX, x, accuracy: 1, "\(identifier)'s place in the toolbar \(when)")
       XCTAssertEqual(control.frame.midY - card.minY, 16, accuracy: 1, "\(identifier) isn't centred in the toolbar \(when)")
     }
+    // The split button takes the trailing slot, and site controls the next
+    // (add-split-view D9).
+    let splitButton = element("clair.splitButton", in: toolbar)
+    XCTAssertTrue(splitButton.exists, "The toolbar has no split button \(when)")
+    if splitButton.exists {
+      XCTAssertEqual(card.maxX - splitButton.frame.midX, 21, accuracy: 1, "The split button's place \(when)")
+    }
     let siteControls = element("clair.siteControls", in: toolbar)
     XCTAssertTrue(siteControls.exists, "The toolbar has no site controls \(when)")
     if siteControls.exists {
-      XCTAssertEqual(card.maxX - siteControls.frame.midX, 21, accuracy: 1, "The site controls' place \(when)")
+      XCTAssertEqual(card.maxX - siteControls.frame.midX, 57, accuracy: 1, "The site controls' place \(when)")
     }
     let host = element("clair.urlField", in: toolbar)
     XCTAssertTrue(host.exists, "The toolbar has no host \(when)")

@@ -82,6 +82,12 @@ final class PageCardView: NSView {
   var contentTop: CGFloat { showsToolbar && !isBare ? ToolbarArrangement.height : 0 }
 
   /// The Peek's buttons, beside its top-trailing corner.
+  /// How many buttons the Peek's column holds: Close, Expand and, outside a
+  /// split, Open in Split View.
+  var peekButtonCount = 3 {
+    didSet { if peekButtonCount != oldValue { needsLayout = true } }
+  }
+
   var peekControls: NSView? {
     didSet {
       oldValue?.removeFromSuperview()
@@ -100,6 +106,25 @@ final class PageCardView: NSView {
 
   /// Whether a Peek shows over its parent.
   var isPeeking: Bool { parentPageView != nil }
+
+  // Split view (add-split-view design D3, D11).
+  /// Where the Peek is centred, in the card's coordinates: the whole page
+  /// area while the card is one pane of a split, beyond the card itself.
+  var peekArea: CGRect? {
+    didSet {
+      if peekArea != oldValue { needsLayout = true }
+    }
+  }
+  /// The 2 pt ring of the focused pane, in the accent colour.
+  var showsFocusRing = false {
+    didSet {
+      if showsFocusRing != oldValue { updateFocusRing() }
+    }
+  }
+  /// Called as the pointer enters (true) or leaves the card, for the other
+  /// pane's header.
+  var onHover: ((Bool) -> Void)?
+  private var hoverArea: NSTrackingArea?
 
   /// The view that holds the active page, its DevTools and infobars, and
   /// where Chromium's tab-modal dialogs centre: the Peek's container while a
@@ -141,6 +166,16 @@ final class PageCardView: NSView {
   nonisolated(unsafe) private var pressMonitor: Any?
   /// Where the shown Peek grew from, which it shrinks back to.
   private var peekOrigin: CGPoint?
+
+  /// The pane the card shows while split, for its accessibility identifier
+  /// (add-split-view D13): `clair.pane.N`, or `clair.card` outside a split.
+  var paneIndex: Int? {
+    didSet {
+      if paneIndex != oldValue {
+        container.setAccessibilityIdentifier(paneIndex.map { "clair.pane.\($0)" } ?? "clair.card")
+      }
+    }
+  }
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -201,6 +236,45 @@ final class PageCardView: NSView {
   override func viewDidChangeEffectiveAppearance() {
     super.viewDidChangeEffectiveAppearance()
     updatePeekBacking()
+    updateFocusRing()
+  }
+
+  private func updateFocusRing() {
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      container.layer?.borderColor = NSColor.controlAccentColor.cgColor
+    }
+    container.layer?.borderWidth = showsFocusRing && !isBare ? 2 : 0
+  }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let hoverArea { removeTrackingArea(hoverArea) }
+    let area = NSTrackingArea(
+      rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
+    addTrackingArea(area)
+    hoverArea = area
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    onHover?(true)
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    onHover?(false)
+  }
+
+  /// The Peek and its buttons take clicks beyond the card while it's a
+  /// pane of a split, where they show over the page area (D11).
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    if isPeeking, peekArea != nil, let superview {
+      let local = convert(point, from: superview)
+      for view in [peekControls, peekCard].compactMap({ $0 }) where !view.isHidden {
+        if view.frame.contains(local), let hit = view.hitTest(convert(local, to: view.superview)) {
+          return hit
+        }
+      }
+    }
+    return super.hitTest(point)
   }
 
   /// The Peek's card is the page's background colour under the page, so in
@@ -237,6 +311,7 @@ final class PageCardView: NSView {
   }
 
   private func updateAppearance() {
+    updateFocusRing()
     container.layer?.cornerRadius = isBare ? 0 : Self.cornerRadius
     layer?.shadowOpacity = isBare ? 0 : 0.18
     layer?.shadowRadius = 6
@@ -276,8 +351,12 @@ final class PageCardView: NSView {
         .none
       }
 
-    if oldPage !== view, oldPage !== parent { oldPage?.removeFromSuperview() }
-    if oldParent !== view, oldParent !== parent { oldParent?.removeFromSuperview() }
+    // A page another card has taken since, as when a split's panes swap, is
+    // that card's now (add-split-view D3).
+    if oldPage !== view, oldPage !== parent, oldPage?.isDescendant(of: self) == true { oldPage?.removeFromSuperview() }
+    if oldParent !== view, oldParent !== parent, oldParent?.isDescendant(of: self) == true {
+      oldParent?.removeFromSuperview()
+    }
     pageView = view
     parentPageView = parent
     if let parent, parent.superview !== pageHolder {
@@ -350,7 +429,9 @@ final class PageCardView: NSView {
   /// Shows the active tab's docked DevTools, or none.
   func show(devTools view: NSView?, layout: DevToolsLayout) {
     if view !== devToolsView {
-      devToolsView?.removeFromSuperview()
+      if devToolsView?.isDescendant(of: self) == true {
+        devToolsView?.removeFromSuperview()
+      }
       devToolsView = view
       if let view {
         let surface = activeContainer
@@ -382,18 +463,18 @@ final class PageCardView: NSView {
       }
       wash.frame = container.bounds
       peekClickCatcher.frame = container.bounds
-      let peek = PeekLayout.peekFrame(in: bounds)
+      let peek = PeekLayout.peekFrame(in: peekArea ?? bounds)
       peekCard.frame = peek
       peekContainer.frame = peekCard.bounds
       peekCard.layer?.shadowPath = CGPath(
         roundedRect: peekCard.bounds, cornerWidth: PeekLayout.cornerRadius, cornerHeight: PeekLayout.cornerRadius,
         transform: nil)
       if let peekControls {
-        let buttons = PeekLayout.buttonFrames(beside: peek)
+        let buttons = PeekLayout.buttonFrames(beside: peek, count: peekButtonCount)
         let first = buttons[0]
         // Room for the Confirm pill beside the buttons, or, in a window too
         // narrow for it there, over the Peek.
-        let room = bounds.maxX - first.minX
+        let room = (peekArea ?? bounds).maxX - first.minX
         let towardPeek = room < PeekLayout.confirmWidth
         let height = buttons[buttons.count - 1].maxY - first.minY
         peekControls.frame =

@@ -52,7 +52,7 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
   /// Each Space's pinned items and each profile's favorites, in order, as
   /// last reported (add-pinned-tabs-and-favorites D11, add-tab-folders D2).
   @ObservationIgnored private var itemsBySpace: [SpaceID: [any ClairPinnedItem]] = [:]
-  @ObservationIgnored private var favoritesByProfile: [ProfileID: [any ClairPin]] = [:]
+  @ObservationIgnored private var favoritesByProfile: [ProfileID: [any ClairPinnedItem]] = [:]
   @ObservationIgnored private let listeners = NSHashTable<AnyObject>.weakObjects()
 
   init(host: (any ClairHost)?) {
@@ -107,6 +107,12 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     return items
   }
 
+  /// Separate Tabs on a pinned or favorited split whose pages are closed
+  /// (add-split-view D10).
+  func separatePinnedSplit(_ splitID: PinnedSplitID) {
+    host?.separatePinnedSplit(splitID)
+  }
+
   /// Every pinned tab of a Space, its folders' included, in the sidebar's
   /// order.
   func pins(inSpace spaceID: SpaceID) -> [any ClairPin] {
@@ -126,14 +132,20 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     return nil
   }
 
-  /// A profile's favorites, in its order.
-  func favorites(ofProfile profileID: ProfileID) -> [any ClairPin] {
+  /// A profile's favorites and favorited splits, in its order
+  /// (add-split-view D10).
+  func favoriteItems(ofProfile profileID: ProfileID) -> [any ClairPinnedItem] {
     if let favorites = favoritesByProfile[profileID] {
       return favorites
     }
     let favorites = host?.favorites(ofProfile: profileID) ?? []
     favoritesByProfile[profileID] = favorites
     return favorites
+  }
+
+  /// A profile's favorites, a favorited split's two included, in its order.
+  func favorites(ofProfile profileID: ProfileID) -> [any ClairPin] {
+    PinsLogic.allPins(favoriteItems(ofProfile: profileID))
   }
 
   /// The number of a Space's pinned tabs whose page is open.
@@ -308,8 +320,8 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     for items in itemsBySpace.values {
       if let pin = PinsLogic.allPins(items).first(where: { $0.pinID == pinID }) { return pin }
     }
-    for pins in favoritesByProfile.values {
-      if let pin = pins.first(where: { $0.pinID == pinID }) { return pin }
+    for items in favoritesByProfile.values {
+      if let pin = PinsLogic.allPins(items).first(where: { $0.pinID == pinID }) { return pin }
     }
     return nil
   }
@@ -454,7 +466,7 @@ final class SpacesModel: NSObject, ClairSpacesObserver {
     }
   }
 
-  func favoritesDidChange(_ favorites: [any ClairPin], ofProfile profileID: ProfileID) {
+  func favoritesDidChange(_ favorites: [any ClairPinnedItem], ofProfile profileID: ProfileID) {
     favoritesByProfile[profileID] = favorites
     for listener in allListeners {
       listener.favoritesDidChange(profileID)

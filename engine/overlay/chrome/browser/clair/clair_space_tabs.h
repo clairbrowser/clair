@@ -154,6 +154,13 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   std::string PinTab(tabs::TabInterface* tab,
                      const clair::PinContainer& container,
                      size_t index);
+  // add-split-view D10: makes a split of the Today rows `lead` and `trail` a
+  // pinned or favorited split at `index` in `container`, keeping their pages,
+  // Peeks, names and ratio. Returns the split's ID, or empty.
+  std::string PinSplit(tabs::TabInterface* lead,
+                       tabs::TabInterface* trail,
+                       const clair::PinContainer& container,
+                       size_t index);
   // D5: the pin bound to `tab` is going: `tab`, with its Peek, joins
   // `space`'s Today list at `index`, keeping its name.
   void UnbindToToday(tabs::TabInterface* tab,
@@ -217,6 +224,9 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   // are written again.
   void AllListsChanged();
   void TabChanged(content::WebContents* contents);
+  // add-split-view D2: `tab` joined or left a split, or its split changed:
+  // its snapshot, its list and its pin's container are pushed again.
+  void SplitChanged(tabs::TabInterface* tab);
   // Pushes now.
   void Flush();
 
@@ -275,6 +285,9 @@ class ClairSpaceTabs : public base::SupportsUserData::Data,
   std::string OwnSpace() const;
   // `tab` and its Peek, if it has one in the same window.
   std::vector<tabs::TabInterface*> FamilyOf(tabs::TabInterface* tab) const;
+  // add-split-view D7: puts each split's tabs in `list` together, the
+  // leading pane's family first.
+  void KeepSplitsTogether(std::vector<tabs::TabHandle>& list);
   // Takes `tab`'s family out of `list` and returns its handles, in order.
   std::vector<tabs::TabHandle> TakeFamily(std::vector<tabs::TabHandle>& list,
                                           tabs::TabInterface* tab) const;
@@ -363,9 +376,11 @@ void KeepLastUsedProfileOnASpace();
 tabs::TabInterface* BoundTabOf(std::string_view pin);
 // A container's pins, as snapshots, in order.
 NSArray<id<ClairPin>>* PinSnapshots(const PinContainer& container);
-// add-tab-folders D2: a Space's pinned items, pins and folders, as snapshots,
-// in order.
+// add-tab-folders D2: a Space's pinned items, pins, splits and folders, as
+// snapshots, in order.
 NSArray<id<ClairPinnedItem>>* PinnedItemSnapshots(const std::string& space);
+// add-split-view D10: a profile's favorites and favorited splits, in order.
+NSArray<id<ClairPinnedItem>>* FavoriteItemSnapshots(const std::string& profile);
 // Pushes a container's pins to the observers at the end of this run-loop
 // turn, or with the next FlushAll().
 void PinsChanged(const PinContainer& container);
@@ -374,6 +389,12 @@ void PinTab(tabs::TabInterface* tab,
             const std::string& folder,
             size_t index,
             bool favorite);
+// add-split-view D10: the tabs of `pin`'s pinned split, once both are open in
+// one window, become a Chromium split with its ratio.
+void JoinPinnedSplit(const std::string& pin);
+// Separate Tabs on a pinned or favorited split: its pins take its place, and
+// a split of their open tabs ends.
+void SeparatePinnedSplit(const std::string& split);
 void MovePin(const std::string& pin, const PinContainer& to, size_t index);
 // add-tab-folders D7, D8, D11: the host's folder calls that reach tabs.
 void MoveFolder(const std::string& folder,
@@ -411,8 +432,8 @@ bool CanRestoreLastClosed(ClairBrowserWindow* window);
 // host.
 bool IsOtherSite(const GURL& url, const GURL& current);
 // D7: whether a URL the user enters to open in `window`'s current tab opens
-// in a new Today tab instead: the tab is a favorite's, and `url` is on
-// another site.
+// in a new Today tab instead: the tab is a favorite's, not in a split, and
+// `url` is on another site.
 bool LeavesFavorite(ClairBrowserWindow* window, const GURL& url);
 // D8: every window's title follows its active tab's name.
 void UpdateWindowTitles();

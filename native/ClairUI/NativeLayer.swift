@@ -39,6 +39,8 @@ final class NativeLayer {
   /// Clair's items in the Tab and View menus (add-pinned-tabs-and-favorites
   /// D11).
   private(set) var pinsMenu: PinsMenu?
+  /// Split view's menu bar items (add-split-view D9).
+  private(set) var splitMenu: SplitMenu?
   /// View › Hide Toolbar's target (add-page-toolbar D8).
   let toolbarMenu = ToolbarMenuTarget()
 
@@ -78,6 +80,9 @@ final class NativeLayer {
     let pinsMenu = PinsMenu()
     pinsMenu.install(in: NSApp.mainMenu)
     self.pinsMenu = pinsMenu
+    let splitMenu = SplitMenu()
+    splitMenu.install(in: NSApp.mainMenu)
+    self.splitMenu = splitMenu
 
     let updates = UpdateController(host: host, configuration: .current)
     updates.start()

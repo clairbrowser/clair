@@ -100,17 +100,23 @@ bool ContentsMouseEvent(content::WebContents* source, bool exited);
 // browser_web_contents_delegate.cc, at the start of OpenURLFromTab and
 // AddNewContents: a link Shift+clicked in a native window's page opens in a
 // Peek of its tab (add-peek D2), or, from a Peek, in a new tab at the top.
-// False when that doesn't apply, and Chromium goes on: another window, another
-// disposition than NEW_WINDOW, no user gesture or not from the page (the
-// context menu), or the preference off. True when it handled the link, with
-// `*result` the contents it opened or navigated, or null.
-bool MaybeOpenPeek(BrowserWindowInterface* browser,
+// A link Option+clicked there (NEW_SPLIT_VIEW) loads in a Peek it was clicked
+// in, or in the other pane of a split, or becomes the trailing pane of a new
+// split with the page (add-split-view D6).
+// False when that doesn't apply, and Chromium goes on:
+// - Shift+click (NEW_WINDOW): another window, no user gesture, not from the
+//   page (the context menu), or the preference off.
+// - Option+click (NEW_SPLIT_VIEW): another window, and for AddNewContents no
+//   user gesture. OpenURLFromTab takes it from the context menu too.
+// True when it handled the link, with `*result` the contents it opened or
+// navigated, or null.
+bool MaybeOpenLink(BrowserWindowInterface* browser,
                    content::WebContents* source,
                    const content::OpenURLParams& params,
                    base::OnceCallback<void(content::NavigationHandle&)>&
                        navigation_handle_callback,
                    content::WebContents** result);
-bool MaybeOpenPeek(BrowserWindowInterface* browser,
+bool MaybeOpenLink(BrowserWindowInterface* browser,
                    content::WebContents* source,
                    std::unique_ptr<content::WebContents>& new_contents,
                    const GURL& target_url,
@@ -178,8 +184,9 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
 bool IsInNativeWindow(gfx::NativeView view);
 
 // render_view_context_menu_mac_cocoa.mm: removes the context menu items of
-// D9's unavailable features (split view, reading mode, QR code, send tab to
-// self, Lens, translate) and the separators that leaves doubled or at an end.
+// D9's unavailable features (reading mode, QR code, send tab to self, Lens,
+// translate) and the separators that leaves doubled or at an end. Open Link in
+// Split View stays (add-split-view D6).
 void RemoveUnavailableContextMenuItems(ui::SimpleMenuModel* model);
 
 // Not a hook: called once ClairUI has started. Applies D10's menu changes:

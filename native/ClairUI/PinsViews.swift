@@ -169,19 +169,28 @@ struct FavoritesGrid: View {
   @State private var dropIndex: Int?
 
   var body: some View {
-    let favorites = model.favorites
+    // A favorited split is one tile (add-split-view D10).
+    let favorites = model.favoriteItems
     let room = dropIndex.map { min($0, favorites.count) }
     let layout = FavoritesLayout(count: favorites.count + (room == nil ? 0 : 1), width: width)
     let highlighted = model.highlightedTab
     ZStack(alignment: .topLeading) {
-      ForEach(Array(favorites.enumerated()), id: \.element.pinID) { index, pin in
+      ForEach(Array(favorites.enumerated()), id: \.offset) { index, item in
         let slot = room.map { index >= $0 ? index + 1 : index } ?? index
         let frame = layout.frame(of: slot)
-        FavoriteTile(
-          pin: pin, tab: model.tab(ofPin: pin), peek: peek(of: pin),
-          isSelected: pin.tabID != ClairTabIDNone && pin.tabID == highlighted, isWindowKey: model.isWindowKey,
-          isShown: pin.tabID != ClairTabIDNone && pin.tabID == highlighted, actions: actions
-        )
+        Group {
+          if let split = item.split {
+            SplitRows.favorite(split, model: model, actions: actions)
+              .onDrag { SidebarDragItem.pin(split.pins.first?.pinID ?? "").itemProvider() }
+          } else if let pin = item.pin {
+            FavoriteTile(
+              pin: pin, tab: model.tab(ofPin: pin), peek: peek(of: pin),
+              isSelected: pin.tabID != ClairTabIDNone && pin.tabID == highlighted, isWindowKey: model.isWindowKey,
+              isShown: pin.tabID != ClairTabIDNone && pin.tabID == highlighted, actions: actions
+            )
+          }
+        }
+        .id(PinsLogic.itemID(item))
         .frame(width: frame.width, height: frame.height)
         .offset(x: frame.minX, y: frame.minY)
       }
@@ -194,7 +203,7 @@ struct FavoritesGrid: View {
       FavoritesDropArea(
         slot: { [width] in FavoritesLayout(count: favorites.count, width: width).dropIndex(at: $0) },
         tileSize: { [width] in FavoritesLayout(count: favorites.count + 1, width: width).frame(of: $0).size },
-        icon: { [model] in model.icon(of: $0) },
+        icons: { [model] in model.icons(of: $0) },
         onTarget: { [$dropIndex] in $dropIndex.wrappedValue = $0 },
         onDrop: { [actions] item, slot in actions?.drop(item, on: .favorites(slot)) })
     }
@@ -330,7 +339,7 @@ struct FavoritesHintBox: View {
         FavoritesDropArea(
           slot: { _ in 0 },
           tileSize: { _ in CGSize(width: tileWidth, height: FavoritesLayout.tileHeight) },
-          icon: { [model] in model.icon(of: $0) },
+          icons: { [model] in model.icons(of: $0) },
           onTarget: { [$isTargeted] in $isTargeted.wrappedValue = $0 != nil },
           onDrop: { [actions] item, _ in actions?.drop(item, on: .favorites(0)) })
       }
@@ -499,8 +508,20 @@ struct PinRow: View {
   }
 
   private var menuItems: [RowClickCatcher.Item] {
+    PinMenus.pinnedItems(pin: pin, tab: tab, moveTargets: moveTargets, actions: actions)
+  }
+}
+
+extension PinMenus {
+  /// A pinned tab's menu, with Move to Space's submenu; a pinned split's
+  /// chip's with `inSplit`.
+  static func pinnedItems(
+    pin: any ClairPin, tab: (any ClairTab)?, moveTargets: [any ClairSpace], actions: (any SidebarActions)?,
+    inSplit: Bool = false
+  ) -> [RowClickCatcher.Item] {
     var items = PinMenus.items(
-      PinsLogic.pinnedMenu(isOpen: tab != nil, isMuted: tab?.isMuted == true, canMoveToSpace: !moveTargets.isEmpty),
+      PinsLogic.pinnedMenu(
+        isOpen: tab != nil, isMuted: tab?.isMuted == true, canMoveToSpace: !moveTargets.isEmpty, inSplit: inSplit),
       pin: pin, actions: actions)
     // Move to Space's submenu.
     let pinID = pin.pinID
@@ -550,6 +571,21 @@ enum PinMenus {
       guard let item else { return .separator }
       guard item.isEnabled else { return .disabled(item.title) }
       switch item.command {
+      case .splitWithTab:
+        // Disabled while the pin's page is in a split (add-split-view D9).
+        if pin.tabs.contains(where: { $0.splitPartnerID != ClairTabIDNone }) {
+          return .disabledSubmenu(item.title)
+        }
+        return .submenu(item.title, actions?.splitWithTabItems(tab: nil, pin: pinID) ?? [])
+      case .separateTabs:
+        // A pinned split's, or a Today split's holding the pin's page.
+        return .action(item.title) { [weak actions] in
+          if let splitID = pin.pinnedSplitID {
+            actions?.separatePinnedSplit(splitID)
+          } else if pin.tabID != ClairTabIDNone {
+            actions?.separateSplit(of: pin.tabID)
+          }
+        }
       case .editPinnedPage:
         return .submenu(
           item.title,
@@ -587,7 +623,7 @@ enum PinMenus {
     case .closeTab: actions?.closeKeepingPin(pinID)
     case .removeFavorite: actions?.removePin(pinID)
     case .pin, .editPinnedPage, .replacePinnedURL, .editPinnedURL, .moveToSpace, .closeTabsBelow, .turnIntoSpace,
-      .deleteFolder:
+      .deleteFolder, .splitWithTab, .separateTabs:
       break
     }
   }

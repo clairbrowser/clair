@@ -51,13 +51,15 @@ final class HistoryMenuBuilder: NSObject, ClairHistoryMenuDelegate, NSMenuDelega
       let item = NSMenuItem(title: page.title, action: #selector(choose(_:)), keyEquivalent: "")
       item.target = self
       item.tag = page.itemID
-      item.image = Self.icon(page.icon)
+      item.setFavicon(page.icon)
       item.toolTip = page.url?.absoluteString
       menu.addItem(item)
     }
   }
 
-  private static func icon(_ favicon: NSImage?) -> NSImage {
+  /// A favicon at a menu item's size, or the placeholder; the split menus
+  /// use it too.
+  static func icon(_ favicon: NSImage?) -> NSImage {
     guard let favicon, let copy = favicon.copy() as? NSImage else { return placeholderIcon }
     copy.size = iconSize
     return copy
@@ -77,7 +79,7 @@ final class HistoryMenuBuilder: NSObject, ClairHistoryMenuDelegate, NSMenuDelega
       // A favicon arrived: update the open menu in place.
       for (item, page) in zip(self.menu.items, pages) {
         item.title = page.title
-        item.image = Self.icon(page.icon)
+        item.setFavicon(page.icon)
       }
     } else {
       rebuild(pages)

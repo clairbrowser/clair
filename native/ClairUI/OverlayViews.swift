@@ -11,8 +11,11 @@ import SwiftUI
 protocol OverlayActions: AnyObject {
   func find(_ text: String, forward: Bool)
   func closeFind()
-  func infobar(_ infobarID: Int, didChoose action: InfobarAction)
-  func reloadCrashedPage()
+  /// An infobar's button, for the infobar of `tabID`, which may be an
+  /// unfocused pane's.
+  func infobar(_ infobarID: Int, of tabID: TabID, didChoose action: InfobarAction)
+  /// Reloads `tabID`'s crashed page, which may be an unfocused pane's.
+  func reloadCrashedPage(of tabID: TabID)
 }
 
 /// The command bar (design D11): a field and up to five rows, floating over
@@ -432,18 +435,20 @@ struct InfobarsView: View {
           }
           Text(infobar.message).lineLimit(2)
           if let link = infobar.linkText {
-            Button(link) { actions?.infobar(infobar.infobarID, didChoose: .link) }
+            Button(link) { actions?.infobar(infobar.infobarID, of: tab.tabID, didChoose: .link) }
               .buttonStyle(.link)
           }
           Spacer(minLength: 0)
           if let cancel = infobar.cancelButtonLabel {
-            Button(cancel) { actions?.infobar(infobar.infobarID, didChoose: .cancel) }
+            Button(cancel) { actions?.infobar(infobar.infobarID, of: tab.tabID, didChoose: .cancel) }
           }
           if let ok = infobar.okButtonLabel {
-            Button(ok) { actions?.infobar(infobar.infobarID, didChoose: .OK) }
+            Button(ok) { actions?.infobar(infobar.infobarID, of: tab.tabID, didChoose: .OK) }
               .keyboardShortcut(.defaultAction)
           }
-          Button { actions?.infobar(infobar.infobarID, didChoose: .dismiss) } label: { Image(systemName: "xmark") }
+          Button { actions?.infobar(infobar.infobarID, of: tab.tabID, didChoose: .dismiss) } label: {
+            Image(systemName: "xmark")
+          }
             .buttonStyle(.plain)
             .tooltip("Dismiss")
             .accessibilityLabel("Dismiss")
@@ -461,6 +466,8 @@ struct InfobarsView: View {
 
 /// The card when the active tab's page crashed (design D5).
 struct CrashedPageView: View {
+  /// The tab whose page crashed: the card's pane's.
+  let tabID: TabID
   weak var actions: (any OverlayActions)?
 
   var body: some View {
@@ -470,7 +477,7 @@ struct CrashedPageView: View {
         .foregroundStyle(.secondary)
       Text("This page crashed").font(.title2.weight(.semibold))
       Text("Something went wrong while showing this page.").foregroundStyle(.secondary)
-      Button("Reload") { actions?.reloadCrashedPage() }
+      Button("Reload") { actions?.reloadCrashedPage(of: tabID) }
         .keyboardShortcut(.defaultAction)
         .accessibilityIdentifier("clair.crashedReload")
     }

@@ -285,10 +285,17 @@ ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
   return clair::PinnedItemSnapshots(base::SysNSStringToUTF8(spaceID ?: @""));
 }
 
-- (NSArray<id<ClairPin>>*)favoritesOfProfile:(ClairProfileID)profileID {
+- (NSArray<id<ClairPinnedItem>>*)favoritesOfProfile:(ClairProfileID)profileID {
   CHECK([NSThread isMainThread]);
-  return clair::PinSnapshots(clair::PinContainer::OfProfile(
-      base::SysNSStringToUTF8(profileID ?: @"")));
+  // add-split-view D10: favorites and favorited splits.
+  return clair::FavoriteItemSnapshots(base::SysNSStringToUTF8(profileID ?: @""));
+}
+
+- (void)separatePinnedSplit:(ClairPinnedSplitID)splitID {
+  CHECK([NSThread isMainThread]);
+  if (splitID) {
+    clair::SeparatePinnedSplit(base::SysNSStringToUTF8(splitID));
+  }
 }
 
 - (void)pinTab:(ClairTabID)tabID

@@ -24,6 +24,7 @@
 #include "chrome/browser/clair/window/clair_browser_window.h"
 #import "chrome/browser/clair/window/clair_native_window.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
+#include "chrome/browser/clair/window/clair_splits.h"
 #include "chrome/browser/headless/headless_mode_util.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profiles/profile.h"
@@ -105,7 +106,6 @@ bool IsInNativeWindow(gfx::NativeView view) {
 void RemoveUnavailableContextMenuItems(ui::SimpleMenuModel* model) {
   for (size_t i = model->GetItemCount(); i > 0; --i) {
     switch (model->GetCommandIdAt(i - 1)) {
-      case IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW:
       case IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE:
       case IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE:
       case IDC_CONTENT_CONTEXT_GENERATE_QR_CODE:
@@ -216,8 +216,12 @@ bool UpdateTargetURL(content::WebContents* source, const GURL& url) {
   if (!window) {
     return false;
   }
-  if (window->browser()->tab_strip_model()->GetActiveWebContents() == source) {
-    window->SetStatusURL(url);
+  // The active page's links, or a split's other pane's (add-split-view
+  // D13a).
+  content::WebContents* active =
+      window->browser()->tab_strip_model()->GetActiveWebContents();
+  if (active && window->PagesShownWith(active).contains(source)) {
+    window->SetStatusURL(url, source);
   }
   return true;
 }
@@ -228,7 +232,7 @@ bool ContentsMouseEvent(content::WebContents* source, bool exited) {
     return false;
   }
   if (exited) {
-    window->SetStatusURL(GURL());
+    window->SetStatusURL(GURL(), source);
   }
   return true;
 }
@@ -251,12 +255,37 @@ ClairBrowserWindow* PeekWindowFor(BrowserWindowInterface* browser,
 
 }  // namespace
 
-bool MaybeOpenPeek(BrowserWindowInterface* browser,
+namespace {
+
+// The native window whose page `source` is, for a link Option+clicked in it
+// (add-split-view D6).
+ClairBrowserWindow* SplitWindowFor(BrowserWindowInterface* browser,
+                                   content::WebContents* source) {
+  ClairBrowserWindow* window = ClairBrowserWindow::FromBrowser(browser);
+  if (!window || !window->splits() || !source ||
+      window->browser()->tab_strip_model()->GetIndexOfWebContents(source) ==
+          TabStripModel::kNoTab) {
+    return nullptr;
+  }
+  return window;
+}
+
+}  // namespace
+
+bool MaybeOpenLink(BrowserWindowInterface* browser,
                    content::WebContents* source,
                    const content::OpenURLParams& params,
                    base::OnceCallback<void(content::NavigationHandle&)>&
                        navigation_handle_callback,
                    content::WebContents** result) {
+  // add-split-view D6: Option+click (split-on-option-click.patch). From a
+  // Peek or a split's pane it loads there or in the other pane; otherwise
+  // Chromium makes the split.
+  if (params.disposition == WindowOpenDisposition::NEW_SPLIT_VIEW) {
+    ClairBrowserWindow* window = SplitWindowFor(browser, source);
+    return window && window->splits()->OpenLink(
+                         source, params, navigation_handle_callback, result);
+  }
   // Shift+click is NEW_WINDOW on macOS; the context menu's Open Link in New
   // Window isn't renderer-initiated, and window.open() without a click has
   // no user gesture.
@@ -273,13 +302,18 @@ bool MaybeOpenPeek(BrowserWindowInterface* browser,
   return true;
 }
 
-bool MaybeOpenPeek(BrowserWindowInterface* browser,
+bool MaybeOpenLink(BrowserWindowInterface* browser,
                    content::WebContents* source,
                    std::unique_ptr<content::WebContents>& new_contents,
                    const GURL& target_url,
                    WindowOpenDisposition disposition,
                    bool user_gesture,
                    content::WebContents** result) {
+  if (disposition == WindowOpenDisposition::NEW_SPLIT_VIEW && user_gesture) {
+    ClairBrowserWindow* window = SplitWindowFor(browser, source);
+    return window &&
+           window->splits()->OpenLink(source, new_contents, target_url, result);
+  }
   // A link with a target, such as target="_blank", creates its contents
   // first and arrives here.
   if (disposition != WindowOpenDisposition::NEW_WINDOW || !user_gesture ||

@@ -552,8 +552,8 @@ struct FakeFolderTests {
     host.addPin(url: "https://plan.example/", title: "Plan", folder: docs)
     let items = host.pinnedItems(inSpace: FakeHost.homeID)
     #expect(items.map { $0.pin?.title ?? $0.folder?.name ?? "" } == ["Mail", "Docs"])
-    #expect(items[1].folder?.pins.map(\.title) == ["Spec", "Plan"])
-    #expect(items[1].folder?.pins.allSatisfy { $0.folderID == docs } == true)
+    #expect(items[1].folder.map { PinsLogic.pins(of: $0).map(\.title) } == ["Spec", "Plan"])
+    #expect(items[1].folder.map { PinsLogic.pins(of: $0) }?.allSatisfy { $0.folderID == docs } == true)
     #expect(observer.calls.last == "pins \(FakeHost.homeID) Mail,[Docs: Spec,Plan]")
     // Every pinned tab of the Space, in the sidebar's order.
     #expect(host.pins(inSpace: FakeHost.homeID).map(\.title) == ["Mail", "Spec", "Plan"])

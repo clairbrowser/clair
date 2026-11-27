@@ -280,35 +280,36 @@
  #include "chrome/browser/background/background_contents_service_factory.h"
  #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
  #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
-@@ -541,6 +542,13 @@
+@@ -541,6 +542,14 @@
    DCHECK(params.Valid());
  #endif
  
-+  // Clair: a link Shift+clicked in a native window opens in a Peek.
-+  content::WebContents* clair_peek_result = nullptr;
-+  if (clair::MaybeOpenPeek(&*browser_, source, params,
-+                           navigation_handle_callback, &clair_peek_result)) {
-+    return clair_peek_result;
++  // Clair: a link Shift+clicked in a native window opens in a Peek, and one
++  // Option+clicked in a split.
++  content::WebContents* clair_link_result = nullptr;
++  if (clair::MaybeOpenLink(&*browser_, source, params,
++                           navigation_handle_callback, &clair_link_result)) {
++    return clair_link_result;
 +  }
 +
    if ((browser_->GetType() == BrowserWindowInterface::Type::TYPE_DEVTOOLS)) {
      DevToolsWindow* window = DevToolsWindow::AsDevToolsWindow(source);
      DCHECK(window);
-@@ -672,6 +680,13 @@
+@@ -672,6 +681,13 @@
      const blink::mojom::WindowFeatures& window_features,
      bool user_gesture,
      bool* was_blocked) {
 +  // Clair: a link with a target Shift+clicked in a native window opens in
-+  // a Peek.
-+  content::WebContents* clair_peek_result = nullptr;
-+  if (clair::MaybeOpenPeek(&*browser_, source, new_contents, target_url,
-+                           disposition, user_gesture, &clair_peek_result)) {
-+    return clair_peek_result;
++  // a Peek, and one Option+clicked in a split.
++  content::WebContents* clair_link_result = nullptr;
++  if (clair::MaybeOpenLink(&*browser_, source, new_contents, target_url,
++                           disposition, user_gesture, &clair_link_result)) {
++    return clair_link_result;
 +  }
    FullscreenController* fullscreen_controller =
        exclusive_access_manager_->fullscreen_controller();
  #if BUILDFLAG(IS_MAC)
-@@ -796,6 +811,10 @@
+@@ -796,6 +812,10 @@
  
  void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
                                                   const GURL& url) {
@@ -319,7 +320,7 @@
    std::vector<StatusBubble*> status_bubbles =
        browser_ui_controller_->GetStatusBubbles();
    for (StatusBubble* status_bubble : status_bubbles) {
-@@ -822,6 +841,11 @@
+@@ -822,6 +842,11 @@
      exclusive_access_manager_->OnUserInput();
    }
  
@@ -467,7 +468,7 @@
        ":global_keyboard_shortcuts_mac",
        "//chrome/browser/apps/app_shim",
        "//chrome/browser/mac",
-@@ -5257,6 +5258,73 @@
+@@ -5257,6 +5258,75 @@
    # is easy to catch in review.
    sources = []
  }
@@ -524,6 +525,8 @@
 +      "clair/window/clair_pinned_link_throttle.mm",
 +      "clair/window/clair_space_session.h",
 +      "clair/window/clair_space_session.mm",
++      "clair/window/clair_splits.h",
++      "clair/window/clair_splits.mm",
 +      "clair/window/clair_window_group.h",
 +      "clair/window/clair_window_group.mm",
 +      "clair/window/clair_window_hooks.h",

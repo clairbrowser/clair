@@ -318,6 +318,19 @@ final class FakeHost: NSObject, ClairHost {
     var name: String?
     /// The folder holding a pinned tab, or nil.
     var folderID: FolderID?
+    /// add-split-view D10: the split holding it, and its pane there. A
+    /// split's pin has the split's place.
+    var splitID: PinnedSplitID? = nil
+    var splitIndex = 0
+  }
+
+  /// A pinned or favorited split as the engine's store keeps it.
+  struct SplitRecord {
+    let id: PinnedSplitID
+    var spaceID: SpaceID?
+    var profileID: ProfileID
+    var folderID: FolderID?
+    var ratio: Double
   }
 
   /// A folder as the engine's store keeps it.
@@ -329,6 +342,8 @@ final class FakeHost: NSObject, ClairHost {
 
   private var records: [PinID: PinRecord] = [:]
   private var folderRecords: [FolderID: FolderRecord] = [:]
+  private var splitRecords: [PinnedSplitID: SplitRecord] = [:]
+  private var nextSplit = 1
   /// Each Space's items, pins and folders, in order.
   private var pinOrder: [SpaceID: [String]] = [:]
   /// Each folder's pins, in order.
@@ -350,18 +365,31 @@ final class FakeHost: NSObject, ClairHost {
 
   func folderRecord(_ folderID: FolderID) -> FolderRecord? { folderRecords[folderID] }
 
-  /// Every pin of a Space, its folders' included, in the sidebar's order.
+  /// The pins an item of an order list stands for: a pin, a split's two or
+  /// a folder's.
+  private func pinRecords(ofItem id: String) -> [PinRecord] {
+    if let record = records[id] { return [record] }
+    if splitRecords[id] != nil { return pinRecords(ofSplit: id) }
+    return (folderOrder[id] ?? []).flatMap { pinRecords(ofItem: $0) }
+  }
+
+  /// Every pin of a Space, its folders' and splits' included, in the
+  /// sidebar's order.
   func pinRecords(inSpace spaceID: SpaceID) -> [PinRecord] {
-    (pinOrder[spaceID] ?? []).flatMap { id -> [PinRecord] in
-      if let record = records[id] { return [record] }
-      return (folderOrder[id] ?? []).compactMap { records[$0] }
-    }
+    (pinOrder[spaceID] ?? []).flatMap { pinRecords(ofItem: $0) }
   }
 
   /// A folder's pins, in order.
   func pinRecords(inFolder folderID: FolderID) -> [PinRecord] {
-    (folderOrder[folderID] ?? []).compactMap { records[$0] }
+    (folderOrder[folderID] ?? []).flatMap { pinRecords(ofItem: $0) }
   }
+
+  /// A split's pins, leading pane first.
+  func pinRecords(ofSplit splitID: PinnedSplitID) -> [PinRecord] {
+    records.values.filter { $0.splitID == splitID }.sorted { $0.splitIndex < $1.splitIndex }
+  }
+
+  func splitRecord(_ splitID: PinnedSplitID) -> SplitRecord? { splitRecords[splitID] }
 
   /// A Space's folders, in order.
   func folderRecords(inSpace spaceID: SpaceID) -> [FolderRecord] {
@@ -369,7 +397,7 @@ final class FakeHost: NSObject, ClairHost {
   }
 
   func favoriteRecords(ofProfile profileID: ProfileID) -> [PinRecord] {
-    (favoriteOrder[profileID] ?? []).compactMap { records[$0] }
+    (favoriteOrder[profileID] ?? []).flatMap { pinRecords(ofItem: $0) }
   }
 
   func boundTab(of pinID: PinID) -> FakeTab? { bound[pinID] }
@@ -414,13 +442,27 @@ final class FakeHost: NSObject, ClairHost {
     return FakePin(
       id: record.id, isFavorite: record.spaceID == nil, spaceID: record.spaceID, profileID: record.profileID,
       url: record.url, title: record.title, name: record.name, tab: tab, isAtPinnedURL: atPinnedURL,
-      folderID: record.folderID)
+      folderID: record.folderID, pinnedSplitID: record.splitID)
+  }
+
+  private func snapshot(_ split: SplitRecord) -> FakePinnedSplit {
+    FakePinnedSplit(
+      id: split.id, isFavorite: split.spaceID == nil, spaceID: split.spaceID, folderID: split.folderID,
+      profileID: split.profileID, pins: pinRecords(ofSplit: split.id).map(snapshot), ratio: split.ratio)
+  }
+
+  /// The snapshot of an order list's item.
+  private func itemSnapshot(_ id: String) -> FakePinnedItem? {
+    if let record = records[id] { return FakePinnedItem(pin: snapshot(record)) }
+    if let split = splitRecords[id] { return FakePinnedItem(split: snapshot(split)) }
+    if let folder = folderRecords[id] { return FakePinnedItem(folder: snapshot(folder)) }
+    return nil
   }
 
   private func snapshot(_ folder: FolderRecord) -> FakeFolder {
     FakeFolder(
       id: folder.id, spaceID: folder.spaceID, name: folder.name, isOpen: isFolderOpen(folder.id),
-      pins: pinRecords(inFolder: folder.id).map(snapshot))
+      items: (folderOrder[folder.id] ?? []).compactMap(itemSnapshot))
   }
 
   private func pinsChanged(of pinID: PinID) {
@@ -468,6 +510,36 @@ final class FakeHost: NSObject, ClairHost {
   /// Space's Today tabs at `index`, with its name.
   func unpin(_ pinID: PinID, toIndex index: Int, in browser: FakeBrowser) {
     guard let record = records[pinID] else { return }
+    // D10: a pinned split becomes a Today split, its pages opening when they
+    // aren't.
+    if let splitID = record.splitID, let split = splitRecords.removeValue(forKey: splitID) {
+      let spaceID = split.spaceID ?? browser.shownSpaceID
+      let pins = pinRecords(ofSplit: splitID)
+      let tabs = pins.map { pin in
+        bound[pin.id]?.with(spaceID: spaceID, pinID: .some(nil), name: .some(pin.name))
+          ?? FakeTab(
+            id: newTabID(), title: pin.title, url: pin.url, spaceID: spaceID, browserID: browser.browserID,
+            name: pin.name)
+      }
+      for tab in tabs where pageViews[tab.tabID] == nil {
+        pageViews[tab.tabID] = NSView()
+      }
+      withOrder(spaceID: split.spaceID, profileID: split.profileID, folderID: split.folderID) {
+        $0.removeAll { $0 == splitID }
+      }
+      for pin in pins {
+        records[pin.id] = nil
+        bound[pin.id] = nil
+      }
+      var list = self.list(spaceID)
+      list.insert(contentsOf: tabs, at: max(0, min(index, list.count)))
+      setList(list, inSpace: spaceID)
+      if tabs.count == 2 {
+        setSplit(tabs[0].tabID, tabs[1].tabID, ratio: split.ratio)
+      }
+      containerChanged(spaceID: split.spaceID, profileID: split.profileID)
+      return
+    }
     let spaceID = record.spaceID ?? browser.shownSpaceID
     let tab =
       bound[pinID]?.with(spaceID: spaceID, pinID: .some(nil), name: .some(record.name))
@@ -558,11 +630,7 @@ final class FakeHost: NSObject, ClairHost {
   // MARK: ClairHost: pins
 
   func pinnedItems(inSpace spaceID: SpaceID) -> [any ClairPinnedItem] {
-    (pinOrder[spaceID] ?? []).compactMap { id -> FakePinnedItem? in
-      if let record = records[id] { return FakePinnedItem(pin: snapshot(record)) }
-      if let folder = folderRecords[id] { return FakePinnedItem(folder: snapshot(folder)) }
-      return nil
-    }
+    (pinOrder[spaceID] ?? []).compactMap(itemSnapshot)
   }
 
   /// Every pinned tab of a Space, its folders' included, as snapshots.
@@ -570,8 +638,196 @@ final class FakeHost: NSObject, ClairHost {
     pinRecords(inSpace: spaceID).map(snapshot)
   }
 
-  func favorites(ofProfile profileID: ProfileID) -> [any ClairPin] {
+  func favorites(ofProfile profileID: ProfileID) -> [any ClairPinnedItem] {
+    (favoriteOrder[profileID] ?? []).compactMap(itemSnapshot)
+  }
+
+  /// Every favorite of a profile, a favorited split's two included.
+  func favoritePins(ofProfile profileID: ProfileID) -> [any ClairPin] {
     favoriteRecords(ofProfile: profileID).map(snapshot)
+  }
+
+  // MARK: Pinned and favorited splits (add-split-view design D10)
+
+  /// The order list holding a split's or pin's place.
+  private func withOrder(
+    spaceID: SpaceID?, profileID: ProfileID, folderID: FolderID?, _ body: (inout [String]) -> Void
+  ) {
+    if let folderID {
+      body(&folderOrder[folderID, default: []])
+    } else if let spaceID {
+      body(&pinOrder[spaceID, default: []])
+    } else {
+      body(&favoriteOrder[profileID, default: []])
+    }
+  }
+
+  /// Adds a pinned or favorited split of two new pins, as the store would,
+  /// without tabs, and returns its pins' IDs.
+  @discardableResult
+  func addSplit(
+    _ leading: (url: String, title: String), _ trailing: (url: String, title: String),
+    inSpace spaceID: SpaceID? = FakeHost.homeID, folder folderID: FolderID? = nil,
+    profile profileID: ProfileID = FakeHost.defaultProfileID, ratio: Double = 0.5, at index: Int = Int.max
+  ) -> [PinID] {
+    let splitID = "split-\(nextSplit)"
+    nextSplit += 1
+    let spaceID = folderID.flatMap { folderRecords[$0]?.spaceID } ?? spaceID
+    splitRecords[splitID] = SplitRecord(
+      id: splitID, spaceID: spaceID, profileID: profileID, folderID: spaceID == nil ? nil : folderID, ratio: ratio)
+    var ids: [PinID] = []
+    for (pane, page) in [leading, trailing].enumerated() {
+      let pinID = "pin-\(nextPin)"
+      nextPin += 1
+      records[pinID] = PinRecord(
+        id: pinID, spaceID: spaceID, profileID: profileID, url: page.url, title: page.title,
+        folderID: spaceID == nil ? nil : folderID, splitID: splitID, splitIndex: pane)
+      ids.append(pinID)
+    }
+    withOrder(spaceID: spaceID, profileID: profileID, folderID: spaceID == nil ? nil : folderID) {
+      Self.insert(splitID, into: &$0, at: index)
+    }
+    containerChanged(spaceID: spaceID, profileID: profileID)
+    return ids
+  }
+
+  /// D10: Separate Tabs on a pinned or favorited split: its pins take its
+  /// place, in pane order.
+  func separatePinnedSplit(_ splitID: PinnedSplitID) {
+    commands.append("separatePinnedSplit \(splitID)")
+    guard let split = splitRecords.removeValue(forKey: splitID) else { return }
+    let pins = pinRecords(ofSplit: splitID)
+    for pin in pins {
+      records[pin.id]?.splitID = nil
+      records[pin.id]?.splitIndex = 0
+    }
+    withOrder(spaceID: split.spaceID, profileID: split.profileID, folderID: split.folderID) { order in
+      guard let at = order.firstIndex(of: splitID) else { return }
+      order.replaceSubrange(at...at, with: pins.map(\.id))
+    }
+    // Their open tabs leave the split.
+    if pins.count == 2, let lead = bound[pins[0].id], let trail = bound[pins[1].id], lead.splitPartnerID == trail.tabID {
+      clearSplit(lead.tabID)
+    }
+    containerChanged(spaceID: split.spaceID, profileID: split.profileID)
+  }
+
+  /// D10, Arc: one pane of a pinned split closed: the other pin takes the
+  /// split's place, and `pinID` goes.
+  func takeOutOfSplit(_ pinID: PinID) {
+    guard let splitID = records[pinID]?.splitID, let split = splitRecords.removeValue(forKey: splitID),
+      let other = pinRecords(ofSplit: splitID).first(where: { $0.id != pinID })
+    else { return }
+    records[pinID] = nil
+    records[other.id]?.splitID = nil
+    records[other.id]?.splitIndex = 0
+    withOrder(spaceID: split.spaceID, profileID: split.profileID, folderID: split.folderID) { order in
+      if let at = order.firstIndex(of: splitID) { order[at] = other.id }
+    }
+    containerChanged(spaceID: split.spaceID, profileID: split.profileID)
+  }
+
+  /// D10: pins a split of two Today tabs as one item.
+  private func pinSplit(lead: FakeTab, trail: FakeTab, folder folderID: FolderID?, at index: Int, favorite: Bool) {
+    guard let profileID = profile(ofSpace: lead.spaceID) else { return }
+    let ids = addSplit(
+      (lead.url?.absoluteString ?? lead.urlText, lead.title), (trail.url?.absoluteString ?? trail.urlText, trail.title),
+      inSpace: favorite ? nil : lead.spaceID, folder: favorite ? nil : folderID, profile: profileID,
+      ratio: lead.splitRatio, at: index)
+    setList(
+      list(lead.spaceID).filter { ![lead.tabID, trail.tabID, lead.peekID, trail.peekID].contains($0.tabID) },
+      inSpace: lead.spaceID)
+    bind(ids[0], to: lead)
+    bind(ids[1], to: trail)
+  }
+
+  // MARK: Open splits (add-split-view design D1, D2)
+
+  /// Makes `lead` and `trail` a split with `ratio`: their snapshots name
+  /// each other, and in a Today list the trailing pane and its Peek follow
+  /// the leading pane and its Peek.
+  func setSplit(_ leadID: TabID, _ trailID: TabID, ratio: Double = 0.5) {
+    guard let lead = tab(leadID), let trail = tab(trailID) else { return }
+    replaceSilently(lead.with(splitPartnerID: trailID, isLeadingPane: true, splitRatio: ratio))
+    replaceSilently(trail.with(splitPartnerID: leadID, isLeadingPane: false, splitRatio: ratio))
+    keepTogether(leadID, trailID)
+  }
+
+  /// Ends a tab's split: both tabs stay where they are.
+  func clearSplit(_ tabID: TabID) {
+    guard let tab = tab(tabID) else { return }
+    let partner = self.tab(tab.splitPartnerID)
+    replaceSilently(tab.unsplit())
+    if let partner {
+      replaceSilently(partner.unsplit())
+    }
+    spaceOrPinsChanged(tab)
+    if let partner { spaceOrPinsChanged(partner) }
+  }
+
+  /// Sets a split's ratio.
+  func setSplitRatio(_ ratio: Double, of tabID: TabID) {
+    guard let tab = tab(tabID), let partner = self.tab(tab.splitPartnerID) else { return }
+    replaceSilently(tab.with(splitRatio: ratio))
+    replaceSilently(partner.with(splitRatio: ratio))
+    // D10: a pinned split keeps its ratio in its record.
+    if let pinID = tab.pinID, let splitID = records[pinID]?.splitID {
+      splitRecords[splitID]?.ratio = ratio
+    }
+    spaceOrPinsChanged(tab)
+    spaceOrPinsChanged(partner)
+  }
+
+  /// Swaps a split's panes.
+  func swapSplit(of tabID: TabID) {
+    guard let tab = tab(tabID), let partner = self.tab(tab.splitPartnerID) else { return }
+    let lead = tab.isLeadingPane ? tab : partner
+    let trail = tab.isLeadingPane ? partner : tab
+    // A pinned split's pins follow their panes.
+    if let a = lead.pinID, let b = trail.pinID, let split = records[a]?.splitID, records[b]?.splitID == split {
+      records[a]?.splitIndex = 1
+      records[b]?.splitIndex = 0
+    }
+    setSplit(trail.tabID, lead.tabID, ratio: lead.splitRatio)
+  }
+
+  /// Replaces a tab's snapshot in its list or binding without a push.
+  private func replaceSilently(_ tab: FakeTab) {
+    if let pinID = tab.pinID, bound[pinID]?.tabID == tab.tabID {
+      bound[pinID] = tab
+      return
+    }
+    replaceQuietly(tab)
+  }
+
+  /// Pushes the list or pins showing a tab.
+  private func spaceOrPinsChanged(_ tab: FakeTab) {
+    if let pinID = tab.pinID, bound[pinID]?.tabID == tab.tabID {
+      pinsChanged(of: pinID)
+    } else {
+      setList(list(tab.spaceID), inSpace: tab.spaceID)
+    }
+  }
+
+  /// D7: a Today split is one row: the trailing pane's family right after
+  /// the leading pane's.
+  private func keepTogether(_ leadID: TabID, _ trailID: TabID) {
+    guard let lead = tab(leadID), let trail = tab(trailID) else { return }
+    let leadToday = list(lead.spaceID).contains { $0.tabID == leadID }
+    let trailToday = list(trail.spaceID).contains { $0.tabID == trailID }
+    if leadToday && trailToday && lead.spaceID == trail.spaceID {
+      var tabs = list(lead.spaceID)
+      let family = tabs.filter { $0.tabID == trailID || ($0.peekParentID == trailID && trail.peekID == $0.tabID) }
+      tabs.removeAll { candidate in family.contains { $0.tabID == candidate.tabID } }
+      if let at = tabs.firstIndex(where: { $0.tabID == leadID }) {
+        let after = lead.peekID != ClairTabIDNone && tabs.indices.contains(at + 1) && tabs[at + 1].tabID == lead.peekID
+        tabs.insert(contentsOf: family, at: at + (after ? 2 : 1))
+      }
+      setList(tabs, inSpace: lead.spaceID)
+    } else {
+      spaceOrPinsChanged(lead)
+      spaceOrPinsChanged(trail)
+    }
   }
 
   /// D5: a Today tab becomes a pin of its Space, in `folderID`, or of its
@@ -582,6 +838,14 @@ final class FakeHost: NSObject, ClairHost {
     else { return }
     // A folder of another Space is ignored.
     if let folderID, folderRecords[folderID]?.spaceID != tab.spaceID || favorite { return }
+    // add-split-view D10: a split of two Today tabs is pinned as one; a split
+    // with a pinned tab or favorite isn't.
+    if let partner = self.tab(tab.splitPartnerID) {
+      guard partner.pinID == nil, partner.spaceID == tab.spaceID else { return }
+      let lead = tab.isLeadingPane ? tab : partner
+      pinSplit(lead: lead, trail: lead === tab ? partner : tab, folder: folderID, at: index, favorite: favorite)
+      return
+    }
     let pinID = "pin-\(nextPin)"
     nextPin += 1
     let record = PinRecord(
@@ -607,6 +871,10 @@ final class FakeHost: NSObject, ClairHost {
       folderID.map { "movePin \(pinID) \(spaceID) \($0) \(index)" } ?? "movePin \(pinID) \(spaceID) \(index)")
     guard var record = records[pinID], isSpace(spaceID), let profileID = profile(ofSpace: spaceID) else { return }
     if let folderID, folderRecords[folderID]?.spaceID != spaceID { return }
+    if let splitID = record.splitID {
+      moveSplit(splitID, toSpace: spaceID, folder: folderID, profile: profileID, at: index)
+      return
+    }
     let from = (record.spaceID, record.profileID)
     removeRecord(pinID)
     record.spaceID = spaceID
@@ -630,9 +898,44 @@ final class FakeHost: NSObject, ClairHost {
     pinsChanged(of: pinID)
   }
 
+  /// D10: a split moves whole, in the same profile.
+  private func moveSplit(
+    _ splitID: PinnedSplitID, toSpace spaceID: SpaceID?, folder folderID: FolderID?, profile profileID: ProfileID,
+    at index: Int
+  ) {
+    guard var split = splitRecords[splitID] else { return }
+    let from = (split.spaceID, split.profileID)
+    withOrder(spaceID: split.spaceID, profileID: split.profileID, folderID: split.folderID) {
+      $0.removeAll { $0 == splitID }
+    }
+    split.spaceID = spaceID
+    split.folderID = spaceID == nil ? nil : folderID
+    split.profileID = profileID
+    splitRecords[splitID] = split
+    withOrder(spaceID: split.spaceID, profileID: profileID, folderID: split.folderID) {
+      Self.insert(splitID, into: &$0, at: index)
+    }
+    for pin in pinRecords(ofSplit: splitID) {
+      records[pin.id]?.spaceID = spaceID
+      records[pin.id]?.folderID = split.folderID
+      records[pin.id]?.profileID = profileID
+      if let tab = bound[pin.id] {
+        bound[pin.id] = tab.with(spaceID: spaceID ?? "")
+      }
+    }
+    if from.0 != spaceID {
+      containerChanged(spaceID: from.0, profileID: from.1)
+    }
+    containerChanged(spaceID: spaceID, profileID: profileID)
+  }
+
   func movePin(_ pinID: PinID, toFavoritesAt index: Int) {
     commands.append("movePinToFavorites \(pinID) \(index)")
     guard var record = records[pinID] else { return }
+    if let splitID = record.splitID {
+      moveSplit(splitID, toSpace: nil, folder: nil, profile: record.profileID, at: index)
+      return
+    }
     let from = (record.spaceID, record.profileID)
     removeRecord(pinID)
     record.spaceID = nil
@@ -649,6 +952,23 @@ final class FakeHost: NSObject, ClairHost {
 
   func removePin(_ pinID: PinID) {
     commands.append("removePin \(pinID)")
+    // D10: a split's pin goes with its split and the other pin.
+    if let splitID = records[pinID]?.splitID, let split = splitRecords.removeValue(forKey: splitID) {
+      let pins = pinRecords(ofSplit: splitID)
+      withOrder(spaceID: split.spaceID, profileID: split.profileID, folderID: split.folderID) {
+        $0.removeAll { $0 == splitID }
+      }
+      let tabs = pins.compactMap { bound.removeValue(forKey: $0.id) }
+      for pin in pins { records[pin.id] = nil }
+      containerChanged(spaceID: split.spaceID, profileID: split.profileID)
+      for tab in tabs {
+        guard let browser = browser(tab.browserID) else { continue }
+        let today = tab.with(spaceID: split.spaceID ?? browser.shownSpaceID, pinID: .some(nil))
+        setList([today] + list(today.spaceID), inSpace: today.spaceID)
+        browser.close(tab: tab.tabID)
+      }
+      return
+    }
     guard let record = records[pinID], let index = removeRecord(pinID) else { return }
     removedPins.insert((record, index), at: 0)
     let tab = bound.removeValue(forKey: pinID)
@@ -705,8 +1025,13 @@ final class FakeHost: NSObject, ClairHost {
     folder.spaceID = spaceID
     folderRecords[folderID] = folder
     Self.insert(folderID, into: &pinOrder[spaceID, default: []], at: index)
-    // D1, D11: its pins follow it, and their tabs as Move to Space moves them.
-    for pinID in folderOrder[folderID] ?? [] {
+    // D1, D11: its pins follow it, a split's two with their split, and their
+    // tabs as Move to Space moves them.
+    for id in folderOrder[folderID] ?? [] {
+      splitRecords[id]?.spaceID = spaceID
+      splitRecords[id]?.profileID = profileID
+    }
+    for pinID in (folderOrder[folderID] ?? []).flatMap({ pinRecords(ofItem: $0).map(\.id) }) {
       guard var record = records[pinID] else { continue }
       let changedProfile = record.profileID != profileID
       record.spaceID = spaceID
@@ -756,7 +1081,10 @@ final class FakeHost: NSObject, ClairHost {
       let index = pinOrder[folder.spaceID]?.firstIndex(of: folderID)
     else { return }
     pinOrder[folder.spaceID]?.remove(at: index)
-    let pins = (folderOrder.removeValue(forKey: folderID) ?? []).compactMap { records.removeValue(forKey: $0) }
+    // A split's two pins go with their split.
+    let items = folderOrder.removeValue(forKey: folderID) ?? []
+    let pins = items.flatMap { pinRecords(ofItem: $0) }.compactMap { records.removeValue(forKey: $0.id) }
+    for id in items { splitRecords[id] = nil }
     removedFolders.insert((folder, pins, index, closedFolders.remove(folderID) != nil), at: 0)
     let tabs = pins.compactMap { bound.removeValue(forKey: $0.id) }
     spaceChanged(folder.spaceID)
@@ -1008,18 +1336,38 @@ final class FakeHost: NSObject, ClairHost {
     guard tab.spaceID != spaceID else { return }
     operation {
       let wasActive = browser.isActiveRow(tab.tabID)
+      // add-split-view D7: a Today split moves whole; a pinned tab's or
+      // favorite's pane stays with its pin, and the split ends.
+      var partner = self.tab(tab.splitPartnerID)
+      if let other = partner, other.pinID != nil || other.spaceID != tab.spaceID {
+        clearSplit(tab.tabID)
+        tab = self.tab(tab.tabID) ?? tab
+        partner = nil
+      }
       if profile(ofSpace: tab.spaceID) != profile(ofSpace: spaceID) {
         // add-profiles D9: a page can't change profile; it reopens at its URL
-        // at the top of the other Space, without its Peek.
-        let reopened = reopen(tab, inSpace: spaceID, at: 0, by: browser)
-        if wasActive {
-          browser.setActive(reopened.tabID)
+        // at the top of the other Space, without its Peek, a split as one.
+        let panes = partner.map { tab.isLeadingPane ? [tab, $0] : [$0, tab] } ?? [tab]
+        let reopened = panes.enumerated().map { index, pane in reopen(pane, inSpace: spaceID, at: index, by: browser) }
+        if reopened.count == 2 {
+          setSplit(reopened[0].tabID, reopened[1].tabID, ratio: tab.splitRatio)
         }
-        browser.closeReopened(tab.tabID)
+        if wasActive {
+          browser.setActive(reopened[panes.firstIndex { $0.tabID == tab.tabID } ?? 0].tabID)
+        }
+        for pane in panes {
+          browser.closeReopened(pane.tabID)
+        }
       } else {
-        // The tab and its Peek go to the top of the other list (add-spaces D7).
+        // The tab and its Peek go to the top of the other list (add-spaces
+        // D7), with its split's other pane and that pane's Peek.
         let source = tab.spaceID
-        let family = list(source).filter { $0.tabID == tab.tabID || ($0.peekParentID == tab.tabID && tab.peekID == $0.tabID) }
+        var members: Set<TabID> = [tab.tabID]
+        for member in [tab] + (partner.map { [$0] } ?? []) {
+          members.insert(member.tabID)
+          if member.peekID != ClairTabIDNone { members.insert(member.peekID) }
+        }
+        let family = list(source).filter { members.contains($0.tabID) }
         let moved = family.map { $0.with(spaceID: spaceID) }
         setList(list(source).filter { candidate in !family.contains { $0.tabID == candidate.tabID } }, inSpace: source)
         setList(moved + list(spaceID), inSpace: spaceID)
@@ -1029,6 +1377,7 @@ final class FakeHost: NSObject, ClairHost {
           browser.followActiveTab()
         }
         tabClosed(tab.tabID)
+        if let partner { tabClosed(partner.tabID) }
       }
     }
   }

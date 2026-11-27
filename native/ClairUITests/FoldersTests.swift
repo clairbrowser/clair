@@ -26,6 +26,8 @@ struct FolderRowsTests {
     rows.map { row in
       switch row {
       case .pin(let pin, let folder): folder == nil ? pin.title : "  \(pin.title)"
+      case .split(let split, let folder):
+        (folder == nil ? "" : "  ") + split.pins.map(\.title).joined(separator: "|")
       case .folder(let folder): "[\(folder.name)]"
       }
     }
@@ -306,12 +308,12 @@ struct FolderWindowTests {
     let tab = w.browser.addTab(title: "Plan", url: "https://plan.example/")
     // A Today tab on the folder's row: its first tab.
     w.controller.drop(.tab(tab.tabID), on: .folder(docs, 0))
-    #expect(w.model.pinnedItems.first?.folder?.pins.map(\.title) == ["Plan", "Spec"])
+    #expect(w.model.pinnedItems.first?.folder.map { PinsLogic.pins(of: $0).map(\.title) } == ["Plan", "Spec"])
     // A favorite on the folder's row leaves the grid.
     let calendar = w.host.addPin(url: "https://cal.example/", title: "Calendar", inSpace: nil)
     w.controller.drop(.pin(calendar), on: .folder(docs, 0))
     #expect(w.model.favorites.isEmpty)
-    #expect(w.model.pinnedItems.first?.folder?.pins.first?.title == "Calendar")
+    #expect(w.model.pinnedItems.first?.folder.flatMap { PinsLogic.pins(of: $0).first }?.title == "Calendar")
     // A tab dragged out above the folder.
     let spec = w.model.pins.first { $0.title == "Spec" }?.pinID ?? ""
     w.controller.drop(.pin(spec), on: .pinned(0))
@@ -348,7 +350,7 @@ struct FolderWindowTests {
     #expect(w.model.pinnedItems.isEmpty)
     // Restore Last Closed Tab brings it back with its tab.
     w.host.restoreRemovedFolder()
-    #expect(w.model.pinnedItems.first?.folder?.pins.map(\.title) == ["Spec"])
+    #expect(w.model.pinnedItems.first?.folder.map { PinsLogic.pins(of: $0).map(\.title) } == ["Spec"])
   }
 
   @Test func duplicateAddsACopyRightAfter() {
@@ -358,7 +360,7 @@ struct FolderWindowTests {
     w.host.addPin(url: "https://mail.example/", title: "Mail")
     w.controller.duplicateFolder(docs)
     #expect(w.model.pinnedItems.map { $0.pin?.title ?? $0.folder?.name ?? "" } == ["Docs", "Docs", "Mail"])
-    #expect(w.model.pinnedItems[1].folder?.pins.map(\.title) == ["Spec"])
+    #expect(w.model.pinnedItems[1].folder.map { PinsLogic.pins(of: $0).map(\.title) } == ["Spec"])
   }
 
   @Test func movingAFolderShowsTheNotice() {

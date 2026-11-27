@@ -58,6 +58,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/clair/window/clair_splits.h"
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_bubble.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_bubble_type.h"
@@ -772,21 +773,40 @@ void ClairStatusBubble::SetStatus(const std::u16string& status) {
 
 void ClairStatusBubble::SetURL(const GURL& url) {
   url_ = url.is_empty() ? std::u16string() : base::UTF8ToUTF16(url.spec());
+  url_tab_ = -1;
+  Update();
+}
+
+void ClairStatusBubble::SetURL(const GURL& url, content::WebContents* source) {
+  url_ = url.is_empty() ? std::u16string() : base::UTF8ToUTF16(url.spec());
+  url_tab_ = source ? clair::TabIDOf(source) : -1;
   Update();
 }
 
 void ClairStatusBubble::Hide() {
   status_.clear();
   url_.clear();
+  url_tab_ = -1;
   Update();
 }
 
 void ClairStatusBubble::MouseMoved(bool left_content) {}
 
 void ClairStatusBubble::Update() {
+  const bool is_link = status_.empty() && !url_.empty();
   const std::u16string& text = status_.empty() ? url_ : status_;
+  // add-split-view D13a: the page the text is for, which places the capsule
+  // in its pane.
+  content::WebContents* active =
+      window_->browser()->tab_strip_model()->GetActiveWebContents();
+  const ClairTabID tab =
+      is_link && url_tab_ >= 0
+          ? static_cast<ClairTabID>(url_tab_)
+          : (active ? clair::TabIDOf(active) : ClairTabIDNone);
   [window_->clair_window()
-      statusTextDidChange:text.empty() ? nil : base::SysUTF16ToNSString(text)];
+      statusTextDidChange:text.empty() ? nil : base::SysUTF16ToNSString(text)
+                   isLink:is_link
+                      tab:tab];
 }
 
 // --- ClairBrowserWindow ------------------------------------------------------
@@ -832,6 +852,8 @@ ClairBrowserWindow::ClairBrowserWindow(Browser* browser)
   downloads_ = std::make_unique<ClairDownloads>(this);
   // After the bridge, so the bridge hears of tab strip changes first.
   peeks_ = std::make_unique<ClairPeeks>(this);
+  // add-split-view D1: after the Peeks, whose placing it relies on.
+  splits_ = std::make_unique<ClairSplits>(this);
   clair::ApplyPasswordAndAutofillOverrides(browser->GetProfile());
 
   // D2: ClairUI returns a window for every browser. A nil window is a bug that
@@ -864,6 +886,7 @@ ClairBrowserWindow::ClairBrowserWindow(Browser* browser)
 ClairBrowserWindow::~ClairBrowserWindow() {
   ClairWindowGroup::Leave(this);
   browser_->GetFeatures().TearDownPreBrowserWindowDestruction();
+  splits_.reset();
   peeks_.reset();
   if (space_tabs_) {
     space_tabs_->RemoveBrowser(this);
@@ -920,11 +943,21 @@ void ClairBrowserWindow::DetachFromClairUI() {
 
 std::set<content::WebContents*> ClairBrowserWindow::PagesShownWith(
     content::WebContents* active) const {
-  if (peeks_) {
-    return peeks_->PagesShownWith(active);
+  std::set<content::WebContents*> pages =
+      peeks_ ? peeks_->PagesShownWith(active)
+      : active ? std::set<content::WebContents*>{active}
+               : std::set<content::WebContents*>();
+  // add-split-view D5: the split's other pane, beside the active one or the
+  // parent of its Peek.
+  tabs::TabInterface* tab =
+      active ? tabs::TabInterface::MaybeGetFromContents(active) : nullptr;
+  if (tabs::TabInterface* parent = tab && peeks_ ? peeks_->ParentOf(tab) : nullptr) {
+    tab = parent;
   }
-  return active ? std::set<content::WebContents*>{active}
-                : std::set<content::WebContents*>();
+  if (tabs::TabInterface* partner = ClairSplits::PartnerOf(tab)) {
+    pages.insert(partner->GetContents());
+  }
+  return pages;
 }
 
 // --- Spaces (add-spaces D3, D4, D5) ---
@@ -972,12 +1005,25 @@ ClairBrowserWindow* ClairBrowserWindow::HolderOf(const tabs::TabInterface* tab) 
 
 namespace {
 
-// The row `tab` shows in: its parent if it's a Peek, in whichever window.
+// The row `tab` shows in: its parent if it's a Peek, in whichever window;
+// for a split's pane, the split's row (add-split-view D2): its pane listed in
+// Today, or its leading pane when both are pinned tabs' or favorites'.
 tabs::TabInterface* RowOf(tabs::TabInterface* tab) {
   ClairBrowserWindow* holder = ClairBrowserWindow::HolderOf(tab);
   ClairPeeks* peeks = holder ? holder->peeks() : nullptr;
   tabs::TabInterface* parent = peeks && tab ? peeks->ParentOf(tab) : nullptr;
-  return parent ? parent : tab;
+  tabs::TabInterface* row = parent ? parent : tab;
+  const std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(row);
+  if (panes.empty()) {
+    return row;
+  }
+  ClairSpaceTabs* lists = holder ? holder->space_tabs() : nullptr;
+  for (tabs::TabInterface* pane : panes) {
+    if (lists && lists->PinOf(pane).empty() && !lists->SpaceOf(pane).empty()) {
+      return pane;
+    }
+  }
+  return panes.front();
 }
 
 // share-tabs-across-windows D2: `row` stopped showing in its window. If no
@@ -1048,6 +1094,13 @@ std::vector<const clair::Pin*> ClairBrowserWindow::RowPins(
       pins.push_back(pin);
       continue;
     }
+    // add-split-view D10: a pinned split's two, in pane order.
+    if (store->FindSplit(id)) {
+      for (const clair::Pin* pane : store->PinsOfSplit(id)) {
+        pins.push_back(pane);
+      }
+      continue;
+    }
     const bool open = store->IsOpen(id);
     for (const clair::Pin* pin :
          store->PinsIn(clair::PinContainer::OfFolder(space, id))) {
@@ -1065,7 +1118,9 @@ std::vector<tabs::TabInterface*> ClairBrowserWindow::Rows() const {
   // tabs aren't, except the highlighted one.
   std::vector<tabs::TabInterface*> rows;
   for (const clair::Pin* pin : RowPins(shown_space_)) {
-    if (tabs::TabInterface* tab = space_tabs_->BoundTab(pin->id)) {
+    // add-split-view: a pinned split's row is its leading pane's.
+    if (tabs::TabInterface* tab = space_tabs_->BoundTab(pin->id);
+        tab && RowOf(tab) == tab) {
       rows.push_back(tab);
     }
   }
@@ -1087,7 +1142,10 @@ bool ClairBrowserWindow::IsActiveRow(const tabs::TabInterface* tab) const {
   if (!tab || !active) {
     return false;
   }
-  return active == tab || (peeks_ && peeks_->ParentOf(active) == tab);
+  tabs::TabInterface* shown =
+      peeks_ && peeks_->ParentOf(active) ? peeks_->ParentOf(active) : active;
+  // add-split-view D2: either pane of the shown split.
+  return active == tab || shown == tab || ClairSplits::PartnerOf(shown) == tab;
 }
 
 tabs::TabInterface* ClairBrowserWindow::HighlightedRow() const {
@@ -1098,8 +1156,8 @@ tabs::TabInterface* ClairBrowserWindow::HighlightedRow() const {
   if (!active || ClairSpaceTabs::IsPlaceholder(active->GetContents())) {
     return nullptr;
   }
-  tabs::TabInterface* parent = peeks_ ? peeks_->ParentOf(active) : nullptr;
-  return parent ? parent : active;
+  // A Peek's parent's row, or a split's (add-split-view D2).
+  return RowOf(active);
 }
 
 bool ClairBrowserWindow::IsShownElsewhere(const tabs::TabInterface* row) const {
@@ -1143,8 +1201,10 @@ void ClairBrowserWindow::ActivateRow(tabs::TabInterface* row,
   }
   ClairBrowserWindow* holder = HolderOf(row);
   ClairPeeks* peeks = holder ? holder->peeks() : nullptr;
-  tabs::TabInterface* peek = peeks ? peeks->PeekOf(row) : nullptr;
-  ActivateTab(peek ? peek : row, std::move(options));
+  // add-split-view: a split shows with the pane focused last.
+  tabs::TabInterface* pane = ClairSplits::LastFocusedPane(row);
+  tabs::TabInterface* peek = peeks ? peeks->PeekOf(pane) : nullptr;
+  ActivateTab(peek ? peek : pane, std::move(options));
 }
 
 void ClairBrowserWindow::ChooseRow(tabs::TabInterface* row,
@@ -1216,7 +1276,10 @@ bool ClairBrowserWindow::ShowNextRow(tabs::TabInterface* row,
 }
 
 bool ClairBrowserWindow::IsEmptiedSpacePage(tabs::TabInterface* row) const {
-  if (!row || !space_tabs_ || !space_tabs_->is_regular() || RowOf(row) != row) {
+  // add-split-view: a split of new tab pages isn't the emptied Space's page;
+  // closing it leaves one.
+  if (!row || !space_tabs_ || !space_tabs_->is_regular() || RowOf(row) != row ||
+      ClairSplits::PartnerOf(row)) {
     return false;
   }
   const std::vector<tabs::TabInterface*> rows = Rows();
@@ -1252,6 +1315,36 @@ void ClairBrowserWindow::CloseTab(tabs::TabInterface* tab) {
   if (ClairBrowserWindow* holder = HolderOf(tab); holder && holder != this) {
     base::AutoReset<bool> elsewhere(&holder->closing_for_another_window_, true);
     holder->CloseTab(tab);
+    return;
+  }
+  // add-split-view D12: a pane of the shown split closes alone, and the other
+  // pane shows by itself in the split's place. A pane of a pinned or
+  // favorited split takes its pin out of the split, as in Arc (D10), which
+  // Restore Last Closed Tab brings back.
+  if (tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
+      partner && IsActiveRow(tab)) {
+    clair::ClairPinStore* store = clair::ClairPinStore::Get();
+    const clair::Pin* pin =
+        space_tabs_ ? store->Find(space_tabs_->PinOf(tab)) : nullptr;
+    const clair::Pin* other =
+        space_tabs_ ? store->Find(space_tabs_->PinOf(partner)) : nullptr;
+    if (pin && other && !pin->split.empty() && pin->split == other->split) {
+      // A page that asks before leaving may stay, and its pin with it.
+      if (tab->GetContents()->NeedToFireBeforeUnloadOrUnloadEvents()) {
+        pending_split_close_ = tab->GetHandle();
+        pending_split_pin_ = pin->id;
+      } else {
+        store->TakeOutOfSplit(pin->id);
+      }
+    }
+    if (browser_->tab_strip_model()->GetActiveTab() == tab ||
+        (peeks_ && peeks_->ParentOf(browser_->tab_strip_model()->GetActiveTab()) ==
+                       tab)) {
+      ClairTakeOptions options;
+      options.choosing = true;
+      ActivateTab(partner, std::move(options));
+    }
+    CloseTabNow(tab->GetHandle());
     return;
   }
   // D4: Clair picks the next tab first; without one in the Space, a new tab
@@ -1312,6 +1405,14 @@ void ClairBrowserWindow::BeforeUnloadFired(content::WebContents* contents,
     }
   }
   tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
+  if (tab && tab->GetHandle() == pending_split_close_) {
+    pending_split_close_ = tabs::TabHandle::Null();
+    if (proceed) {
+      clair::ClairPinStore::Get()->TakeOutOfSplit(pending_split_pin_);
+    }
+    pending_split_pin_.clear();
+    return;
+  }
   if (!tab || tab->GetHandle() != pending_close_) {
     return;
   }
@@ -1335,8 +1436,16 @@ void ClairBrowserWindow::CloseTabsBelow(tabs::TabInterface* tab) {
   // the Space's rows in every window (share-tabs-across-windows D3).
   ClairBrowserWindow* holder = HolderOf(tab);
   ClairPeeks* peeks = holder ? holder->peeks() : nullptr;
-  tabs::TabInterface* last = peeks ? peeks->LastOfFamily(tab) : tab;
-  const std::string space = space_tabs_->SpaceOf(tab);
+  // add-split-view: a split is one row, which shows where its Today pane is
+  // listed when its other pane is a pinned tab or favorite. Neither pane is
+  // below it.
+  tabs::TabInterface* row = RowOf(tab);
+  std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(row);
+  if (panes.empty()) {
+    panes = {row};
+  }
+  const bool row_pinned = !space_tabs_->PinOf(row).empty();
+  const std::string space = space_tabs_->SpaceOf(row);
   // add-pinned-tabs-and-favorites D4: from a pinned tab, the open pinned tabs
   // below it and every Today tab; from a Today tab, the Today tabs below it.
   std::vector<tabs::TabInterface*> tabs;
@@ -1353,16 +1462,32 @@ void ClairBrowserWindow::CloseTabsBelow(tabs::TabInterface* tab) {
   } else {
     tabs = space_tabs_->TabsIn(space, browser_);
   }
-  auto it = std::ranges::find(tabs, last);
-  if (it == tabs.end()) {
-    it = std::ranges::find(tabs, tab);
+  std::vector<tabs::TabInterface*> own;
+  auto cutoff = tabs.end();
+  for (tabs::TabInterface* pane : panes) {
+    own.push_back(pane);
+    tabs::TabInterface* last = peeks ? peeks->LastOfFamily(pane) : pane;
+    if (last != pane) {
+      own.push_back(last);
+    }
+    if (space_tabs_->PinOf(pane).empty() == !row_pinned) {
+      auto at = std::ranges::find(tabs, last);
+      if (at == tabs.end()) {
+        at = std::ranges::find(tabs, pane);
+      }
+      if (at != tabs.end() && (cutoff == tabs.end() || at > cutoff)) {
+        cutoff = at;
+      }
+    }
   }
-  if (it == tabs.end()) {
+  if (cutoff == tabs.end()) {
     return;
   }
   std::vector<tabs::TabHandle> below;
-  for (++it; it != tabs.end(); ++it) {
-    below.push_back((*it)->GetHandle());
+  for (auto it = cutoff + 1; it != tabs.end(); ++it) {
+    if (std::ranges::find(own, *it) == own.end()) {
+      below.push_back((*it)->GetHandle());
+    }
   }
   for (const tabs::TabHandle& handle : below) {
     CloseTab(handle.Get());
@@ -1391,6 +1516,225 @@ void ClairBrowserWindow::OpenInShownSpace(const GURL& url) {
   NavigateParams params(browser_, url, ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   Navigate(&params);
+}
+
+// --- Split view (add-split-view D2, D8, D10 to D12) ---
+
+void ClairBrowserWindow::BringHere(tabs::TabInterface* tab,
+                                   base::OnceClosure then) {
+  if (!tab) {
+    return;
+  }
+  if (HolderOf(tab) == this) {
+    std::move(then).Run();
+    return;
+  }
+  // share-tabs-across-windows D1: taken at once, its row with it; the other
+  // window keeps a still if it showed it.
+  ClairTakeOptions options;
+  options.wait_for_copy = false;
+  options.then = std::move(then);
+  Take(tab, std::move(options));
+}
+
+void ClairBrowserWindow::SplitTabs(tabs::TabInterface* tab,
+                                   tabs::TabInterface* other,
+                                   bool other_leading) {
+  if (!tab || !other || tab == other || !splits_) {
+    return;
+  }
+  base::OnceClosure make = base::BindOnce(
+      [](base::WeakPtr<ClairBrowserWindow> window, tabs::TabHandle first,
+         tabs::TabHandle second, bool second_leading) {
+        tabs::TabInterface* a = first.Get();
+        tabs::TabInterface* b = second.Get();
+        if (window && a && b && HolderOf(a) == window.get() &&
+            HolderOf(b) == window.get()) {
+          window->splits()->Make(a, b, second_leading, 0.5, b);
+        }
+      },
+      weak_factory_.GetWeakPtr(), tab->GetHandle(), other->GetHandle(),
+      other_leading);
+  base::OnceClosure bring_other = base::BindOnce(
+      [](base::WeakPtr<ClairBrowserWindow> window, tabs::TabHandle handle,
+         base::OnceClosure then) {
+        if (window && handle.Get()) {
+          window->BringHere(handle.Get(), std::move(then));
+        }
+      },
+      weak_factory_.GetWeakPtr(), other->GetHandle(), std::move(make));
+  BringHere(tab, std::move(bring_other));
+}
+
+void ClairBrowserWindow::SplitWithNewTab(tabs::TabInterface* tab) {
+  if (!tab || !splits_) {
+    return;
+  }
+  BringHere(tab, base::BindOnce(
+                     [](base::WeakPtr<ClairBrowserWindow> window,
+                        tabs::TabHandle handle) {
+                       if (window && handle.Get()) {
+                         window->splits()->MakeWithNewTab(handle.Get());
+                       }
+                     },
+                     weak_factory_.GetWeakPtr(), tab->GetHandle()));
+}
+
+void ClairBrowserWindow::ShowSplit(tabs::TabInterface* tab) {
+  if (tab) {
+    ActivateRow(RowOf(tab));
+  }
+}
+
+void ClairBrowserWindow::ReplacePane(tabs::TabInterface* pane,
+                                     tabs::TabInterface* replacement) {
+  if (!pane || !replacement || !splits_ || HolderOf(pane) != this) {
+    return;
+  }
+  BringHere(replacement,
+            base::BindOnce(
+                [](base::WeakPtr<ClairBrowserWindow> window,
+                   tabs::TabHandle pane, tabs::TabHandle replacement) {
+                  if (window && pane.Get() && replacement.Get()) {
+                    window->splits()->Replace(pane.Get(), replacement.Get());
+                  }
+                },
+                weak_factory_.GetWeakPtr(), pane->GetHandle(),
+                replacement->GetHandle()));
+}
+
+void ClairBrowserWindow::SeparateSplit(tabs::TabInterface* tab) {
+  tabs::TabInterface* partner = ClairSplits::PartnerOf(tab);
+  ClairBrowserWindow* holder = HolderOf(tab);
+  if (!partner || !holder || !holder->splits()) {
+    return;
+  }
+  // D10: a pinned or favorited split's pins take its place.
+  clair::ClairPinStore* store = clair::ClairPinStore::Get();
+  const clair::Pin* pin =
+      space_tabs_ ? store->Find(space_tabs_->PinOf(tab)) : nullptr;
+  const clair::Pin* other =
+      space_tabs_ ? store->Find(space_tabs_->PinOf(partner)) : nullptr;
+  if (pin && other && !pin->split.empty() && pin->split == other->split) {
+    clair::SeparatePinnedSplit(pin->split);
+    return;
+  }
+  holder->splits()->Separate(tab);
+}
+
+void ClairBrowserWindow::CloseTabsNow(std::vector<tabs::TabHandle> handles) {
+  TabStripModel* strip = browser_->tab_strip_model();
+  strip->ExecuteCloseTabsCommand(
+      base::BindRepeating(
+          [](TabStripModel* strip, std::vector<tabs::TabHandle> handles) {
+            std::vector<tabs::TabInterface*> tabs_to_close;
+            for (const tabs::TabHandle& handle : handles) {
+              tabs::TabInterface* tab = handle.Get();
+              if (tab && strip->GetIndexOfTab(tab) != TabStripModel::kNoTab) {
+                tabs_to_close.push_back(tab);
+              }
+            }
+            return tabs_to_close;
+          },
+          base::Unretained(strip), std::move(handles)),
+      /*delete_groups=*/false);
+}
+
+void ClairBrowserWindow::CloseSplit(tabs::TabInterface* tab) {
+  const std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(tab);
+  if (panes.empty()) {
+    CloseTab(tab);
+    return;
+  }
+  // In whichever window holds it, which picks its own next tab.
+  if (ClairBrowserWindow* holder = HolderOf(tab); holder && holder != this) {
+    base::AutoReset<bool> elsewhere(&holder->closing_for_another_window_, true);
+    holder->CloseSplit(tab);
+    return;
+  }
+  std::vector<tabs::TabHandle> handles;
+  for (tabs::TabInterface* pane : panes) {
+    handles.push_back(pane->GetHandle());
+  }
+  tabs::TabInterface* row = RowOf(tab);
+  if (IsActiveRow(row)) {
+    // D4: the next row first; without one, a new tab page.
+    base::OnceClosure close =
+        base::BindOnce(&ClairBrowserWindow::CloseTabsNow,
+                       weak_factory_.GetWeakPtr(), handles);
+    if (!ShowNextRow(row, &close) && KeepEmptiedSpace(row)) {
+      return;
+    }
+    if (close) {
+      std::move(close).Run();
+    }
+    return;
+  }
+  CloseTabsNow(std::move(handles));
+}
+
+void ClairBrowserWindow::ShowPinnedSplit(tabs::TabInterface* lead,
+                                         tabs::TabInterface* trail,
+                                         double ratio) {
+  if (!lead || !trail || !splits_) {
+    return;
+  }
+  base::OnceClosure show = base::BindOnce(
+      [](base::WeakPtr<ClairBrowserWindow> window, tabs::TabHandle lead,
+         tabs::TabHandle trail, double ratio) {
+        tabs::TabInterface* a = lead.Get();
+        tabs::TabInterface* b = trail.Get();
+        if (!window || !a || !b || HolderOf(a) != window.get() ||
+            HolderOf(b) != window.get()) {
+          return;
+        }
+        if (ClairSplits::PartnerOf(a) != b) {
+          // A pane in another split, as when a Today tab replaced its
+          // partner, leaves it first, keeping both pages.
+          for (tabs::TabInterface* pane : {a, b}) {
+            if (pane->IsSplit()) {
+              window->splits()->Separate(pane);
+            }
+          }
+          if (!window->splits()->Make(a, b, /*other_leading=*/false, ratio,
+                                      /*focus=*/nullptr)) {
+            return;
+          }
+        }
+        window->ActivateRow(a);
+      },
+      weak_factory_.GetWeakPtr(), lead->GetHandle(), trail->GetHandle(),
+      ratio);
+  // Its tabs come here first, apart; a split already open moves whole.
+  if (ClairSplits::PartnerOf(lead) == trail) {
+    BringHere(lead, std::move(show));
+    return;
+  }
+  base::OnceClosure bring_trail = base::BindOnce(
+      [](base::WeakPtr<ClairBrowserWindow> window, tabs::TabHandle handle,
+         base::OnceClosure then) {
+        if (window && handle.Get()) {
+          window->BringHere(handle.Get(), std::move(then));
+        }
+      },
+      weak_factory_.GetWeakPtr(), trail->GetHandle(), std::move(show));
+  BringHere(lead, std::move(bring_trail));
+}
+
+void ClairBrowserWindow::OpenPeekInSplit(tabs::TabInterface* tab) {
+  ClairBrowserWindow* holder = HolderOf(tab);
+  ClairPeeks* peeks = holder ? holder->peeks() : nullptr;
+  if (!peeks || !holder->splits()) {
+    return;
+  }
+  tabs::TabInterface* parent = peeks->ParentOf(tab) ? peeks->ParentOf(tab) : tab;
+  tabs::TabInterface* peek = peeks->PeekOf(parent);
+  // D11: not while the parent is in a split, which holds two tabs.
+  if (!peek || ClairSplits::PartnerOf(parent)) {
+    return;
+  }
+  peeks->Expand(parent);
+  holder->splits()->Make(parent, peek, /*other_leading=*/false, 0.5, peek);
 }
 
 // --- Window groups (add-profiles D3 to D6, D8, D13) ---
@@ -1707,7 +2051,12 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
       std::string pin;
     };
     std::vector<Slot> slots;
+    std::set<std::string> split_slots;
     for (const clair::Pin* pin : RowPins(shown_space_)) {
+      // add-split-view: a pinned split is one row.
+      if (!pin->split.empty() && !split_slots.insert(pin->split).second) {
+        continue;
+      }
       slots.push_back({space_tabs_->BoundTab(pin->id), pin->id});
     }
     for (tabs::TabInterface* row : TodayRows()) {
@@ -1736,7 +2085,9 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
       return true;
     }
     auto it = std::ranges::find_if(slots, [&](const Slot& slot) {
-      return slot.tab && slot.tab == active_row;
+      return slot.tab && active_row &&
+           (slot.tab == active_row ||
+            ClairSplits::PartnerOf(slot.tab) == active_row);
     });
     const bool forward = command == IDC_SELECT_NEXT_TAB ||
                          command == IDC_CYCLE_TO_NEXT_TAB;
@@ -1817,8 +2168,9 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
           others.push_back(row->GetHandle());
         }
       }
+      // add-split-view: a split row closes both its panes.
       for (const tabs::TabHandle& handle : others) {
-        CloseTab(handle.Get());
+        CloseSplit(handle.Get());
       }
       return true;
     }
@@ -2018,6 +2370,50 @@ void ClairBrowserWindow::MoveFamilyHere(ClairBrowserWindow* from,
   }
   TabStripModel* source = from->browser()->tab_strip_model();
   TabStripModel* target = browser_->tab_strip_model();
+  // add-split-view D7: a split moves whole, as one collection, with its
+  // panes' Peeks.
+  if (const std::vector<tabs::TabInterface*> panes = ClairSplits::PanesOf(row);
+      !panes.empty() && source->GetIndexOfTab(row) != TabStripModel::kNoTab) {
+    std::vector<std::pair<tabs::TabInterface*, tabs::TabInterface*>> peeks;
+    for (tabs::TabInterface* pane : panes) {
+      if (tabs::TabInterface* peek =
+              from->peeks() ? from->peeks()->Release(pane) : nullptr) {
+        peeks.emplace_back(pane, peek);
+      }
+    }
+    std::vector<tabs::TabInterface*> moving(panes.begin(), panes.end());
+    for (const auto& [pane, peek] : peeks) {
+      moving.push_back(peek);
+    }
+    for (tabs::TabInterface* member : moving) {
+      space_tabs_->BeginMove(member);
+    }
+    std::unique_ptr<DetachedTabCollection> split =
+        source->DetachSplitTabForInsertion(*row->GetSplit());
+    std::vector<std::unique_ptr<tabs::TabModel>> peek_models;
+    for (const auto& [pane, peek] : peeks) {
+      const int index = source->GetIndexOfTab(peek);
+      if (index != TabStripModel::kNoTab) {
+        peek_models.push_back(source->DetachTabAtForInsertion(index));
+      }
+    }
+    target->InsertDetachedSplitTabAt(std::move(split), target->count(),
+                                     /*pinned=*/false);
+    for (std::unique_ptr<tabs::TabModel>& model : peek_models) {
+      target->InsertDetachedTabAt(target->count(), std::move(model),
+                                  AddTabTypes::ADD_NONE);
+    }
+    for (tabs::TabInterface* member : moving) {
+      space_tabs_->EndMove(member);
+    }
+    for (const auto& [pane, peek] : peeks) {
+      if (peeks_ && target->GetIndexOfTab(pane) != TabStripModel::kNoTab &&
+          target->GetIndexOfTab(peek) != TabStripModel::kNoTab) {
+        peeks_->Adopt(pane, peek);
+      }
+    }
+    return;
+  }
   // The pair leaves the Peek table there before the strip hears of it.
   tabs::TabInterface* peek = from->peeks() ? from->peeks()->Release(row) : nullptr;
   std::vector<tabs::TabInterface*> family{row};
@@ -2146,15 +2542,15 @@ bool ClairBrowserWindow::HandTabsTo(ClairBrowserWindow* target,
   // row last so Chromium picks this window's next tab only once.
   TabStripModel* strip = browser_->tab_strip_model();
   tabs::TabInterface* active = strip->GetActiveTab();
-  tabs::TabInterface* active_row =
-      active && peeks_ && peeks_->ParentOf(active) ? peeks_->ParentOf(active)
-                                                   : active;
+  tabs::TabInterface* active_row = active ? RowOf(active) : nullptr;
   std::vector<tabs::TabHandle> rows;
   for (int i = 0; i < strip->count(); ++i) {
     tabs::TabInterface* tab = strip->GetTabAtIndex(i);
+    // A Peek, and a split's pane that isn't its row, move with their row
+    // (add-split-view D7).
     if (!tab || tab == active_row || tab == except ||
         ClairSpaceTabs::IsPlaceholder(tab->GetContents()) ||
-        (peeks_ && peeks_->ParentOf(tab))) {
+        RowOf(tab) != tab) {
       continue;
     }
     rows.push_back(tab->GetHandle());
@@ -2619,8 +3015,9 @@ std::vector<StatusBubble*> ClairBrowserWindow::GetStatusBubbles() {
   return {};
 }
 
-void ClairBrowserWindow::SetStatusURL(const GURL& url) {
-  status_bubble_.SetURL(url);
+void ClairBrowserWindow::SetStatusURL(const GURL& url,
+                                      content::WebContents* source) {
+  status_bubble_.SetURL(url, source);
 }
 
 void ClairBrowserWindow::UpdateTitleBar() {
@@ -2694,12 +3091,9 @@ void ClairBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
   } else if (choosing_next_ || old_closed) {
     came_from_ = tabs::TabHandle::Null();
   } else if (new_tab) {
-    tabs::TabInterface* row =
-        peeks_ && peeks_->ParentOf(old_tab) ? peeks_->ParentOf(old_tab)
-                                            : old_tab;
-    const bool same_family =
-        row == new_tab || (peeks_ && peeks_->ParentOf(new_tab) == row);
-    if (!same_family) {
+    // A tab and its Peek, or a split's panes (add-split-view), are one row.
+    tabs::TabInterface* row = RowOf(old_tab);
+    if (RowOf(new_tab) != row) {
       came_from_ = row->GetHandle();
     }
   }

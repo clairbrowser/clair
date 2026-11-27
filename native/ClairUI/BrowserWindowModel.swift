@@ -36,6 +36,10 @@ final class BrowserWindowModel {
   private(set) var pinnedItems: [any ClairPinnedItem] = []
   /// Every pinned tab of the shown Space, its folders' included, in order.
   private(set) var pins: [any ClairPin] = []
+  /// The profile's favorites and favorited splits, as the grid's tiles
+  /// (add-split-view D10).
+  private(set) var favoriteItems: [any ClairPinnedItem] = []
+  /// Every favorite, a favorited split's two included.
   private(set) var favorites: [any ClairPin] = []
   /// The latest snapshot of each open pin's tab and its Peek, by tab ID.
   private(set) var pinTabs: [TabID: any ClairTab] = [:]
@@ -68,6 +72,26 @@ final class BrowserWindowModel {
     case .folder:
       return nil
     }
+  }
+
+  /// The icons of a dragged row or tile: both pages' for a split, in pane
+  /// order, as its favorite tile shows them.
+  func icons(of item: SidebarDragItem) -> [NSImage?] {
+    switch item {
+    case .tab(let tabID):
+      if let tab = allTabs.first(where: { $0.tabID == tabID }),
+        let (leading, trailing) = TabListLogic.panes(of: tab, in: allTabs)
+      {
+        return [leading.favicon, trailing.favicon]
+      }
+    case .pin(let pinID):
+      if let split = PinsLogic.split(containing: pinID, in: pinnedItems + favoriteItems) {
+        return split.pins.map { PinsLogic.icon(of: $0, tab: tab(ofPin: $0)) }
+      }
+    case .folder:
+      break
+    }
+    return [icon(of: item)]
   }
 
   /// The pin `tabID` is bound to, among the window's.
@@ -120,6 +144,15 @@ final class BrowserWindowModel {
   /// The row or tile highlighted among every tab the window lists.
   var highlightedTab: TabID { highlightedRow(in: allTabs) }
 
+  /// The tab the main menu's pin commands act on: the still's, or the
+  /// active tab, or its parent while a Peek shows. A split's trailing pane
+  /// is itself, not its row's leading pane, as it has a pin of its own.
+  var commandTab: TabID {
+    if isShowingStill { return stillTabID }
+    if let active = activeTab, active.peekParentID != ClairTabIDNone { return active.peekParentID }
+    return activeTabID
+  }
+
   /// The pin or favorite whose row or tile is highlighted, if one is.
   var activePin: (any ClairPin)? { pin(ofTab: highlightedTab) }
 
@@ -136,8 +169,47 @@ final class BrowserWindowModel {
   // --- where the browser controls show (add-page-toolbar D1) ---
   /// The toolbar preference, as the window last read it.
   var showsToolbar = true
-  /// The panes the card shows: always one until split view.
-  var paneCount = 1
+  /// The panes the card shows: two while the active tab, or the active
+  /// Peek's parent, is in a split (add-split-view D3).
+  var paneCount: Int { shownSplit == nil ? 1 : 2 }
+
+  /// The split the window shows, if any (add-split-view D2).
+  var shownSplit: ShownSplit? {
+    isShowingStill ? nil : SplitLogic.shownSplit(activeTabID: activeTabID, in: allTabs)
+  }
+  /// The pane under the pointer, whose header shows all its controls
+  /// (add-split-view spec, "Controls of the other pane").
+  var hoveredPane: Int?
+  /// The ratio while the divider is dragged, before the engine has it, and
+  /// the panes of the split it's dragged in.
+  var liveSplitRatio: Double?
+  var liveSplitPanes: [TabID]?
+  /// The dragged ratio of `split`, only while it's the split dragged.
+  func liveRatio(of split: ShownSplit) -> Double? {
+    liveSplitPanes == split.paneIDs ? liveSplitRatio : nil
+  }
+  /// The modifier keys held while the link status shows (D13a).
+  var statusModifiers: NSEvent.ModifierFlags = []
+  /// A tab dragged over the page, and the zone under it (D8).
+  var pageDrop: SplitLogic.DropZone?
+
+  /// The tab a pane shows: a split's pane's, or the toolbar's tab outside a
+  /// split.
+  func paneTab(_ index: Int) -> (any ClairTab)? {
+    guard let split = shownSplit else { return index == 0 ? toolbarTab : nil }
+    return allTabs.first { $0.tabID == split.paneIDs[index] }
+  }
+
+  /// What the link status reads, worded with the modifier keys held.
+  var wordedStatus: String? {
+    guard let statusText else { return nil }
+    guard statusIsLink else { return statusText }
+    let inPeek = allTabs.first { $0.tabID == statusTabID }.map(TabListLogic.isPeek) ?? false
+    return SplitLogic.linkStatus(
+      url: statusText, modifiers: statusModifiers, opensPeekOnShiftClick: opensPeekOnShiftClick, inPeek: inPeek)
+  }
+  /// The Peek preference, as the window last read it.
+  var opensPeekOnShiftClick = true
   var headerPolicy: PageHeaderPolicy { PageHeaderPolicy(showsToolbar: showsToolbar, paneCount: paneCount) }
   /// Whether the page shows its header, the toolbar. Views read this, not
   /// the preference.
@@ -212,6 +284,10 @@ final class BrowserWindowModel {
   /// Bumped when Cmd+F asks for the find field again while it shows.
   var findFocusRequest = 0
   var statusText: String?
+  /// Whether `statusText` is a link's URL, which the capsule words with the
+  /// modifier keys held, and the page it's in (add-split-view D13a).
+  var statusIsLink = false
+  var statusTabID: TabID = ClairTabIDNone
   var toast: Toast?
   var exclusiveAccessNotice: String?
   /// The popup in the card's top-trailing corner (design D18).
@@ -268,13 +344,15 @@ final class BrowserWindowModel {
     guard showsPins else {
       pinnedItems = []
       pins = []
+      favoriteItems = []
       favorites = []
       pinTabs = [:]
       return
     }
     pinnedItems = spaces.pinnedItems(inSpace: shownSpaceID)
     pins = PinsLogic.allPins(pinnedItems)
-    favorites = profileID.map { spaces.favorites(ofProfile: $0) } ?? []
+    favoriteItems = profileID.map { spaces.favoriteItems(ofProfile: $0) } ?? []
+    favorites = PinsLogic.allPins(favoriteItems)
     var latest: [TabID: any ClairTab] = [:]
     for pin in pins + favorites {
       for tab in pin.tabs {
