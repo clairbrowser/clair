@@ -117,6 +117,16 @@ struct SplitLogicTests {
     if case .submenu = loneItem {} else { Issue.record("Split with Tab isn't a submenu") }
   }
 
+  /// A split's pane headers show with the toolbar off, where Hide Toolbar
+  /// would do nothing.
+  @Test(arguments: [true, false])
+  func theHeadersMenuOffersHideToolbarOnlyWhileItsOn(showsToolbar: Bool) {
+    let titles = PageToolbar.menuItems(canCopy: true, showsToolbar: showsToolbar, copy: {}, hide: {}).map(\.title)
+    #expect(titles == (showsToolbar ? ["Copy URL", nil, "Hide Toolbar"] : ["Copy URL"]))
+    let blank = PageToolbar.menuItems(canCopy: false, showsToolbar: showsToolbar, copy: {}, hide: {}).map(\.title)
+    #expect(blank == (showsToolbar ? ["Hide Toolbar"] : []))
+  }
+
   @Test func paneHeadersExpandWhileFocusedOrHovered() {
     let leading = PageHeaderContent.pane(leading: true, toggle: true, expanded: false)
     #expect(leading.showsSidebarToggle && !leading.showsReload && !leading.showsSplitButton && leading.showsClose)

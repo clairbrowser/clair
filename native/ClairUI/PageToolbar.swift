@@ -244,6 +244,9 @@ struct PageToolbar: View {
           .toolbarRole(.trailingFixed(closeSlot))
       }
     }
+    // Showing another split, or none, swaps the header at once: the fade is
+    // only for the controls of the split already shown.
+    .transaction(value: model.shownSplit?.paneIDs) { $0.animation = nil }
     // The other pane's controls fade in and out as the pointer comes and
     // goes, as Arc's do (add-split-view, "Controls of the other pane").
     .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: content)
@@ -411,16 +414,29 @@ struct PageToolbar: View {
 
   /// The toolbar's context menu: Copy URL and Hide Toolbar, as in Arc.
   private func menuItems(canCopy: Bool) -> [RowClickCatcher.Item] {
+    let paneTabID = self.paneTabID
+    return Self.menuItems(
+      canCopy: canCopy, showsToolbar: model.showsToolbar,
+      copy: { [weak actions] in
+        if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
+      },
+      hide: { [weak actions] in actions?.setToolbarShown(false) })
+  }
+
+  /// Copy URL when there's one to copy, and Hide Toolbar only while the
+  /// preference is on: a split's pane headers show with it off, and hiding
+  /// them would do nothing.
+  static func menuItems(
+    canCopy: Bool, showsToolbar: Bool, copy: @escaping () -> Void, hide: @escaping () -> Void
+  ) -> [RowClickCatcher.Item] {
     var items: [RowClickCatcher.Item] = []
     if canCopy {
-      let paneTabID = self.paneTabID
-      items.append(
-        .action("Copy URL") { [weak actions] in
-          if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
-        })
-      items.append(.separator)
+      items.append(.action("Copy URL", copy))
     }
-    items.append(.action(ToolbarPreference.menuTitle(isOn: true)) { [weak actions] in actions?.setToolbarShown(false) })
+    if showsToolbar {
+      if !items.isEmpty { items.append(.separator) }
+      items.append(.action(ToolbarPreference.menuTitle(isOn: true), hide))
+    }
     return items
   }
 }
