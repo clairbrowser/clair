@@ -123,6 +123,10 @@ An extension's popup SHALL open in a small titled window whose only enabled cont
 - **WHEN** the toolbar is shown and the user clicks a pinned extension's tile whose action has a popup
 - **THEN** a window with a close button opens over the toolbar, its top-trailing corner at the card's top edge and 40 points in from the card's trailing edge, showing the whole popup page
 
+#### Scenario: A popup from the trailing pane
+- **WHEN** the window shows a split and the user clicks a pinned extension's tile in the trailing pane's header
+- **THEN** the popup's window opens at the trailing pane's top-trailing corner, not the leading pane's
+
 #### Scenario: Another extension from the toolbar
 - **WHEN** the toolbar is shown and the user opens a second pinned extension's popup, whose tile is further from the trailing edge
 - **THEN** its window's top-trailing corner is at the same place as the first's

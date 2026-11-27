@@ -47,15 +47,19 @@ While the page is split, the command bar SHALL open centred on the focused pane 
 - **THEN** the command bar opens as near the pane's centre as it can while staying inside the window
 
 ### Requirement: Pane headers
-While the page is split, each pane SHALL have a header, whatever the toolbar preference, laid out as the toolbar (`page-toolbar`). Each SHALL hold back, forward, the link icon, the host and a close button centred 21 points from its trailing edge. The leading pane's header SHALL also lead with the sidebar toggle. The focused pane's SHALL also show reload and, left of the close button and 36 points apart, the split button, site controls, pinned extensions and indicators, as in Arc.
+While the page is split, each pane SHALL have a header, whatever the toolbar preference, laid out as the toolbar (`page-toolbar`). Each SHALL hold back, forward, the link icon, the host and × centred 21 points from its trailing edge. With the toolbar on, the leading pane's header SHALL also lead with the sidebar toggle. The focused pane's SHALL also show reload and, left of the close button and 36 points apart, the split button, site controls, pinned extensions and indicators, as in Arc.
 
 #### Scenario: Headers of a split
-- **WHEN** the window shows a split with the trailing pane focused
+- **WHEN** the toolbar preference is on and the window shows a split with the trailing pane focused
 - **THEN** the leading pane's header shows the sidebar toggle, back, forward, the link icon, its host and ×, and the trailing pane's shows back, forward, reload, the link icon, its host, the indicators, pinned extensions, site controls, the split button and ×
 
 #### Scenario: Toolbar preference off
 - **WHEN** the toolbar preference is off and the user makes a split
-- **THEN** both panes show headers, and the sidebar shows no back, forward, reload or URL field until the split ends
+- **THEN** both panes show headers without the sidebar toggle, and the sidebar keeps its top row's height and hide-sidebar button, its URL field, showing the focused pane's URL, and its pinned extensions, as in Arc, so nothing in it moves; only back, forward and reload leave its top row until the split ends
+
+#### Scenario: Bubbles with the toolbar off
+- **WHEN** the toolbar preference is off, the window shows a split, and the user clicks a pinned extension or the site-controls button in the sidebar
+- **THEN** its popup or the Site Control Center opens beside the sidebar's control, as without a split; clicking one in the focused pane's header opens it there instead
 
 ### Requirement: Controls of the other pane
 While the pointer is over the pane that isn't focused, its header SHALL show its reload, split button, site-controls button, pinned extensions and indicators too, fading in and out, as Arc does near its toolbar. Clicking one of them SHALL focus that pane and act on its tab.
@@ -85,11 +89,18 @@ A divider in the gap between the panes SHALL show the resize pointer and a faint
 
 #### Scenario: The grabber
 - **WHEN** the pointer moves over the divider
-- **THEN** the grabber fades to its full colour, and back to faint once the pointer leaves
+- **THEN** the grabber fades to a darker colour, and back to faint once the pointer leaves
 
 #### Scenario: Coming back to the split
 - **WHEN** the user resized a split, selects another tab and then selects the split again
 - **THEN** the split shows with the ratio it had
+
+### Requirement: Centring the divider
+Double-clicking the divider SHALL slide it to the centre, resizing the panes as it moves, and keep the panes equal.
+
+#### Scenario: Double-clicking the divider
+- **WHEN** the user double-clicks the divider of a split whose leading pane is wider
+- **THEN** the divider slides to the centre, the panes resize with it, and they stay equal
 
 ### Requirement: Dragging a tab onto the page
 Dragging a Today tab, pinned tab or favorite over the page SHALL turn the drag into a portrait card with the tab's favicon and title, as in Arc. While the page isn't split, the half under the pointer SHALL become a translucent drop zone with an accent border, the page sliding to the other half, and moving across SHALL swap them. Dropping SHALL make a split with the tab in that half.
@@ -272,7 +283,7 @@ Separate Tabs, in a pane's split menu, the split row's menu and View, SHALL end 
 - **THEN** the sidebar lists "News" and then "Docs" where the split's row was, and the window shows "Docs" alone
 
 ### Requirement: The split row
-In the sidebar, a split SHALL show as one row with a chip per tab, in pane order, each with the tab's favicon and title (or custom name), truncated to share the row, as in Arc. While the split isn't selected, a thin divider SHALL separate the chips. While it's selected, the row SHALL be highlighted and each chip SHALL show as its own grey pill, in the same place as before, as in Arc.
+In the sidebar, a split SHALL show as one row with a chip per tab, in pane order, each with the tab's favicon and title (or custom name), truncated to share the row, as in Arc. The chips SHALL be about 3 points apart, as in Arc. While the split isn't selected, a thin divider SHALL separate them, in that gap. While it's selected, the row SHALL be highlighted and each chip SHALL show as its own grey pill, in the same place as before, as in Arc.
 
 #### Scenario: A split in Today
 - **WHEN** a Space has the Today tabs "Mail" and a split of "News" and "Docs"

@@ -34,16 +34,22 @@ struct ToolbarPreference {
 struct PageHeaderPolicy: Equatable {
   /// Whether each pane shows a header above its page.
   let panesShowHeader: Bool
-  /// Whether the sidebar shows back, forward, reload, the URL field and the
-  /// pinned extensions: only while no pane shows a header.
+  /// Whether the sidebar shows its full top row with the hide-sidebar
+  /// button, the URL field and the pinned extensions: while the toolbar is
+  /// off, a split's pane headers included, as in Arc, so the sidebar doesn't
+  /// shift as the user moves between a split and other tabs.
   let sidebarShowsControls: Bool
-  /// The pane whose header leads with the sidebar toggle, if any pane shows
-  /// one: the leading pane.
+  /// Whether the sidebar's top row shows back, forward and reload: only while
+  /// no pane shows a header.
+  let sidebarShowsNavigation: Bool
+  /// The pane whose header leads with the sidebar toggle, if any: the
+  /// leading pane, while the sidebar's top row doesn't hold the toggle.
   let togglePane: Int?
 
   init(showsToolbar: Bool, paneCount: Int) {
     panesShowHeader = showsToolbar || paneCount > 1
-    sidebarShowsControls = !panesShowHeader
-    togglePane = panesShowHeader ? 0 : nil
+    sidebarShowsControls = !showsToolbar
+    sidebarShowsNavigation = !panesShowHeader
+    togglePane = showsToolbar ? 0 : nil
   }
 }

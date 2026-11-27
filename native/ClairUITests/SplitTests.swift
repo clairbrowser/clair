@@ -117,11 +117,24 @@ struct SplitLogicTests {
     if case .submenu = loneItem {} else { Issue.record("Split with Tab isn't a submenu") }
   }
 
+  /// A split's pane headers show with the toolbar off, where Hide Toolbar
+  /// would do nothing.
+  @Test(arguments: [true, false])
+  func theHeadersMenuOffersHideToolbarOnlyWhileItsOn(showsToolbar: Bool) {
+    let titles = PageToolbar.menuItems(canCopy: true, showsToolbar: showsToolbar, copy: {}, hide: {}).map(\.title)
+    #expect(titles == (showsToolbar ? ["Copy URL", nil, "Hide Toolbar"] : ["Copy URL"]))
+    let blank = PageToolbar.menuItems(canCopy: false, showsToolbar: showsToolbar, copy: {}, hide: {}).map(\.title)
+    #expect(blank == (showsToolbar ? ["Hide Toolbar"] : []))
+  }
+
   @Test func paneHeadersExpandWhileFocusedOrHovered() {
-    let leading = PageHeaderContent.pane(leading: true, expanded: false)
+    let leading = PageHeaderContent.pane(leading: true, toggle: true, expanded: false)
     #expect(leading.showsSidebarToggle && !leading.showsReload && !leading.showsSplitButton && leading.showsClose)
     #expect(leading.trailingFixedCount == 1)
-    let trailing = PageHeaderContent.pane(leading: false, expanded: true)
+    // With the toolbar off, the sidebar keeps the toggle.
+    let untoggled = PageHeaderContent.pane(leading: true, toggle: false, expanded: false)
+    #expect(!untoggled.showsSidebarToggle && untoggled.leadingCount == 2)
+    let trailing = PageHeaderContent.pane(leading: false, toggle: false, expanded: true)
     #expect(!trailing.showsSidebarToggle && trailing.showsReload && trailing.showsSplitButton)
     #expect(trailing.trailingFixedCount == 3)
     #expect(trailing.identifier == "clair.paneToolbar.1")
@@ -390,6 +403,31 @@ struct SplitWindowTests {
     #expect(browser.host.tab(mail.tabID)?.splitRatio == 0.5)
     // The grabber rests faint until the pointer is over it.
     #expect(divider.grabberAlpha == SplitDividerView.restingAlpha)
+  }
+
+  /// Double-clicking the divider centres it; the second click doesn't drag
+  /// it back to the pointer.
+  @Test func doubleClickingTheDividerCentresIt() throws {
+    browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
+    let root = controller.rootView
+    root.frame = CGRect(x: 0, y: 0, width: 1400, height: 900)
+    root.layoutSubtreeIfNeeded()
+    let width = root.pageArea.width
+    let divider = root.splitDivider
+    divider.onDrag?(width / 2 - 150, true)
+    #expect((browser.host.tab(mail.tabID)?.splitRatio ?? 0.5) < 0.45)
+    let point = divider.convert(CGPoint(x: divider.bounds.midX, y: divider.bounds.midY), to: nil)
+    for count in [1, 2] {
+      for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+        let event = try #require(
+          NSEvent.mouseEvent(
+            with: type, location: point, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            eventNumber: 0, clickCount: count, pressure: 1))
+        if type == .leftMouseDown { divider.mouseDown(with: event) } else { divider.mouseUp(with: event) }
+      }
+    }
+    #expect(browser.host.tab(mail.tabID)?.splitRatio == 0.5)
+    #expect(controller.model.liveSplitRatio == 0.5)
   }
 
   @Test func theDividerKeepsTheRatioItsLetGoAt() {

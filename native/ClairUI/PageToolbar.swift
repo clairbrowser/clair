@@ -14,30 +14,31 @@ enum PageHeaderContent: Equatable {
   case tab
   /// A Peek's: back, forward, reload, the link icon and the host.
   case peek
-  /// A split's pane's header: the sidebar toggle in the leading pane, back,
-  /// forward, the link icon, the host and ×; with `expanded`, while the pane
-  /// is focused or under the pointer, also reload, the split button, site
-  /// controls, pinned extensions and indicators.
-  case pane(leading: Bool, expanded: Bool)
+  /// A split's pane's header: the sidebar toggle with `toggle` (the leading
+  /// pane's, while the toolbar preference is on), back, forward, the link
+  /// icon, the host and ×; with `expanded`, while the pane is focused or
+  /// under the pointer, also reload, the split button, site controls, pinned
+  /// extensions and indicators.
+  case pane(leading: Bool, toggle: Bool, expanded: Bool)
 
   /// The leading controls that always show before reload.
   var leadingCount: Int {
     switch self {
     case .tab: 3
     case .peek: 2
-    case .pane(let leading, _): leading ? 3 : 2
+    case .pane(_, let toggle, _): toggle ? 3 : 2
     }
   }
   var showsSidebarToggle: Bool { leadingCount == 3 }
   var showsReload: Bool {
-    if case .pane(_, let expanded) = self { return expanded }
+    if case .pane(_, _, let expanded) = self { return expanded }
     return true
   }
   private var showsAll: Bool {
     switch self {
     case .tab: true
     case .peek: false
-    case .pane(_, let expanded): expanded
+    case .pane(_, _, let expanded): expanded
     }
   }
   var showsSiteControls: Bool { showsAll }
@@ -58,7 +59,7 @@ enum PageHeaderContent: Equatable {
     switch self {
     case .tab: "clair.toolbar"
     case .peek: "clair.peekToolbar"
-    case .pane(let leading, _): "clair.paneToolbar.\(leading ? 0 : 1)"
+    case .pane(let leading, _, _): "clair.paneToolbar.\(leading ? 0 : 1)"
     }
   }
 }
@@ -111,7 +112,9 @@ struct PageToolbar: View {
     case .peek: return .peek
     case .pane(let index):
       guard let split = model.shownSplit else { return .tab }
-      return .pane(leading: index == 0, expanded: split.focusedIndex == index || model.hoveredPane == index)
+      return .pane(
+        leading: index == 0, toggle: model.headerPolicy.togglePane == index,
+        expanded: split.focusedIndex == index || model.hoveredPane == index)
     }
   }
 
@@ -127,10 +130,12 @@ struct PageToolbar: View {
     return split.focusedIndex != index
   }
 
-  /// Runs `action` on the pane's tab: the pane is focused first.
+  /// Runs `action` on the pane's tab: the pane is focused first, and the
+  /// bubble it opens attaches to the header, not the sidebar.
   private func onPane(_ action: @escaping () -> Void) -> () -> Void {
     { [weak actions] in
       if isOtherPane, let paneTabID { actions?.focusPane(paneTabID) }
+      model.usedSidebarControls = false
       action()
     }
   }
@@ -239,6 +244,9 @@ struct PageToolbar: View {
           .toolbarRole(.trailingFixed(closeSlot))
       }
     }
+    // Showing another split, or none, swaps the header at once: the fade is
+    // only for the controls of the split already shown.
+    .transaction(value: model.shownSplit?.paneIDs) { $0.animation = nil }
     // The other pane's controls fade in and out as the pointer comes and
     // goes, as Arc's do (add-split-view, "Controls of the other pane").
     .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: content)
@@ -382,8 +390,12 @@ struct PageToolbar: View {
     // A click while the popover is open only closes it (arc-site-control-center
     // design D2).
     .allowsHitTesting(!model.isSiteControlCenterOpen)
-    // Only the focused pane's button holds the popover (add-split-view D9).
-    .popover(isPresented: isOtherPane ? .constant(false) : $model.isSiteControlCenterOpen, arrowEdge: .bottom) {
+    // Only the focused pane's button holds the popover (add-split-view D9),
+    // unless it was opened from the sidebar's URL field.
+    .popover(
+      isPresented: isOtherPane || model.bubblesInSidebar ? .constant(false) : $model.isSiteControlCenterOpen,
+      arrowEdge: .bottom
+    ) {
       SiteControlCenter(model: model, actions: actions) { model.isSiteControlCenterOpen = false }
     }
     .anchorFrame(.siteControls)
@@ -402,16 +414,29 @@ struct PageToolbar: View {
 
   /// The toolbar's context menu: Copy URL and Hide Toolbar, as in Arc.
   private func menuItems(canCopy: Bool) -> [RowClickCatcher.Item] {
+    let paneTabID = self.paneTabID
+    return Self.menuItems(
+      canCopy: canCopy, showsToolbar: model.showsToolbar,
+      copy: { [weak actions] in
+        if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
+      },
+      hide: { [weak actions] in actions?.setToolbarShown(false) })
+  }
+
+  /// Copy URL when there's one to copy, and Hide Toolbar only while the
+  /// preference is on: a split's pane headers show with it off, and hiding
+  /// them would do nothing.
+  static func menuItems(
+    canCopy: Bool, showsToolbar: Bool, copy: @escaping () -> Void, hide: @escaping () -> Void
+  ) -> [RowClickCatcher.Item] {
     var items: [RowClickCatcher.Item] = []
     if canCopy {
-      let paneTabID = self.paneTabID
-      items.append(
-        .action("Copy URL") { [weak actions] in
-          if let paneTabID { actions?.copyURL(of: paneTabID) } else { actions?.copyURL() }
-        })
-      items.append(.separator)
+      items.append(.action("Copy URL", copy))
     }
-    items.append(.action(ToolbarPreference.menuTitle(isOn: true)) { [weak actions] in actions?.setToolbarShown(false) })
+    if showsToolbar {
+      if !items.isEmpty { items.append(.separator) }
+      items.append(.action(ToolbarPreference.menuTitle(isOn: true), hide))
+    }
     return items
   }
 }

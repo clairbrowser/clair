@@ -140,11 +140,12 @@ struct SidebarView: View {
           .background { TitleBarArea { actions?.titleBarDoubleClicked() } }
         // The New Space form takes the URL field's place too, as in Arc. While
         // the toolbar shows, the field and the extensions are in it
-        // (add-page-toolbar D5).
+        // (add-page-toolbar D5); a split's pane headers leave them here, as
+        // in Arc.
         if model.newSpaceForm == nil && model.sidebarShowsControls {
           URLField(
             model: model, actions: actions,
-            showsButtons: (isHovered && model.isWindowKey) || model.isSiteControlCenterOpen)
+            showsButtons: (isHovered && model.isWindowKey) || (model.isSiteControlCenterOpen && model.bubblesInSidebar))
             .padding(.horizontal, 8)
             .padding(.top, 6)
         }
@@ -350,6 +351,9 @@ struct TopRow: View {
     // While the toolbar shows, the row keeps only the window controls' room,
     // at its height, so they stay at Arc's place (add-page-toolbar D5).
     let isCompact = model.sidebarShowsControls && controls.hasCompactTopRow(width: model.sidebar.width)
+    // A split's pane headers hold back, forward and reload; the row keeps its
+    // height and the hide-sidebar button, as in Arc.
+    let showsNavigation = model.sidebarShowsNavigation
     let size = isCompact ? IconButtonSize.small : IconButtonSize.regular
     let back = IconButton(
       systemImage: "arrow.left", help: "Go back", shortcut: ["⌘", "["], isEnabled: model.canGoBack, size: size
@@ -380,17 +384,22 @@ struct TopRow: View {
     } else if isCompact {
       HStack(spacing: 0) {
         Spacer(minLength: 0)
-        back
-        forward
+        if showsNavigation {
+          back
+          forward
+        }
         IconMenu(help: "More options", size: IconButtonSize.small) {
-          Group {
-            if isLoading {
-              Button("Stop") { actions?.reloadOrStop() }.keyboardShortcut(.escape, modifiers: [])
-            } else {
-              Button("Reload") { actions?.reloadOrStop() }.keyboardShortcut("r", modifiers: .command)
+          // A split's pane headers hold reload too.
+          if showsNavigation {
+            Group {
+              if isLoading {
+                Button("Stop") { actions?.reloadOrStop() }.keyboardShortcut(.escape, modifiers: [])
+              } else {
+                Button("Reload") { actions?.reloadOrStop() }.keyboardShortcut("r", modifiers: .command)
+              }
             }
+            .disabled(!model.canReload || !reloadStop.isEnabled)
           }
-          .disabled(!model.canReload || !reloadStop.isEnabled)
           Button("Hide Sidebar") { actions?.toggleSidebar() }.keyboardShortcut("s", modifiers: .command)
         } label: {
           SymbolGlyph(systemImage: "ellipsis")
@@ -413,24 +422,26 @@ struct TopRow: View {
         ) { actions?.toggleSidebar() }
           .accessibilityIdentifier("clair.hideSidebar")
         Spacer(minLength: 0)
-        HStack(spacing: Self.gap) {
-          back
-          forward
-          IconButton(
-            help: isLoading ? "Stop loading this page" : "Reload this page",
-            shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: model.canReload && reloadStop.isEnabled
-          ) {
-            actions?.reloadOrStop()
-          } label: {
-            // Arc crossfades the two glyphs in about 100 ms.
-            ZStack {
-              SymbolGlyph(systemImage: "arrow.clockwise").opacity(isLoading ? 0 : 1)
-              SymbolGlyph(systemImage: "xmark").opacity(isLoading ? 1 : 0)
+        if showsNavigation {
+          HStack(spacing: Self.gap) {
+            back
+            forward
+            IconButton(
+              help: isLoading ? "Stop loading this page" : "Reload this page",
+              shortcut: isLoading ? ["esc"] : ["⌘", "R"], isEnabled: model.canReload && reloadStop.isEnabled
+            ) {
+              actions?.reloadOrStop()
+            } label: {
+              // Arc crossfades the two glyphs in about 100 ms.
+              ZStack {
+                SymbolGlyph(systemImage: "arrow.clockwise").opacity(isLoading ? 0 : 1)
+                SymbolGlyph(systemImage: "xmark").opacity(isLoading ? 1 : 0)
+              }
+              .animation(reduceMotion ? nil : .easeInOut(duration: 0.1), value: isLoading)
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.1), value: isLoading)
+            .onHover { actions?.reloadButtonHovered($0) }
+            .accessibilityIdentifier("clair.reload")
           }
-          .onHover { actions?.reloadButtonHovered($0) }
-          .accessibilityIdentifier("clair.reload")
         }
       }
       .padding(.trailing, Self.trailing)
@@ -457,6 +468,12 @@ struct URLField: View {
   static let height: CGFloat = 36
   /// Arc's URL-field buttons: 28 pt, side by side.
   static let buttonSize = IconButtonSize.small
+
+  /// Whether the Site Control Center shows from this field: not while it
+  /// shows from a split's pane header.
+  private var siteControlCenterShown: Binding<Bool> {
+    Binding { model.isSiteControlCenterOpen && model.bubblesInSidebar } set: { model.isSiteControlCenterOpen = $0 }
+  }
 
   static let indicatorSymbols: [(TabIndicators, String, String)] = [
     (.camera, "video.fill", "Camera"),
@@ -508,6 +525,7 @@ struct URLField: View {
       ForEach(Self.indicatorSymbols, id: \.0.rawValue) { indicator, symbol, label in
         if tab?.indicators.contains(indicator) == true {
           Button {
+            model.usedSidebarControls = true
             actions?.showSiteControls(indicator: indicator)
           } label: {
             Image(systemName: symbol)
@@ -535,6 +553,7 @@ struct URLField: View {
           systemImage: "slider.horizontal.2.square", help: "Site Control Center",
           glyphSize: URLFieldButton.siteControlsGlyphSize, glyphWeight: .regular
         ) {
+          model.usedSidebarControls = true
           model.isSiteControlCenterOpen = true
         }
         // A click while the popover is open only closes it: the transient
@@ -554,7 +573,7 @@ struct URLField: View {
         .frame(width: Self.buttonSize, height: Self.buttonSize)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .popover(isPresented: $model.isSiteControlCenterOpen, arrowEdge: .bottom) {
+        .popover(isPresented: siteControlCenterShown, arrowEdge: .bottom) {
           SiteControlCenter(model: model, actions: actions) { model.isSiteControlCenterOpen = false }
         }
         .padding(.trailing, 5)
@@ -608,8 +627,11 @@ struct ToolsRow: View {
         PinnedExtensionTile(
           action: action,
           contextMenu: { actions?.contextMenu(forExtension: action.extensionID) }
-        ) { actions?.runExtension(action.extensionID, pinned: true) }
-          .anchorFrame(.extensionAction(action.extensionID))
+        ) {
+          model.usedSidebarControls = true
+          actions?.runExtension(action.extensionID, pinned: true)
+        }
+        .anchorFrame(.extensionAction(action.extensionID))
       }
     }
   }

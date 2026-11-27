@@ -45,6 +45,8 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   /// The pane whose header reported `toolbarFrames`.
   private var toolbarFramesPane = 0
   private var extensionPopup: ExtensionPopupWindow?
+  /// Centres a split's divider when it's double-clicked.
+  let splitRatioAnimator = SplitRatioAnimator()
   /// The window's dialogs (add-clair-dialogs D1), for every dialog on it.
   private(set) lazy var dialogs = ClairDialogPresenter(window: window)
   private lazy var extensionPrompts = ExtensionPromptSheets(dialogs: dialogs) { [weak self] promptID, accepted in
@@ -371,13 +373,16 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
   }
 
-  deinit {
+  isolated deinit {
     for observer in observers {
       NotificationCenter.default.removeObserver(observer)
     }
     if let flagsMonitor {
       NSEvent.removeMonitor(flagsMonitor)
     }
+    // A window closed while the divider centres suspends the display link
+    // rather than invalidating it, which would keep it and the animator.
+    splitRatioAnimator.stop()
   }
 
   // MARK: Dragging the window from the top of the page
@@ -896,8 +901,8 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     return AnchorResolver(
       sidebarInPlace: model.sidebar.isShownInPlace && !model.isPageFullscreen && !isWindowFullscreen,
       controls: controls,
-      card: rootView.convert(rootView.card.frame, to: nil),
-      toolbarShown: isToolbarShown, toolbarControls: toolbarControls)
+      card: rootView.convert(rootView.focusedCard.frame, to: nil),
+      toolbarShown: isToolbarShown, toolbarControls: toolbarControls, prefersSidebar: model.bubblesInSidebar)
   }
 
   /// Whether the toolbar shows above the page: not while a page is in full
@@ -919,10 +924,12 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     let anchorRect = self.anchor(for: anchor, indicator: [], extensionID: extensionID).rect
     let name = model.extensionActions.first { $0.extensionID == extensionID }?.name ?? ""
     // While the toolbar shows, every popup opens at the same place over it,
-    // as in Arc; its tile still closes it (add-page-toolbar D6).
+    // the focused pane's in a split, as in Arc; its tile still closes it
+    // (add-page-toolbar D6).
+    let resolver = anchorResolver
     var placement = ExtensionPopupWindow.Placement.besideAnchor
-    if isToolbarShown {
-      let card = rootView.convert(rootView.card.frame, to: nil)
+    if isToolbarShown && !resolver.anchorsInSidebar {
+      let card = resolver.card
       placement = .topTrailing(NSPoint(x: card.maxX - ExtensionPopupWindow.toolbarInset, y: card.maxY))
     }
     let popup = ExtensionPopupWindow(

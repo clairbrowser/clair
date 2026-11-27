@@ -193,7 +193,7 @@ While the toolbar shows, the strip at the top of the page that moves the window 
 - **THEN** the drag reaches the page and the window stays in place
 
 ### Requirement: Turning the toolbar on and off
-View SHALL offer "Hide Toolbar", reading "Show Toolbar" while the toolbar is off, with ⇧⌘D, as in Arc. While the toolbar shows, right-clicking it, on its host or a blank area, SHALL open a menu with Copy URL and "Hide Toolbar". While it's off, the sidebar's URL field SHALL have that menu instead, with "Show as Toolbar". The toolbar's buttons SHALL keep their own menus. Each item SHALL change the toolbar preference.
+View SHALL offer "Hide Toolbar", reading "Show Toolbar" while the toolbar is off, with ⇧⌘D, as in Arc. While the toolbar shows, right-clicking it, on its host or a blank area, SHALL open a menu with Copy URL and "Hide Toolbar". While it's off, the sidebar's URL field SHALL have that menu instead, with "Show as Toolbar", and a split's pane headers only Copy URL. The toolbar's buttons SHALL keep their own menus. Each item SHALL change the toolbar preference.
 
 #### Scenario: Menu bar
 - **WHEN** the toolbar is shown and the user presses ⇧⌘D
@@ -202,6 +202,10 @@ View SHALL offer "Hide Toolbar", reading "Show Toolbar" while the toolbar is off
 #### Scenario: Toolbar's context menu
 - **WHEN** the toolbar is shown and the user right-clicks its host, or blank space in it
 - **THEN** the menu offers Copy URL and "Hide Toolbar"
+
+#### Scenario: A pane header with the toolbar off
+- **WHEN** the toolbar is off, the window shows a split, and the user right-clicks a pane header's host
+- **THEN** the menu offers Copy URL only
 
 #### Scenario: A button's own menu
 - **WHEN** the toolbar is shown and the user right-clicks its back button

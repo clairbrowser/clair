@@ -56,16 +56,20 @@ struct ToolbarPreferenceTests {
     let policy = PageHeaderPolicy(showsToolbar: showsToolbar, paneCount: 1)
     #expect(policy.panesShowHeader == showsToolbar)
     #expect(policy.sidebarShowsControls == !showsToolbar)
+    #expect(policy.sidebarShowsNavigation == !showsToolbar)
     #expect(policy.togglePane == (showsToolbar ? 0 : nil))
   }
 
-  /// Split view: every pane shows its header whatever the setting.
+  /// Split view: every pane shows its header whatever the setting. With the
+  /// toolbar off, the sidebar keeps its toggle, URL field and pinned
+  /// extensions, as in Arc, and only back, forward and reload leave it.
   @Test(arguments: [true, false])
   func twoPanesAlwaysShowHeaders(showsToolbar: Bool) {
     let policy = PageHeaderPolicy(showsToolbar: showsToolbar, paneCount: 2)
     #expect(policy.panesShowHeader)
-    #expect(!policy.sidebarShowsControls)
-    #expect(policy.togglePane == 0)
+    #expect(policy.sidebarShowsControls == !showsToolbar)
+    #expect(!policy.sidebarShowsNavigation)
+    #expect(policy.togglePane == (showsToolbar ? 0 : nil))
   }
 
   @Test func theModelFollowsThePolicy() {
@@ -84,7 +88,11 @@ struct ToolbarPreferenceTests {
     // A split shows both panes' headers (add-split-view D9).
     browser.makeSplit(mail.tabID, with: news.tabID)
     #expect(model.paneCount == 2)
-    #expect(model.showsPageHeader && !model.sidebarShowsControls)
+    #expect(model.showsPageHeader && model.sidebarShowsControls && !model.sidebarShowsNavigation)
+    // Bubbles attach to the controls the user used last.
+    #expect(!model.bubblesInSidebar)
+    model.usedSidebarControls = true
+    #expect(model.bubblesInSidebar)
   }
 }
 
@@ -247,7 +255,7 @@ struct ToolbarAnchorTests {
   let downloads = CGRect(x: 8, y: 9, width: 32, height: 32)
   let card = CGRect(x: 228, y: 10, width: 962, height: 780)
 
-  func resolver(sidebarInPlace: Bool, toolbarShown: Bool) -> AnchorResolver {
+  func resolver(sidebarInPlace: Bool, toolbarShown: Bool, prefersSidebar: Bool = false) -> AnchorResolver {
     AnchorResolver(
       sidebarInPlace: sidebarInPlace,
       controls: [.siteControls: sidebarSite, .downloads: downloads],
@@ -256,7 +264,20 @@ struct ToolbarAnchorTests {
         .siteControls: toolbarSite,
         .indicator(TabIndicators.camera.rawValue): toolbarCamera,
         .extensionAction("pinned"): toolbarPinned,
-      ])
+      ],
+      prefersSidebar: prefersSidebar)
+  }
+
+  /// A split with the toolbar off shows the controls in the sidebar and the
+  /// pane headers: bubbles attach where the user clicked, while the sidebar
+  /// is in place.
+  @Test func theSidebarWinsWhenUsedLast() {
+    let used = resolver(sidebarInPlace: true, toolbarShown: true, prefersSidebar: true)
+    #expect(used.anchorsInSidebar)
+    #expect(used.anchor(for: .siteControls, indicator: [], extensionID: nil).rect == sidebarSite)
+    let revealed = resolver(sidebarInPlace: false, toolbarShown: true, prefersSidebar: true)
+    #expect(!revealed.anchorsInSidebar)
+    #expect(revealed.anchor(for: .siteControls, indicator: [], extensionID: nil).rect == toolbarSite)
   }
 
   /// With the sidebar shown, hidden, or revealed (never in place): below the

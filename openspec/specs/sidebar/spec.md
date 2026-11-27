@@ -6,7 +6,7 @@ Defines the native window's sidebar: the browser controls it carries in place of
 ## Requirements
 
 ### Requirement: Navigation controls
-The sidebar's top row SHALL hold, after the window controls, a button that hides the sidebar, then back, forward and reload. Back and forward SHALL be dimmed and inert when the active tab can't go that way. Reload SHALL become stop while the active tab loads. When the sidebar is too narrow for that row, as in Arc, the row SHALL hold back, forward and a menu offering reload (or stop) and Hide Sidebar. While the toolbar or a split's pane headers show, the row SHALL hold only the window controls.
+The sidebar's top row SHALL hold, after the window controls, a button that hides the sidebar, then back, forward and reload. Back and forward SHALL be dimmed and inert when the active tab can't go that way. Reload SHALL become stop while the active tab loads. In a sidebar too narrow for it, as in Arc, the row SHALL hold back, forward and a menu offering reload (or stop) and Hide Sidebar. The toolbar SHALL take all but the window controls, and a split's pane headers back, forward and reload.
 
 #### Scenario: Going back
 - **WHEN** the user has followed a link in the active tab and clicks back
@@ -26,7 +26,7 @@ The sidebar's top row SHALL hold, after the window controls, a button that hides
 
 #### Scenario: A split with the toolbar off
 - **WHEN** the toolbar is off and the window shows a split
-- **THEN** the sidebar's top row shows only the window controls, and the hide-sidebar button, back, forward and reload are in the pane headers
+- **THEN** the sidebar's top row shows the window controls and the hide-sidebar button where they were, and back, forward and reload are in the pane headers
 
 ### Requirement: Tooltips in Arc's wording
 The sidebar's controls SHALL have Clair's own tooltips, never the system's, in Arc's wording and with their shortcuts: "Hide sidebar" ("Show sidebar" while hidden, "Lock sidebar" while the hidden sidebar is revealed), "Go back", "Go forward", "Reload this page" or "Stop loading this page", "Copy URL", "Site Control Center", "Close tab" and "More options"; also "Downloads", "New" on the footer's plus, and a pinned extension's action title, or its name when that's empty.
@@ -74,7 +74,7 @@ Resting the pointer on a tab row for about 2 seconds SHALL show a tooltip as `ta
 - **THEN** no tooltip shows the tab's title
 
 ### Requirement: URL field
-Below the top row, the sidebar SHALL show the active tab's host without a leading `www.`, or its full URL for pages without a host such as `chrome://` pages and files, with a search icon and "Search or Enter URL…" for a new tab page. Clicking the field SHALL open the command bar on the current URL, and its context menu SHALL offer Copy URL. While the pointer is over the field, its background SHALL darken. While the toolbar or a split's pane headers show, the field SHALL be their hosts instead.
+Below the top row, the sidebar SHALL show the active tab's host without a leading `www.`, or its full URL for pages without a host such as `chrome://` pages and files, with a search icon and "Search or Enter URL…" for a new tab page. Clicking the field SHALL open the command bar on the current URL, and its context menu SHALL offer Copy URL. While the pointer is over the field, its background SHALL darken. While the toolbar shows, the field SHALL be its host instead.
 
 #### Scenario: Web page
 - **WHEN** the active tab shows `https://news.ycombinator.com/item?id=1`
@@ -97,8 +97,8 @@ Below the top row, the sidebar SHALL show the active tab's host without a leadin
 - **THEN** the sidebar shows no URL field, and the toolbar shows the host
 
 #### Scenario: A split with the toolbar off
-- **WHEN** the toolbar is off and the window shows a split
-- **THEN** the sidebar shows no URL field, and each pane's header shows its host
+- **WHEN** the toolbar is off and the window shows a split with "Docs" focused
+- **THEN** the sidebar's URL field shows "Docs"'s host where it was, and each pane's header shows its own host
 
 ### Requirement: URL field buttons
 While the toolbar is off and the pointer is anywhere over the key window's sidebar, the URL field's trailing end SHALL show a copy button and the site-controls button, fading in and out. While the toolbar shows, its buttons SHALL always show (`page-toolbar`).

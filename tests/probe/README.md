@@ -117,7 +117,7 @@ build/probe/bin/measure track build/probe/rec/peek/frames white 0 0 2400 2012 80
 - `tools/` holds small Swift tools, compiled into `build/probe/bin/` on first
   use (or by `tools/build.sh`); each describes its arguments at the top:
   `windows` (window IDs and frames, by app name or process ID), `drag` (a drag
-  with real mouse events, in screen points), `mouse` (a real pointer move or
+  with real mouse events, in screen points), `mouse` (a real pointer move, double-click or
   click, in screen points), `cdp` (DevTools
   protocol commands for the test copy), `frames` (a movie's frames), `sheet` (a
   labelled contact sheet), `crop` (a pixel rectangle; `sips --cropOffset`

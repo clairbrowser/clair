@@ -8,14 +8,16 @@ import SwiftUI
 
 // MARK: The divider (add-split-view design D3)
 
-/// The gap between a split's panes: a grabber, the resize pointer, and a drag
-/// that resizes the panes, reporting the divider's centre in the page area.
-/// The grabber stays faint until the pointer is over the divider or drags
-/// it.
+/// The gap between a split's panes: a grabber, the resize pointer, a drag
+/// that resizes the panes, reporting the divider's centre in the page area,
+/// and a double-click that centres it. The grabber stays faint until the
+/// pointer is over the divider or drags it.
 final class SplitDividerView: NSView {
   /// The divider moved to `x`, from the page area's leading edge; `done` on
   /// the drag's last step.
   var onDrag: ((CGFloat, _ done: Bool) -> Void)?
+  /// The divider was double-clicked.
+  var onDoubleClick: (() -> Void)?
   /// The page area's leading edge, in the divider's superview.
   var areaMinX: CGFloat = 0
 
@@ -24,12 +26,14 @@ final class SplitDividerView: NSView {
   private var isHovered = false
   private var isDragging = false
 
+  /// The grabber under the pointer; it rests at about the colour it always
+  /// had, and darkens more under the pointer.
   static let grabberColor = NSColor(name: "clair.splitGrabber") { appearance in
-    appearance.isDark ? NSColor(white: 1, alpha: 0.28) : NSColor(white: 0, alpha: 0.22)
+    appearance.isDark ? NSColor(white: 1, alpha: 0.4) : NSColor(white: 0, alpha: 0.3)
   }
-  static let grabberSize = CGSize(width: 4, height: 32)
+  static let grabberSize = CGSize(width: 3, height: 32)
   /// The grabber's opacity while the pointer is elsewhere, and under it.
-  static let restingAlpha: CGFloat = 0.35
+  static let restingAlpha: CGFloat = 0.25
   static let activeAlpha: CGFloat = 1
 
   override init(frame: NSRect) {
@@ -83,6 +87,12 @@ final class SplitDividerView: NSView {
   }
 
   override func mouseDown(with event: NSEvent) {
+    if event.clickCount == 2 {
+      // The second click centres the divider; it doesn't drag it.
+      isDragging = false
+      onDoubleClick?()
+      return
+    }
     let point = convert(event.locationInWindow, from: nil)
     dragOffset = point.x - bounds.midX
     isDragging = true
@@ -90,12 +100,16 @@ final class SplitDividerView: NSView {
   }
 
   override func mouseDragged(with event: NSEvent) {
+    guard isDragging else { return }
     report(event, done: false)
   }
 
   override func mouseUp(with event: NSEvent) {
+    let wasDragging = isDragging
     isDragging = false
-    report(event, done: true)
+    if wasDragging {
+      report(event, done: true)
+    }
     isHovered = bounds.contains(convert(event.locationInWindow, from: nil))
     updateGrabber()
   }
@@ -114,6 +128,42 @@ final class SplitDividerView: NSView {
     NSAnimationContext.runAnimationGroup { context in
       context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.15
       grabber.animator().alphaValue = alpha
+    }
+  }
+}
+
+/// Moves a split's divider to a ratio with the sidebar's spring, a frame at
+/// a time. `onStep` takes each ratio, `done` with the last, and returns
+/// whether to go on.
+final class SplitRatioAnimator: NSObject {
+  private var spring = SpringValue(0.5)
+  private var link: CADisplayLink?
+  private var onStep: ((CGFloat, _ done: Bool) -> Bool)?
+
+  func animate(
+    in view: NSView, from start: CGFloat, to target: CGFloat, onStep: @escaping (CGFloat, _ done: Bool) -> Bool
+  ) {
+    spring = SpringValue(start)
+    spring.animate(to: target, at: CACurrentMediaTime())
+    self.onStep = onStep
+    guard link == nil else { return }
+    let link = view.displayLink(target: self, selector: #selector(step))
+    link.add(to: .main, forMode: .common)
+    self.link = link
+  }
+
+  /// Stops where it is, as when the user drags the divider.
+  func stop() {
+    link?.invalidate()
+    link = nil
+    onStep = nil
+  }
+
+  @objc private func step(_ link: CADisplayLink) {
+    let moving = spring.step(at: CACurrentMediaTime())
+    let goesOn = onStep?(moving ? spring.value : spring.target, !moving) ?? false
+    if !moving || !goesOn {
+      stop()
     }
   }
 }
@@ -408,14 +458,19 @@ struct SplitRow: View {
   var body: some View {
     HStack(spacing: Self.chipGap) {
       ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-        if index > 0 {
-          // Kept, clear, while selected, so the chips don't move, as in Arc.
-          Rectangle()
-            .fill(PinFill.divider)
-            .frame(width: 1, height: 16)
-            .opacity(isActive ? 0 : 1)
-        }
         chip(page, index: index)
+          // The divider sits in the gap without taking room, so the chips
+          // stay as close as Arc's and don't move as it hides while
+          // selected.
+          .background(alignment: .leading) {
+            if index > 0 {
+              Rectangle()
+                .fill(PinFill.divider)
+                .frame(width: 1, height: 16)
+                .offset(x: -(Self.chipGap + 1) / 2)
+                .opacity(isActive ? 0 : 1)
+            }
+          }
       }
       if isHovered, let button {
         IconButton(
