@@ -37,7 +37,7 @@ When a page locks the pointer outside page full screen, hiding the cursor, the p
 - **THEN** the popup shows the full-screen notice, not the hidden-cursor one
 
 ### Requirement: Window full-screen notice
-Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press and hold [esc]", as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is. A quick Esc SHALL do what it does outside full screen.
+Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press and hold [esc]", as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is in the window, except in a dialog sheet, where Esc cancels the dialog. A quick Esc SHALL do what it does outside full screen.
 
 #### Scenario: Entering from the menu
 - **WHEN** the user chooses View › Enter Full Screen
