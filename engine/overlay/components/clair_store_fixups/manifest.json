@@ -16,6 +16,7 @@
       "matches": [ "https://chromewebstore.google.com/*" ],
       "run_at": "document_start",
       "world": "ISOLATED",
+      "css": [ "chrome-webstore.css" ],
       "js": [ "chrome-webstore.js" ]
     }
   ]

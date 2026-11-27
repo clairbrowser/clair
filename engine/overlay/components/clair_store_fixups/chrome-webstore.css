@@ -1,0 +1,14 @@
+/* Copyright 2026 The Clair Authors
+ * You can use, redistribute, and/or modify this source code under
+ * the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ *
+ * Hides the "Switch to Chrome?" popup that Google's account bar shows on the
+ * Chrome Web Store. It's a cross-origin frame (ogs.google.com/widget/callout)
+ * that chrome-webstore.js can't reach, and hiding it from a stylesheet keeps it
+ * from ever painting. The frame's container, not just the frame, is hidden:
+ * the container has a fixed size and would otherwise still catch clicks meant
+ * for the page under it. */
+
+#gb div:has(> iframe[name="callout"]) {
+  display: none !important;
+}
