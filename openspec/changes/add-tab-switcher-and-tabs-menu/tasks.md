@@ -47,7 +47,7 @@ Suggested order:
 ## 3. ClairUI
 
 - [ ] 3.1 Add `RecentTabs` (D1): the front-on-show rule, splits and Peeks as their row, the still's placeholder left out, pruning on tab and pin changes, at most 16 entries. The incoming window takes the list on a profile swap. Verify with unit tests in CI for each scenario of `tab-switcher` "Recent tabs".
-- [ ] 3.2 Add `SwitcherState` (D2, D3): open forward or back, step and wrap, commit, cancel, no-op with fewer than two entries, at most five cards, and the 150 ms delay before the panel shows (at once on a second Tab, never on a commit before it). Verify with unit tests in CI, with an injected clock, for the scenarios of "Opening the switcher", "Moving the selection", "Choosing a tab", "Cancelling the switcher" and "A quick Ctrl+Tab shows no panel".
+- [ ] 3.2 Add `SwitcherState` (D2, D3): open forward or back, step and wrap, commit, cancel, no-op with fewer than two entries, at most five cards, and the 100 ms delay before the panel shows (at once on a second Tab, never on a commit before it). Verify with unit tests in CI, with an injected clock, for the scenarios of "Opening the switcher", "Moving the selection", "Choosing a tab", "Cancelling the switcher" and "A quick Ctrl+Tab shows no panel".
 - [ ] 3.3 Add `TabSwitcher`:
   - the local key and mouse monitors of D2, acting only in a normal browser window with no dialog or sheet;
   - commit through `showTab`;

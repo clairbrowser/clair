@@ -55,9 +55,9 @@ A borderless, non-activating `NSPanel`, a child window of the browser window, ho
 - **Panel:** 27 pt padding, cards 157.5 × 105 pt with a 24 pt pitch gap, label row below each card. About 938 × 189 pt for five cards. Light background (`windowBackgroundColor` at Arc's #F2F2F2 in light mode), about 22 pt corner radius, hairline border and shadow.
 - **Selection:** a 12 pt inset rounded highlight, about 12 pt radius, in the accent colour at the sidebar's selection opacity. The selected title is in the primary colour, the others secondary.
 - **Labels:** favicon 16 pt, then the title or custom name at the sidebar's title size, medium weight, one line, with an ellipsis.
-- **Position:** centred on the window, then moved inside the screen's visible frame. Arc's panel sat off-centre in a narrow window; centring is the simpler rule and matches it in a wide one.
+- **Position:** centred on the window, then moved inside the screen's visible frame. Arc centred a two-card panel on the window, but its five-card panel sat about 29 pt right of centre in a 963 pt window; centring is the simpler rule.
 
-Shown with `orderFront` and no animation, 150 ms after Ctrl+Tab (a timer `SwitcherState` starts on opening), or at once on a second Tab or Shift+Tab. A commit before the timer fires never shows the panel, so a quick Ctrl+Tab just switches. This departs from Arc, whose panel was already up 80 ms after the key: the owner wants no flash on a quick tap. The panel is re-rendered in place as the selection moves. Previews arriving late replace the placeholder in place. Dark mode uses the system's dark window background. Arc wasn't probed in dark mode.
+Shown with `orderFront` and no animation, 100 ms after Ctrl+Tab (a timer `SwitcherState` starts on opening), or at once on a second Tab or Shift+Tab. A commit before the timer fires never shows the panel, so a quick Ctrl+Tab just switches, as in Arc, whose delay measured between 90 and 130 ms. The panel is re-rendered in place as the selection moves. Previews arriving late replace the placeholder in place. Dark mode uses the system's dark window background. Arc wasn't probed in dark mode.
 
 ### D4. Page previews from the engine
 
