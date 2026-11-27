@@ -389,14 +389,17 @@ struct TopRow: View {
           forward
         }
         IconMenu(help: "More options", size: IconButtonSize.small) {
-          Group {
-            if isLoading {
-              Button("Stop") { actions?.reloadOrStop() }.keyboardShortcut(.escape, modifiers: [])
-            } else {
-              Button("Reload") { actions?.reloadOrStop() }.keyboardShortcut("r", modifiers: .command)
+          // A split's pane headers hold reload too.
+          if showsNavigation {
+            Group {
+              if isLoading {
+                Button("Stop") { actions?.reloadOrStop() }.keyboardShortcut(.escape, modifiers: [])
+              } else {
+                Button("Reload") { actions?.reloadOrStop() }.keyboardShortcut("r", modifiers: .command)
+              }
             }
+            .disabled(!model.canReload || !reloadStop.isEnabled)
           }
-          .disabled(!model.canReload || !reloadStop.isEnabled)
           Button("Hide Sidebar") { actions?.toggleSidebar() }.keyboardShortcut("s", modifiers: .command)
         } label: {
           SymbolGlyph(systemImage: "ellipsis")

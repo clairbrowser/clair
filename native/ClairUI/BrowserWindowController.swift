@@ -373,13 +373,16 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
   }
 
-  deinit {
+  isolated deinit {
     for observer in observers {
       NotificationCenter.default.removeObserver(observer)
     }
     if let flagsMonitor {
       NSEvent.removeMonitor(flagsMonitor)
     }
+    // A window closed while the divider centres suspends the display link
+    // rather than invalidating it, which would keep it and the animator.
+    splitRatioAnimator.stop()
   }
 
   // MARK: Dragging the window from the top of the page
