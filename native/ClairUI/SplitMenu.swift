@@ -5,31 +5,28 @@
 import AppKit
 import ClairHost
 
-/// Split view's items in the menu bar (add-split-view design D9): Tabs ›
-/// Split with Tab ›, and View › Add Split View (⌃⇧=), Close Split Pane (⌃⇧−)
-/// and Separate Tabs. They act on the main window, which enables them.
-final class SplitMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
+/// Split view's items in the View menu (add-split-view design D9): Add Split
+/// View (⌃⇧=), Close Split Pane (⌃⇧−) and Separate Tabs. They act on the main
+/// window, which enables them. Split with Tab › is the Tabs menu's
+/// (`TabsMenu`).
+final class SplitMenu: NSObject, NSMenuItemValidation {
   enum Command: Int, CaseIterable {
-    case splitWithTab = 1
-    case addSplitView
+    case addSplitView = 2
     case closeSplitPane
     case separateTabs
 
     var title: String {
       switch self {
-      case .splitWithTab: SplitLogic.splitWithTabTitle
       case .addSplitView: "Add Split View"
       case .closeSplitPane: "Close Split Pane"
       case .separateTabs: "Separate Tabs"
       }
     }
 
-    /// Whether the item can be chosen: Split with Tab and Add Split View on
-    /// a single page (Add Split View then shows "Cannot Add New Pane"), the
-    /// others while split.
+    /// Whether the item can be chosen: Add Split View always (it shows
+    /// "Cannot Add New Pane" while split), the others while split.
     func isEnabled(isSplit: Bool) -> Bool {
       switch self {
-      case .splitWithTab: !isSplit
       case .addSplitView: true
       case .closeSplitPane, .separateTabs: isSplit
       }
@@ -47,35 +44,22 @@ final class SplitMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
   /// Adds the items, once.
   @discardableResult
   func install(in mainMenu: NSMenu?) -> Bool {
-    guard let mainMenu, items.isEmpty else { return false }
-    let tabMenu = mainMenu.items.first { $0.tag == PinsMenu.tabMenuTag }?.submenu
-    let viewMenu = mainMenu.items.first { $0.tag == PinsMenu.viewMenuTag }?.submenu
-    guard let tabMenu else { return false }
-    // After Clair's pin items in Tabs.
-    let lastPinItem = tabMenu.items.lastIndex { $0.tag >= PinsMenu.baseTag && $0.tag < Self.baseTag }
-    tabMenu.insertItem(make(.splitWithTab), at: lastPinItem.map { $0 + 1 } ?? tabMenu.numberOfItems)
-    if let viewMenu {
-      // After Collapse Pinned Tabs, if it's there.
-      var index = viewMenu.items.firstIndex { $0.tag >= PinsMenu.baseTag && $0.tag < Self.baseTag }.map { $0 + 1 } ?? 0
-      for command in [Command.addSplitView, .closeSplitPane, .separateTabs] {
-        viewMenu.insertItem(make(command), at: index)
-        index += 1
-      }
-      viewMenu.insertItem(.separator(), at: index)
+    guard let mainMenu, items.isEmpty,
+      let viewMenu = mainMenu.items.first(where: { $0.tag == PinsMenu.viewMenuTag })?.submenu
+    else { return false }
+    // After Collapse Pinned Tabs, if it's there.
+    var index = viewMenu.items.firstIndex { $0.tag >= PinsMenu.baseTag && $0.tag < Self.baseTag }.map { $0 + 1 } ?? 0
+    for command in Command.allCases {
+      viewMenu.insertItem(make(command), at: index)
+      index += 1
     }
+    viewMenu.insertItem(.separator(), at: index)
     return true
   }
 
   private func make(_ command: Command) -> NSMenuItem {
     let item: NSMenuItem
     switch command {
-    case .splitWithTab:
-      // With an action, the menu asks validateMenuItem whether it's on; an
-      // item with a submenu and none is always on.
-      item = NSMenuItem(title: command.title, action: #selector(choose(_:)), keyEquivalent: "")
-      let submenu = NSMenu(title: command.title)
-      submenu.delegate = self
-      item.submenu = submenu
     case .addSplitView:
       item = NSMenuItem(title: command.title, action: #selector(choose(_:)), keyEquivalent: "=")
       item.keyEquivalentModifierMask = [.control, .shift]
@@ -94,9 +78,6 @@ final class SplitMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
   private var isSplit: Bool { currentController()?.model.shownSplit != nil }
 
   func validateMenuItem(_ item: NSMenuItem) -> Bool {
-    if item.action == #selector(chooseTab(_:)) || item.action == #selector(chooseNewTab(_:)) {
-      return currentController() != nil && !isSplit
-    }
     guard let command = Command(rawValue: item.tag - Self.baseTag) else { return false }
     return currentController() != nil && command.isEnabled(isSplit: isSplit)
   }
@@ -109,48 +90,6 @@ final class SplitMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
     case .addSplitView: controller.addSplitView()
     case .closeSplitPane: controller.closeSplitPane()
     case .separateTabs: controller.separateSplit(of: controller.focusedPaneTabID)
-    case .splitWithTab: break
     }
-  }
-
-  // MARK: Tabs › Split with Tab ›
-
-  /// Lists the main window's Today tabs as the split button's menu does,
-  /// with New Tab, for its shown tab.
-  func menuNeedsUpdate(_ menu: NSMenu) {
-    menu.removeAllItems()
-    guard let controller = currentController(), controller.model.shownSplit == nil else { return }
-    let shown = controller.shownRowTabID
-    let entries = SplitLogic.splitWithTabSubmenu(for: shown, today: controller.model.tabs)
-    let favicons = Dictionary(
-      controller.model.allTabs.map { ($0.tabID, $0.favicon) }, uniquingKeysWith: { first, _ in first })
-    for entry in entries {
-      switch entry {
-      case .separator:
-        menu.addItem(.separator())
-      case .tab(let other, let title):
-        let item = NSMenuItem(title: title, action: #selector(chooseTab(_:)), keyEquivalent: "")
-        item.target = self
-        item.tag = Int(truncatingIfNeeded: other)
-        item.setFavicon(favicons[other] ?? nil)
-        menu.addItem(item)
-      case .newTab:
-        let item = NSMenuItem(title: entry.title, action: #selector(chooseNewTab(_:)), keyEquivalent: "")
-        item.target = self
-        menu.addItem(item)
-      default:
-        break
-      }
-    }
-  }
-
-  @objc func chooseTab(_ sender: NSMenuItem) {
-    guard let controller = currentController(), controller.model.shownSplit == nil else { return }
-    controller.split(tab: controller.shownRowTabID, with: TabID(sender.tag), side: .trailing)
-  }
-
-  @objc func chooseNewTab(_ sender: NSMenuItem) {
-    guard let controller = currentController(), controller.model.shownSplit == nil else { return }
-    controller.splitWithNewTab(controller.shownRowTabID)
   }
 }

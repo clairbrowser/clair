@@ -471,6 +471,9 @@ enum PinsLogic {
     case pin
     case pinToFavorites
     case editPinnedPage
+    /// Edit Pinned Page › Back to Pinned URL (add-tab-switcher-and-tabs-menu
+    /// D6).
+    case backToPinnedURL
     case replacePinnedURL
     case editPinnedURL
     case moveToSpace
@@ -494,77 +497,69 @@ enum PinsLogic {
 
   static let splitWithTab = MenuItem(title: "Split with Tab", command: .splitWithTab)
   static let separateTabs = MenuItem(title: "Separate Tabs", command: .separateTabs)
+  private static let copyLink = MenuItem(title: "Copy Link", command: .copyLink)
+  private static let duplicate = MenuItem(title: "Duplicate", command: .duplicate)
+  private static let rename = MenuItem(title: "Rename…", command: .rename)
+  private static let moveToSpace = MenuItem(title: "Move to Space", command: .moveToSpace)
+  private static let pinToFavorites = MenuItem(title: "Pin to Favorites", command: .pinToFavorites)
+  private static let closeTab = MenuItem(title: "Close Tab", command: .closeTab)
+  private static let editPinnedPage = MenuItem(title: "Edit Pinned Page", command: .editPinnedPage)
 
-  /// A Today tab's menu: nil entries are separators. Incognito and guest
-  /// windows have neither pin item. A split row's chip (`inSplit`) has no
-  /// Split with Tab, and Separate Tabs (add-split-view, "The split row's
-  /// menu").
+  private static func mute(_ isMuted: Bool, isEnabled: Bool = true) -> MenuItem {
+    MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute, isEnabled: isEnabled)
+  }
+
+  /// A menu of `groups`, with a divider (nil) between each; a group left
+  /// empty drops out with its divider (add-tab-switcher-and-tabs-menu D6).
+  static func joined(_ groups: [[MenuItem]]) -> [MenuItem?] {
+    var items: [MenuItem?] = []
+    for group in groups where !group.isEmpty {
+      if !items.isEmpty {
+        items.append(nil)
+      }
+      items += group.map { Optional($0) }
+    }
+    return items
+  }
+
+  /// A Today tab's menu (sidebar spec, "Today tab menu"): nil entries are
+  /// dividers. Incognito and guest windows (`canPin` false) have neither pin
+  /// item, nor Rename…. A split row's chip (`inSplit`) has Separate Tabs in
+  /// place of Split with Tab (add-split-view, "The split row's menu").
   static func todayMenu(isMuted: Bool, canMoveToSpace: Bool, canPin: Bool, inSplit: Bool = false) -> [MenuItem?] {
-    var items: [MenuItem?] = [
-      MenuItem(title: "Copy Link", command: .copyLink),
-      MenuItem(title: "Rename…", command: .rename),
-      MenuItem(title: "Duplicate", command: .duplicate),
-      MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute),
-    ]
-    items += inSplit ? [nil, separateTabs] : [splitWithTab]
-    if canPin {
-      items += [nil, MenuItem(title: "Pin Tab", command: .pin), MenuItem(title: "Pin to Favorites", command: .pinToFavorites)]
-    }
-    if canMoveToSpace {
-      items += [nil, MenuItem(title: "Move to Space", command: .moveToSpace)]
-    }
-    items += [
-      nil,
-      MenuItem(title: "Close Tab", command: .closeTab),
-      MenuItem(title: "Close Tabs Below", command: .closeTabsBelow),
-    ]
-    return items
+    joined([
+      canPin ? [MenuItem(title: "Pin Tab", command: .pin), pinToFavorites] : [],
+      [copyLink, duplicate],
+      [inSplit ? separateTabs : splitWithTab] + (canMoveToSpace ? [moveToSpace] : []),
+      (canPin ? [rename] : []) + [mute(isMuted)],
+      [closeTab, MenuItem(title: "Close Tabs Below", command: .closeTabsBelow)],
+    ])
   }
 
-  /// A pinned tab's menu; a pinned split's chip's has no Edit Pinned Page
-  /// or Split with Tab, and Separate Tabs.
+  /// A pinned tab's menu (pinned-tabs spec, "Pinned tab menu"), with Close
+  /// Tab while its page is open; a pinned split's chip's has Separate Tabs in
+  /// place of Split with Tab, and no Edit Pinned Page.
   static func pinnedMenu(isOpen: Bool, isMuted: Bool, canMoveToSpace: Bool, inSplit: Bool = false) -> [MenuItem?] {
-    var items: [MenuItem?] = [
-      MenuItem(title: "Copy Link", command: .copyLink),
-      MenuItem(title: "Rename…", command: .rename),
-      MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute, isEnabled: isOpen),
-    ]
-    if !inSplit {
-      items.append(MenuItem(title: "Edit Pinned Page", command: .editPinnedPage))
-    }
-    items.append(MenuItem(title: "Duplicate", command: .duplicate))
-    items += inSplit ? [nil, separateTabs] : [splitWithTab]
-    if canMoveToSpace {
-      items += [nil, MenuItem(title: "Move to Space", command: .moveToSpace)]
-    }
-    items += [
-      nil,
-      MenuItem(title: "Pin to Favorites", command: .pinToFavorites),
-      MenuItem(title: "Unpin Tab", command: .unpin),
-    ]
-    return items
+    joined([
+      [MenuItem(title: "Unpin Tab", command: .unpin), pinToFavorites],
+      [copyLink, duplicate],
+      [inSplit ? separateTabs : splitWithTab] + (canMoveToSpace ? [moveToSpace] : []),
+      [rename, mute(isMuted, isEnabled: isOpen)] + (inSplit ? [] : [editPinnedPage]),
+      isOpen ? [closeTab] : [],
+    ])
   }
 
-  /// A favorite's menu; Close Tab only while the window shows its page. A
-  /// favorited split's segment's has no Edit Pinned Page or Split with Tab,
-  /// and Separate Tabs.
+  /// A favorite's menu (favorites spec, "Favorite menu"), with Close Tab
+  /// only while the window shows its page. A favorited split's segment's has
+  /// Separate Tabs in place of Split with Tab, and no Edit Pinned Page.
   static func favoriteMenu(isShown: Bool, isOpen: Bool, isMuted: Bool, inSplit: Bool = false) -> [MenuItem?] {
-    var items: [MenuItem?] = [
-      MenuItem(title: "Copy Link", command: .copyLink),
-      MenuItem(title: "Rename…", command: .rename),
-      MenuItem(title: isMuted ? "Unmute" : "Mute", command: isMuted ? .unmute : .mute, isEnabled: isOpen),
-    ]
-    if !inSplit {
-      items.append(MenuItem(title: "Edit Pinned Page", command: .editPinnedPage))
-    }
-    items.append(MenuItem(title: "Duplicate", command: .duplicate))
-    items += inSplit ? [nil, separateTabs] : [splitWithTab]
-    items.append(nil)
-    if isShown {
-      items.append(MenuItem(title: "Close Tab", command: .closeTab))
-    }
-    items.append(MenuItem(title: "Remove Favorite", command: .removeFavorite))
-    return items
+    joined([
+      [MenuItem(title: "Remove Favorite", command: .removeFavorite)],
+      [copyLink, duplicate],
+      [inSplit ? separateTabs : splitWithTab],
+      [rename, mute(isMuted, isEnabled: isOpen)] + (inSplit ? [] : [editPinnedPage]),
+      isShown ? [closeTab] : [],
+    ])
   }
 
   /// A folder's menu (tab-folders spec, "Folder menu"): Move to Space only
@@ -608,10 +603,11 @@ enum PinsLogic {
   static let folderDeletionMessage = "Deleting this folder will remove the tabs inside it."
   static let folderDeletionButton = "Delete Folder"
 
-  /// Edit Pinned Page's items; Replace needs the page open away from its
-  /// pinned URL.
+  /// Edit Pinned Page's items; Back to Pinned URL and Replace need the page
+  /// open away from its pinned URL.
   static func editPinnedPageMenu(_ pin: any ClairPin) -> [MenuItem] {
     [
+      MenuItem(title: "Back to Pinned URL", command: .backToPinnedURL, isEnabled: isNavigatedAway(pin)),
       MenuItem(title: "Replace Pinned URL with Current", command: .replacePinnedURL, isEnabled: isNavigatedAway(pin)),
       MenuItem(title: "Edit…", command: .editPinnedURL),
     ]
@@ -626,15 +622,15 @@ enum PinsLogic {
     var activeIsToday = false
     /// The selected row is a pinned tab, or a favorite.
     var activePinIsFavorite: Bool?
-    var activePinIsNavigatedAway = false
     var todayRowCount = 0
     var isCollapsed = false
   }
 
   enum MainMenuCommand: Int, CaseIterable {
     case togglePin = 1
-    case backToPinnedURL
-    case closeKeepingPin
+    /// Tabs › Pin to Favorites (add-tab-switcher-and-tabs-menu D5).
+    case pinToFavorites
+    /// Tabs › Clear Unpinned Tabs.
     case clearToday
     case toggleCollapse
     /// Tabs › New Folder… (add-tab-folders D6).
@@ -644,20 +640,20 @@ enum PinsLogic {
   static func title(of command: MainMenuCommand, in state: MenuState) -> String {
     switch command {
     case .togglePin: state.activePinIsFavorite == false ? "Unpin Tab" : "Pin Tab"
-    case .backToPinnedURL: "Back to Pinned URL"
-    case .closeKeepingPin: "Close and Keep Pinned"
-    case .clearToday: "Clear Today"
+    case .pinToFavorites: "Pin to Favorites"
+    case .clearToday: "Clear Unpinned Tabs"
     case .toggleCollapse: state.isCollapsed ? "Expand Pinned Tabs" : "Collapse Pinned Tabs"
     case .newFolder: newFolderDialogTitle
     }
   }
 
+  /// tabs-menu spec, "Pin items" and "Clear Unpinned Tabs": none in an
+  /// incognito or guest window; the pin items on a Today or pinned tab, not
+  /// a favorite.
   static func isEnabled(_ command: MainMenuCommand, in state: MenuState) -> Bool {
     guard state.showsPins else { return false }
     switch command {
-    case .togglePin: return state.activeIsToday || state.activePinIsFavorite == false
-    case .backToPinnedURL: return state.activePinIsFavorite != nil && state.activePinIsNavigatedAway
-    case .closeKeepingPin: return state.activePinIsFavorite != nil
+    case .togglePin, .pinToFavorites: return state.activeIsToday || state.activePinIsFavorite == false
     case .clearToday: return state.todayRowCount > 0
     case .toggleCollapse: return true
     case .newFolder: return true

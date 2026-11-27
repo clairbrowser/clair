@@ -1587,7 +1587,6 @@ extension TabRow {
       switch item.command {
       case .copyLink: return .action(item.title) { actions?.copyLink(of: tabID) }
       case .rename:
-        guard canPin else { return nil }
         return .action(item.title) {
           actions?.beginRenaming(RowRename(row: .tab(tabID), selectsAll: true, caret: nil))
         }

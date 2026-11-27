@@ -364,23 +364,23 @@ struct SplitWindowTests {
   @Test func theMenuBarItemsFollowTheSplit() {
     let menu = SplitMenu()
     menu.currentController = { [controller] in controller }
+    let tabs = TabsMenu()
+    tabs.currentController = { [controller] in controller }
     let main = NSMenu()
-    for (title, tag) in [("Tab", PinsMenu.tabMenuTag), ("View", PinsMenu.viewMenuTag)] {
-      let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-      item.tag = tag
-      item.submenu = NSMenu(title: title)
-      main.addItem(item)
-    }
+    let viewItem = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+    viewItem.tag = PinsMenu.viewMenuTag
+    viewItem.submenu = NSMenu(title: "View")
+    main.addItem(viewItem)
     #expect(menu.install(in: main))
-    let view = main.items[1].submenu!
-    #expect(view.items.prefix(3).map(\.title) == ["Add Split View", "Close Split Pane", "Separate Tabs"])
+    let view = main.items[0].submenu!
+    #expect(view.items.map(\.title) == ["Add Split View", "Close Split Pane", "Separate Tabs", ""])
     let close = menu.items[.closeSplitPane]!
     #expect(close.keyEquivalent == "-" && close.keyEquivalentModifierMask == [.control, .shift])
     #expect(!menu.validateMenuItem(close))
-    #expect(menu.validateMenuItem(menu.items[.splitWithTab]!))
+    #expect(tabs.validateMenuItem(tabs.items[.splitWithTab]!))
     browser.split(tab: mail.tabID, with: docs.tabID, side: .trailing)
     #expect(menu.validateMenuItem(close))
-    #expect(!menu.validateMenuItem(menu.items[.splitWithTab]!))
+    #expect(!tabs.validateMenuItem(tabs.items[.splitWithTab]!))
     // Close Split Pane closes the focused pane.
     menu.choose(close)
     #expect(!browser.tabs.contains { $0.tabID == docs.tabID })

@@ -41,6 +41,8 @@ final class NativeLayer {
   private(set) var pinsMenu: PinsMenu?
   /// Split view's menu bar items (add-split-view D9).
   private(set) var splitMenu: SplitMenu?
+  /// The Tabs menu (add-tab-switcher-and-tabs-menu D5).
+  private(set) var tabsMenu: TabsMenu?
   /// View › Hide Toolbar's target (add-page-toolbar D8).
   let toolbarMenu = ToolbarMenuTarget()
 
@@ -83,6 +85,11 @@ final class NativeLayer {
     let splitMenu = SplitMenu()
     splitMenu.install(in: NSApp.mainMenu)
     self.splitMenu = splitMenu
+    // add-tab-switcher-and-tabs-menu D5: in place of Chromium's Tab menu,
+    // which the engine deleted.
+    let tabsMenu = TabsMenu()
+    tabsMenu.install(in: NSApp.mainMenu)
+    self.tabsMenu = tabsMenu
 
     let updates = UpdateController(host: host, configuration: .current)
     updates.start()

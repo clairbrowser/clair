@@ -42,7 +42,7 @@ Suggested order:
   - a tab of another profile's Space goes through the profile swap of `ShowSpace`, and the incoming window activates the tab.
 
   Verify with the runtime test of 5.3.
-- [ ] 2.5 Push the branch and build the engine (`gh workflow run engine.yml -f ref=<branch>`). Verify that `chromium-engine-<key>` is published.
+- [x] 2.5 Push the branch and build the engine (`gh workflow run engine.yml -f ref=<branch>`). Verify that `chromium-engine-<key>` is published.
 
 ## 3. ClairUI
 

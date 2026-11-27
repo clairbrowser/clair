@@ -592,10 +592,10 @@ enum PinMenus {
           PinsLogic.editPinnedPageMenu(pin).map { sub in
             guard sub.isEnabled else { return .disabled(sub.title) }
             return .action(sub.title) { [weak actions] in
-              if sub.command == .replacePinnedURL {
-                actions?.replacePinnedURL(pinID)
-              } else {
-                actions?.editPinnedURL(pinID)
+              switch sub.command {
+              case .backToPinnedURL: actions?.returnToPinnedURL(pinID)
+              case .replacePinnedURL: actions?.replacePinnedURL(pinID)
+              default: actions?.editPinnedURL(pinID)
               }
             }
           })
@@ -622,8 +622,8 @@ enum PinMenus {
     case .unpin: actions?.unpin(pinID)
     case .closeTab: actions?.closeKeepingPin(pinID)
     case .removeFavorite: actions?.removePin(pinID)
-    case .pin, .editPinnedPage, .replacePinnedURL, .editPinnedURL, .moveToSpace, .closeTabsBelow, .turnIntoSpace,
-      .deleteFolder, .splitWithTab, .separateTabs:
+    case .pin, .editPinnedPage, .backToPinnedURL, .replacePinnedURL, .editPinnedURL, .moveToSpace, .closeTabsBelow,
+      .turnIntoSpace, .deleteFolder, .splitWithTab, .separateTabs:
       break
     }
   }
@@ -661,7 +661,7 @@ struct TodayDivider: View {
         }
         .buttonStyle(.plain)
         .onHover { isClearHovered = $0 }
-        .tooltip("Clear Today tabs", shortcut: ["⇧", "⌘", "K"])
+        .tooltip("Clear unpinned tabs", shortcut: ["⇧", "⌘", "K"])
         .accessibilityIdentifier("clair.clearToday")
         .transition(.opacity)
       }

@@ -184,16 +184,9 @@ struct FolderMenuTests {
     #expect(PinsLogic.folderNameChange(draft: "Untitled", current: "Untitled") == .unchanged)
   }
 
-  @Test func newFolderIsTheTabMenusItemAfterPinTab() {
-    let main = NSMenu()
-    let tabs = NSMenuItem(title: "Tab", action: nil, keyEquivalent: "")
-    tabs.tag = PinsMenu.tabMenuTag
-    tabs.submenu = NSMenu(title: "Tab")
-    main.addItem(tabs)
-    let menu = PinsMenu()
-    menu.install(in: main)
-    let titles = tabs.submenu?.items.map(\.title) ?? []
-    #expect(Array(titles.prefix(2)) == ["Pin Tab", "New Folder…"])
+  @Test func newFolderIsTheTabsMenusItemAfterThePinItems() {
+    let titles = TabsMenu().menu.items.map(\.title)
+    #expect(Array(titles.prefix(3)) == ["Pin Tab", "Pin to Favorites", "New Folder…"])
     #expect(PinsLogic.title(of: .newFolder, in: PinsLogic.MenuState()) == "New Folder…")
     // Disabled in incognito and guest windows.
     #expect(!PinsLogic.isEnabled(.newFolder, in: PinsLogic.MenuState(showsPins: false)))
