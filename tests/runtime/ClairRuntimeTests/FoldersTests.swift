@@ -392,8 +392,8 @@ final class FoldersTests: NativeWindowTestCase {
     browser.ui.typeKey("1", modifierFlags: .control)
     _ = await browser.waitForSpace("Home")
     browser.folderRow("Docs").rightClick()
-    let move = browser.ui.menuItems["Move to Space"]
-    try require(move.waitForExistence(timeout: 5), "The folder's menu has no Move to Space with two Spaces")
+    // The menu's own item: the Tabs menu has one of the same title.
+    let move = try XCTUnwrap(browser.visibleMenuItem("Move to Space"), "The folder's menu has no Move to Space with two Spaces")
     move.click()
     try require(browser.visibleMenuItem("Work") != nil, "Move to Space has no Work")
     browser.visibleMenuItem("Work")?.click()
@@ -473,7 +473,7 @@ final class FoldersTests: NativeWindowTestCase {
     let up = await browser.waitForPinnedSection { $0.prefix(2) == ["Counter end4", "Counter end3"] }
     try require(up, "Ctrl+Shift+PageUp didn't move End 4 up: \(browser.pinnedSection)")
     browser.folderRow("Trip").rightClick()
-    browser.ui.menuItems["Move to Space"].click()
+    browser.visibleMenuItem("Move to Space")?.click()
     try require(browser.visibleMenuItem("Work") != nil, "Move to Space has no Work")
     browser.visibleMenuItem("Work")?.click()
     _ = await Harness.wait(for: 10) { browser.folderNames.isEmpty }

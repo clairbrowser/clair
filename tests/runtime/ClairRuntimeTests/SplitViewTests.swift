@@ -159,8 +159,9 @@ final class SplitViewTests: NativeWindowTestCase {
     let pagesAfter = try await browser.pageCount()
     XCTAssertEqual(pagesAfter, pages, "Add Split View opened a page while split")
 
-    // Ctrl+Tab leaves the split, both pages hidden, and Ctrl+Shift+Tab comes
-    // back to it in one stop, both visible.
+    // Ctrl+Tab leaves the split for the tab shown before it, both pages
+    // hidden, and Ctrl+Tab again comes back to it in one stop, both visible
+    // (split-view, "Tab commands treat a split as one row").
     browser.ui.typeKey(.tab, modifierFlags: .control)
     let left = await Harness.wait(for: 15) {
       let leading = try await browser.visibility(of: links)
@@ -168,13 +169,13 @@ final class SplitViewTests: NativeWindowTestCase {
       return leading == "hidden" && trailing == "hidden"
     }
     XCTAssertTrue(left, "Ctrl+Tab didn't leave the split, or left a pane visible")
-    browser.ui.typeKey(.tab, modifierFlags: [.control, .shift])
+    browser.ui.typeKey(.tab, modifierFlags: .control)
     let back = await Harness.wait(for: 15) {
       let leading = try await browser.visibility(of: links)
       let trailing = try await browser.visibility(of: counter)
       return leading == "visible" && trailing == "visible"
     }
-    XCTAssertTrue(back, "Ctrl+Shift+Tab didn't come back to the split in one stop")
+    XCTAssertTrue(back, "Ctrl+Tab didn't come back to the split in one stop")
 
     // Separate Tabs from the View menu: two rows in pane order.
     try browser.chooseViewItem("Separate Tabs")

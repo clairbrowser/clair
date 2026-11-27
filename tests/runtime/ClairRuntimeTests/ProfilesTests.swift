@@ -333,8 +333,10 @@ final class ProfilesTests: NativeWindowTestCase {
 
   func moveRow(_ title: String, to space: String, in browser: Browser) async throws {
     browser.tabRow(title)?.rightClick()
-    let move = browser.ui.menuItems["Move to Space"]
-    try require(move.waitForExistence(timeout: 5), "\(title) has no Move to Space")
+    // The row's menu's own item: the Tabs menu has one of the same title.
+    let found = browser.visibleMenuItem("Move to Space")
+    try require(found != nil, "\(title) has no Move to Space")
+    let move = try XCTUnwrap(found)
     move.hover()
     // The submenu's own item: the Spaces menu has one of the same title.
     let item = move.menuItems[space]

@@ -55,12 +55,10 @@ extension Browser {
     return item
   }
 
-  /// Chooses an item of a row's context menu.
+  /// Chooses an item of a row's context menu, the one on screen: the Tabs
+  /// menu has items of the same titles, as Pin to Favorites.
   func choose(_ title: String, inMenuOf row: XCUIElement) throws {
-    row.rightClick()
-    let item = ui.menuItems[title]
-    try require(item.waitForExistence(timeout: 5), "The menu has no \(title)")
-    item.click()
+    try chooseOnScreen(title, inMenuOf: row)
   }
 }
 
