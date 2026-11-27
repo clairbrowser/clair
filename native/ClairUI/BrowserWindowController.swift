@@ -900,18 +900,28 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     }
   }
 
-  /// Chromium's "Press Esc to exit full screen", in the same popup as Copy
-  /// URL's (design D18), for as long as Chromium shows it.
+  /// Chromium's exclusive-access notices, such as "To exit full screen,
+  /// press [esc]", in the same popup as Copy URL's (design D18) and for as
+  /// long (arc-popup-notices D6). Nil hides the notice only while it still
+  /// shows, when its mode ends.
   func showExclusiveAccessNotice(_ text: String?) {
     model.exclusiveAccessNotice = text
     if let text {
-      model.notice.show(Notice(text: text, identifier: Self.fullscreenNoticeID), for: nil)
+      model.notice.show(Notice(text: text, identifier: Self.fullscreenNoticeID))
     } else if model.notice.notice?.identifier == Self.fullscreenNoticeID {
       model.notice.hide()
     }
   }
 
   static let fullscreenNoticeID = "clair.fullscreenNotice"
+
+  /// The page's zoom level alone, as Arc shows it, in place of a toast
+  /// (arc-popup-notices D4). A further zoom updates the popup showing.
+  func showZoomLevel(_ percent: Int) {
+    model.notice.show(Notice(text: "\(percent)%", identifier: Self.zoomNoticeID))
+  }
+
+  static let zoomNoticeID = "clair.zoomNotice"
 
   func anchor(for kind: AnchorKind, indicator: TabIndicators, extensionID: String?) -> BubbleAnchor {
     rootView.layoutSubtreeIfNeeded()
@@ -1140,8 +1150,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     copyToPasteboard(link)
     // Arc's popup, with a share button for the page.
     model.notice.show(
-      Notice(text: "Copied Current URL", shareURL: URL(string: link), identifier: "clair.copiedURL"),
-      for: NoticeState.copiedDuration)
+      Notice(text: "Copied Current URL", shareURL: URL(string: link), identifier: "clair.copiedURL"))
   }
 
   private func copyToPasteboard(_ text: String) {
@@ -1341,8 +1350,7 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     model.spaces.moveTab(tab, toSpace: spaceID)
     if !isActive {
       model.notice.show(
-        Notice(text: SpacesLogic.movedNotice(space.name), identifier: Self.movedNoticeID),
-        for: NoticeState.copiedDuration)
+        Notice(text: SpacesLogic.movedNotice(space.name), identifier: Self.movedNoticeID))
     }
   }
 

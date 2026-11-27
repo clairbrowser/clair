@@ -1,0 +1,3 @@
+kind: Changed
+body: Notices about full screen, a hidden cursor and the zoom level show in the popup at the page's top right, as in Arc, and holding esc leaves the window's full screen wherever the focus is. A download in full screen no longer shows a notice.
+time: 2026-11-27T18:05:50.113391-05:00

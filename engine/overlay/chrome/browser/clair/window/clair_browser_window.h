@@ -199,6 +199,8 @@ class ClairExclusiveAccessContext : public ExclusiveAccessContext {
  private:
   void SetPageFullscreen(bool fullscreen);
   void HideNotice(ExclusiveAccessBubbleHideReason reason);
+  // Chromium's show time is up: its bubble would hide, the popup stays.
+  void NoticeTimedOut();
 
   const raw_ptr<ClairBrowserWindow> window_;
   bool page_fullscreen_ = false;
@@ -208,7 +210,10 @@ class ClairExclusiveAccessContext : public ExclusiveAccessContext {
   // Between asking the window for full screen and its getting there.
   bool entering_window_fullscreen_ = false;
   bool exit_when_entered_ = false;
+  // Whether Chromium's bubble would show, which it asks.
   bool notice_visible_ = false;
+  // Whether ClairUI may still show the notice, until the mode ends.
+  bool notice_in_popup_ = false;
   ExclusiveAccessBubbleHideCallback notice_hide_callback_;
   base::OneShotTimer notice_timer_;
 };
@@ -530,6 +535,8 @@ class ClairBrowserWindow : public BrowserWindow {
   void WindowGeometryChanged();
   // Esc during page full screen, from the window rather than the page: it
   // ends full screen whatever has the keyboard, as in Chromium's window.
+  // In the window's own full screen, Esc outside the page also goes to
+  // Chromium's press and hold, and on as before (arc-popup-notices D3).
   // Returns whether the event was used.
   bool HandleExclusiveAccessKey(NSEvent* event);
   void WindowFullscreenChanged(bool entered);
@@ -748,6 +755,9 @@ class ClairBrowserWindow : public BrowserWindow {
   ClairLocationBar location_bar_;
   ClairModalDialogHost modal_dialog_host_;
   ClairExclusiveAccessContext exclusive_access_context_;
+  // An Esc key-down went to Chromium's press and hold from the window, so its
+  // key-up goes there too (arc-popup-notices D3).
+  bool sent_escape_down_ = false;
   ClairStatusBubble status_bubble_;
   std::unique_ptr<autofill::AutofillBubbleHandler> autofill_bubble_handler_;
   std::unique_ptr<ClairExtensions> extensions_;

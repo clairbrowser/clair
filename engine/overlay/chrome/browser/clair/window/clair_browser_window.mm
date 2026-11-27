@@ -29,7 +29,6 @@
 #include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #import "chrome/browser/clair/ClairHost.h"
@@ -636,30 +635,44 @@ void ClairExclusiveAccessContext::UpdateUIForTabFullscreen() {
 void ClairExclusiveAccessContext::UpdateExclusiveAccessBubble(
     const ExclusiveAccessBubbleParams& params,
     ExclusiveAccessBubbleHideCallback first_hide_callback) {
-  const bool hide =
-      (!params.has_download && params.type == EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE) ||
-      exclusive_access_bubble::IsExclusiveAccessModeBrowserFullscreen(params.type);
-  if (hide) {
+  // arc-popup-notices D7: a download alone, in full screen or a pointer lock,
+  // keeps the popup as it is.
+  if (params.type == EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE) {
     if (first_hide_callback) {
       std::move(first_hide_callback)
           .Run(ExclusiveAccessBubbleHideReason::kNotShown);
     }
-    HideNotice(ExclusiveAccessBubbleHideReason::kInterrupted);
+    if (!params.has_download) {
+      HideNotice(ExclusiveAccessBubbleHideReason::kInterrupted);
+    }
     return;
   }
-  HideNotice(ExclusiveAccessBubbleHideReason::kInterrupted);
-  const std::u16string text = exclusive_access_bubble::GetInstructionTextForType(
-      params.type, u"Esc", std::nullopt, params.has_download,
-      /*notify_overridden=*/false);
+  // The new notice replaces the one showing in the popup, so ClairUI isn't
+  // told to hide it first.
+  notice_timer_.Stop();
+  if (notice_hide_callback_) {
+    std::move(notice_hide_callback_)
+        .Run(ExclusiveAccessBubbleHideReason::kInterrupted);
+  }
+  // arc-popup-notices D1-D3, D7: Arc's wording for a hidden cursor, every
+  // key as "esc", the window's own full screen too, and no download.
+  const std::u16string text =
+      params.type == EXCLUSIVE_ACCESS_BUBBLE_TYPE_POINTERLOCK_EXIT_INSTRUCTION
+          ? std::u16string(u"Your cursor is hidden. Press |esc| to show cursor.")
+          : exclusive_access_bubble::GetInstructionTextForType(
+                params.type, u"esc", std::nullopt, /*has_download=*/false,
+                /*notify_overridden=*/false);
   [window_->clair_window()
       showExclusiveAccessNotice:base::SysUTF16ToNSString(text)];
   notice_visible_ = true;
+  notice_in_popup_ = true;
   notice_hide_callback_ = std::move(first_hide_callback);
+  // arc-popup-notices D6: ClairUI times the popup. This timer keeps Chromium's
+  // bookkeeping as its own bubble would.
   notice_timer_.Start(
       FROM_HERE, ExclusiveAccessBubble::kShowTime,
-      base::BindOnce(&ClairExclusiveAccessContext::HideNotice,
-                     base::Unretained(this),
-                     ExclusiveAccessBubbleHideReason::kTimeout));
+      base::BindOnce(&ClairExclusiveAccessContext::NoticeTimedOut,
+                     base::Unretained(this)));
 }
 
 bool ClairExclusiveAccessContext::IsExclusiveAccessBubbleDisplayed() const {
@@ -692,12 +705,23 @@ void ClairExclusiveAccessContext::SetPageFullscreen(bool fullscreen) {
 void ClairExclusiveAccessContext::HideNotice(
     ExclusiveAccessBubbleHideReason reason) {
   notice_timer_.Stop();
-  if (notice_visible_) {
-    notice_visible_ = false;
+  notice_visible_ = false;
+  if (notice_in_popup_) {
+    notice_in_popup_ = false;
     [window_->clair_window() showExclusiveAccessNotice:nil];
   }
   if (notice_hide_callback_) {
     std::move(notice_hide_callback_).Run(reason);
+  }
+}
+
+void ClairExclusiveAccessContext::NoticeTimedOut() {
+  // The popup hides by itself in ClairUI's time; until then, the end of the
+  // mode still hides it.
+  notice_visible_ = false;
+  if (notice_hide_callback_) {
+    std::move(notice_hide_callback_)
+        .Run(ExclusiveAccessBubbleHideReason::kTimeout);
   }
 }
 
@@ -2789,15 +2813,46 @@ void ClairBrowserWindow::WindowGeometryChanged() {
 }
 
 bool ClairBrowserWindow::HandleExclusiveAccessKey(NSEvent* event) {
-  if (!exclusive_access_context_.page_fullscreen() ||
-      (event.type != NSEventTypeKeyDown && event.type != NSEventTypeKeyUp)) {
+  if (event.type != NSEventTypeKeyDown && event.type != NSEventTypeKeyUp) {
     return false;
   }
-  if (exclusive_access_context_.DeferExitWhileEntering(event)) {
-    return true;
+  if (exclusive_access_context_.page_fullscreen()) {
+    if (exclusive_access_context_.DeferExitWhileEntering(event)) {
+      return true;
+    }
+    return ExclusiveAccessManager::From(browser_)->HandleUserKeyEvent(
+        input::NativeWebKeyboardEvent(gfx::NativeEvent(event)));
   }
-  return ExclusiveAccessManager::From(browser_)->HandleUserKeyEvent(
+  // arc-popup-notices D3: in the window's own full screen, holding Esc leaves
+  // it wherever the focus is. The page's view gives the page's keys to
+  // Chromium itself, so only the rest go from here, and they go on as before.
+  if (!IsFullscreen() || event.keyCode != 53 /* kVK_Escape */) {
+    return false;
+  }
+  // Only RenderWidgetHostViewCocoa is a CommandDispatcherTarget.
+  const bool page_has_focus = [ns_window_.firstResponder
+      conformsToProtocol:@protocol(CommandDispatcherTarget)];
+  if (event.type == NSEventTypeKeyDown) {
+    constexpr NSEventModifierFlags kModifiers =
+        NSEventModifierFlagShift | NSEventModifierFlagControl |
+        NSEventModifierFlagOption | NSEventModifierFlagCommand;
+    if (page_has_focus || (event.modifierFlags & kModifiers)) {
+      return false;
+    }
+    sent_escape_down_ = true;
+  } else {
+    // The key-up of a key-down sent from here, even when the page has the
+    // focus by now: Esc may have closed the command bar, and the page's view
+    // drops a key-up whose key-down it didn't have. Whatever modifiers are
+    // held, so that the hold always ends.
+    if (page_has_focus && !sent_escape_down_) {
+      return false;
+    }
+    sent_escape_down_ = false;
+  }
+  ExclusiveAccessManager::From(browser_)->HandleUserKeyEvent(
       input::NativeWebKeyboardEvent(gfx::NativeEvent(event)));
+  return false;
 }
 
 void ClairBrowserWindow::WindowFullscreenChanged(bool entered) {
@@ -2855,9 +2910,8 @@ void ClairBrowserWindow::ZoomChanged(bool can_show_bubble) {
   if (!zoom) {
     return;
   }
-  ShowToast(l10n_util::GetStringFUTF16(
-      IDS_TOOLTIP_ZOOM, base::UTF8ToUTF16(base::StringPrintf(
-                            "%d%%", zoom->GetZoomPercent()))));
+  // arc-popup-notices D4: the level alone, in the popup.
+  [clair_window_ showZoomLevel:zoom->GetZoomPercent()];
 }
 
 // --- ui::BaseWindow ---

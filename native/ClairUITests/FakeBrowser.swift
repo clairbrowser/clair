@@ -1598,6 +1598,7 @@ final class RecordingWindow: NSObject, ClairWindow {
   func showToast(_ message: String) { calls.append("toast \(message)") }
   func pageFullscreenDidChange(_ fullscreen: Bool) { calls.append("pageFullscreen \(fullscreen)") }
   func showExclusiveAccessNotice(_ text: String?) { calls.append("notice \(text ?? "-")") }
+  func showZoomLevel(_ percent: Int) { calls.append("zoom \(percent)") }
 
   func anchor(for kind: AnchorKind, indicator: TabIndicators, extensionID: String?) -> BubbleAnchor {
     BubbleAnchor(rect: .zero, edge: .bottom)

@@ -1507,9 +1507,13 @@ NS_SWIFT_NAME(ClairWindow)
 // with no sidebar, insets or corners. Chromium puts the window into macOS full
 // screen itself.
 - (void)pageFullscreenDidChange:(BOOL)fullscreen NS_SWIFT_NAME(pageFullscreenDidChange(_:));
-// The exclusive-access notice, such as "Press Esc to exit full screen", or nil
-// to hide it.
+// The exclusive-access notice, such as "To exit full screen, press |esc|",
+// with its key between bars, or nil to hide it if it still shows. ClairUI
+// hides it by itself after the popup's time.
 - (void)showExclusiveAccessNotice:(nullable NSString *)text NS_SWIFT_NAME(showExclusiveAccessNotice(_:));
+// The active page's zoom changed to `percent`, such as 110: the popup in the
+// card's top-trailing corner shows the level (arc-popup-notices D4).
+- (void)showZoomLevel:(NSInteger)percent NS_SWIFT_NAME(showZoomLevel(_:));
 
 // --- Chromium's bubbles ---
 // Where a bubble for `kind` attaches now: the control in the sidebar, or the

@@ -7,8 +7,9 @@ import Observation
 import SwiftUI
 
 /// Arc's popup in the card's top-trailing corner (design D18): "Copied
-/// Current URL" with a share button, and the full-screen notice. It springs
-/// in from its top centre and shrinks back there.
+/// Current URL" with a share button, the full-screen and hidden-cursor
+/// notices, and the zoom level. It springs in from its top centre and
+/// shrinks back there.
 struct Notice: Equatable, Identifiable {
   let id = UUID()
   var text: String
@@ -25,15 +26,21 @@ final class NoticeState {
   private(set) var isShown = false
   @ObservationIgnored private var hiding: Task<Void, Never>?
 
-  /// Arc keeps "Copied Current URL" up for about 5 s.
-  static let copiedDuration: Duration = .seconds(5)
+  /// Every notice's time (arc-popup-notices D6): Arc keeps "Copied Current
+  /// URL" up for about 5 s.
+  static let duration: Duration = .seconds(5)
   /// Arc's: in with a slight overshoot in about 0.2 s, out in about 0.17 s.
   static let showAnimation = Animation.spring(response: 0.28, dampingFraction: 0.72)
   static let hideAnimation = Animation.easeIn(duration: 0.17)
 
-  /// Shows `notice`, replacing any other, and hides it after `duration`, or
-  /// keeps it until `hide()` when `duration` is nil.
-  func show(_ notice: Notice, for duration: Duration?) {
+  /// Waits out a notice's time; tests replace it so they don't depend on the
+  /// clock.
+  @ObservationIgnored var wait: (Duration) async -> Void = { duration in
+    try? await Task.sleep(for: duration)
+  }
+
+  /// Shows `notice`, replacing any other, and hides it after `duration`.
+  func show(_ notice: Notice) {
     hiding?.cancel()
     hiding = nil
     if self.notice != nil, isShown {
@@ -48,12 +55,11 @@ final class NoticeState {
         withAnimation(Self.showAnimation) { self.isShown = true }
       }
     }
-    if let duration {
-      hiding = Task { [weak self] in
-        try? await Task.sleep(for: duration)
-        guard !Task.isCancelled, let self, self.notice?.id == notice.id else { return }
-        self.hide()
-      }
+    let wait = wait
+    hiding = Task { [weak self] in
+      await wait(Self.duration)
+      guard !Task.isCancelled, let self, self.notice?.id == notice.id else { return }
+      self.hide()
     }
   }
 
@@ -105,7 +111,7 @@ struct NoticePopupView: View {
     }
   }
 
-  /// The text, with keys Chromium marks as "|Esc|" drawn as key caps.
+  /// The text, with keys marked as "|esc|" drawn as key caps.
   private func message(_ text: String) -> some View {
     let parts = NoticePopupView.markingKeys(in: text).components(separatedBy: "|")
     return HStack(spacing: 4) {
@@ -122,11 +128,12 @@ struct NoticePopupView: View {
     }
   }
 
-  /// Marks a bare "Esc" as a key, so the text never says it as well as the
-  /// key cap: "To exit full screen, press Esc" reads as "…press [Esc]".
+  /// Marks a bare "Esc" as a key labelled "esc", as Arc labels it
+  /// (arc-popup-notices D2), so the text never says it as well as the key
+  /// cap: "To exit full screen, press Esc" reads as "…press [esc]".
   static func markingKeys(in text: String) -> String {
     guard !text.contains("|") else { return text }
-    return text.replacingOccurrences(of: #"\bEsc\b"#, with: "|Esc|", options: .regularExpression)
+    return text.replacingOccurrences(of: #"\bEsc\b"#, with: "|esc|", options: .regularExpression)
   }
 
   private var background: some View {

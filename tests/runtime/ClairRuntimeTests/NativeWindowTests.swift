@@ -432,9 +432,15 @@ final class DockedDevToolsTests: NativeWindowTestCase {
   }
 }
 
-/// Page full screen (task 4.4).
+/// Page full screen (task 4.4), the window's, and their notices
+/// (browser-window spec, "Full screen", "Hidden cursor notice", "Window
+/// full-screen notice", "No download notice").
 @MainActor
 final class FullscreenTests: NativeWindowTestCase {
+  static let pageNotice = "To exit full screen, press esc"
+  static let windowNotice = "To exit full screen, press and hold esc"
+  static let hiddenCursorNotice = "Your cursor is hidden. Press esc to show cursor."
+
   func testPageFullscreenFillsTheScreenAndEndsWithEscape() async throws {
     let (browser, tab) = try await startWithPage("fullscreen.html")
     defer { tab.close() }
@@ -448,9 +454,8 @@ final class FullscreenTests: NativeWindowTestCase {
     XCTAssertTrue(filled, "The page doesn't fill the screen")
     XCTAssertFalse(browser.isSidebarInWindow, "The sidebar shows in page full screen")
     // The notice appears once the window has finished moving into full screen.
-    // The window hides its sidebar now, so look for it in the whole app.
-    let notice = browser.ui.descendants(matching: .any).matching(identifier: "clair.fullscreenNotice").firstMatch
-    XCTAssertTrue(notice.waitForExistence(timeout: 15), "No notice says how to leave full screen")
+    let shown = await waitForNotice(browser, Self.pageNotice)
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeLabel(browser))")
     browser.ui.typeKey(.escape, modifierFlags: [])
     let ended = await Harness.wait(for: 30) {
       try await tab.evaluate("document.fullscreenElement === null") as? Bool == true
@@ -458,6 +463,193 @@ final class FullscreenTests: NativeWindowTestCase {
     XCTAssertTrue(ended, "Esc didn't end page full screen")
     let back = await Harness.wait(for: 30) { browser.isSidebarInWindow }
     XCTAssertTrue(back, "The sidebar didn't come back")
+  }
+
+  /// A page that hides the cursor says how to show it, and Esc does.
+  func testHiddenCursorNoticeEndsWithEscape() async throws {
+    let (browser, tab) = try await startWithPage("pointer-lock.html")
+    defer { tab.close() }
+    // The lock needs the page to have the focus.
+    browser.cardPoint(0.5, 0.5).click()
+    let locked = try await tab.evaluate("lock()") as? String
+    try require(locked == "locked", "The page couldn't lock the pointer")
+    let shown = await waitForNotice(browser, Self.hiddenCursorNotice)
+    XCTAssertTrue(shown, "No notice says the cursor is hidden: \(noticeLabel(browser))")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    let unlocked = await Harness.wait(for: 15) {
+      try await tab.evaluate("document.pointerLockElement === null") as? Bool == true
+    }
+    XCTAssertTrue(unlocked, "Esc didn't end the pointer lock")
+    let gone = await Harness.wait(for: 5) { !self.notice(browser).exists }
+    XCTAssertTrue(gone, "The hidden-cursor notice stayed after the lock ended")
+  }
+
+  /// In page full screen, a pointer lock shows the full-screen notice.
+  func testPointerLockInPageFullscreenShowsTheFullscreenNotice() async throws {
+    let (browser, tab) = try await startWithPage("pointer-lock.html")
+    defer { tab.close() }
+    browser.cardPoint(0.5, 0.5).click()
+    let entered = try await tab.evaluate("enter()") as? String
+    try require(entered == "entered", "The page couldn't enter full screen")
+    let shown = await waitForNotice(browser, Self.pageNotice)
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeLabel(browser))")
+    let locked = try await tab.evaluate("lock()") as? String
+    try require(locked == "locked", "The page couldn't lock the pointer in full screen")
+    let hidden = await Harness.wait(for: 3) { self.noticeLabel(browser) == Self.hiddenCursorNotice }
+    XCTAssertFalse(hidden, "Page full screen showed the hidden-cursor notice")
+    XCTAssertEqual(noticeLabel(browser), Self.pageNotice)
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    let ended = await Harness.wait(for: 30) {
+      try await tab.evaluate("document.fullscreenElement === null") as? Bool == true
+    }
+    XCTAssertTrue(ended, "Esc didn't end page full screen")
+  }
+
+  /// The window's own full screen says to hold Esc; a quick Esc goes where
+  /// it went before, and holding it leaves full screen from the sidebar.
+  func testWindowFullscreenNoticeAndHoldingEscape() async throws {
+    let (browser, tab) = try await startWithPage()
+    defer { tab.close() }
+    browser.ui.menuBars.menuBarItems["View"].click()
+    let enter = browser.ui.menuBars.menuItems["Enter Full Screen"]
+    try require(enter.waitForExistence(timeout: 5), "View doesn't offer Enter Full Screen")
+    enter.click()
+    let entered = await Harness.wait(for: 30) { try await self.isWindowFullscreen(browser, tab) }
+    try require(entered, "View > Enter Full Screen didn't enter full screen")
+    let shown = await waitForNotice(browser, Self.windowNotice)
+    XCTAssertTrue(shown, "No notice says to hold Esc: \(noticeLabel(browser))")
+
+    // A quick Esc closes the command bar, and full screen stays.
+    browser.ui.typeKey("t", modifierFlags: .command)
+    let field = browser.element("clair.commandBarField")
+    try require(field.waitForExistence(timeout: 10), "Cmd+T didn't open the command bar")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    let closed = await Harness.wait(for: 5) { !field.exists }
+    XCTAssertTrue(closed, "A quick Esc didn't close the command bar")
+    try await Task.sleep(for: .seconds(2.5))
+    let stayed = try await isWindowFullscreen(browser, tab)
+    XCTAssertTrue(stayed, "A quick Esc left full screen")
+
+    // XCUITest can't hold a key, so the rest posts the keyboard's events.
+    guard CGPreflightPostEventAccess() else {
+      throw XCTSkip("The test runner may not post key events, which holding Esc needs")
+    }
+    let urlField = browser.element("clair.urlField", in: browser.sidebar)
+    try require(urlField.waitForExistence(timeout: 10), "The sidebar has no URL field in full screen")
+
+    // Esc released with Shift held still ends the hold.
+    urlField.click()
+    try require(field.waitForExistence(timeout: 10), "Clicking the URL field didn't open the command bar")
+    postKey(Self.escapeKey, down: true)
+    try await Task.sleep(for: .milliseconds(300))
+    postKey(Self.shiftKey, down: true, flags: .maskShift)
+    postKey(Self.escapeKey, down: false, flags: .maskShift)
+    postKey(Self.shiftKey, down: false)
+    try await Task.sleep(for: .seconds(2))
+    let kept = try await isWindowFullscreen(browser, tab)
+    XCTAssertTrue(kept, "Esc released with Shift held still left full screen")
+
+    // Holding Esc for 2 s leaves full screen.
+    if !field.exists {
+      urlField.click()
+      try require(field.waitForExistence(timeout: 10), "Clicking the URL field didn't open the command bar")
+    }
+    postKey(Self.escapeKey, down: true)
+    try await Task.sleep(for: .seconds(2))
+    postKey(Self.escapeKey, down: false)
+    let left = await Harness.wait(for: 30) { try await !self.isWindowFullscreen(browser, tab) }
+    XCTAssertTrue(left, "Holding Esc in the sidebar didn't leave full screen")
+  }
+
+  /// A download in page full screen shows no notice and keeps full screen.
+  func testDownloadInPageFullscreenShowsNoNotice() async throws {
+    let (browser, tab) = try await startWithPage("fullscreen.html")
+    defer { tab.close() }
+    let folder = browser.workDirectory.appending(path: "downloads")
+    let downloads = try await browser.allowDownloads(to: folder)
+    defer { downloads.close() }
+    let entered = try await tab.evaluate("enter()") as? String
+    try require(entered == "entered", "The page couldn't enter full screen")
+    let shown = await waitForNotice(browser, Self.pageNotice)
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeLabel(browser))")
+    _ = try await tab.evaluate(
+      """
+      (() => {
+        const link = document.createElement('a');
+        link.href = '/download/clair.txt';
+        link.download = '';
+        document.body.append(link);
+        link.click();
+        return 1;
+      })()
+      """)
+    var mentioned = false
+    let saved = await Harness.wait(for: 30) {
+      if self.noticeLabel(browser).contains("Download") { mentioned = true }
+      return FileManager.default.fileExists(atPath: folder.appending(path: "clair.txt").path)
+    }
+    try require(saved, "The download didn't finish")
+    // The popup would show it right away; give it a moment.
+    _ = await Harness.wait(for: 2) {
+      if self.noticeLabel(browser).contains("Download") { mentioned = true }
+      return false
+    }
+    XCTAssertFalse(mentioned, "A notice mentioned the download")
+    let still = try await tab.evaluate("document.fullscreenElement !== null") as? Bool
+    XCTAssertEqual(still, true, "The download ended page full screen")
+    browser.ui.typeKey(.escape, modifierFlags: [])
+  }
+
+  // MARK: - Helpers
+
+  static let escapeKey: CGKeyCode = 53
+  static let shiftKey: CGKeyCode = 56
+
+  /// The popup's exclusive-access notice. In page full screen the window
+  /// hides its sidebar, so look for it in the whole app.
+  func notice(_ browser: Browser) -> XCUIElement {
+    browser.ui.descendants(matching: .any).matching(identifier: "clair.fullscreenNotice").firstMatch
+  }
+
+  /// The notice's label, or "none" when no notice shows.
+  func noticeLabel(_ browser: Browser) -> String {
+    let notice = notice(browser)
+    return notice.exists ? notice.label : "none"
+  }
+
+  func waitForNotice(_ browser: Browser, _ label: String) async -> Bool {
+    await Harness.wait(for: 15) { self.noticeLabel(browser) == label }
+  }
+
+  func isWindowFullscreen(_ browser: Browser, _ tab: DevToolsSession) async throws -> Bool {
+    try await browser.windowBounds(of: tab)["windowState"] as? String == "fullscreen"
+  }
+
+  /// Posts a key's event as the keyboard sends it.
+  func postKey(_ key: CGKeyCode, down: Bool, flags: CGEventFlags = []) {
+    let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: key, keyDown: down)
+    event?.flags = flags
+    event?.post(tap: .cghidEventTap)
+  }
+}
+
+/// The page's zoom level in the popup (browser-window spec, "Zoom notice").
+@MainActor
+final class ZoomTests: NativeWindowTestCase {
+  func testZoomShowsTheLevelInThePopup() async throws {
+    let (browser, tab) = try await startWithPage()
+    defer { tab.close() }
+    browser.cardPoint(0.5, 0.5).click()
+    browser.ui.typeKey("=", modifierFlags: .command)
+    let notice = browser.element("clair.zoomNotice")
+    XCTAssertTrue(notice.waitForExistence(timeout: 10), "Zooming in showed no zoom notice")
+    XCTAssertEqual(notice.label, "110%")
+    XCTAssertFalse(browser.element("clair.toast").exists, "Zooming in showed a toast")
+    browser.ui.typeKey("=", modifierFlags: .command)
+    let updated = await Harness.wait(for: 10) { notice.exists && notice.label == "125%" }
+    XCTAssertTrue(updated, "Zooming again didn't update the popup")
+    XCTAssertFalse(browser.element("clair.toast").exists, "Zooming again showed a toast")
+    browser.ui.typeKey("0", modifierFlags: .command)
   }
 }
 
