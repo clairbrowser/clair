@@ -33,6 +33,7 @@
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/gfx/geometry/size_f.h"
 #include "ui/gfx/range/range.h"
 
 #if !defined(__OBJC__)
@@ -339,7 +340,11 @@ class ClairBrowserWindow : public BrowserWindow {
   // its member for that profile (add-profiles D3). With `again`, a member
   // the group swaps in shows the Space even if it showed it already, as its
   // active tab may be its placeholder.
-  void ShowSpace(const std::string& space, bool again = false);
+  // With `tab`, a row of `space` or a favorite of its profile, the window
+  // shows that tab instead (add-tab-switcher-and-tabs-menu D1).
+  void ShowSpace(const std::string& space,
+                 bool again = false,
+                 tabs::TabInterface* tab = nullptr);
   // The tabs of the shown Space, in its order, whichever window of the
   // profile holds them: with Peeks, or only the rows the sidebar lists. An
   // incognito or guest window's are its own.
@@ -478,6 +483,17 @@ class ClairBrowserWindow : public BrowserWindow {
   void FollowActiveTab();
   // add-profiles D9: drops a take waiting for `tab`'s page copy.
   void DropPendingTakeOf(const tabs::TabInterface* tab);
+  // add-tab-switcher-and-tabs-menu D1: shows `tab`, of any of the window's
+  // Spaces or a favorite, as selecting its row or tile does, taking it from
+  // another window if need be. Another profile's tab is shown by the window's
+  // group, which swaps to its member for that profile.
+  void ShowTab(tabs::TabInterface* tab);
+  // D4: hands `done` a preview of `tab`'s page, `size` in points: the page as
+  // it is now while a window shows it, else the copy kept when it was last
+  // hidden, or nil.
+  void RequestPreview(tabs::TabInterface* tab,
+                      const gfx::SizeF& size,
+                      base::OnceCallback<void(NSImage*)> done);
   // D5: runs a tab command over the rows of the shown Space. Returns whether
   // it ran; otherwise Chromium runs it.
   bool ExecuteTabCommand(int command);
@@ -695,6 +711,11 @@ class ClairBrowserWindow : public BrowserWindow {
   // D2: the copy of the still's page came after the tab left.
   void SetStillImage(tabs::TabHandle handle, const SkBitmap& copy);
   NSImage* StillImageFrom(const SkBitmap& copy) const;
+  // add-tab-switcher-and-tabs-menu D4: before `old_contents` and the pages
+  // shown with it are hidden, copies each one that stops being shown,
+  // `shown` being the pages shown from now on, and keeps it as its preview.
+  void KeepPreviews(content::WebContents* old_contents,
+                    const std::set<content::WebContents*>& shown);
   // D2: copies `row`'s page, waiting at most 250 ms, and hands `done` the
   // copy, or an empty bitmap.
   void CopyPage(tabs::TabInterface* row,

@@ -752,6 +752,42 @@ int EventFlagsFor(ClairOpenDisposition disposition) {
   }
 }
 
+// --- ClairBrowser: the tab switcher (add-tab-switcher-and-tabs-menu D1, D4) ---
+
+// A tab of any window, which the window decides whether it may show.
+- (tabs::TabInterface*)anyTabWithID:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self tabWithID:tabID]) {
+    return tab;
+  }
+  return _browserWindow && tabID != ClairTabIDNone
+             ? tabs::TabHandle(static_cast<int32_t>(tabID)).Get()
+             : nullptr;
+}
+
+- (void)showTab:(ClairTabID)tabID {
+  if (tabs::TabInterface* tab = [self anyTabWithID:tabID]) {
+    _browserWindow->ShowTab(tab);
+  }
+}
+
+- (void)requestPreviewOfTab:(ClairTabID)tabID
+                       size:(NSSize)size
+                 completion:(void (^)(NSImage*))completion {
+  if (!completion) {
+    return;
+  }
+  tabs::TabInterface* tab = [self anyTabWithID:tabID];
+  if (!tab || !ClairBrowserWindow::HolderOf(tab)) {
+    completion(nil);
+    return;
+  }
+  _browserWindow->RequestPreview(
+      tab, gfx::SizeF(size.width, size.height),
+      base::BindOnce(^(NSImage* preview) {
+        completion(preview);
+      }));
+}
+
 // --- ClairBrowser: Peek ---
 
 // The Peeks of the window holding `tab`.

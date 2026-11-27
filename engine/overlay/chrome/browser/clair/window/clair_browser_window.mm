@@ -12,6 +12,7 @@
 #import <AppKit/AppKit.h>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <set>
 #include <string>
@@ -42,6 +43,7 @@
 #import "chrome/browser/clair/window/clair_native_window.h"
 #include "chrome/browser/clair/window/clair_peeks.h"
 #include "chrome/browser/clair/window/clair_space_session.h"
+#include "chrome/browser/clair/window/clair_tab_preview.h"
 #include "chrome/browser/clair/window/clair_window_group.h"
 #include "chrome/browser/clair/window/clair_window_hooks.h"
 #include "chrome/browser/clair/clair_profiles.h"
@@ -1961,7 +1963,107 @@ void ClairBrowserWindow::DropPendingTakeOf(const tabs::TabInterface* tab) {
   }
 }
 
-void ClairBrowserWindow::ShowSpace(const std::string& space, bool again) {
+// --- The tab switcher (add-tab-switcher-and-tabs-menu D1, D4) ---
+
+void ClairBrowserWindow::ShowTab(tabs::TabInterface* tab) {
+  ClairBrowserWindow* holder = HolderOf(tab);
+  if (!holder || ClairSpaceTabs::IsPlaceholder(tab->GetContents())) {
+    return;
+  }
+  // A Peek's row is its parent's; a split shows with its pane focused last.
+  tabs::TabInterface* row = RowOf(tab);
+  ClairSpaceTabs* lists = holder->space_tabs();
+  if (holder == this ||
+      (space_tabs_ && space_tabs_->is_regular() && lists == space_tabs_ &&
+       space_tabs_->IsListed(row))) {
+    // A tab of another Space shows that Space as it becomes active, ClairUI
+    // hearing of the Space first (OnActiveTabChanged).
+    ActivateRow(row);
+    return;
+  }
+  // add-profiles D3: another profile's tab; the group swaps to its member.
+  if (!space_tabs_ || !space_tabs_->is_regular() || !lists ||
+      !lists->is_regular() || !lists->IsListed(row)) {
+    return;
+  }
+  std::string space = lists->SpaceOf(row);
+  if (space.empty()) {
+    // A favorite belongs to its profile: the Space its window shows.
+    space = holder->shown_space();
+  }
+  ShowSpace(space, /*again=*/false, row);
+}
+
+void ClairBrowserWindow::RequestPreview(
+    tabs::TabInterface* tab,
+    const gfx::SizeF& size,
+    base::OnceCallback<void(NSImage*)> done) {
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  if (!contents || contents->IsCrashed() || size.IsEmpty() ||
+      ClairSpaceTabs::IsPlaceholder(contents)) {
+    std::move(done).Run(nil);
+    return;
+  }
+  const CGFloat scale =
+      ns_window_.backingScaleFactor > 0 ? ns_window_.backingScaleFactor : 1;
+  const int width =
+      std::max(1, static_cast<int>(std::lround(size.width() * scale)));
+  // The copy, or else the preview kept, cut to the card, in points.
+  auto finish = [](tabs::TabHandle handle, gfx::SizeF size, int width,
+                   base::OnceCallback<void(NSImage*)> done,
+                   const SkBitmap& copy) {
+    tabs::TabInterface* tab = handle.Get();
+    const SkBitmap& source =
+        copy.drawsNothing() && tab ? ClairTabPreview::Get(tab->GetContents())
+                                   : copy;
+    const SkBitmap cut = ClairTabPreview::CutFromTop(source, size, width);
+    if (!tab || cut.drawsNothing()) {
+      std::move(done).Run(nil);
+      return;
+    }
+    NSImage* image = skia::SkBitmapToNSImage(cut);
+    image.size = NSMakeSize(size.width(),
+                            size.width() * cut.height() / cut.width());
+    std::move(done).Run(image);
+  };
+  if (contents->GetVisibility() == content::Visibility::VISIBLE) {
+    // A page a window shows, as it is now.
+    CopyPage(tab, base::BindOnce(finish, tab->GetHandle(), size, width,
+                                 std::move(done)));
+    return;
+  }
+  finish(tab->GetHandle(), size, width, std::move(done), SkBitmap());
+}
+
+void ClairBrowserWindow::KeepPreviews(
+    content::WebContents* old_contents,
+    const std::set<content::WebContents*>& shown) {
+  if (!old_contents || ClairSpaceTabs::IsPlaceholder(old_contents) ||
+      !IsVisible()) {
+    return;
+  }
+  for (content::WebContents* page : PagesShownWith(old_contents)) {
+    tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(page);
+    // Each pane of a split. A Peek's parent keeps its own page; the Peek,
+    // never a row, has none.
+    if (shown.contains(page) || !tab || page->IsCrashed() ||
+        ClairSpaceTabs::IsPlaceholder(page) ||
+        (peeks_ && peeks_->ParentOf(tab))) {
+      continue;
+    }
+    CopyPage(tab, base::BindOnce(
+                      [](tabs::TabHandle handle, const SkBitmap& copy) {
+                        if (tabs::TabInterface* tab = handle.Get()) {
+                          ClairTabPreview::Keep(tab->GetContents(), copy);
+                        }
+                      },
+                      tab->GetHandle()));
+  }
+}
+
+void ClairBrowserWindow::ShowSpace(const std::string& space,
+                                   bool again,
+                                   tabs::TabInterface* tab) {
   clair::ClairSpaceStore* store = clair::ClairSpaceStore::Get();
   if (!space_tabs_ || !space_tabs_->is_regular() || !store->Contains(space) ||
       (space == shown_space_ && !again)) {
@@ -1971,8 +2073,18 @@ void ClairBrowserWindow::ShowSpace(const std::string& space, bool again) {
   if (store->ProfileOf(space) !=
       clair::ClairProfiles::IDOf(browser_->GetProfile())) {
     if (ClairWindowGroup* group = ClairWindowGroup::Of(this)) {
-      group->ShowSpace(space);
+      group->ShowSpace(space, {},
+                       tab ? tab->GetHandle() : tabs::TabHandle::Null());
     }
+    return;
+  }
+  // add-tab-switcher-and-tabs-menu D1: the switcher's tab, a row of the Space
+  // or a favorite, shows in place of the one Clair would pick, so no other
+  // tab shows on the way.
+  if (tab && space_tabs_->IsListed(tab) &&
+      (space_tabs_->SpaceOf(tab) == space || space_tabs_->IsFavoriteTab(tab))) {
+    SetShownSpace(space);
+    ActivateRow(RowOf(tab));
     return;
   }
   // Shown again: the active tab stays if it's a row of the Space.
@@ -2029,10 +2141,9 @@ void ClairBrowserWindow::ShowSpace(const std::string& space, bool again) {
 bool ClairBrowserWindow::ExecuteTabCommand(int command) {
   const bool select_index =
       command >= IDC_SELECT_TAB_0 && command <= IDC_SELECT_TAB_7;
+  // add-tab-switcher-and-tabs-menu D5a: Ctrl+Tab is ClairUI's switcher.
   const bool step = command == IDC_SELECT_NEXT_TAB ||
-                    command == IDC_SELECT_PREVIOUS_TAB ||
-                    command == IDC_CYCLE_TO_NEXT_TAB ||
-                    command == IDC_CYCLE_TO_PREV_TAB;
+                    command == IDC_SELECT_PREVIOUS_TAB;
   TabStripModel* strip = browser_->tab_strip_model();
   tabs::TabInterface* active = strip->GetActiveTab();
   // While the window shows a still, the still's row stands for the active
@@ -2089,8 +2200,7 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
            (slot.tab == active_row ||
             ClairSplits::PartnerOf(slot.tab) == active_row);
     });
-    const bool forward = command == IDC_SELECT_NEXT_TAB ||
-                         command == IDC_CYCLE_TO_NEXT_TAB;
+    const bool forward = command == IDC_SELECT_NEXT_TAB;
     // From a favorite, the first or last row.
     const int position = it == slots.end()
                              ? (forward ? -1 : count)
@@ -2158,22 +2268,6 @@ bool ClairBrowserWindow::ExecuteTabCommand(int command) {
       // a still, the still's row is the one closed.
       CloseTab(still_tab_.Get() ? still_tab_.Get() : active);
       return true;
-    case IDC_WINDOW_CLOSE_TABS_TO_RIGHT:
-      CloseTabsBelow(active_row);
-      return true;
-    case IDC_WINDOW_CLOSE_OTHER_TABS: {
-      std::vector<tabs::TabHandle> others;
-      for (tabs::TabInterface* row : Rows()) {
-        if (row != active_row) {
-          others.push_back(row->GetHandle());
-        }
-      }
-      // add-split-view: a split row closes both its panes.
-      for (const tabs::TabHandle& handle : others) {
-        CloseSplit(handle.Get());
-      }
-      return true;
-    }
     default:
       return false;
   }
@@ -3125,6 +3219,9 @@ void ClairBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
   // window's visibility. A tab and its Peek show together (add-peek D4).
   const std::set<content::WebContents*> shown = PagesShownWith(new_contents);
   if (old_contents) {
+    // add-tab-switcher-and-tabs-menu D4: the switcher's previews, while the
+    // pages leaving are still shown.
+    KeepPreviews(old_contents, shown);
     for (content::WebContents* page : PagesShownWith(old_contents)) {
       if (!shown.contains(page)) {
         page->UpdateWebContentsVisibility(content::Visibility::HIDDEN);

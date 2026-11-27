@@ -74,13 +74,15 @@ The contract (`ClairHost.h`, `ClairBrowser`):
 ```
 
 - **Capture.** The engine copies a tab's page with `CopyPage` as the tab stops being shown. That happens in `ClairBrowserWindow`'s active-tab change, before Chromium hides it, which is where `TabStripModel` asks `ThumbnailTabHelper` for its own. The copy is scaled to 2× the card's width, cut to the card's 3:2 shape from the top, and kept on the tab as `WebContents` user data (`ClairTabPreview`).
-- **Lifetime and memory.** One image per tab, replaced on each hide, freed with the tab: about 100 KB each.
+- **Lifetime and memory.** One bitmap per tab, 315 × 210 pixels, replaced on each hide, freed with the tab: about 260 KB each.
 - **The shown tab** is copied live on request.
 - **Peeks.** A tab with a Peek gets the parent's page; the still's convention is followed.
 
 Turning on `kTabHoverCardImages` was rejected: it needs a patch to a Chromium default, and brings JPEG compression and background video capture that Clair doesn't need.
 
 A split's card asks for both panes and draws them side by side in pane order.
+
+**Showing a tab of another profile.** `-showTab:` passes the tab through the window group's swap (`ClairWindowGroup::ShowSpace`), and the member swapped in shows it in place of the tab `ShowSpace` would pick. Otherwise the Space's last tab would show first, and enter the recents.
 
 ### D5. Delete Chromium's Tab menu, add Clair's Tabs menu
 
@@ -131,7 +133,7 @@ With Chromium's Tab menu deleted, nothing Clair did to it or for it is needed. E
 
 **Docs:** `docs/native-window.md`'s "Rows and commands" stops listing Ctrl+Tab among the row commands.
 
-Before deleting each engine case, the implementation greps the Chromium tree for other senders of the command (extension APIs, context menus Clair shows). A command with another sender keeps its case.
+Before deleting each engine case, the implementation greps the Chromium tree for other senders of the command (extension APIs, context menus Clair shows). A command with another sender keeps its case. None has one that reaches a native window: on macOS their accelerators are only the Tab menu's key equivalents (`accelerators_cocoa.mm`), `global_keyboard_shortcuts_mac.mm` lists none of them, the app menu and the Views tab strip's context menu aren't shown, and DevTools' `Browser.executeBrowserCommand` (Open Tab Search) calls `chrome::ExecuteCommand` directly, past Clair's handler, as it did before.
 
 ### D6. Context menus in groups
 

@@ -20,7 +20,6 @@
 #include "chrome/browser/clair/window/clair_splits.h"
 #import "chrome/browser/clair/clair_space_tabs.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -628,7 +627,6 @@ bool ClairPeeks::ExecuteCommand(int command) {
   // The tab commands over the rows are the window's, which knows the
   // Space's order (add-spaces D5).
   tabs::TabInterface* peek = ActivePeek();
-  tabs::TabInterface* parent = peek ? ParentOf(peek) : nullptr;
   if (!peek) {
     return false;
   }
@@ -641,22 +639,6 @@ bool ClairPeeks::ExecuteCommand(int command) {
       // Cmd+O expands the Peek, as in Arc, instead of File > Open File.
       Expand(peek);
       return true;
-    case IDC_DUPLICATE_TAB: {
-      const int index = parent ? strip()->GetIndexOfTab(parent)
-                               : TabStripModel::kNoTab;
-      if (index != TabStripModel::kNoTab &&
-          chrome::CanDuplicateTabAt(window_->browser(), index)) {
-        chrome::DuplicateTabAt(window_->browser(), index);
-      }
-      return true;
-    }
-    case IDC_MOVE_TAB_TO_NEW_WINDOW:
-      // The parent moves without its Peek: Chromium moves the active tab,
-      // which this makes the parent. The Peek, left behind without it, closes
-      // once, with its leave-page confirmation (Repair).
-      BeginClosing(FindByPeek(peek));
-      ActivateTab(parent);
-      return false;
     default:
       return false;
   }

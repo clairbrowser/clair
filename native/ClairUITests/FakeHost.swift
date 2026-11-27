@@ -155,6 +155,9 @@ final class FakeHost: NSObject, ClairHost {
 
   /// Every tab's page view, which moves with it between windows.
   var pageViews: [TabID: NSView] = [:]
+  /// Each tab's page preview for the tab switcher (add-tab-switcher-and-tabs-menu
+  /// D4), set by tests; none by default, as for a tab never shown.
+  var previews: [TabID: NSImage] = [:]
   /// Unique across browsers, as Chromium's tab handles are.
   private var nextTabID: TabID = 1
   /// When each tab was last active, as a count.

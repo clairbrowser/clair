@@ -407,6 +407,14 @@ void InstallNativeWindowMenus() {
   if (NSMenuItem* profiles = [main_menu itemWithTag:IDC_PROFILE_MAIN_MENU]) {
     [main_menu removeItem:profiles];
   }
+  // add-tab-switcher-and-tabs-menu D5: no Tab menu; ClairUI's Tabs menu takes
+  // its place. Deleted rather than hidden, as a hidden item still fires its
+  // key equivalent (Ctrl+Tab, Search Tabs). AppController looks it up by tag
+  // whenever a window becomes main: its TabMenuBridge then fills nil, and
+  // -onVerticalTabStripModeChanged: returns early.
+  if (NSMenuItem* tab_menu = [main_menu itemWithTag:IDC_TAB_MENU]) {
+    [main_menu removeItem:tab_menu];
+  }
   // add-profiles D10: Settings › Advanced replaces "Warn Before Quitting",
   // which has no tag; it's found by its action, with the separator after it.
   if (NSMenu* app_menu = main_menu.itemArray.firstObject.submenu) {
