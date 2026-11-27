@@ -214,8 +214,11 @@ final class BrowserWindowModel {
   /// Whether the page shows its header, the toolbar. Views read this, not
   /// the preference.
   var showsPageHeader: Bool { headerPolicy.panesShowHeader }
-  /// Whether the sidebar shows the browser controls.
+  /// Whether the sidebar shows its full top row, the URL field and the
+  /// pinned extensions.
   var sidebarShowsControls: Bool { headerPolicy.sidebarShowsControls }
+  /// Whether the sidebar's top row shows back, forward and reload.
+  var sidebarShowsNavigation: Bool { headerPolicy.sidebarShowsNavigation }
 
   /// The Peek the card shows over its parent, if any (add-peek D4).
   var shownPeek: TabListLogic.ShownPeek?
@@ -297,6 +300,12 @@ final class BrowserWindowModel {
   var isPageFullscreen = false
   var isSiteControlCenterOpen = false
   var isDownloadsListOpen = false
+  /// Whether the user last used the sidebar's controls rather than a pane
+  /// header's, while both show them: a split with the toolbar off.
+  var usedSidebarControls = false
+  /// Whether Chromium's bubbles, extension popups and the Site Control
+  /// Center attach to the sidebar's controls rather than the page header's.
+  var bubblesInSidebar: Bool { sidebarShowsControls && (!showsPageHeader || usedSidebarControls) }
   /// A revealed sidebar stays revealed while one of its popovers is open
   /// (arc-site-control-center design D8).
   var isSidebarPopoverOpen: Bool { isSiteControlCenterOpen || isDownloadsListOpen }

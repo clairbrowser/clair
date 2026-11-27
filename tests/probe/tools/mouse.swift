@@ -4,9 +4,10 @@
 
 // mouse move <x> <y>
 // mouse click <x> <y>
+// mouse doubleclick <x> <y>
 //
 // Moves the real pointer to a point in screen points (as `probe.sh send tree`
-// prints frames), and clicks there with `click`. For when the probe's own
+// prints frames), and clicks there with `click`, or twice with `doubleclick`. For when the probe's own
 // `hover` and `click` can't reach: they're relative to the app's first window,
 // which is a dialog while one shows, and a SwiftUI hover in a window that isn't
 // key (a sidebar row's close button behind a page's alert) didn't appear for
@@ -19,8 +20,8 @@ import Foundation
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 let numbers = arguments.dropFirst().compactMap { Double($0) }
-guard arguments.count == 3, ["move", "click"].contains(arguments[0]), numbers.count == 2 else {
-  FileHandle.standardError.write("usage: mouse move|click <x> <y>\n".data(using: .utf8)!)
+guard arguments.count == 3, ["move", "click", "doubleclick"].contains(arguments[0]), numbers.count == 2 else {
+  FileHandle.standardError.write("usage: mouse move|click|doubleclick <x> <y>\n".data(using: .utf8)!)
   exit(2)
 }
 guard CGPreflightPostEventAccess() else {
@@ -29,18 +30,23 @@ guard CGPreflightPostEventAccess() else {
 }
 let point = CGPoint(x: numbers[0], y: numbers[1])
 
-func post(_ type: CGEventType) {
-  CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
-    .post(tap: .cghidEventTap)
+func post(_ type: CGEventType, clickCount: Int64 = 1) {
+  let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+  event?.setIntegerValueField(.mouseEventClickState, value: clickCount)
+  event?.post(tap: .cghidEventTap)
 }
 
 // Two moves, so a view's hover sees the pointer arrive.
 post(.mouseMoved)
 usleep(150_000)
 post(.mouseMoved)
-if arguments[0] == "click" {
+if arguments[0] != "move" {
   usleep(300_000)
-  post(.leftMouseDown)
-  usleep(80_000)
-  post(.leftMouseUp)
+  // A double-click's second press and release carry a click count of 2.
+  for count in Int64(1)...(arguments[0] == "doubleclick" ? 2 : 1) {
+    post(.leftMouseDown, clickCount: count)
+    usleep(60_000)
+    post(.leftMouseUp, clickCount: count)
+    usleep(60_000)
+  }
 }

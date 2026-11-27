@@ -13,6 +13,9 @@ extension BrowserWindowController: SplitActions {
     rootView.splitDivider.onDrag = { [weak self] x, done in
       self?.dividerMoved(to: x, done: done)
     }
+    rootView.splitDivider.onDoubleClick = { [weak self] in
+      self?.centreDivider()
+    }
     for (index, card) in [rootView.card, rootView.secondCard].enumerated() {
       card.onHover = { [weak model] inside in
         guard let model else { return }
@@ -100,6 +103,7 @@ extension BrowserWindowController: SplitActions {
   /// The divider snaps to equal panes near the centre as it moves, with
   /// the trackpad's alignment feedback, and the ratio it's let go at sticks.
   private func dividerMoved(to x: CGFloat, done: Bool) {
+    splitRatioAnimator.stop()
     guard let split = model.shownSplit else { return }
     let width = rootView.pageArea.width
     let current = model.liveRatio(of: split) ?? split.ratio
@@ -111,6 +115,38 @@ extension BrowserWindowController: SplitActions {
     model.liveSplitRatio = ratio
     if done {
       browser?.setSplitRatio(ratio, of: split.leadingID)
+    }
+  }
+
+  /// Double-clicking the divider slides it to the centre, with the
+  /// sidebar's spring, and keeps equal panes.
+  func centreDivider() {
+    guard let split = model.shownSplit else { return }
+    let current = model.liveRatio(of: split) ?? split.ratio
+    guard current != 0.5 else { return }
+    let finish = { [weak self] in
+      guard let self else { return }
+      self.model.liveSplitPanes = split.paneIDs
+      self.model.liveSplitRatio = 0.5
+      self.browser?.setSplitRatio(0.5, of: split.leadingID)
+    }
+    guard rootView.window?.isVisible == true, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+      finish()
+      return
+    }
+    splitRatioAnimator.animate(in: rootView, from: current, to: 0.5) { [weak self] ratio, done in
+      // Another split, or none, ends it where it is.
+      guard let self, self.model.shownSplit?.paneIDs == split.paneIDs else { return false }
+      if done {
+        finish()
+      } else {
+        self.model.liveSplitPanes = split.paneIDs
+        self.model.liveSplitRatio = ratio
+      }
+      // Lay out now rather than on the next pass, so the pages resize in step.
+      self.rootView.needsLayout = true
+      self.rootView.layoutSubtreeIfNeeded()
+      return true
     }
   }
 

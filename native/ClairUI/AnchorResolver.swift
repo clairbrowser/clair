@@ -15,7 +15,8 @@ enum AnchorControl: Hashable {
 }
 
 /// Where a Chromium bubble attaches (design D7): below its control in the
-/// toolbar while the toolbar shows (add-page-toolbar D6); else to its control
+/// toolbar while the toolbar shows (add-page-toolbar D6), unless the user
+/// last used the sidebar's while a split shows both; else to its control
 /// in the sidebar while the sidebar is shown in place, or else to the card's
 /// top-leading corner. A revealed sidebar slides away when the pointer
 /// leaves, which would orphan a bubble, so it never anchors one.
@@ -28,15 +29,26 @@ struct AnchorResolver {
   var sidebarInPlace: Bool
   /// The controls' frames, in window coordinates (origin at the bottom left).
   var controls: [AnchorControl: CGRect]
-  /// The card's frame, in window coordinates.
+  /// The card's frame, in window coordinates: the focused pane's in a split.
   var card: CGRect
   /// Whether the toolbar shows above the page: not while a page is in full
   /// screen.
   var toolbarShown = false
   /// The toolbar's controls' frames, in window coordinates.
   var toolbarControls: [AnchorControl: CGRect] = [:]
+  /// Whether the sidebar's controls come first: a split with the toolbar off
+  /// shows them in both, and the user last used the sidebar's.
+  var prefersSidebar = false
+
+  /// Whether bubbles attach to the sidebar's controls before the toolbar's.
+  var anchorsInSidebar: Bool { prefersSidebar && sidebarInPlace }
 
   func anchor(for kind: AnchorKind, indicator: TabIndicators, extensionID: String?) -> BubbleAnchor {
+    if anchorsInSidebar,
+      let rect = controlRect(for: kind, indicator: indicator, extensionID: extensionID, in: controls)
+    {
+      return BubbleAnchor(rect: rect, edge: .trailing)
+    }
     if toolbarShown,
       let rect = controlRect(for: kind, indicator: indicator, extensionID: extensionID, in: toolbarControls)
     {
