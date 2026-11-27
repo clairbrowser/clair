@@ -15,7 +15,7 @@
 - The owner's Tabs menu and context menu layouts, with Chromium's Tab menu and every Clair customization of it gone.
 
 **Non-Goals:**
-- Choosing cards with the pointer. A setting for the old Ctrl+Tab.
+- A setting for the old Ctrl+Tab.
 - Arc's other menus.
 
 ## Decisions
@@ -42,7 +42,7 @@ Kept in the engine instead, the list would need a new observer call for somethin
 | Other keys, switcher open | Swallowed. |
 | `flagsChanged` without Control, switcher open | Commits. |
 
-Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the switcher is open, swallows mouse downs, as Arc ignores clicks then.
+Every handled event returns nil, so the page, the command bar and Chromium never see it. The window resigning key or the shown tab closing cancels. A second monitor, active only while the panel shows, takes left mouse downs, with or without Control: one over a card commits that card, and any other is swallowed, so the page never sees it. A click with Control held would otherwise be a secondary click, so the monitor handles it before AppKit can open a context menu. Arc ignores clicks; the owner wants them ("Choosing a card with the pointer").
 
 With Chromium's Tab menu deleted (D5), Chromium no longer has Ctrl+Tab at all.
 

@@ -73,19 +73,26 @@ Releasing Ctrl SHALL close the switcher and show the selected tab, as clicking i
 - **THEN** the window shows "Home" with "Recipes" active
 
 ### Requirement: Cancelling the switcher
-Esc SHALL close the switcher without switching tabs, even while Ctrl is still held. So SHALL the window losing key status and the shown tab closing. Clicks SHALL do nothing while the switcher is open, as in Arc: a card SHALL not be chosen with the pointer, and the switcher SHALL stay open.
+Esc SHALL close the switcher without switching tabs, even while Ctrl is still held. So SHALL the window losing key status and the shown tab closing.
 
 #### Scenario: Esc
 - **WHEN** the switcher has "Example" selected and the user presses Esc, then releases Ctrl
 - **THEN** the switcher closes and the window keeps showing the tab it showed
 
-#### Scenario: A click
-- **WHEN** the switcher is open and the user clicks a card
-- **THEN** nothing happens, and the switcher stays open with the same card selected
-
 #### Scenario: Switching apps
 - **WHEN** the switcher is open and another app becomes active
 - **THEN** the switcher closes and the window keeps its tab
+
+### Requirement: Choosing a card with the pointer
+While the panel shows, clicking a card SHALL close the switcher and show that card's tab, as releasing Ctrl on it does, whether or not Ctrl is still held. A click outside the cards SHALL do nothing, and the switcher SHALL stay open. Arc ignores clicks; Clair allows them.
+
+#### Scenario: Clicking a card
+- **WHEN** the switcher shows "BBC", "Example", "MDN", "Cat" and "Hacker News", "Example" is selected, and the user clicks "Cat" with Ctrl held
+- **THEN** the switcher closes and the window shows "Cat", and releasing Ctrl then changes nothing
+
+#### Scenario: Clicking outside the cards
+- **WHEN** the switcher is open and the user clicks the page beside the panel
+- **THEN** nothing happens, and the switcher stays open with the same card selected
 
 ### Requirement: A quick Ctrl+Tab shows no panel
 The panel SHALL appear only once Ctrl has been held for 100 ms after Ctrl+Tab or Ctrl+Shift+Tab, or at once when Tab or Shift+Tab is pressed again within that time. Releasing Ctrl sooner SHALL show the selected tab without the panel ever appearing.

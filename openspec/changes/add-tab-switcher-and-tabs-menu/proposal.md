@@ -9,7 +9,7 @@ In Clair, Ctrl+Tab still steps through the sidebar's rows in order, as Chromium'
 - **Ctrl+Tab switcher, as in Arc** (probed on 2026-11-26, `arc-reference/`):
   - Pressing Ctrl+Tab shows a panel over the window with the window's five most recently used tabs, the shown tab first. Each tab is a card with a preview of its page, its favicon and its title. The second card is selected.
   - While Ctrl is held, each Tab selects the next card and each Shift+Tab the previous one, wrapping at the ends. Ctrl+Shift+Tab opens the panel with the last card selected.
-  - Releasing Ctrl shows the selected tab, and Esc closes the panel without switching. A quick Ctrl+Tab returns to the previous tab without showing the panel: as in Arc, it appears only once Ctrl has been held for about 100 ms, or at once on a second Tab.
+  - Releasing Ctrl shows the selected tab, clicking a card shows that card's tab (Arc ignores clicks), and Esc closes the panel without switching. A quick Ctrl+Tab returns to the previous tab without showing the panel: as in Arc, it appears only once Ctrl has been held for about 100 ms, or at once on a second Tab.
   - Recents span the window's Spaces, as in Arc, and include favorites and pinned tabs while their page is open. Choosing a tab of another Space switches the window to that Space. A split is one card showing both pages, labelled with both favicons. A tab leaves the list when its page closes.
   - The panel appears, moves its selection and closes with no animation, as in Arc.
   - Opt+Cmd+Down and Up (Next Tab and Previous Tab) and Cmd+1 to 9 still step through the sidebar's rows.
@@ -32,7 +32,6 @@ In Clair, Ctrl+Tab still steps through the sidebar's rows in order, as Chromium'
 
 **Out of scope:**
 - Arc's other menu bar menus, and View, File and Edit, which keep their items.
-- Choosing a card with the mouse: in Arc, a click while Ctrl is held does nothing.
 - A setting to turn the switcher off or make Ctrl+Tab step through the sidebar.
 
 ## Capabilities
