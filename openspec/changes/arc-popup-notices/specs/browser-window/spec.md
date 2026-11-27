@@ -18,11 +18,11 @@ When a page locks the pointer outside page full screen, hiding the cursor, the p
 - **THEN** the popup shows the full-screen notice, not the hidden-cursor one
 
 ### Requirement: Window full-screen notice
-Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "Press and hold [esc] to exit full screen" for a few seconds, as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is. A quick Esc SHALL do what it does outside full screen.
+Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press and hold [esc]" for a few seconds, as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is. A quick Esc SHALL do what it does outside full screen.
 
 #### Scenario: Entering from the menu
 - **WHEN** the user chooses View › Enter Full Screen
-- **THEN** the popup reads "Press and hold [esc] to exit full screen" with esc as a key cap, and hides after a few seconds
+- **THEN** the popup reads "To exit full screen, press and hold [esc]" with esc as a key cap, and hides after a few seconds
 
 #### Scenario: Entering from the green button
 - **WHEN** the user clicks the window's green button
@@ -35,6 +35,17 @@ Whenever the window enters macOS full screen other than for a page, by View › 
 #### Scenario: A quick Esc
 - **WHEN** the window is in full screen with the command bar open and the user presses Esc briefly
 - **THEN** the command bar closes and the window stays in full screen
+
+### Requirement: No download notice
+A download that starts while the window or a page is in full screen, or while a page holds the pointer lock, SHALL NOT show a notice in the popup. A notice already showing SHALL stay as it was, and a notice the same change of mode brings SHALL show without mention of the download.
+
+#### Scenario: Download in page full screen
+- **WHEN** a page in page full screen starts a download
+- **THEN** the popup shows no "Download started" notice, and the window stays in full screen
+
+#### Scenario: Entering full screen with a download
+- **WHEN** a page enters full screen while a download it started a moment ago is in progress
+- **THEN** the popup reads "To exit full screen, press [esc]", with no mention of the download
 
 ### Requirement: Zoom notice
 When the user changes a page's zoom, by View's zoom commands, their shortcuts or a pinch, the popup SHALL show the new level alone, such as "110%", as in Arc, and hide after a few seconds. Each further change SHALL update the shown level in place and restart its time. No toast SHALL show for the zoom.
