@@ -9,12 +9,12 @@ Suggested order:
 
 ## 1. Contract and fakes
 
-- [ ] 1.1 Add to `ClairBrowser` in `native/ClairHost.h`, documented as the header documents the rest:
+- [x] 1.1 Add to `ClairBrowser` in `native/ClairHost.h`, documented as the header documents the rest:
   - `-requestPreviewOfTab:size:completion:` (D4);
   - `-showTab:`, which shows a tab of any of the window's Spaces, switching Space, and swapping windows for another profile's Space as `-[ClairHost showSpace:]` does.
 
   Verify that the header compiles in `ClairHostObjCxxTests.mm` in CI.
-- [ ] 1.2 Update `FakeBrowser` and `FakeHost`:
+- [x] 1.2 Update `FakeBrowser` and `FakeHost`:
   - previews per tab (set by tests, nil by default);
   - `showTab` across Spaces, which posts `shownSpaceDidChange` before `activeTabDidChange`.
 
@@ -22,8 +22,8 @@ Suggested order:
 
 ## 2. Engine
 
-- [ ] 2.1 Delete Chromium's Tab menu in `clair_window_hooks.mm`'s main-menu setup (D5), before any window becomes main. Verify in the engine build (2.5) that Clair starts with no Tab menu, and that switching windows and profiles doesn't crash: `AppController`'s `TabMenuBridge` and `onVerticalTabStripModeChanged` get nil.
-- [ ] 2.2 Remove the engine's handling of Tab-menu-only commands (D5a):
+- [x] 2.1 Delete Chromium's Tab menu in `clair_window_hooks.mm`'s main-menu setup (D5), before any window becomes main. Verify in the engine build (2.5) that Clair starts with no Tab menu, and that switching windows and profiles doesn't crash: `AppController`'s `TabMenuBridge` and `onVerticalTabStripModeChanged` get nil.
+- [x] 2.2 Remove the engine's handling of Tab-menu-only commands (D5a):
   - in `ExecuteTabCommand`: `IDC_CYCLE_TO_NEXT_TAB`, `IDC_CYCLE_TO_PREV_TAB`, `IDC_WINDOW_CLOSE_TABS_TO_RIGHT` and `IDC_WINDOW_CLOSE_OTHER_TABS`;
   - in `ClairPeeks::ExecuteCommand`: `IDC_DUPLICATE_TAB` and `IDC_MOVE_TAB_TO_NEW_WINDOW`;
   - the same four commands in the native window's modal-dialog validation list;
@@ -36,7 +36,7 @@ Suggested order:
   - `-requestPreviewOfTab:size:completion:` returns it, or copies the shown tab live, or nil.
 
   Verify in the hand check (6.1) that a background tab's card shows its page as left, and the shown tab's card its live page.
-- [ ] 2.4 Implement `-showTab:` in `clair_browser_bridge.mm`:
+- [x] 2.4 Implement `-showTab:` in `clair_browser_bridge.mm`:
   - a tab of the shown Space activates as `-activateTab:` does, taking it from another window;
   - a tab of another Space of the same profile shows that Space with the tab active;
   - a tab of another profile's Space goes through the profile swap of `ShowSpace`, and the incoming window activates the tab.
@@ -46,24 +46,24 @@ Suggested order:
 
 ## 3. ClairUI
 
-- [ ] 3.1 Add `RecentTabs` (D1): the front-on-show rule, splits and Peeks as their row, the still's placeholder left out, pruning on tab and pin changes, and no cap, so open tabs never fall off the list. The incoming window takes the list on a profile swap. Verify with unit tests in CI for each scenario of `tab-switcher` "Recent tabs".
-- [ ] 3.2 Add `SwitcherState` (D2, D3): open forward or back, step and wrap, commit, cancel, no-op with fewer than two entries, at most five cards, and the 100 ms delay before the panel shows (at once on a second Tab, never on a commit before it). Verify with unit tests in CI, with an injected clock, for the scenarios of "Opening the switcher", "Moving the selection", "Choosing a tab", "Cancelling the switcher" and "A quick Ctrl+Tab shows no panel".
-- [ ] 3.3 Add `TabSwitcher`:
+- [x] 3.1 Add `RecentTabs` (D1): the front-on-show rule, splits and Peeks as their row, the still's placeholder left out, pruning on tab and pin changes, and no cap, so open tabs never fall off the list. The incoming window takes the list on a profile swap. Verify with unit tests in CI for each scenario of `tab-switcher` "Recent tabs".
+- [x] 3.2 Add `SwitcherState` (D2, D3): open forward or back, step and wrap, commit, cancel, no-op with fewer than two entries, at most five cards, and the 100 ms delay before the panel shows (at once on a second Tab, never on a commit before it). Verify with unit tests in CI, with an injected clock, for the scenarios of "Opening the switcher", "Moving the selection", "Choosing a tab", "Cancelling the switcher" and "A quick Ctrl+Tab shows no panel".
+- [x] 3.3 Add `TabSwitcher`:
   - the local key and mouse monitors of D2, acting only in a normal browser window with no dialog or sheet;
   - commit through `showTab`;
   - cancel on resign-key and when the shown tab closes.
 
   Verify with unit tests in CI that feed it synthetic `NSEvent`s: Ctrl+Tab is swallowed, other keys pass while it's closed, releasing Ctrl commits, and a click on a card (with Ctrl held) commits that card.
-- [ ] 3.4 Add the switcher panel (D3): the child `NSPanel`, the cards with previews (a split's composed in pane order), favicons and titles or custom names, the accent highlight, centring kept on screen, no animation, and the identifiers of D7. Verify with a unit test of the layout maths (panel size for one to five cards, the clamp to the screen's visible frame) in CI, and by the hand check (6.1).
-- [ ] 3.5 Add `TabsMenu` (D5), before the Window menu: Pin Tab, the new Pin to Favorites, New Folder…, Next and Previous Tab through `commandDispatch:`, Split with Tab › (moved from `SplitMenu`), Move to Space ›, and Clear Unpinned Tabs, with the enabled rules of `tabs-menu`. Verify with unit tests in CI for the items, their order, titles, shortcuts and enabled states, including incognito and a favorite.
-- [ ] 3.6 Remove ClairUI's customizations of Chromium's Tab menu (D5a):
+- [x] 3.4 Add the switcher panel (D3): the child `NSPanel`, the cards with previews (a split's composed in pane order), favicons and titles or custom names, the accent highlight, centring kept on screen, no animation, and the identifiers of D7. Verify with a unit test of the layout maths (panel size for one to five cards, the clamp to the screen's visible frame) in CI, and by the hand check (6.1).
+- [x] 3.5 Add `TabsMenu` (D5), before the Window menu: Pin Tab, the new Pin to Favorites, New Folder…, Next and Previous Tab through `commandDispatch:`, Split with Tab › (moved from `SplitMenu`), Move to Space ›, and Clear Unpinned Tabs, with the enabled rules of `tabs-menu`. Verify with unit tests in CI for the items, their order, titles, shortcuts and enabled states, including incognito and a favorite.
+- [x] 3.6 Remove ClairUI's customizations of Chromium's Tab menu (D5a):
   - `PinsMenu` keeps only View › Collapse Pinned Tabs, without `tabMenuTag` or the hiding of Chromium's pin items;
   - `MainMenuCommand.backToPinnedURL` and `.closeKeepingPin` go;
   - `SplitMenu` keeps only its View items;
   - `SplitTests` and `FoldersTests` drop their fake Tab menus.
 
   Verify with `grep -rn "tabMenuTag\|35013\|35051" native/` finding nothing, and the unit tests passing in CI.
-- [ ] 3.7 Rebuild `PinsLogic`'s menus as groups (D6): the Today, pinned and favorite menus, Close Tab on an open pinned tab (as Close and Keep Pinned), and the split chip's Separate Tabs in Split with Tab's place. Add Back to Pinned URL to Edit Pinned Page ›. Verify with unit tests in CI for each menu scenario in the `sidebar`, `pinned-tabs`, `favorites` and `split-view` deltas, including incognito and one Space.
+- [x] 3.7 Rebuild `PinsLogic`'s menus as groups (D6): the Today, pinned and favorite menus, Close Tab on an open pinned tab (as Close and Keep Pinned), and the split chip's Separate Tabs in Split with Tab's place. Add Back to Pinned URL to Edit Pinned Page ›. Verify with unit tests in CI for each menu scenario in the `sidebar`, `pinned-tabs`, `favorites` and `split-view` deltas, including incognito and one Space.
 - [x] 3.8 Rename the sidebar Clear button's tooltip to "Clear unpinned tabs" (`PinsViews`). Verify with `grep -rn '"[^"]*Today[^"]*"' native/ClairUI` finding no user-facing string.
 
 ## 4. Probe tooling
@@ -72,8 +72,8 @@ Suggested order:
 
 ## 5. Runtime suite
 
-- [ ] 5.1 Move the runtime suite to the Tabs menu: `PinsTests.tabMenu` reads "Tabs", Clear Today becomes Clear Unpinned Tabs, and Back to Pinned URL is tested through the row's icon and Edit Pinned Page ›. `FoldersTests` and `SplitViewTests` follow. Add a check that the menu bar has no "Tab" menu. Verify by the suite passing in `quality.yml` on the branch.
-- [ ] 5.2 Add `TabSwitcherTests`, using `perform(withKeyModifiers: .control)` to hold Ctrl:
+- [x] 5.1 Move the runtime suite to the Tabs menu: `PinsTests.tabMenu` reads "Tabs", Clear Today becomes Clear Unpinned Tabs, and Back to Pinned URL is tested through the row's icon and Edit Pinned Page ›. `FoldersTests` and `SplitViewTests` follow. Add a check that the menu bar has no "Tab" menu. Verify by the suite passing in `quality.yml` on the branch.
+- [x] 5.2 Add `TabSwitcherTests`, using `perform(withKeyModifiers: .control)` to hold Ctrl:
   - a quick Ctrl+Tab returns to the previous tab, and `clair.tabSwitcher` never appears;
   - while held, `clair.tabSwitcher` shows the recent tabs' cards, the second selected;
   - Esc keeps the tab;
@@ -81,8 +81,8 @@ Suggested order:
   - Opt+Cmd+Down still steps through the rows.
 
   Verify by the suite passing in `quality.yml`.
-- [ ] 5.3 Add a cross-Space case: a tab shown in another Space comes back with Ctrl+Tab, and the window switches Space. Verify by the suite passing in `quality.yml`.
-- [ ] 5.4 Add context menu checks: a Today tab's menu items and dividers in order, and a pinned tab's Close Tab keeping its row. Verify by the suite passing in `quality.yml`.
+- [x] 5.3 Add a cross-Space case: a tab shown in another Space comes back with Ctrl+Tab, and the window switches Space. Verify by the suite passing in `quality.yml`.
+- [x] 5.4 Add context menu checks: a Today tab's menu items and dividers in order, and a pinned tab's Close Tab keeping its row. Verify by the suite passing in `quality.yml`.
 
 ## 6. Hand check, docs and release notes
 
@@ -101,7 +101,7 @@ Suggested order:
 
   Verify by reading both pages.
 - [x] 6.3 Add a Changie fragment (`changie new`) for the switcher, the Tabs menu and the tab menus. Verify that `.changes/unreleased/` holds it.
-- [ ] 6.4 Run CI and `quality.yml` on the last push together, with every note in that push. Verify that both pass.
+- [x] 6.4 Run CI and `quality.yml` on the last push together, with every note in that push. Verify that both pass.
 
 ## Workflow follow-up
 

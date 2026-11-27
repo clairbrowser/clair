@@ -158,10 +158,18 @@ Peeks SHALL NOT outlive the session. Session restore, after a quit or a crash, a
 - **THEN** the window stays open with the Peek
 
 ### Requirement: Tab shortcuts treat a tab and its Peek as one
-Ctrl+Tab, Ctrl+Shift+Tab, Cmd+Opt+Right and Left, and Cmd+1 to Cmd+9 SHALL count the tabs in the tab list, so a tab and its Peek are one stop. Selecting a tab that has a Peek SHALL show the Peek.
+Ctrl+Tab and Ctrl+Shift+Tab (`tab-switcher`), Opt+Cmd+Down and Up, and Cmd+1 to Cmd+9 SHALL count a tab and its Peek as one stop. Selecting a tab that has a Peek SHALL show the Peek.
 
 #### Scenario: Ctrl+Tab across a Peek
-- **WHEN** the first of three tabs has a Peek open and shows it, and the user presses Ctrl+Tab
+- **WHEN** the window showed "Docs", then "Mail" with its Peek open, and the user presses Ctrl+Tab
+- **THEN** the switcher has one card for "Mail" and its Peek, and releasing Ctrl shows "Docs" while the Peek of "Mail" stays open
+
+#### Scenario: Back to a Peek
+- **WHEN** the user then presses Ctrl+Tab again
+- **THEN** the window shows "Mail" with its Peek
+
+#### Scenario: Next Tab across a Peek
+- **WHEN** the first of three tabs has a Peek open and shows it, and the user presses Opt+Cmd+Down
 - **THEN** the second tab becomes active, and the first tab's Peek stays open
 
 #### Scenario: Cmd+number

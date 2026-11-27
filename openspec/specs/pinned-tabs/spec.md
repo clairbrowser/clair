@@ -93,7 +93,7 @@ Dropping a Today tab, a pinned tab or a favorite on the header of the Space the 
 - **THEN** "Calendar" leaves the grid and is the Space's last pinned tab, with its page
 
 ### Requirement: Closing a pinned tab keeps it pinned
-On the selected pinned tab, hovering its row SHALL show a − button with the tooltip "Close and Keep Pinned" and Cmd+W. The button, Cmd+W and Tabs › Close and Keep Pinned SHALL close its page and keep the row where it is. The window SHALL then show the next tab as `spaces` defines.
+On the selected pinned tab, hovering its row SHALL show a − button with the tooltip "Close and Keep Pinned" and Cmd+W. The button, Cmd+W and Close Tab in its menu SHALL close its page and keep the row where it is. The window SHALL then show the next tab as `spaces` defines.
 
 #### Scenario: Close and Keep Pinned
 - **WHEN** the user selects the pinned tab "Mail" from the Today tab "News", and presses Cmd+W
@@ -102,6 +102,10 @@ On the selected pinned tab, hovering its row SHALL show a − button with the to
 #### Scenario: Selecting it again
 - **WHEN** the user then clicks "Mail"
 - **THEN** its pinned URL loads again
+
+#### Scenario: From its menu
+- **WHEN** the user right-clicks the open pinned tab "Docs", which isn't shown, and chooses Close Tab
+- **THEN** its page closes, its row stays, and the window keeps its tab
 
 ### Requirement: Removing a pin
 On a pinned tab that isn't selected, hovering its row SHALL show an × button with the tooltip "Remove Pin", which removes the pinned tab and closes its page if open. Restore Last Closed Tab SHALL bring a removed pinned tab back pinned, at its place, in its folder if it was in one that still exists, and otherwise at the end of the pinned section.
@@ -119,7 +123,7 @@ On a pinned tab that isn't selected, hovering its row SHALL show an × button wi
 - **THEN** "Spec" is first in "Work" again
 
 ### Requirement: Navigated away from the pinned URL
-While a pinned tab's page is at another URL than its pinned URL, its row SHALL show its icon, a grey "/" and the current page's title, or its custom name. Hovering the icon SHALL turn it into a button and show "Back to Pinned URL" under the title. Clicking it, or Tabs › Back to Pinned URL, SHALL load the pinned URL as a new navigation. As in Arc, another query or fragment, or a redirect from the pinned URL, is still at it.
+While a pinned tab's page is at another URL than its pinned URL, its row SHALL show its icon, a grey "/" and the current page's title, or its custom name. Hovering the icon SHALL turn it into a button and show "Back to Pinned URL" under the title. Clicking it SHALL load the pinned URL as a new navigation. As in Arc, another query or fragment, or a redirect from the pinned URL, is still at it.
 
 #### Scenario: Following a link
 - **WHEN** the pinned tab "Docs" at `https://docs.example.com/` follows a link to `https://docs.example.com/guide` titled "Guide"
@@ -134,11 +138,11 @@ While a pinned tab's page is at another URL than its pinned URL, its row SHALL s
 - **THEN** its row shows its plain title, with no "/"
 
 #### Scenario: At the pinned URL
-- **WHEN** the pinned tab is at its pinned URL
-- **THEN** Tabs › Back to Pinned URL is disabled
+- **WHEN** the pinned tab is at its pinned URL and the user hovers its icon
+- **THEN** the icon isn't a button and no "Back to Pinned URL" shows
 
 ### Requirement: Editing the pinned URL
-A pinned tab's menu SHALL offer Edit Pinned Page › with "Replace Pinned URL with Current", which makes the page's current URL the pinned URL, and "Edit…", which opens a dialog titled "Edit Pinned URL" with the URL selected in a field, Cancel and Save. Save SHALL be disabled while the field holds no valid URL.
+A pinned tab's menu SHALL offer Edit Pinned Page › with "Back to Pinned URL", enabled while the page is at another URL than its pinned URL and loading the pinned URL as the row's icon does, "Replace Pinned URL with Current", which makes the page's current URL the pinned URL, and "Edit…", which opens a dialog titled "Edit Pinned URL" with the URL selected in a field, Cancel and Save. Save SHALL be disabled while the field holds no valid URL.
 
 #### Scenario: Replacing with the current URL
 - **WHEN** the pinned tab "Docs" shows `https://docs.example.com/guide` and the user chooses Replace Pinned URL with Current
@@ -152,8 +156,16 @@ A pinned tab's menu SHALL offer Edit Pinned Page › with "Replace Pinned URL wi
 - **WHEN** the field holds "not a url"
 - **THEN** Save is disabled
 
+#### Scenario: Back to Pinned URL from the menu
+- **WHEN** the favorite "Docs" at `https://docs.example.com/` follows a link to `https://docs.example.com/guide`, and the user chooses Edit Pinned Page › Back to Pinned URL on its tile
+- **THEN** it loads `https://docs.example.com/`
+
+#### Scenario: At the pinned URL
+- **WHEN** the pinned tab is at its pinned URL
+- **THEN** Edit Pinned Page › Back to Pinned URL is disabled
+
 ### Requirement: Pinned tab menu
-A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Edit Pinned Page ›, Duplicate, Split with Tab › (`split-view`), Move to Space (with more than one Space), Pin to Favorites and Unpin Tab, and no Remove Pin. Copy Link SHALL copy the page's current URL, or the pinned URL while the page is closed. Duplicate SHALL open the same URL as a new Today tab at the top.
+A pinned tab's context menu SHALL offer, with a divider between each group: Unpin Tab and Pin to Favorites; Copy Link and Duplicate; Split with Tab › (`split-view`) and Move to Space (with more than one Space); Rename…, Mute or Unmute, and Edit Pinned Page ›; Close Tab while its page is open. It SHALL offer no Remove Pin. Copy Link SHALL copy the page's current URL, or the pinned URL while the page is closed. Duplicate SHALL open the same URL as a new Today tab at the top.
 
 #### Scenario: Copy Link on a closed pinned tab
 - **WHEN** the pinned tab "Mail" has no open page and the user chooses Copy Link
@@ -163,9 +175,17 @@ A pinned tab's context menu SHALL offer Copy Link, Rename…, Mute or Unmute, Ed
 - **WHEN** the user chooses Duplicate on the pinned tab "Docs"
 - **THEN** a new Today tab at the top of the list shows the same URL, and "Docs" stays pinned
 
+#### Scenario: The menu's items
+- **WHEN** there is one Space and the user right-clicks the pinned tab "Mail", whose page is open
+- **THEN** the menu offers Unpin Tab, Pin to Favorites, a divider, Copy Link, Duplicate, a divider, Split with Tab, a divider, Rename…, Mute, Edit Pinned Page, a divider and Close Tab
+
 #### Scenario: The menu's last items
-- **WHEN** the user right-clicks a pinned tab
-- **THEN** the menu ends with Pin to Favorites and Unpin Tab
+- **WHEN** the user right-clicks a pinned tab whose page is open
+- **THEN** the menu ends with Close Tab, after a divider
+
+#### Scenario: A closed pinned tab
+- **WHEN** the user right-clicks a pinned tab whose page isn't open
+- **THEN** the menu has no Close Tab and no divider before where it would be, and Mute is disabled
 
 #### Scenario: Split with Tab
 - **WHEN** the user right-clicks the pinned tab "Mail" and chooses Split with Tab › "News"
@@ -210,7 +230,7 @@ Pinned tabs SHALL come back after every relaunch, in their Spaces, folders and o
 - **THEN** the tab is still pinned
 
 ### Requirement: Clear Today
-While the pointer is over the sidebar and the Space has Today tabs, the divider SHALL show "↓ Clear" at its trailing end, with the tooltip "Clear Today tabs" and Shift+Cmd+K. It and Tabs › Clear Today (Shift+Cmd+K) SHALL close every Today tab of the Space, each with its leave-page confirmation, and leave pinned tabs and favorites as they are.
+While the pointer is over the sidebar and the Space has Today tabs, the divider SHALL show "↓ Clear" at its trailing end, with the tooltip "Clear unpinned tabs" and Shift+Cmd+K. It and Tabs › Clear Unpinned Tabs (Shift+Cmd+K, `tabs-menu`) SHALL close every Today tab of the Space, each with its leave-page confirmation, and leave pinned tabs and favorites as they are.
 
 #### Scenario: Clearing
 - **WHEN** "Work" has two pinned tabs and three Today tabs, and the user clicks Clear
@@ -222,10 +242,10 @@ While the pointer is over the sidebar and the Space has Today tabs, the divider 
 
 #### Scenario: No Today tabs
 - **WHEN** the Space has no Today tabs
-- **THEN** there is no divider and no Clear button, and Tabs › Clear Today is disabled
+- **THEN** there is no divider and no Clear button, and Tabs › Clear Unpinned Tabs is disabled
 
 ### Requirement: No pins in private windows
-Incognito and guest windows SHALL show no pinned section or favorites, and SHALL disable Pin Tab, Pin to Favorites, Back to Pinned URL, Close and Keep Pinned and Collapse Pinned Tabs. Their tabs' menus SHALL offer neither pin item.
+Incognito and guest windows SHALL show no pinned section or favorites, and SHALL disable Pin Tab, Pin to Favorites, New Folder… and Collapse Pinned Tabs. Their tabs' menus SHALL offer neither pin item.
 
 #### Scenario: Incognito
 - **WHEN** the user opens an incognito window and presses Cmd+D
