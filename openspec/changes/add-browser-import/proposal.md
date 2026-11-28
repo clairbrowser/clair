@@ -12,7 +12,7 @@ People switching to Clair come from Arc, Dia or Safari with months of Spaces, pi
   - **Dia** brings the same, its "profiles" becoming Spaces. Its sidebar is encrypted, so the import reads the "Dia Safe Storage" key from the keychain, after the user allows it, only to read Dia's data on this Mac.
   - **Safari** brings bookmarks and history from the .zip Safari's File › Export Browsing Data to File… makes. Clair asks for no Full Disk Access.
   - **Chrome** brings, per Chrome profile, a Space with its last session's pinned and open tabs, bookmarks, history and extensions.
-  - A bookmarks bar (Chrome's, or Safari's Favorites) comes over as a bookmarks folder, keeping its folders, never as Clair favorites.
+  - Bookmarks come over as they are, with no folder added around them: the bookmarks bar's contents (Chrome's, Arc's, Dia's, or Safari's Favorites), then the other bookmarks, go to Bookmarks, as Clair does with its own Bookmarks Bar. A bookmarks bar never becomes Clair favorites.
 - **Two steps:** the first picks the browser; the second lists what will come over and, for each of the source's profiles, which Clair profile receives it, an existing one or a new one. Dia's second step says the data stays on the Mac; Safari's explains the export and takes the .zip. A summary with counts and anything skipped ends the import.
 - **Splits** come over as Clair splits with their widths. Splits of three or more panes come over as separate tabs in pane order, since Clair's splits hold two.
 - **Repeat imports** skip what the destination already has, and merge into a Space of the same name.

@@ -170,7 +170,7 @@ Chrome's tabs SHALL come from the session Chrome saved last, in each profile's S
 - **THEN** D and E come over as Today tabs in their place, with no group
 
 ### Requirement: Favorites from an import
-Arc's and Dia's favorites SHALL be added after the destination profile's own favorites, in the source's order. Dia's favorites of every Space using a profile SHALL go to that profile's favorites, in Space order. A bookmarks bar, Chrome's or Safari's Favorites, SHALL NOT become favorites: it comes over as bookmarks, keeping its folders.
+Arc's and Dia's favorites SHALL be added after the destination profile's own favorites, in the source's order. Dia's favorites of every Space using a profile SHALL go to that profile's favorites, in Space order. A bookmarks bar, Chrome's or Safari's Favorites, SHALL NOT become favorites: it comes over as bookmarks ("Bookmarks from an import").
 
 #### Scenario: Arc favorites
 - **WHEN** Arc's "Your Arc" has the favorites example.com and wiktionary.org, imported into "Personal"
@@ -178,7 +178,7 @@ Arc's and Dia's favorites SHALL be added after the destination profile's own fav
 
 #### Scenario: Safari's Favorites bar
 - **WHEN** Safari's Favorites hold Apple, then the folder "News"
-- **THEN** Clair's favorites don't change, and the Bookmarks menu's "Safari" folder holds a "Favorites" folder with Apple and "News"
+- **THEN** Clair's favorites don't change, and the Bookmarks menu lists Apple and the "News" folder
 
 ### Requirement: Splits from an import
 A split of two panes SHALL come over as a Clair split (`split-view`) of the same pages, in pane order and with the source's ratio, as a Today tab, pinned tab or favorite, wherever it was. A split stacked top to bottom SHALL come over side by side. A split of three or more panes SHALL come over as separate tabs, one after another in pane order, in its place.
@@ -196,11 +196,11 @@ A split of two panes SHALL come over as a Clair split (`split-view`) of the same
 - **THEN** Clair's Today tabs hold Africa, Europe and Asia as three tabs, in that order, in the split's place
 
 ### Requirement: Bookmarks from an import
-A source profile's bookmarks SHALL come over into one folder in the destination profile's Other Bookmarks, named after the source, such as "Arc", keeping their folders and order. The source's bookmarks bar, as a folder named as the source names it, and its other bookmarks SHALL both go in it, so none land in the Bookmarks Bar. Safari's Reading List SHALL NOT come over.
+A source profile's bookmarks SHALL come over as they are, with no folder added around them, keeping their folders and order: the contents of its bookmarks bar, then its other bookmarks, after what the destination profile's Other Bookmarks already holds, as Clair empties its own Bookmarks Bar (`bookmarks`). None SHALL land in the Bookmarks Bar. Safari's Reading List SHALL NOT come over.
 
 #### Scenario: Arc bookmarks
 - **WHEN** Arc's "Work" has "Google" in its bookmarks bar and "Docs" in Other Bookmarks, imported into "Work 2"
-- **THEN** "Work 2"'s Bookmarks menu shows an "Arc" folder holding a "Bookmarks Bar" folder with "Google", and "Docs", and no Heads Up dialog shows
+- **THEN** "Work 2"'s Bookmarks menu lists "Google" then "Docs", and no Heads Up dialog shows
 
 ### Requirement: History from an import
 A source profile's history SHALL come over into the destination profile's history, with each page's URL, title, visit count and last visit, so History and the command bar's suggestions offer it. Safari's history SHALL come from its export. Importing the same source again SHALL add only pages visited since the last import from it.
@@ -225,7 +225,7 @@ Each extension a source profile installed from the Chrome Web Store SHALL be ins
 - **THEN** it isn't installed, and the summary lists it as not from the Chrome Web Store
 
 ### Requirement: Importing again
-Importing from the same source again SHALL NOT duplicate what came over before. A favorite, pinned tab or Today tab whose URL already shows in the same place, the same favorites, Space section or folder, and a bookmark whose URL is already in the same folder SHALL be skipped and counted in the summary as already in Clair.
+Importing from the same source again SHALL NOT duplicate what came over before. A favorite, pinned tab or Today tab whose URL already shows in the same place, the same favorites, Space section or folder, and a bookmark whose URL is already in the same folder SHALL be skipped and counted in the summary as already in Clair. A bookmarks folder whose name matches one in the same place SHALL merge into it.
 
 #### Scenario: Second import
 - **WHEN** the user imports from Arc twice into the same profiles

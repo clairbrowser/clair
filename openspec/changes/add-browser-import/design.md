@@ -126,11 +126,11 @@ A wrong key, a denied prompt or an unexpected schema yields no sidebar, and the 
 
 ### D6. Safari's export
 
-The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private folder (D10); a folder is read in place. `Bookmarks.html` parses as Netscape bookmarks, the "Favorites" folder (Safari's Favorites bar) staying a folder like any other, and the "Reading List" is dropped. `History.json` goes to the engine by path. A file with neither is refused with the spec's error. Its one plan profile is "Safari".
+The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private folder (D10); a folder is read in place. `Bookmarks.html` parses as Netscape bookmarks: the contents of the "Favorites" folder (Safari's Favorites bar) come first, then the file's other top-level items, and the "Reading List" is dropped. `History.json` goes to the engine by path. A file with neither is refused with the spec's error. Its one plan profile is "Safari".
 
 ### D7. Chromium-family profile data
 
-- **Bookmarks:** `Bookmarks` (and `AccountBookmarks` when present) parse as Chromium's JSON in Swift; under one folder named after the source go the bar, as a folder with its own name, then the other bookmarks' children. Empty roots are left out.
+- **Bookmarks:** `Bookmarks` (and `AccountBookmarks` when present) parse as Chromium's JSON in Swift into one list: the bar's children, then the other bookmarks' and the mobile bookmarks' children, as Clair's own bar drain orders them (`clair_bookmark_bar_drain`).
 - **History and favicons:** Chromium opens `History` and `Favicons` with exclusive locking, so a running source can't be read in place. Each is copied with its `-wal` and `-journal` into the import's private folder, and the engine opens the copy read-only with `sql::Database`.
 - **Extensions:** the union of `extensions.settings` in `Preferences` and `Secure Preferences`. Kept: `location` 1 (internal) with `from_webstore` true, whose manifest isn't a theme or an app; turned on unless `disable_reasons` holds a reason other than Chrome's unsupported-manifest-version one; pinned when in `extensions.pinned_extensions`. Others are listed as skipped in the plan.
 
@@ -142,12 +142,12 @@ The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private fo
 2. **Spaces:** a Space named like one in the destination profile receives the import; others are created after the existing ones.
 3. **Pins, folders, pinned splits and favorites:** through `ClairPinStore`, at the end of their section, folders closed. Each pin's icon comes from the source's favicons for its URL.
 4. **Today tabs:** created in the Space's window group like session restore's background tabs, with their navigation entry set and their page not loaded until selected, below the existing Today tabs; splits through the split code with their ratio.
-5. **Bookmarks:** through `BookmarkModel` into Other Bookmarks › `<source name>`, never the Bookmarks Bar, so the Heads Up dialog doesn't show.
+5. **Bookmarks:** through `BookmarkModel`, appended to Other Bookmarks as they are, never into the Bookmarks Bar, so the Heads Up dialog doesn't show. A folder named like one at the same place merges into it.
 6. **History:** read from the copy's `urls` table (or Safari's JSON) in batches, written with `ProfileWriter::AddHistoryPage` (`HistoryService::AddPagesWithDetails`), which keeps title, visit count and typed count and adds one visit at the last visit time.
 7. **Favicons:** for the imported URLs, from the copy's `favicons` and `icon_mapping`, with `ProfileWriter::AddFavicons`.
 8. **Extensions:** a `WebstoreStandaloneInstaller` subclass with no install prompt and no post-install UI fetches each ID from the Chrome Web Store, as Clair's restored store does; once installed, its enabled state and pin are set. These finish after the summary.
 
-**Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder. History keeps a per-profile mark, `clair.import.history_marks` (a profile pref keyed by source), of the newest last-visit time imported; the next import from that source adds only pages whose last visit is newer, so `AddPagesWithDetails` doesn't add a second visit for the same one.
+**Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder, after same-named folders merge. History keeps a per-profile mark, `clair.import.history_marks` (a profile pref keyed by source), of the newest last-visit time imported; the next import from that source adds only pages whose last visit is newer, so `AddPagesWithDetails` doesn't add a second visit for the same one.
 
 ### D9. The flow and the dialog
 
