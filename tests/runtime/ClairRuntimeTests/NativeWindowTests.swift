@@ -625,8 +625,11 @@ final class FullscreenTests: NativeWindowTestCase {
     await Harness.wait(for: 15) { self.noticeText(browser) == label }
   }
 
+  /// Whether DevTools sees the tab's window in full screen. A browser
+  /// session needs the target to find its window.
   func isWindowFullscreen(_ browser: Browser, _ tab: DevToolsSession) async throws -> Bool {
-    try await browser.windowBounds(of: tab)["windowState"] as? String == "fullscreen"
+    let target = try await tab.targetID(in: browser)
+    return try await browser.windowBounds(of: tab, targetID: target)["windowState"] as? String == "fullscreen"
   }
 
   /// Posts a key's event as the keyboard sends it.
