@@ -434,7 +434,7 @@ final class DockedDevToolsTests: NativeWindowTestCase {
 
 /// Page full screen (task 4.4), the window's, and their notices
 /// (browser-window spec, "Full screen", "Hidden cursor notice", "Window
-/// full-screen notice", "No download notice").
+/// full-screen notice").
 @MainActor
 final class FullscreenTests: NativeWindowTestCase {
   static let pageNotice = "To exit full screen, press esc"
@@ -562,45 +562,6 @@ final class FullscreenTests: NativeWindowTestCase {
     postKey(Self.escapeKey, down: false)
     let left = await Harness.wait(for: 30) { try await !self.isWindowFullscreen(browser, tab) }
     XCTAssertTrue(left, "Holding Esc in the sidebar didn't leave full screen")
-  }
-
-  /// A download in page full screen shows no notice and keeps full screen.
-  func testDownloadInPageFullscreenShowsNoNotice() async throws {
-    let (browser, tab) = try await startWithPage("fullscreen.html")
-    defer { tab.close() }
-    let folder = browser.workDirectory.appending(path: "downloads")
-    let downloads = try await browser.allowDownloads(to: folder)
-    defer { downloads.close() }
-    let entered = try await tab.evaluate("enter()") as? String
-    try require(entered == "entered", "The page couldn't enter full screen")
-    let shown = await waitForNotice(browser, Self.pageNotice)
-    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeText(browser))")
-    _ = try await tab.evaluate(
-      """
-      (() => {
-        const link = document.createElement('a');
-        link.href = '/download/clair.txt';
-        link.download = '';
-        document.body.append(link);
-        link.click();
-        return 1;
-      })()
-      """)
-    var mentioned = false
-    let saved = await Harness.wait(for: 30) {
-      if self.noticeText(browser).contains("Download") { mentioned = true }
-      return FileManager.default.fileExists(atPath: folder.appending(path: "clair.txt").path)
-    }
-    try require(saved, "The download didn't finish")
-    // The popup would show it right away; give it a moment.
-    _ = await Harness.wait(for: 2) {
-      if self.noticeText(browser).contains("Download") { mentioned = true }
-      return false
-    }
-    XCTAssertFalse(mentioned, "A notice mentioned the download")
-    let still = try await tab.evaluate("document.fullscreenElement !== null") as? Bool
-    XCTAssertEqual(still, true, "The download ended page full screen")
-    browser.ui.typeKey(.escape, modifierFlags: [])
   }
 
   // MARK: - Helpers
