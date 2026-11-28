@@ -605,8 +605,47 @@ bool ClairExclusiveAccessContext::DeferExitWhileEntering(NSEvent* event) {
   return true;
 }
 
+bool ClairExclusiveAccessContext::CountEscapeTap(NSEvent* event) {
+  // Only the window's own full screen: a page's leaves on one Esc.
+  if (page_fullscreen_ || !window_->IsFullscreen()) {
+    return false;
+  }
+  constexpr NSEventModifierFlags kModifiers =
+      NSEventModifierFlagShift | NSEventModifierFlagControl |
+      NSEventModifierFlagOption | NSEventModifierFlagCommand;
+  if (!event || event.type != NSEventTypeKeyDown ||
+      event.keyCode != 53 /* kVK_Escape */ || event.isARepeat ||
+      (event.modifierFlags & kModifiers)) {
+    return false;
+  }
+  // A page's Esc that Chromium gives back to the window unhandled reaches
+  // cancelOperation: too, as the same event.
+  if (event.timestamp == last_escape_tap_) {
+    return true;
+  }
+  const NSTimeInterval previous = last_escape_tap_;
+  last_escape_tap_ = event.timestamp;
+  // Arc's time between the taps' key-downs: 0.22 s left full screen, 0.24 s
+  // didn't.
+  constexpr NSTimeInterval kDoubleTapTime = 0.23;
+  if (previous > 0 && event.timestamp - previous < kDoubleTapTime) {
+    last_escape_tap_ = 0;
+    if (auto* manager = ExclusiveAccessManager::From(window_->browser())) {
+      manager->fullscreen_controller()->ToggleBrowserFullscreenMode(
+          /*user_initiated=*/true);
+    }
+    return true;
+  }
+  // An exclusive-access notice, so the end of full screen hides it.
+  [window_->clair_window()
+      showExclusiveAccessNotice:@"|esc| again to exit fullscreen"];
+  notice_in_popup_ = true;
+  return true;
+}
+
 void ClairExclusiveAccessContext::WindowFullscreenChanged(bool entered) {
   entering_window_fullscreen_ = false;
+  last_escape_tap_ = 0;
   if (entered && exit_when_entered_) {
     exit_when_entered_ = false;
     if (auto* manager = ExclusiveAccessManager::From(window_->browser())) {
@@ -2818,46 +2857,19 @@ void ClairBrowserWindow::WindowGeometryChanged() {
 }
 
 bool ClairBrowserWindow::HandleExclusiveAccessKey(NSEvent* event) {
-  if (event.type != NSEventTypeKeyDown && event.type != NSEventTypeKeyUp) {
+  if (!exclusive_access_context_.page_fullscreen() ||
+      (event.type != NSEventTypeKeyDown && event.type != NSEventTypeKeyUp)) {
     return false;
   }
-  if (exclusive_access_context_.page_fullscreen()) {
-    if (exclusive_access_context_.DeferExitWhileEntering(event)) {
-      return true;
-    }
-    return ExclusiveAccessManager::From(browser_)->HandleUserKeyEvent(
-        input::NativeWebKeyboardEvent(gfx::NativeEvent(event)));
+  if (exclusive_access_context_.DeferExitWhileEntering(event)) {
+    return true;
   }
-  // arc-popup-notices D3: in the window's own full screen, holding Esc leaves
-  // it wherever the focus is. The page's view gives the page's keys to
-  // Chromium itself, so only the rest go from here, and they go on as before.
-  if (!IsFullscreen() || event.keyCode != 53 /* kVK_Escape */) {
-    return false;
-  }
-  // Only RenderWidgetHostViewCocoa is a CommandDispatcherTarget.
-  const bool page_has_focus = [ns_window_.firstResponder
-      conformsToProtocol:@protocol(CommandDispatcherTarget)];
-  if (event.type == NSEventTypeKeyDown) {
-    constexpr NSEventModifierFlags kModifiers =
-        NSEventModifierFlagShift | NSEventModifierFlagControl |
-        NSEventModifierFlagOption | NSEventModifierFlagCommand;
-    if (page_has_focus || (event.modifierFlags & kModifiers)) {
-      return false;
-    }
-    sent_escape_down_ = true;
-  } else {
-    // The key-up of a key-down sent from here, even when the page has the
-    // focus by now: Esc may have closed the command bar, and the page's view
-    // drops a key-up whose key-down it didn't have. Whatever modifiers are
-    // held, so that the hold always ends.
-    if (page_has_focus && !sent_escape_down_) {
-      return false;
-    }
-    sent_escape_down_ = false;
-  }
-  ExclusiveAccessManager::From(browser_)->HandleUserKeyEvent(
+  return ExclusiveAccessManager::From(browser_)->HandleUserKeyEvent(
       input::NativeWebKeyboardEvent(gfx::NativeEvent(event)));
-  return false;
+}
+
+bool ClairBrowserWindow::CountEscapeTap(NSEvent* event) {
+  return exclusive_access_context_.CountEscapeTap(event);
 }
 
 void ClairBrowserWindow::WindowFullscreenChanged(bool entered) {
@@ -3522,6 +3534,13 @@ ClairBrowserWindow::PreHandleKeyboardEvent(
     if (result != content::KeyboardEventProcessingResult::NOT_HANDLED) {
       return result;
     }
+  }
+  // arc-popup-notices D3: an Esc for the page counts towards the double tap
+  // that leaves the window's full screen, and the page still gets it. A
+  // Peek's Esc is the Peek's.
+  if (!peeks_ ||
+      !peeks_->ParentOf(browser_->tab_strip_model()->GetActiveTab())) {
+    exclusive_access_context_.CountEscapeTap(event.os_event.Get());
   }
   NSEvent* ns_event = event.os_event.Get();
   if (ns_event && EventUsesPerformKeyEquivalent(ns_event)) {

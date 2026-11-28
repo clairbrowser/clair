@@ -438,7 +438,7 @@ final class DockedDevToolsTests: NativeWindowTestCase {
 @MainActor
 final class FullscreenTests: NativeWindowTestCase {
   static let pageNotice = "To exit full screen, press esc"
-  static let windowNotice = "To exit full screen, press and hold esc"
+  static let againNotice = "esc again to exit fullscreen"
   static let hiddenCursorNotice = "Your cursor is hidden. Press esc to show cursor."
 
   func testPageFullscreenFillsTheScreenAndEndsWithEscape() async throws {
@@ -506,9 +506,10 @@ final class FullscreenTests: NativeWindowTestCase {
     XCTAssertTrue(ended, "Esc didn't end page full screen")
   }
 
-  /// The window's own full screen says to hold Esc; a quick Esc goes where
-  /// it went before, and holding it leaves full screen from the sidebar.
-  func testWindowFullscreenNoticeAndHoldingEscape() async throws {
+  /// The window's own full screen leaves on two quick taps of Esc, as in
+  /// Arc: one tap says to press again, and an Esc the command bar takes
+  /// doesn't count.
+  func testWindowFullscreenNoticeAndDoubleTap() async throws {
     let (browser, tab) = try await startWithPage()
     defer { tab.close() }
     browser.ui.menuBars.menuBarItems["View"].click()
@@ -519,55 +520,41 @@ final class FullscreenTests: NativeWindowTestCase {
     enter.click()
     let entered = await Harness.wait(for: 30) { try await self.isWindowFullscreen(browser, tab) }
     try require(entered, "View > Enter Full Screen didn't enter full screen")
-    let shown = await waitForNotice(browser, Self.windowNotice)
-    XCTAssertTrue(shown, "No notice says to hold Esc: \(noticeText(browser))")
+    let shown = await waitForNotice(browser, Self.pageNotice)
+    XCTAssertTrue(shown, "No notice says how to leave full screen: \(noticeText(browser))")
 
-    // A quick Esc closes the command bar, and full screen stays.
+    // One tap on the page says to press again, and full screen stays.
+    browser.cardPoint(0.5, 0.5).click()
+    browser.ui.typeKey(.escape, modifierFlags: [])
+    let again = await waitForNotice(browser, Self.againNotice)
+    XCTAssertTrue(again, "One Esc didn't say to press it again: \(noticeText(browser))")
+    try await Task.sleep(for: .seconds(1))
+    let stayed = try await isWindowFullscreen(browser, tab)
+    XCTAssertTrue(stayed, "One Esc left full screen")
+    let gone = await Harness.wait(for: 8) { self.noticeText(browser) != Self.againNotice }
+    try require(gone, "The notice to press Esc again didn't go")
+
+    // An Esc that closes the command bar only closes it.
     browser.ui.typeKey("t", modifierFlags: .command)
     let field = browser.element("clair.commandBarField")
     try require(field.waitForExistence(timeout: 10), "Cmd+T didn't open the command bar")
     browser.ui.typeKey(.escape, modifierFlags: [])
     let closed = await Harness.wait(for: 5) { !field.exists }
-    XCTAssertTrue(closed, "A quick Esc didn't close the command bar")
-    try await Task.sleep(for: .seconds(2.5))
-    let stayed = try await isWindowFullscreen(browser, tab)
-    XCTAssertTrue(stayed, "A quick Esc left full screen")
-
-    // XCUITest can't hold a key, so the rest posts the keyboard's events.
-    guard CGPreflightPostEventAccess() else {
-      throw XCTSkip("The test runner may not post key events, which holding Esc needs")
-    }
-    let urlField = browser.element("clair.urlField", in: browser.sidebar)
-    try require(urlField.waitForExistence(timeout: 10), "The sidebar has no URL field in full screen")
-
-    // Esc released with Shift held still ends the hold.
-    urlField.click()
-    try require(field.waitForExistence(timeout: 10), "Clicking the URL field didn't open the command bar")
-    postKey(Self.escapeKey, down: true)
-    try await Task.sleep(for: .milliseconds(300))
-    postKey(Self.shiftKey, down: true, flags: .maskShift)
-    postKey(Self.escapeKey, down: false, flags: .maskShift)
-    postKey(Self.shiftKey, down: false)
-    try await Task.sleep(for: .seconds(2))
+    XCTAssertTrue(closed, "Esc didn't close the command bar")
+    let counted = await Harness.wait(for: 1.5) { self.noticeText(browser) == Self.againNotice }
+    XCTAssertFalse(counted, "The Esc that closed the command bar counted as a tap")
     let kept = try await isWindowFullscreen(browser, tab)
-    XCTAssertTrue(kept, "Esc released with Shift held still left full screen")
+    XCTAssertTrue(kept, "The Esc that closed the command bar left full screen")
 
-    // Holding Esc for 2 s leaves full screen.
-    if !field.exists {
-      urlField.click()
-      try require(field.waitForExistence(timeout: 10), "Clicking the URL field didn't open the command bar")
-    }
-    postKey(Self.escapeKey, down: true)
-    try await Task.sleep(for: .seconds(2))
-    postKey(Self.escapeKey, down: false)
+    // Two quick taps leave full screen. One typeText types them as fast as
+    // XCUITest can.
+    browser.cardPoint(0.5, 0.5).click()
+    browser.ui.typeText("\u{1B}\u{1B}")
     let left = await Harness.wait(for: 30) { try await !self.isWindowFullscreen(browser, tab) }
-    XCTAssertTrue(left, "Holding Esc in the sidebar didn't leave full screen")
+    XCTAssertTrue(left, "Two quick taps of Esc didn't leave full screen")
   }
 
   // MARK: - Helpers
-
-  static let escapeKey: CGKeyCode = 53
-  static let shiftKey: CGKeyCode = 56
 
   /// The popup's exclusive-access notice. In page full screen the window
   /// hides its sidebar, so look for it in the whole app.
@@ -591,13 +578,6 @@ final class FullscreenTests: NativeWindowTestCase {
   func isWindowFullscreen(_ browser: Browser, _ tab: DevToolsSession) async throws -> Bool {
     let target = try await tab.targetID(in: browser)
     return try await browser.windowBounds(of: tab, targetID: target)["windowState"] as? String == "fullscreen"
-  }
-
-  /// Posts a key's event as the keyboard sends it.
-  func postKey(_ key: CGKeyCode, down: Bool, flags: CGEventFlags = []) {
-    let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState), virtualKey: key, keyDown: down)
-    event?.flags = flags
-    event?.post(tap: .cghidEventTap)
   }
 }
 

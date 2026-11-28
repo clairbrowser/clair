@@ -1,0 +1,17 @@
+# Clair leaves the window's own full screen on two quick taps of Esc, as Arc
+# does (arc-popup-notices design D3), not on Chromium's press and hold, so the
+# hold is off and the full-screen notice reads "To exit full screen, press
+# |esc|".
+
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -224,7 +224,8 @@
+ // Enables exiting browser fullscreen (users putting the browser itself into the
+ // fullscreen mode via the browser UI or shortcuts) with press-and-hold Esc.
++// Clair: off; two quick taps of Esc leave the window's full screen, as in Arc.
+ BASE_FEATURE(kPressAndHoldEscToExitBrowserFullscreen,
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ #if BUILDFLAG(IS_WIN)
+ // Enables the UI for Process Isolation in chrome://settings/system.

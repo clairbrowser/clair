@@ -37,23 +37,34 @@ When a page locks the pointer outside page full screen, hiding the cursor, the p
 - **THEN** the popup shows the full-screen notice, not the hidden-cursor one
 
 ### Requirement: Window full-screen notice
-Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press and hold [esc]", as Arc shows a notice however full screen was entered. Holding Esc for about 1.5 s SHALL leave full screen wherever the keyboard focus is in the window, except in a dialog sheet, where Esc cancels the dialog. A quick Esc SHALL do what it does outside full screen.
+Whenever the window enters macOS full screen other than for a page, by View › Enter Full Screen, the green button, its shortcut or an extension, the popup SHALL read "To exit full screen, press [esc]", as in Arc.
 
 #### Scenario: Entering from the menu
 - **WHEN** the user chooses View › Enter Full Screen
-- **THEN** the popup reads "To exit full screen, press and hold [esc]" with esc as a key cap
+- **THEN** the popup reads "To exit full screen, press [esc]" with esc as a key cap
 
 #### Scenario: Entering from the green button
 - **WHEN** the user clicks the window's green button
 - **THEN** the same notice shows
 
-#### Scenario: Holding Esc
-- **WHEN** the window is in full screen and the user holds Esc for about 1.5 s, with the focus on the page or in the sidebar
+### Requirement: Double tap to leave full screen
+In the window's own full screen, an Esc that reaches the page, or that nothing else in the window uses, SHALL show "[esc] again to exit fullscreen" in the popup and go on as it would outside full screen. A second such Esc within about a quarter of a second of the first SHALL leave full screen, as Arc's double tap does. An Esc that Clair's own interface uses, such as closing the command bar, find or a dialog sheet, SHALL do only that and SHALL NOT count. Holding Esc SHALL NOT leave full screen.
+
+#### Scenario: One tap
+- **WHEN** the window is in full screen with the focus on the page and the user presses Esc once
+- **THEN** the popup reads "[esc] again to exit fullscreen", the page receives the Esc, and the window stays in full screen
+
+#### Scenario: A double tap
+- **WHEN** the window is in full screen, with the focus on the page or in the sidebar, and the user presses Esc twice in quick succession
 - **THEN** the window leaves full screen
 
-#### Scenario: A quick Esc
-- **WHEN** the window is in full screen with the command bar open and the user presses Esc briefly
-- **THEN** the command bar closes and the window stays in full screen
+#### Scenario: A slow second tap
+- **WHEN** the user presses Esc, then again a second later
+- **THEN** the window stays in full screen, and the popup again reads "[esc] again to exit fullscreen"
+
+#### Scenario: Esc closes the command bar
+- **WHEN** the window is in full screen with the command bar open and the user presses Esc
+- **THEN** the command bar closes, the window stays in full screen, and the popup doesn't show "[esc] again to exit fullscreen"
 
 ### Requirement: No download notice
 A download that starts while the window or a page is in full screen, or while a page holds the pointer lock, SHALL NOT show a notice in the popup. A notice already showing SHALL stay as it was, and a notice the same change of mode brings SHALL show without mention of the download.
