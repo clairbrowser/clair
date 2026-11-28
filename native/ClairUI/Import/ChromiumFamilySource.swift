@@ -295,7 +295,11 @@ nonisolated enum ChromiumExtensions {
         skipped.append(ImportSkip(reason: .themeOrApp, name: name))
         continue
       }
-      kept.append(ImportPlan.Extension(id: id, name: name, enabled: isEnabled(entry), pinned: pinned.contains(id)))
+      let manifestJSON = manifest.isEmpty
+        ? nil : (try? JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) }
+      kept.append(
+        ImportPlan.Extension(
+          id: id, name: name, enabled: isEnabled(entry), pinned: pinned.contains(id), manifest: manifestJSON))
     }
     return (kept, skipped)
   }

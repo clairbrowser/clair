@@ -468,7 +468,7 @@
        ":global_keyboard_shortcuts_mac",
        "//chrome/browser/apps/app_shim",
        "//chrome/browser/mac",
-@@ -5257,6 +5258,77 @@
+@@ -5257,6 +5258,88 @@
    # is easy to catch in review.
    sources = []
  }
@@ -487,6 +487,8 @@
 +    sources = [
 +      "clair/clair_bookmark_bar_drain.h",
 +      "clair/clair_bookmark_bar_drain.mm",
++      "clair/clair_importer.h",
++      "clair/clair_importer.mm",
 +      "clair/clair_link_rule_store.h",
 +      "clair/clair_link_rule_store.mm",
 +      "clair/clair_link_rules.h",
@@ -536,6 +538,15 @@
 +    ]
 +
 +    public_deps = [ ":browser_public_dependencies" ]
++
++    # The import (add-browser-import design D8, D13) writes through
++    # Chromium's importer and reads sessions and databases.
++    deps = [
++      "//chrome/browser/importer",
++      "//components/history/core/browser",
++      "//components/sessions",
++      "//sql",
++    ]
 +
 +    # ClairUI calls these Objective-C protocol implementations; a method
 +    # missing from one must fail the build, not raise an unrecognized

@@ -155,8 +155,12 @@ struct ChromiumFamilyTests {
     defer { fixture.remove() }
     let plan = try ChromiumFamilySource(.chrome, environment: fixture.environment()).makePlan(try fixture.context())
     let profile = try #require(plan.profiles.first)
+    // Each carries its manifest, which the engine's approval checks against.
+    #expect(profile.extensions.allSatisfy { $0.manifest != nil })
+    let adBlock = try #require(profile.extensions.first { $0.name == "AdBlock" }?.manifest)
+    #expect(adBlock.contains("\"manifest_version\":2"))
     #expect(
-      profile.extensions == [
+      profile.extensions.map { ImportPlan.Extension(id: $0.id, name: $0.name, enabled: $0.enabled, pinned: $0.pinned) } == [
         // Turned off by the user, in Preferences rather than Secure Preferences.
         ImportPlan.Extension(id: "cjpalhdlnbpafiamejdnhcphjbkeiagm", name: "uBlock Origin", enabled: false, pinned: false),
         ImportPlan.Extension(id: "eimadpbcbfnmbkopoojfekhnkhdbieeh", name: "Dark Reader", enabled: true, pinned: true),

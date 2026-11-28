@@ -1,0 +1,18 @@
+# Clair's own importer replaces Chromium's in the Clair menu (add-browser-import
+# design D11): ClairUI adds Import from Another Browser… there, so Chromium's
+# Import Bookmarks and Settings… goes. Chromium's importer stays, reachable
+# from chrome://settings.
+
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -70,7 +70,9 @@
+                   .remove_if(is_pwa),
+               Item(IDS_IMPORT_SETTINGS_MENU_MAC)
+                   .command_id(IDC_IMPORT_SETTINGS)
+-                  .remove_if(is_pwa),
++                  // Clair: Clair › Import from Another Browser… replaces it
++                  // (add-browser-import design D11).
++                  .remove_if(true),
+               Item().is_separator(),
+               Item(IDS_SERVICES_MAC)
+                   .tag(-1)

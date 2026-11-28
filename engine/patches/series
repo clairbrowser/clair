@@ -51,3 +51,4 @@ clair/link-rules.patch
 clair/bookmarks-menu-root.patch
 clair/split-on-option-click.patch
 clair/esc-double-tap.patch
+clair/hide-import-menu-item.patch

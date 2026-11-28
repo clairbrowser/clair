@@ -85,6 +85,18 @@ nonisolated struct ImportPlan: Codable, Equatable, Sendable {
     var name: String
     var enabled: Bool
     var pinned: Bool
+    /// The installed version's manifest, as JSON text: the engine installs
+    /// without a prompt only while the store's version asks for no more
+    /// than it (design D8 step 8).
+    var manifest: String?
+
+    init(id: String, name: String, enabled: Bool, pinned: Bool, manifest: String? = nil) {
+      self.id = id
+      self.name = name
+      self.enabled = enabled
+      self.pinned = pinned
+      self.manifest = manifest
+    }
   }
 
   /// The plan as the engine reads it.
