@@ -40,8 +40,8 @@ Arc SHALL show while its sidebar data is on this Mac, and Dia and Chrome while t
 - **THEN** the first step shows Safari alone
 
 #### Scenario: Source running
-- **WHEN** Arc is running while the user imports from it
-- **THEN** the import reads what Arc has saved, and Arc keeps running undisturbed
+- **WHEN** Arc is running
+- **THEN** Arc's card still shows, and its second step asks to quit Arc ("Quitting the source browser")
 
 ### Requirement: What will come over
 The second step SHALL be titled "Import from <browser>" and list what that source brings, each with an icon: for Arc and Dia, Spaces, Favorites, Pinned Tabs, Today Tabs, Bookmarks, History and Extensions; for Chrome, Pinned Tabs, Today Tabs, Bookmarks, History and Extensions; for Safari, Bookmarks and History. It SHALL show no counts, and SHALL have no option to leave an item out. Its buttons SHALL be Cancel, Back and Import (`dialogs`, stepped dialogs).
@@ -57,6 +57,21 @@ The second step SHALL be titled "Import from <browser>" and list what that sourc
 #### Scenario: Back
 - **WHEN** the user clicks Back on Arc's second step
 - **THEN** the first step shows, with Arc selected
+
+### Requirement: Quitting the source browser
+While Arc, Dia or Chrome is running, its second step SHALL say "Quit <browser> to import from it." and its default button SHALL read "Quit <browser>" in place of Import. Clicking it SHALL ask the browser to quit, as its own Quit command would, and once it has quit the button SHALL read Import. If the browser is opened again before Import, the step SHALL ask again.
+
+#### Scenario: Quitting Arc
+- **WHEN** Arc is running and the user reaches Arc's second step
+- **THEN** it says "Quit Arc to import from it." with a "Quit Arc" button, and clicking it quits Arc and turns the button into Import
+
+#### Scenario: Quit cancelled
+- **WHEN** Arc asks to confirm quitting and the user cancels there
+- **THEN** Arc keeps running, and the button still reads "Quit Arc"
+
+#### Scenario: Not running
+- **WHEN** Chrome isn't running and the user reaches Chrome's second step
+- **THEN** the default button reads Import
 
 ### Requirement: Choosing destination profiles
 The second step SHALL list each profile of the source, by the name the source gives it (for Dia, the names of the Dia profiles that share its data), with an "Import into" popup listing every Clair profile and then "New Profile". The first row SHALL start on the profile of the Space the window shows, and the others on "New Profile". Several rows MAY choose the same profile. Everything from a source profile SHALL go to the profile its row chose.
@@ -111,7 +126,7 @@ Safari's second step SHALL first explain, as numbered steps, how to export from 
 - **THEN** the step accepts the file, and the import brings the bookmarks
 
 ### Requirement: Importing and its summary
-Import SHALL show the import's progress in the dialog, with no buttons, until everything but extension downloads is done, and then a summary titled "Import Complete" with a count of each item imported and a list of what was skipped and why, with one Done button that Return and Esc choose. Extensions SHALL keep installing after the dialog closes.
+Import SHALL show the import's progress in the dialog, with no buttons, until everything is done, extension installs included, and then a summary titled "Import Complete" with a count of each item imported and a list of what was skipped and why, extensions that failed to install included, with one Done button that Return and Esc choose.
 
 #### Scenario: Summary
 - **WHEN** an import from Arc finishes
@@ -203,11 +218,15 @@ A source profile's bookmarks SHALL come over as they are, with no folder added a
 - **THEN** "Work 2"'s Bookmarks menu lists "Google" then "Docs", and no Heads Up dialog shows
 
 ### Requirement: History from an import
-A source profile's history SHALL come over into the destination profile's history, with each page's URL, title, visit count and last visit, so History and the command bar's suggestions offer it. Safari's history SHALL come from its export. Importing the same source again SHALL add only pages visited since the last import from it.
+A source profile's history SHALL come over into the destination profile's history, with each page's URL, title, visit count and last visit, so History and the command bar's suggestions offer it. Safari's history SHALL come from its export. Importing the same source profile into the same Clair profile again SHALL add only pages visited since the last such import; a first import of it into another Clair profile, or of another source profile into this one, SHALL bring all its history.
 
 #### Scenario: Importing history again
 - **WHEN** the user imports Arc's history, browses in Arc, and imports again
 - **THEN** only the pages visited in Arc since the first import gain a visit in Clair
+
+#### Scenario: Another destination
+- **WHEN** Arc's "Work" was imported into "Work 2", and the user later imports it into "Personal"
+- **THEN** "Personal" gets all of "Work"'s history
 
 #### Scenario: History after import
 - **WHEN** the user imports Arc's history and types part of a page's title in the command bar
@@ -232,7 +251,7 @@ Importing from the same source again SHALL NOT duplicate what came over before. 
 - **THEN** the second import adds nothing that the first brought, and its summary says those items were already in Clair
 
 ### Requirement: Import privacy
-An import SHALL read a source's data only after the user clicks Import, only from this Mac, and SHALL never change the source's files or keychain items. Apart from downloading extensions from the Chrome Web Store, it SHALL send nothing over the network. Temporary copies Clair makes to read a source SHALL be readable by the user alone and deleted when the import ends.
+Apart from finding which sources are on this Mac and their profiles' names, and checking a chosen Safari file, an import SHALL read a source's data only after the user clicks Import, only from this Mac, and SHALL never change the source's files or keychain items. Apart from downloading extensions from the Chrome Web Store, it SHALL send nothing over the network. Temporary copies Clair makes to read a source SHALL be readable by the user alone and deleted when the import ends.
 
 #### Scenario: Before Import
 - **WHEN** the user opens the dialog, picks Dia and clicks Back

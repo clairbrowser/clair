@@ -131,7 +131,7 @@ The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private fo
 ### D7. Chromium-family profile data
 
 - **Bookmarks:** `Bookmarks` (and `AccountBookmarks` when present) parse as Chromium's JSON in Swift into one list: the bar's children, then the other bookmarks' and the mobile bookmarks' children, as Clair's own bar drain orders them (`clair_bookmark_bar_drain`).
-- **History and favicons:** Chromium opens `History` and `Favicons` with exclusive locking, so a running source can't be read in place. Each is copied with its `-wal` and `-journal` into the import's private folder, and the engine opens the copy read-only with `sql::Database`.
+- **History and favicons:** the source has quit before Import (D14), so its databases are at rest. Each is still copied with its `-wal` and `-journal` into the import's private folder, so nothing reads or locks the source's own files, and the engine opens the copy read-only with `sql::Database`. The engine runs SQLite's `quick_check` on each copy first, as `ClairUI` does on Dia's decrypted database; a copy that fails it is skipped and reported in the summary, never read in part.
 - **Extensions:** the union of `extensions.settings` in `Preferences` and `Secure Preferences`. Kept: `location` 1 (internal) with `from_webstore` true, whose manifest isn't a theme or an app; turned on unless `disable_reasons` holds a reason other than Chrome's unsupported-manifest-version one; pinned when in `extensions.pinned_extensions`. Others are listed as skipped in the plan.
 
 ### D8. The engine writes the plan
@@ -145,9 +145,9 @@ The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private fo
 5. **Bookmarks:** through `BookmarkModel`, appended to Other Bookmarks as they are, never into the Bookmarks Bar, so the Heads Up dialog doesn't show. A folder named like one at the same place merges into it.
 6. **History:** read from the copy's `urls` table (or Safari's JSON) in batches, written with `ProfileWriter::AddHistoryPage` (`HistoryService::AddPagesWithDetails`), which keeps title, visit count and typed count and adds one visit at the last visit time.
 7. **Favicons:** for the imported URLs, from the copy's `favicons` and `icon_mapping`, with `ProfileWriter::AddFavicons`.
-8. **Extensions:** a `WebstoreStandaloneInstaller` subclass with no install prompt and no post-install UI fetches each ID from the Chrome Web Store, as Clair's restored store does; once installed, its enabled state and pin are set. These finish after the summary.
+8. **Extensions:** a `WebstoreStandaloneInstaller` subclass with no install prompt and no post-install UI fetches each ID from the Chrome Web Store, as Clair's restored store does; once installed, its enabled state and pin are set. The summary waits for them, each install counting in the progress.
 
-**Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder, after same-named folders merge. History keeps a per-profile mark, `clair.import.history_marks` (a profile pref keyed by source), of the newest last-visit time imported; the next import from that source adds only pages whose last visit is newer, so `AddPagesWithDetails` doesn't add a second visit for the same one.
+**Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder, after same-named folders merge. History keeps a mark, `clair.import.history_marks`, in the destination profile's prefs, keyed by source browser and source profile (`arc/Profile 6`), of the newest last-visit time imported from it; the next import of that source profile into this profile adds only pages whose last visit is newer, while another source profile, or another destination, starts with no mark, so `AddPagesWithDetails` doesn't add a second visit for the same one.
 
 ### D9. The flow and the dialog
 
@@ -157,7 +157,7 @@ Step 1's cards are a two-column grid of rounded, bordered cards with the app ico
 
 ### D10. Privacy
 
-Each import gets a private folder in the user's temporary directory, mode 0700, for the copies and the unpacked .zip; it's removed when the import ends, and any left by a crash are removed at the next launch. Dia's plaintext never touches the disk (D5). Clair reads nothing from a source before Import, writes nothing to it, and makes no network request but the Chrome Web Store downloads.
+Each import gets a private folder in the user's temporary directory, mode 0700, for the copies and the unpacked .zip; it's removed when the import ends, and any left by a crash are removed at the next launch. Dia's plaintext never touches the disk (D5). Before Import, Clair reads only what finding sources and labelling their profiles needs (`Local State`, Arc's `StorableSidebar.json` existing, Dia's `tabs.db` existing) and the Safari file the user chooses, to check it; everything else, and the keychain, waits for Import. Clair writes nothing to a source, and makes no network request but the Chrome Web Store downloads.
 
 ### D11. Hiding Chromium's import menu item
 
@@ -171,6 +171,12 @@ Chrome's session format is Chromium's, so the engine reads it with Chromium's co
 
 **Alternatives:** parsing SNSS in Swift, as Cra does (a second reader of a format Chromium already reads, which would drift as Chrome adds commands); reading Chrome's `Current Session`/`Last Session` legacy names (Chrome writes `Sessions/` now).
 
+### D14. The source quits before Import
+
+Copying a database while its browser writes it can tear the copy, and Chromium holds `History` locked while running. So while the source app runs (`NSRunningApplication` for the descriptor's bundle ID), `ImportFlow` replaces Import with "Quit <browser>", which sends the app `terminate()`, the polite quit its own Quit command makes, and watches `NSWorkspace.didTerminateApplicationNotification`; a launch notification turns the button back. The app's own confirmations, such as Arc's or Chrome's warning about closing windows, still apply.
+
+**Alternatives:** reading a running source (torn or locked copies, D7); forcing it to quit (lost state in the source); asking the user to quit it themselves with no button (one more trip out of the dialog).
+
 ### D12. Testing
 
 - `ClairUITests`: fixtures for Chrome (a `Local State`, `Bookmarks` with bar, other and nested folders, `Preferences`/`Secure Preferences` with a store, an unpacked and a disabled extension, and a `Sessions` folder that the plan passes by path), Arc (a trimmed `StorableSidebar.json` and `Local State` with nested folders, a renamed pin, splits of two, three and stacked panes, two profiles), Dia (a `tabs.db` encrypted by the test with a known secret, with an orphan, a WAL frame and a split) and Safari (a .zip whose Favorites hold a bookmark and a folder, with a Reading List and `History.json`), asserting the plans; and the flow's steps and defaults against the fake host.
@@ -182,7 +188,7 @@ Chrome's session format is Chromium's, so the engine reads it with Chromium's co
 - [Arc's JSON changes] → Arc is in maintenance, so it's unlikely; unknown item kinds are skipped and reported.
 - [The keychain prompt reads "Clair wants to use your confidential information stored in 'Dia Safe Storage'", which can alarm] → The second step explains it before Import (spec wording), as Dia's own importer does.
 - [Installing extensions without a prompt grants their permissions silently] → Only Chrome Web Store extensions the user already installed in the source, into the profile the user chose; the summary lists them.
-- [A running source's latest changes may be only in memory] → The import reads what it has saved; the step needn't ask to quit it. Dia's WAL is folded in.
+- [A source the user reopens during the import could write while Clair copies] → The copies are checked with `quick_check` and skipped with a note when torn (D7).
 - [Large histories take time] → Batched writes with progress; the dialog shows the phase.
 - [Imported Today tabs could be many] → They're created unloaded.
 
