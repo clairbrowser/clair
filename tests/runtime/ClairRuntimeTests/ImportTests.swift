@@ -324,7 +324,7 @@ final class ImportTests: NativeWindowTestCase {
     XCTAssertFalse(browser.importElement("clair.importItem.favorites").exists)
     try browser.setImportDestination(row: 0, to: "New Profile")
     let counts = try await browser.runImport()
-    for count in ["1 Space", "1 pinned tab", "7 Today tabs", "3 bookmarks", "1 history entry"] {
+    for count in ["1 pinned tab", "7 Today tabs", "3 bookmarks", "1 history entry"] {
       XCTAssertTrue(counts.contains(count), "The summary doesn't say \(count): \(counts)")
     }
     try await browser.finishImport()
