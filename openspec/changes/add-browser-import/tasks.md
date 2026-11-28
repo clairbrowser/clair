@@ -1,0 +1,47 @@
+# Tasks
+
+Wherever a task needs a build, it means the engine that `engine.yml` builds for the branch's key and the CI and quality runs on the pull request's branch.
+
+## 1. The plan and the contract
+
+- [ ] 1.1 Add `native/ClairUI/Import/ImportPlan.swift`, the versioned `Codable` plan, the summary, the skip reasons and the shared pass that makes splits and folders fit Clair (three-pane and stacked splits, nested folders flattened to `Parent / Child`; design D3), with unit tests of that pass on nested, deeper-nested and folder-only trees, and unit tests that encode a plan holding every item kind (tab with a name, a split with its ratio, nested folders, bookmarks, history and favicon paths, extensions, an existing and a new destination) and decode a summary. Verify that `ClairUI`'s unit tests pass in CI.
+- [ ] 1.2 Add `-applyImportPlan:progress:completion:` to `ClairHost` in `native/ClairHost.h` (JSON plan in, progress fraction and phase, summary JSON out), with `FakeHost` recording plans and replying with a scripted summary (design D3). Verify that `ClairUI` builds and its unit tests pass in CI.
+
+## 2. Sources in `ClairUI`
+
+- [ ] 2.1 Add `ImportSource`, `ChromiumFamilySource` with descriptors for Arc, Dia and Chrome, and presence checks (design D2), with fixtures under `native/ClairUITests/Fixtures/Import/` and tests that each source shows only when its fixture data exists, and that a `CLAIR_TEST_IMPORT_ROOT`-style root override points every source at the fixtures. Verify that the unit tests pass in CI.
+- [ ] 2.2 Read Chromium-family profiles: `Local State` names, `Bookmarks`/`AccountBookmarks` into one folder named after the source with the bar as a folder in it, private copies of `History`, `Favicons` and `Sessions` with their journals, and Web Store extensions with their enabled and pinned state (design D7, D10, D13). Verify with unit tests on a Chrome fixture: the bar stays a folder, and bar, other and nested folders keep their order; Chrome's plan profile names its Space and session copy; an unpacked extension, a theme and a disabled one are handled as specified; the copies are mode 0600 in a 0700 folder; and they pass in CI.
+- [ ] 2.3 Add `ArcSidebarReader` (design D4): Spaces with emoji and profile, pinned and Today trees, custom names, splits of two (with ratio), stacked and three panes, favorites per profile, unknown item kinds reported. Verify with unit tests on an Arc fixture made from this Mac's probe data (spec "Spaces from an import", "Pinned tabs and folders", "Splits", "Favorites") that pass in CI.
+- [ ] 2.4 Add `DiaSidebarReader` (design D5): the key from a supplied secret, in-memory decryption with the WAL folded in, `sqlite3_deserialize`, the walk from live roots, splits, folders, custom titles, favorites merged per profile, rows labelled by their Dia profiles' names, and the Cra credit in the source. Verify with unit tests on a `tabs.db` the test encrypts with a known secret, covering an orphan under a deleted window, a WAL-only commit, a wrong key (no sidebar, reported) and a two- and three-pane split, passing in CI; and that no file is written outside the test's folder.
+- [ ] 2.5 Read the "Dia Safe Storage" secret with `SecItemCopyMatching` only when the plan is made, with `CLAIR_TEST_DIA_SECRET` overriding it under the runtime suite's test switches, and a denied or missing item yielding a plan without Dia's sidebar (spec "Dia's privacy note"). Verify with a unit test against an injected keychain reader that nothing reads it before `makePlan`, and that it passes in CI.
+- [ ] 2.6 Add `SafariExportSource` (design D6): unpack a .zip with `ditto` into the private folder or take a folder, parse `Bookmarks.html` (Favorites kept as a bookmarks folder, never favorites; Reading List dropped) and pass `History.json` by path; refuse a file with neither. Verify with unit tests on a .zip fixture, a folder, a bookmarks-only export and a wrong file, passing in CI.
+
+## 3. The engine writes the plan
+
+- [ ] 3.1 Add `engine/overlay/chrome/browser/clair/clair_importer.{h,mm}` and its `ClairHost` method: parse the plan, create new profiles with free names, create or merge Spaces, and write pins, folders, pinned splits and favorites through `ClairPinStore`, skipping URLs already in the same place (design D8 steps 1–3). Verify that `engine.yml` builds the engine for the branch and CI's engine check passes.
+- [ ] 3.2 Create Today tabs unloaded, below the Space's existing ones, and Today splits with their ratio (design D8 step 4). Verify with task 5.2's runtime test.
+- [ ] 3.3 Read Chrome's session copy with `CommandStorageBackend` and `RestoreSessionFromCommands`, and write each window's pinned tabs to the Space's pinned section and its other tabs as unloaded Today tabs, splits by `split_id` with their ratio, groups ignored (design D13). Verify with task 5.2's runtime test, using a Chrome fixture whose session holds two windows, a pinned tab, a group and a split.
+- [ ] 3.4 Write bookmarks into Other Bookmarks › `<source>` through `BookmarkModel`, history in batches with `ProfileWriter::AddHistoryPage` behind the per-profile `clair.import.history_marks` mark, and favicons with `ProfileWriter::AddFavicons`, reporting progress; choose Arc's, Dia's and Chrome's `VisitSource` after checking which sources History and the command bar treat as browsed, and record the choice in design.md (design D8 steps 5–7, Open Questions). Verify with task 5.2's runtime test.
+- [ ] 3.5 Install extensions through a `WebstoreStandaloneInstaller` subclass with no prompt or post-install UI, then set each one's enabled state and pin; already-installed ones are skipped and store failures reported (design D8 step 8). Verify with task 5.3's runtime test.
+- [ ] 3.6 Remove the import's private folder when it ends, and any left from earlier runs at launch (design D10). Verify with task 5.2's runtime test, which checks the temporary directory afterwards.
+
+## 4. Dialog and menu
+
+- [ ] 4.1 Add the stepped layout to `ClairDialog`: Cancel with ESC at the bottom leading corner, Back then the default button at the trailing one, a fixed card width (spec `dialogs` "Stepped dialogs"). Verify with `ClairUI` unit tests of the button placement, Esc closing rather than going back, and Back ignoring Return, passing in CI.
+- [ ] 4.2 Add `ImportFlow` and `ImportCoordinator` (design D9): steps, the first card selected, the items list per source, destination defaults (the shown Space's profile, then New Profile), Dia's note, Safari's instructions and file area, progress and the summary. Verify with unit tests driving the flow against `FakeHost` for each source, including Back, a wrong Safari file and a denied Dia key, passing in CI.
+- [ ] 4.3 Add `ImportDialog`'s views (browser cards two per row, the items list, the "Import into" popups, the summary) and the Clair menu's "Import from Another Browser…" after Set as Default Browser, opening a window when none is open and refocusing an open dialog (spec "Import menu item", "Choosing a browser"). Verify with unit tests of the menu item's place and the single dialog, passing in CI, and by hand in task 6.2.
+
+## 5. Chromium's importer and runtime tests
+
+- [ ] 5.1 Add `engine/patches/clair/disable-importer.patch` to the series: remove `IDC_IMPORT_SETTINGS` from `main_menu_builder.mm`, stop creating `r.IMPORT_DATA` and drop the People page's import row (design D11). Verify that the patch check or `engine.yml` applies it, and with a runtime test that `chrome://settings/importData` shows Settings' main page without an import row and the Clair menu has no "Import Bookmarks and Settings…", passing in `quality.yml` on the branch.
+- [ ] 5.2 Add `tests/runtime/ImportTests` with fixtures for Arc, Dia (with `CLAIR_TEST_DIA_SECRET`), Safari and Chrome: import each through the dialog into a fresh profile and check the Spaces, pins with their names and folders, splits and ratios, unloaded Today tabs, favorites (Arc and Dia only; Safari's and Chrome's leave them unchanged), the Bookmarks menu's source folder with the bar as a folder and no Heads Up dialog, a history suggestion in the command bar, the summary's counts, that a second import adds nothing and says so, and that no private folder remains. Assign the class to the group that keeps the three groups' durations within 5 minutes. Verify that it passes in `quality.yml` on the branch.
+- [ ] 5.3 Add an extension test to `ImportTests`: a fixture profile with one small Chrome Web Store extension, turned on and pinned, installs without a prompt into the destination profile, turned on and pinned. Verify that it passes in `quality.yml` on the branch.
+
+## 6. Release
+
+- [ ] 6.1 Credit Cra (MIT) in `CREDITS.md` with its license in `licenses/`, and add a Changie fragment (`changie new`) for importing from Arc, Dia, Safari and Chrome. Verify that `changie batch --dry-run` lists it and that CI passes.
+- [ ] 6.2 Check by hand with `tests/probe/launch-clair.sh` against this Mac's Arc, Dia and Safari data: each step's layout and keys, Dia's note and the keychain prompt naming Clair, Safari's file area by drop and by panel, the import's result in the sidebar, menus and history, and the summary. Verify with a screenshot of each step.
+
+## Workflow follow-up
+
+- After the implementation PR merges, one docs-only PR ticks any task its last checks verified, syncs the delta specs into `openspec/specs/` and archives the change.
