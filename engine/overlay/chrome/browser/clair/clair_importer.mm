@@ -532,16 +532,12 @@ struct SessionRead {
 };
 
 // D13: Chrome's last session, read from the copy of its `Sessions` folder
-// with Chromium's own reader. Each window, in order, gives its pinned tabs and
-// its other tabs; the two tabs of a split become one split with its ratio;
-// groups are ignored.
-SessionRead ReadChromeSession(const base::FilePath& folder) {
+// with Chromium's own reader, on `backend`'s sequence. Each window, in order,
+// gives its pinned tabs and its other tabs; the two tabs of a split become
+// one split with its ratio; groups are ignored.
+SessionRead ReadChromeSession(
+    scoped_refptr<sessions::CommandStorageBackend> backend) {
   SessionRead result;
-  // The backend looks in `<path>/Sessions`.
-  auto backend = base::MakeRefCounted<sessions::CommandStorageBackend>(
-      base::SequencedTaskRunner::GetCurrentDefault(), folder.DirName(),
-      sessions::CommandStorageManager::SessionType::kSessionRestore,
-      /*encryptor=*/nullptr);
   sessions::CommandStorageBackend::ReadCommandsResult read =
       backend->ReadLastSessionCommands();
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
@@ -770,8 +766,14 @@ class ClairImport {
     StepDone();
     PlanProfile& planned = plan_.profiles[index_];
     if (!planned.sessions.empty()) {
+      // Made here, on the UI thread, as the backend asks; it reads on, and is
+      // deleted on, the blocking sequence. It looks in `<path>/Sessions`.
+      auto backend = base::MakeRefCounted<sessions::CommandStorageBackend>(
+          blocking_, planned.sessions.DirName(),
+          sessions::CommandStorageManager::SessionType::kSessionRestore,
+          /*encryptor=*/nullptr);
       blocking_->PostTaskAndReplyWithResult(
-          FROM_HERE, base::BindOnce(&ReadChromeSession, planned.sessions),
+          FROM_HERE, base::BindOnce(&ReadChromeSession, std::move(backend)),
           base::BindOnce(&ClairImport::OnSessionRead,
                          weak_factory_.GetWeakPtr()));
       return;

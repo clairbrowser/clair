@@ -331,11 +331,11 @@ private struct SummaryView: View {
     VStack(alignment: .leading, spacing: 10) {
       VStack(alignment: .leading, spacing: 4) {
         ForEach(flow.summaryLines, id: \.self) { line in
-          Text(line).font(.system(size: 13))
+          Text(line)
+            .font(.system(size: 13))
+            .accessibilityIdentifier("clair.importCount")
         }
       }
-      .accessibilityElement(children: .combine)
-      .accessibilityIdentifier("clair.importCounts")
       if !flow.skippedLines.isEmpty {
         Text("Not imported")
           .font(.system(size: 13, weight: .semibold))
@@ -347,14 +347,13 @@ private struct SummaryView: View {
                 .foregroundStyle(Color(nsColor: ClairDialogView.secondaryTextColor))
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("clair.importSkipped")
             }
           }
           .padding(10)
         }
         .frame(maxHeight: 140)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ClairDialogView.listBackground(colorScheme)))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("clair.importSkipped")
       }
     }
     .padding(.top, 4)

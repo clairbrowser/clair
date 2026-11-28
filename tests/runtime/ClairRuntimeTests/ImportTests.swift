@@ -55,14 +55,16 @@ extension Browser {
     button.click()
     let done = await waitForDialogTitle("Import Complete", seconds: seconds)
     try require(done, "The import didn't finish: \(dialogTitle ?? "no title")")
-    let counts = importElement("clair.importCounts")
-    return counts.exists ? counts.label : ""
+    return lines("clair.importCount")
   }
 
   /// What the summary lists as not imported.
-  var importSkipped: String {
-    let skipped = importElement("clair.importSkipped")
-    return skipped.exists ? skipped.label : ""
+  var importSkipped: String { lines("clair.importSkipped") }
+
+  /// The texts with `identifier` on the dialog, one per line.
+  private func lines(_ identifier: String) -> String {
+    dialog.descendants(matching: .any).matching(identifier: identifier).allElementsBoundByIndex
+      .map { ($0.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? $0.label }.joined(separator: "\n")
   }
 
   /// Done on the summary.
@@ -239,8 +241,13 @@ final class ImportTests: NativeWindowTestCase {
       XCTAssertTrue(counts.contains(count), "The summary doesn't say \(count): \(counts)")
     }
     try await browser.finishImport()
-    let loaded = try await browser.hits("dia-", baseURL: fixture.baseURL)
-    XCTAssertEqual(loaded, 0, "Imported Today tabs or pins loaded their pages")
+    // The new profile's window had no tab: the first Today tab, a split,
+    // became its selected tab and loads, as session restore loads each
+    // window's selected tab. Nothing else does.
+    for page in ["dia-today", "dia-second", "dia-pinned", "dia-favorite"] {
+      let loaded = try await browser.hits(page, baseURL: fixture.baseURL)
+      XCTAssertEqual(loaded, 0, "\(page) loaded its page")
+    }
 
     try await browser.quit()
     let profiles = try browser.profileNames()
@@ -321,8 +328,11 @@ final class ImportTests: NativeWindowTestCase {
       XCTAssertTrue(counts.contains(count), "The summary doesn't say \(count): \(counts)")
     }
     try await browser.finishImport()
-    let loaded = try await browser.hits("chrome-", baseURL: fixture.baseURL)
-    XCTAssertEqual(loaded, 0, "Imported Chrome tabs loaded their pages")
+    // Only the new profile's window's selected tab, the first, loads.
+    for page in ["chrome-pinned", "chrome-b", "chrome-docs", "chrome-mail", "chrome-d", "chrome-e", "chrome-c"] {
+      let loaded = try await browser.hits(page, baseURL: fixture.baseURL)
+      XCTAssertEqual(loaded, 0, "\(page) loaded its page")
+    }
     let targets = try await browser.pageTargets().map(\.url)
     for page in ["chrome-a", "chrome-b", "chrome-docs", "chrome-mail", "chrome-d", "chrome-e", "chrome-c"] {
       XCTAssertTrue(targets.contains { $0.contains(page) }, "There's no Today tab of \(page)")
@@ -343,18 +353,23 @@ final class ImportTests: NativeWindowTestCase {
   /// A Web Store extension, turned on and pinned in the source, installs
   /// without a prompt, turned on and pinned (task 5.3).
   func testAStoreExtensionInstallsWithoutAPrompt() async throws {
-    // Dark Reader, with a manifest asking for more than the store's version,
-    // so the approval holds whatever its version.
+    // Dark Reader, with the manifest an installed copy keeps: its store
+    // public key, and the permissions of its 4.9 releases, with a few more so
+    // the store's version asks for no more and the approval holds.
     let darkReader = "eimadpbcbfnmbkopoojfekhnkhdbieeh"
+    let key =
+      "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqBY2tfTtJYiVMirbII2r3WofqCDaxS2zwPddSsgxUWKRm/MW/ymL2ZaP24MmwnegGIoxHkBVyi4cps4/q76c98ViyijoQvdJjAv3ZtUOwbWlYnZ5pU6gPCeZrScHxoTJdxxJJ30DZpMc6qsc3yJVQJlABG2FQFPrhPEGFLP9sCq/M7pY1xH++KsG+jYLB6cU3ItvZ4zntUXRwG2ZBx+XZelsd6FdkVXbDXj/47TNk2Qq8PAqyiK45GgQ+KJjuISAo89ip1xI4tONLCjSHPinD3nz6HiMikQzwn4L8SsB4Wy7rBhMhPRGIWbwHed+L+W3LXhB05Lhwk0YxuOb7QNWRQIDAQAB"
     try home.addChrome(
       extensions: [
         darkReader: [
           "location": 1, "from_webstore": true, "disable_reasons": [Int](),
           "manifest": [
-            "name": "Dark Reader", "version": "4.9.0", "manifest_version": 3,
-            "permissions": ["alarms", "contextMenus", "storage", "tabs", "scripting", "fontSettings", "declarativeNetRequest"],
-            "host_permissions": ["<all_urls>", "*://*/*"],
+            "key": key, "name": "Dark Reader", "version": "4.9.135", "manifest_version": 3,
+            "background": ["service_worker": "background/index.js"],
+            "permissions": ["alarms", "contextMenus", "fontSettings", "scripting", "storage", "tabs"],
+            "host_permissions": ["<all_urls>"],
             "optional_permissions": ["contextMenus"],
+            "content_scripts": [["matches": ["<all_urls>"], "js": ["inject/index.js"], "all_frames": true]],
           ],
         ]
       ], pinnedExtensions: [darkReader])
