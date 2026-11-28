@@ -45,6 +45,8 @@ final class NativeLayer {
   private(set) var tabsMenu: TabsMenu?
   /// View › Hide Toolbar's target (add-page-toolbar D8).
   let toolbarMenu = ToolbarMenuTarget()
+  /// Clair › Import from Another Browser… (add-browser-import D9).
+  private(set) var importMenu: ImportMenu?
 
   init(host: any ClairHost) {
     self.host = host
@@ -65,6 +67,9 @@ final class NativeLayer {
     self.settings = settings
     MainMenuTitles.apply(to: NSApp.mainMenu)
     MainMenuTitles.addCopyURL(to: NSApp.mainMenu)
+    let importMenu = ImportMenu(host: host)
+    importMenu.install(in: NSApp.mainMenu)
+    self.importMenu = importMenu
     // The engine adds View › Hide Sidebar once this start returns, and Hide
     // Toolbar goes after it.
     DispatchQueue.main.async { [toolbarMenu] in

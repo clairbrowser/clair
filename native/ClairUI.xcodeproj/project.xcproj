@@ -14,7 +14,7 @@
     { "path": "ClairHost.h" },
     { "path": "module.modulemap" },
     { "kind": "folder", "path": "ClairUI", "target-membership": [ "ClairUI" ] },
-    { "kind": "folder", "path": "ClairUITests", "target-membership": [ "ClairUITests" ] },
+    { "kind": "folder", "path": "ClairUITests", "target-membership": [ "ClairUITests" ], "opaque-folders": [ "Fixtures" ] },
     {
       "kind": "group",
       "name": "Products",

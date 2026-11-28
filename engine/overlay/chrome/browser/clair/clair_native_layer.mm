@@ -27,6 +27,7 @@
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #import "chrome/browser/clair/ClairHost.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/clair/clair_importer.h"
 #import "chrome/browser/clair/clair_pin_store.h"
 #include "chrome/browser/clair/clair_link_rule_store.h"
 #include "chrome/browser/clair/clair_profiles.h"
@@ -598,6 +599,35 @@ ClairLinkRuleMatch ContractMatchOf(clair::LinkRuleMatch match) {
   [NSApp terminate:nil];
 }
 
+// --- Importing from another browser (add-browser-import design D3, D8) ---
+
+- (void)applyImportPlan:(NSData*)plan
+               progress:(void (^)(double, NSString*))progress
+             completion:(void (^)(NSData*))completion {
+  CHECK([NSThread isMainThread]);
+  void (^progressBlock)(double, NSString*) = [progress copy];
+  void (^completionBlock)(NSData*) = [completion copy];
+  std::string json(static_cast<const char*>(plan.bytes), plan.length);
+  clair::ApplyImportPlan(
+      json,
+      base::BindRepeating(
+          [](void (^progress)(double, NSString*), double fraction,
+             const std::string& phase) {
+            if (progress) {
+              progress(fraction, base::SysUTF8ToNSString(phase));
+            }
+          },
+          progressBlock),
+      base::BindOnce(
+          [](void (^completion)(NSData*), const std::string& summary) {
+            if (completion) {
+              completion([NSData dataWithBytes:summary.data()
+                                        length:summary.size()]);
+            }
+          },
+          completionBlock));
+}
+
 @end
 
 namespace clair {
@@ -730,6 +760,9 @@ void StartNativeLayer() {
     FailToStart("the principal class of " + path.value() +
                 " doesn't conform to ClairUIEntryPoint");
   }
+
+  // add-browser-import D10: private folders a crashed import left.
+  RemoveLeftoverImportFolders();
 
   g_host = [[ClairChromiumHost alloc] init];
   g_entry_point = (Class<ClairUIEntryPoint>)principal;

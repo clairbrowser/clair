@@ -399,6 +399,28 @@ NS_SWIFT_NAME(ClairHost)
 // Chromium still asks about downloads in progress.
 - (void)quitWithoutWarning;
 
+// --- Importing from another browser (add-browser-import design D3, D8) ---
+
+// Writes an import plan: `plan` is the UTF-8 JSON of ClairUI's `ImportPlan`,
+// version 1, which ClairUI has read from the source. Chromium creates its new
+// profiles and Spaces, writes its pins, folders, splits, favorites and Today
+// tabs, bookmarks, history and favicons, and installs its extensions from the
+// Chrome Web Store, skipping what the destination already has. It calls
+// `progress` as it goes, with the fraction done (0 to 1) and the phase it is in
+// ("profiles", "sidebar", "bookmarks", "history", "favicons" or "extensions"),
+// and `completion` once, when everything is done, extension installs included,
+// with the summary's UTF-8 JSON: counts per item kind imported and already in
+// Clair, and what was skipped, with a reason code and the item's name or URL.
+// A plan it can't read, or one sent while another import runs, completes at
+// once with a summary skipping it as "importFailed". When the import ends,
+// Chromium removes the plan's `folder`, the import's private folder in the
+// user's temporary directory that holds the copies it names, and at launch any
+// such folder an earlier run left (D10).
+- (void)applyImportPlan:(NSData *)plan
+               progress:(void (^)(double fraction, NSString *phase))progress
+             completion:(void (^)(NSData *summary))completion
+    NS_SWIFT_NAME(applyImportPlan(_:progress:completion:));
+
 @end
 
 // ---------------------------------------------------------------------------

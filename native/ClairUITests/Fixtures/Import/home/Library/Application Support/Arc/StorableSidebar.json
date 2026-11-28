@@ -1,0 +1,531 @@
+{
+ "sidebar": {
+  "containers": [
+   {
+    "global": {}
+   },
+   {
+    "spaces": [
+     "EB92A980-8142-4538-8833-D0E799987CE9",
+     {
+      "id": "EB92A980-8142-4538-8833-D0E799987CE9",
+      "title": "Space 1",
+      "customInfo": {},
+      "profile": {
+       "default": true
+      },
+      "containerIDs": [
+       "pinned",
+       "525E71C7-F557-4927-A418-43B9FEBC6E36",
+       "unpinned",
+       "670C1109-CFB1-41E4-917B-E4E41FAF417F"
+      ]
+     },
+     "464DAA0F-88C6-4943-972F-4A142F5FEB8E",
+     {
+      "id": "464DAA0F-88C6-4943-972F-4A142F5FEB8E",
+      "title": "Space 2",
+      "customInfo": {
+       "iconType": {
+        "emoji_v2": "😀",
+        "emoji": 128512
+       }
+      },
+      "profile": {
+       "default": true
+      },
+      "containerIDs": [
+       "pinned",
+       "0302A055-8176-44F0-9862-4D7820C2A917",
+       "unpinned",
+       "C74CA4BD-DBD3-41BF-A9B7-EB3C43F35F4A"
+      ]
+     },
+     "490355B8-8B02-45B0-9959-5F0AB748678E",
+     {
+      "id": "490355B8-8B02-45B0-9959-5F0AB748678E",
+      "title": "Space 3",
+      "customInfo": {},
+      "profile": {
+       "custom": {
+        "_0": {
+         "directoryBasename": "Profile 6"
+        }
+       }
+      },
+      "containerIDs": [
+       "pinned",
+       "285F6DF2-AA9B-47F6-89C4-726F18675C10",
+       "unpinned",
+       "DBDE8409-5327-4E8B-89FC-396B61B59145"
+      ]
+     }
+    ],
+    "items": [
+     "0EAACB2C-BA99-4183-9CC7-8D999D96D3F9",
+     {
+      "id": "0EAACB2C-BA99-4183-9CC7-8D999D96D3F9",
+      "parentID": "51C9BFC2-6FB4-48F4-947F-8DDB4819FF1D",
+      "childrenIds": [
+       "6882C596-6E90-46A5-ABE8-1F48720A5CDF"
+      ],
+      "title": "Child Folder",
+      "data": {
+       "list": {}
+      }
+     },
+     "525E71C7-F557-4927-A418-43B9FEBC6E36",
+     {
+      "id": "525E71C7-F557-4927-A418-43B9FEBC6E36",
+      "parentID": null,
+      "childrenIds": [
+       "51C9BFC2-6FB4-48F4-947F-8DDB4819FF1D"
+      ],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "EB92A980-8142-4538-8833-D0E799987CE9"
+         }
+        }
+       }
+      }
+     },
+     "7079ABE0-E05E-4D29-B736-FC982AF54F79",
+     {
+      "id": "7079ABE0-E05E-4D29-B736-FC982AF54F79",
+      "parentID": "BBD6595F-E4EF-4D2E-91A2-187F443D5B58",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://example.com/",
+        "savedTitle": "Example Domain"
+       }
+      }
+     },
+     "F419B816-F499-4B47-9311-E55862E24B98",
+     {
+      "id": "F419B816-F499-4B47-9311-E55862E24B98",
+      "parentID": "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://weather.com/",
+        "savedTitle": "National and Local Weather Radar, Daily Forecast, Hurricane and information from The Weather Channel and weather.com"
+       }
+      }
+     },
+     "C1F22745-286A-47EE-8023-B1EDBE95D4D3",
+     {
+      "id": "C1F22745-286A-47EE-8023-B1EDBE95D4D3",
+      "parentID": "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+      "childrenIds": [
+       "40F279D2-261F-4FC4-86F1-951766646045",
+       "2A917665-9748-4324-9EE2-55891352D9CF",
+       "F3574E8D-CA54-4C17-B3DC-5718AF000B42"
+      ],
+      "title": null,
+      "data": {
+       "splitView": {
+        "layoutOrientation": "horizontal",
+        "itemWidthFactors": [
+         "40F279D2-261F-4FC4-86F1-951766646045",
+         0.33333333333333337,
+         "2A917665-9748-4324-9EE2-55891352D9CF",
+         0.33333333333333337
+        ]
+       }
+      }
+     },
+     "40F279D2-261F-4FC4-86F1-951766646045",
+     {
+      "id": "40F279D2-261F-4FC4-86F1-951766646045",
+      "parentID": "C1F22745-286A-47EE-8023-B1EDBE95D4D3",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://en.wikipedia.org/wiki/Africa",
+        "savedTitle": "Africa - Wikipedia"
+       }
+      }
+     },
+     "54309A9C-B579-4880-B6A1-6CDE9D8F9163",
+     {
+      "id": "54309A9C-B579-4880-B6A1-6CDE9D8F9163",
+      "parentID": "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+      "childrenIds": [
+       "38977314-2D7D-40F0-8157-25372738D411",
+       "F28F99B3-DA38-409F-AC0B-1D928D18C741"
+      ],
+      "title": null,
+      "data": {
+       "splitView": {
+        "layoutOrientation": "vertical",
+        "itemWidthFactors": [
+         "38977314-2D7D-40F0-8157-25372738D411",
+         0.5
+        ]
+       }
+      }
+     },
+     "DBDE8409-5327-4E8B-89FC-396B61B59145",
+     {
+      "id": "DBDE8409-5327-4E8B-89FC-396B61B59145",
+      "parentID": null,
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "490355B8-8B02-45B0-9959-5F0AB748678E"
+         }
+        }
+       }
+      }
+     },
+     "C74CA4BD-DBD3-41BF-A9B7-EB3C43F35F4A",
+     {
+      "id": "C74CA4BD-DBD3-41BF-A9B7-EB3C43F35F4A",
+      "parentID": null,
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "464DAA0F-88C6-4943-972F-4A142F5FEB8E"
+         }
+        }
+       }
+      }
+     },
+     "D5A3978D-F7EE-4C3E-ACA4-77C9EFC153A0",
+     {
+      "id": "D5A3978D-F7EE-4C3E-ACA4-77C9EFC153A0",
+      "parentID": "021B7481-DEAF-4138-9A18-C9B5036F13E0",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://arstechnica.com/",
+        "savedTitle": "Ars Technica - Serving the Technologist since 1998. News, reviews, and analysis."
+       }
+      }
+     },
+     "BBD6595F-E4EF-4D2E-91A2-187F443D5B58",
+     {
+      "id": "BBD6595F-E4EF-4D2E-91A2-187F443D5B58",
+      "parentID": null,
+      "childrenIds": [
+       "7079ABE0-E05E-4D29-B736-FC982AF54F79",
+       "74E3615B-D207-4655-B2E0-4180288791BC"
+      ],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "topApps": {
+          "_0": {
+           "default": true
+          }
+         }
+        }
+       }
+      }
+     },
+     "11957EC0-40AD-4625-A0C3-AEAC3C9456D0",
+     {
+      "id": "11957EC0-40AD-4625-A0C3-AEAC3C9456D0",
+      "parentID": "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+      "childrenIds": [
+       "6EEB649A-EE5B-473D-9AA4-0BB054CA7984",
+       "8DE2D7C1-4742-495F-822D-4A9579E95FA7"
+      ],
+      "title": null,
+      "data": {
+       "splitView": {
+        "layoutOrientation": "horizontal",
+        "itemWidthFactors": [
+         "6EEB649A-EE5B-473D-9AA4-0BB054CA7984",
+         0.5
+        ]
+       }
+      }
+     },
+     "38977314-2D7D-40F0-8157-25372738D411",
+     {
+      "id": "38977314-2D7D-40F0-8157-25372738D411",
+      "parentID": "54309A9C-B579-4880-B6A1-6CDE9D8F9163",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://en.wikipedia.org/wiki/Dog",
+        "savedTitle": "Dog - Wikipedia"
+       }
+      }
+     },
+     "285F6DF2-AA9B-47F6-89C4-726F18675C10",
+     {
+      "id": "285F6DF2-AA9B-47F6-89C4-726F18675C10",
+      "parentID": null,
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "490355B8-8B02-45B0-9959-5F0AB748678E"
+         }
+        }
+       }
+      }
+     },
+     "2A917665-9748-4324-9EE2-55891352D9CF",
+     {
+      "id": "2A917665-9748-4324-9EE2-55891352D9CF",
+      "parentID": "C1F22745-286A-47EE-8023-B1EDBE95D4D3",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://en.wikipedia.org/wiki/Europe",
+        "savedTitle": "Europe - Wikipedia"
+       }
+      }
+     },
+     "6EEB649A-EE5B-473D-9AA4-0BB054CA7984",
+     {
+      "id": "6EEB649A-EE5B-473D-9AA4-0BB054CA7984",
+      "parentID": "11957EC0-40AD-4625-A0C3-AEAC3C9456D0",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://news.ycombinator.com/",
+        "savedTitle": "Hacker News"
+       }
+      }
+     },
+     "F3574E8D-CA54-4C17-B3DC-5718AF000B42",
+     {
+      "id": "F3574E8D-CA54-4C17-B3DC-5718AF000B42",
+      "parentID": "C1F22745-286A-47EE-8023-B1EDBE95D4D3",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://en.wikipedia.org/wiki/Asia",
+        "savedTitle": "Asia - Wikipedia"
+       }
+      }
+     },
+     "F72BDC65-5B1C-4D82-9644-D06D179C0FD6",
+     {
+      "id": "F72BDC65-5B1C-4D82-9644-D06D179C0FD6",
+      "parentID": null,
+      "childrenIds": [
+       "8DF69BCC-ED05-45BE-BF0A-EED0ED99386E"
+      ],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "topApps": {
+          "_0": {
+           "custom": {
+            "_0": {
+             "machineID": "BD897D6D-F75B-4E8D-BD24-59CFB6D060D6",
+             "directoryBasename": "Profile 6"
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "6882C596-6E90-46A5-ABE8-1F48720A5CDF",
+     {
+      "id": "6882C596-6E90-46A5-ABE8-1F48720A5CDF",
+      "parentID": "0EAACB2C-BA99-4183-9CC7-8D999D96D3F9",
+      "childrenIds": [],
+      "title": "RENAMED TAB",
+      "data": {
+       "tab": {
+        "savedURL": "https://www.bbc.com/news",
+        "savedTitle": "BBC News - Breaking news, video and the latest top stories from the U.S. and around the world"
+       }
+      }
+     },
+     "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+     {
+      "id": "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+      "parentID": null,
+      "childrenIds": [
+       "C1F22745-286A-47EE-8023-B1EDBE95D4D3",
+       "54309A9C-B579-4880-B6A1-6CDE9D8F9163",
+       "11957EC0-40AD-4625-A0C3-AEAC3C9456D0",
+       "F419B816-F499-4B47-9311-E55862E24B98",
+       "E0E0E0E0-0000-4000-8000-000000000001"
+      ],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "EB92A980-8142-4538-8833-D0E799987CE9"
+         }
+        }
+       }
+      }
+     },
+     "0302A055-8176-44F0-9862-4D7820C2A917",
+     {
+      "id": "0302A055-8176-44F0-9862-4D7820C2A917",
+      "parentID": null,
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "464DAA0F-88C6-4943-972F-4A142F5FEB8E"
+         }
+        }
+       }
+      }
+     },
+     "021B7481-DEAF-4138-9A18-C9B5036F13E0",
+     {
+      "id": "021B7481-DEAF-4138-9A18-C9B5036F13E0",
+      "parentID": "51C9BFC2-6FB4-48F4-947F-8DDB4819FF1D",
+      "childrenIds": [
+       "700BBDAB-40EE-4176-9EFC-1178B6240E86",
+       "D5A3978D-F7EE-4C3E-ACA4-77C9EFC153A0"
+      ],
+      "title": null,
+      "data": {
+       "splitView": {
+        "layoutOrientation": "horizontal",
+        "itemWidthFactors": [
+         "700BBDAB-40EE-4176-9EFC-1178B6240E86",
+         0.5
+        ]
+       }
+      }
+     },
+     "8DF69BCC-ED05-45BE-BF0A-EED0ED99386E",
+     {
+      "id": "8DF69BCC-ED05-45BE-BF0A-EED0ED99386E",
+      "parentID": "F72BDC65-5B1C-4D82-9644-D06D179C0FD6",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://www.wikipedia.org/",
+        "savedTitle": "Wikipedia"
+       }
+      }
+     },
+     "74E3615B-D207-4655-B2E0-4180288791BC",
+     {
+      "id": "74E3615B-D207-4655-B2E0-4180288791BC",
+      "parentID": "BBD6595F-E4EF-4D2E-91A2-187F443D5B58",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://www.wiktionary.org/",
+        "savedTitle": "Wiktionary"
+       }
+      }
+     },
+     "51C9BFC2-6FB4-48F4-947F-8DDB4819FF1D",
+     {
+      "id": "51C9BFC2-6FB4-48F4-947F-8DDB4819FF1D",
+      "parentID": "525E71C7-F557-4927-A418-43B9FEBC6E36",
+      "childrenIds": [
+       "021B7481-DEAF-4138-9A18-C9B5036F13E0",
+       "0EAACB2C-BA99-4183-9CC7-8D999D96D3F9"
+      ],
+      "title": "Parent Folder",
+      "data": {
+       "list": {}
+      }
+     },
+     "F28F99B3-DA38-409F-AC0B-1D928D18C741",
+     {
+      "id": "F28F99B3-DA38-409F-AC0B-1D928D18C741",
+      "parentID": "54309A9C-B579-4880-B6A1-6CDE9D8F9163",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://en.wikipedia.org/wiki/Cat",
+        "savedTitle": "Cat - Wikipedia"
+       }
+      }
+     },
+     "8DE2D7C1-4742-495F-822D-4A9579E95FA7",
+     {
+      "id": "8DE2D7C1-4742-495F-822D-4A9579E95FA7",
+      "parentID": "11957EC0-40AD-4625-A0C3-AEAC3C9456D0",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://www.engadget.com/",
+        "savedTitle": "Engadget | Technology News & Expert Reviews"
+       }
+      }
+     },
+     "700BBDAB-40EE-4176-9EFC-1178B6240E86",
+     {
+      "id": "700BBDAB-40EE-4176-9EFC-1178B6240E86",
+      "parentID": "021B7481-DEAF-4138-9A18-C9B5036F13E0",
+      "childrenIds": [],
+      "title": null,
+      "data": {
+       "tab": {
+        "savedURL": "https://www.theverge.com/",
+        "savedTitle": "The Verge"
+       }
+      }
+     },
+     "E0E0E0E0-0000-4000-8000-000000000001",
+     {
+      "id": "E0E0E0E0-0000-4000-8000-000000000001",
+      "parentID": "670C1109-CFB1-41E4-917B-E4E41FAF417F",
+      "childrenIds": [],
+      "title": "Trip Board",
+      "data": {
+       "easel": {
+        "easelID": "x"
+       }
+      }
+     }
+    ],
+    "topAppsContainerIDs": [
+     {
+      "custom": {
+       "_0": {
+        "directoryBasename": "Profile 6"
+       }
+      }
+     },
+     "F72BDC65-5B1C-4D82-9644-D06D179C0FD6",
+     {
+      "default": true
+     },
+     "BBD6595F-E4EF-4D2E-91A2-187F443D5B58"
+    ]
+   }
+  ]
+ }
+}

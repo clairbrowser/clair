@@ -140,6 +140,11 @@
 @synthesize warnsBeforeQuitting = _warnsBeforeQuitting;
 - (void)quitWithoutWarning {
 }
+- (void)applyImportPlan:(NSData*)plan
+               progress:(void (^)(double, NSString*))progress
+             completion:(void (^)(NSData*))completion {
+  completion([NSData data]);
+}
 @end
 
 // A rule as ClairUI hands it over (add-link-rules design D4).

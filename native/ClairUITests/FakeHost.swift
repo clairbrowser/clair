@@ -127,6 +127,46 @@ final class FakeHost: NSObject, ClairHost {
     quitCount += 1
   }
 
+  // MARK: ClairHost: Import (add-browser-import design D3)
+
+  /// Every plan ClairUI sent, decoded, in order.
+  private(set) var importPlans: [ImportPlan] = []
+  /// The summary each import replies with.
+  var importSummary = ImportSummary()
+  /// The progress each import reports before it completes.
+  var importProgress: [(fraction: Double, phase: String)] = [(0.5, "sidebar"), (1, "extensions")]
+  /// Whether an import completes at once; otherwise `finishImport()` does.
+  var importsAtOnce = true
+  private var pendingImport: (() -> Void)?
+
+  func applyImportPlan(
+    _ plan: Data, progress: @escaping (Double, String) -> Void, completion: @escaping (Data) -> Void
+  ) {
+    if let decoded = try? JSONDecoder().decode(ImportPlan.self, from: plan) {
+      importPlans.append(decoded)
+    }
+    let summary = (try? JSONEncoder().encode(importSummary)) ?? Data()
+    let steps = importProgress
+    let finish = {
+      for step in steps {
+        progress(step.fraction, step.phase)
+      }
+      completion(summary)
+    }
+    if importsAtOnce {
+      finish()
+    } else {
+      pendingImport = finish
+    }
+  }
+
+  /// Completes the import waiting, when `importsAtOnce` is off.
+  func finishImport() {
+    let finish = pendingImport
+    pendingImport = nil
+    finish?()
+  }
+
   func updateWillInstallOnQuit() {
     updateWillInstallOnQuitCount += 1
   }

@@ -1,0 +1,22 @@
+{
+ "extensions": {
+  "settings": {
+   "eimadpbcbfnmbkopoojfekhnkhdbieeh": {
+    "location": 1,
+    "from_webstore": true,
+    "disable_reasons": [],
+    "manifest": {
+     "name": "Dark Reader",
+     "manifest_version": 3
+    }
+   },
+   "ldciclpbkaobfbicjebamaapbfplfjen": {
+    "location": 5,
+    "from_webstore": false,
+    "manifest": {
+     "name": "Arc Internal Extension"
+    }
+   }
+  }
+ }
+}

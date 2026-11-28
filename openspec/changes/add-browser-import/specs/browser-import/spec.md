@@ -7,7 +7,7 @@ Brings a user's Spaces, favorites, pinned and Today tabs, bookmarks, history and
 ## ADDED Requirements
 
 ### Requirement: Import menu item
-The Clair menu SHALL offer "Import from Another Browser…" after Set as Default Browser. Choosing it SHALL open the import dialog (`dialogs`) on the frontmost browser window, or on a new window when none is open. While the dialog shows on one window, choosing the item again SHALL bring that window forward rather than open a second dialog.
+The Clair menu SHALL offer "Import from Another Browser…" after Clear Browsing Data…, where Chromium's "Import Bookmarks and Settings…" stood. Choosing it SHALL open the import dialog (`dialogs`) on the frontmost browser window, or on a new window when none is open. While the dialog shows on one window, choosing the item again SHALL bring that window forward rather than open a second dialog.
 
 #### Scenario: Opening the dialog
 - **WHEN** the user chooses Clair › Import from Another Browser…

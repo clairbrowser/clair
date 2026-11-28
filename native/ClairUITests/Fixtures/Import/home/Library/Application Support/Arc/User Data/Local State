@@ -1,0 +1,16 @@
+{
+ "profile": {
+  "info_cache": {
+   "Default": {
+    "name": "Your Arc"
+   },
+   "Profile 6": {
+    "name": "Work"
+   }
+  },
+  "profiles_order": [
+   "Default",
+   "Profile 6"
+  ]
+ }
+}

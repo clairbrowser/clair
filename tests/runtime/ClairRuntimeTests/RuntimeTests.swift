@@ -28,12 +28,13 @@ class RuntimeTestCase: XCTestCase {
 
   func startBrowser(
     defaultDataDirectory: Bool = false, feed: String? = nil, idleSeconds: Int = 3600,
-    arguments: [String] = [], searchSuggestions: Bool = false
+    arguments: [String] = [], searchSuggestions: Bool = false, environment: [String: String] = [:]
   ) async throws -> Browser {
     let browser = try Browser(defaultDataDirectory: defaultDataDirectory)
     self.browser = browser
     try await browser.start(
-      feed: feed, idleSeconds: idleSeconds, arguments: arguments, searchSuggestions: searchSuggestions)
+      feed: feed, idleSeconds: idleSeconds, arguments: arguments, searchSuggestions: searchSuggestions,
+      environment: environment)
     return browser
   }
 

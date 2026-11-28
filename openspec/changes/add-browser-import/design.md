@@ -81,6 +81,7 @@ Presence: Arc when `StorableSidebar.json` exists, Dia when its `Local State` lis
 
 ```
 { "version": 1, "source": "arc", "sourceName": "Arc",
+  "folder": "<the import's private folder>" | null,
   "profiles": [ {
       "sourceKey": "Profile 6", "sourceName": "Work",
       "destination": { "profile": "<Clair profile ID>" } | { "newProfile": "Work" },
@@ -91,14 +92,15 @@ Presence: Arc when `StorableSidebar.json` exists, Dia when its `Local State` lis
       "history": { "chromiumDB": "<temp path>" } | { "safariJSON": "<temp path>" } | null,
       "favicons": { "chromiumDB": "<temp path>" } | null,
       "session": { "chromiumSessions": "<temp folder>", "space": "Person 1" } | null,
-      "extensions": [ { "id", "name", "enabled", "pinned" } ] } ] }
+      "extensions": [ { "id", "name", "enabled", "pinned", "manifest" } ],
+      "skipped": [ { "reason", "name" } ] } ] }
 
 <item> = { "tab": { "url", "title", "name"? } }
        | { "split": { "panes": [<tab>, <tab>], "ratio": 0.5 } }
        | { "folder": { "name", "children": [<item>] } }
 ```
 
-Bookmarks travel in the plan (small); history and favicons travel as paths to private copies (D7), since they can hold hundreds of thousands of rows. Splits of three or more panes become tabs in the plan, stacked splits plain splits, and nested folders top-level folders named with their path (`Parent / Child`, after their parent; a folder holding only folders dropped), in one shared pass over every reader's tree, so the engine sees only what Clair can show (`browser-import`, "Splits from an import"). A split's `ratio` is the leading pane's share: Arc's first `itemWidthFactors` share, Dia's first `split_view_widths` entry normalised to the sum.
+`folder` names the private folder (D10), which the engine removes when the import ends; `manifest` is the installed version's manifest as JSON text (D8 step 8); `skipped` lists what the reader left out, which the summary lists before the engine's own skips. Bookmarks travel in the plan (small); history and favicons travel as paths to private copies (D7), since they can hold hundreds of thousands of rows. Splits of three or more panes become tabs in the plan, stacked splits plain splits, and nested folders top-level folders named with their path (`Parent / Child`, after their parent; a folder holding only folders dropped), in one shared pass over every reader's tree, so the engine sees only what Clair can show (`browser-import`, "Splits from an import"). A split's `ratio` is the leading pane's share: Arc's first `itemWidthFactors` share, Dia's first `split_view_widths` entry normalised to the sum.
 
 The contract gains one method on `ClairHost`, with progress (a fraction and a phase name) and a completion carrying the summary as JSON (counts per item kind, and skips with a reason code and the item's name or URL). The fake host in `ClairUITests` records the plan, which is where most unit tests assert.
 
@@ -131,7 +133,7 @@ The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private fo
 ### D7. Chromium-family profile data
 
 - **Bookmarks:** `Bookmarks` (and `AccountBookmarks` when present) parse as Chromium's JSON in Swift into one list: the bar's children, then the other bookmarks' and the mobile bookmarks' children, as Clair's own bar drain orders them (`clair_bookmark_bar_drain`).
-- **History and favicons:** the source has quit before Import (D14), so its databases are at rest. Each is still copied with its `-wal` and `-journal` into the import's private folder, so nothing reads or locks the source's own files, and the engine opens the copy read-only with `sql::Database`. The engine runs SQLite's `quick_check` on each copy first, as `ClairUI` does on Dia's decrypted database; a copy that fails it is skipped and reported in the summary, never read in part.
+- **History and favicons:** the source has quit before Import (D14), so its databases are at rest. Each is still copied with its `-wal` and `-journal` into the import's private folder, so nothing reads or locks the source's own files, and the engine opens the copy with `sql::Database`. It opens it read-write, not read-only: the copy is private and thrown away, and SQLite can roll back a hot journal or fold in a log only with write access. The engine runs SQLite's `quick_check` on each copy first, as `ClairUI` does on Dia's decrypted database; a copy that fails it is skipped and reported in the summary, never read in part.
 - **Extensions:** the union of `extensions.settings` in `Preferences` and `Secure Preferences`. Kept: `location` 1 (internal) with `from_webstore` true, whose manifest isn't a theme or an app; turned on unless `disable_reasons` holds a reason other than Chrome's unsupported-manifest-version one; pinned when in `extensions.pinned_extensions`. Others are listed as skipped in the plan.
 
 ### D8. The engine writes the plan
@@ -141,17 +143,17 @@ The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private fo
 1. **Profiles:** each `newProfile` is created as `ClairHost`'s Create Profile is, with " 2", " 3" added until the name is free.
 2. **Spaces:** a Space named like one in the destination profile receives the import; others are created after the existing ones.
 3. **Pins, folders, pinned splits and favorites:** through `ClairPinStore`, at the end of their section, folders closed. Each pin's icon comes from the source's favicons for its URL.
-4. **Today tabs:** created in the Space's window group like session restore's background tabs, with their navigation entry set and their page not loaded until selected, below the existing Today tabs; splits through the split code with their ratio.
+4. **Today tabs:** created in the Space's window group like session restore's background tabs, with their navigation entry set and their page not loaded until selected, below the existing Today tabs; splits through the split code with their ratio. A new profile's window, which the group makes hidden to hold them, has no tab yet, so the first one it gets becomes its selected tab and loads, with its split's other pane, as session restore loads each window's selected tab; the rest wait.
 5. **Bookmarks:** through `BookmarkModel`, appended to Other Bookmarks as they are, never into the Bookmarks Bar, so the Heads Up dialog doesn't show. A folder named like one at the same place merges into it.
 6. **History:** read from the copy's `urls` table (or Safari's JSON) in batches, written with `ProfileWriter::AddHistoryPage` (`HistoryService::AddPagesWithDetails`), which keeps title, visit count and typed count and adds one visit at the last visit time.
 7. **Favicons:** for the imported URLs, from the copy's `favicons` and `icon_mapping`, with `ProfileWriter::AddFavicons`.
-8. **Extensions:** a `WebstoreStandaloneInstaller` subclass with no install prompt and no post-install UI fetches each ID from the Chrome Web Store, as Clair's restored store does; once installed, its enabled state and pin are set. The summary waits for them, each install counting in the progress.
+8. **Extensions:** `WebstoreInstaller`, as Clair's restored store uses it, downloads each ID from the Chrome Web Store, with an `InstallApproval::CreateWithNoInstallPrompt` built from the manifest of the version the user installed in the source and a loose manifest check, and no post-install UI: no prompt shows, and the install fails, reported as one the store couldn't provide, if the store's version asks for more permissions than that one. Once installed, its enabled state and pin are set. The summary waits for them, each install counting in the progress. `WebstoreStandaloneInstaller` isn't used: its first step fetches the item's snippet with Google's API key, which ungoogled-chromium builds don't have.
 
 **Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder, after same-named folders merge. A history page is skipped when the destination's history already has a visit to its URL at or after the source's last visit, looked up in its visits (not the page's `last_visit`, which `AddPagesWithDetails` doesn't update for an existing page) on the history thread before each batch is written; otherwise `AddPagesWithDetails` adds the source's last visit as a visit to the existing page, so a newer visit is never lost and a repeated one never doubled. Clair stores nothing about past imports: repeat imports rely on these comparisons alone.
 
 ### D9. The flow and the dialog
 
-`ImportFlow` is an observable state machine (choose source → items, destinations and the source's requirement → importing → summary) that knows nothing of the window. `ImportDialog` presents it in a `ClairDialog` with the new stepped layout (`dialogs`, "Stepped dialogs"): Cancel at the leading corner, Back and the default button at the trailing one, the card's width fixed across steps. The onboarding dialog will host the same flow and step views in its own frame. The Clair menu item is added by `ClairUI` after Set as Default Browser and shows the dialog on the frontmost window through the existing dialog queue.
+`ImportFlow` is an observable state machine (choose source → items, destinations and the source's requirement → importing → summary) that knows nothing of the window. `ImportDialog` presents it in a `ClairDialog` with the new stepped layout (`dialogs`, "Stepped dialogs"): Cancel at the leading corner, Back and the default button at the trailing one, the card's width fixed across steps. The onboarding dialog will host the same flow and step views in its own frame. The Clair menu item is added by `ClairUI` where Chromium's "Import Bookmarks and Settings…" stood, after Clear Browsing Data…, and shows the dialog on the frontmost window through the existing dialog queue. With no window open, it sends Chromium's New Window command and shows the dialog on the window that opens. (The Clair menu has no Set as Default Browser item, which the proposal's placement assumed; Settings › General has the default browser setting.)
 
 Step 1's cards are a two-column grid of rounded, bordered cards with the app icon at 40 points, the name in the system font and a trailing radio, the selected card's border in the accent colour. Clair's own type and spacing are used throughout; Dia's serif title, full-width black button and painted artwork are not.
 
@@ -190,6 +192,8 @@ Copying a database while its browser writes it can tear the copy, and Chromium h
 - [Installing extensions without a prompt grants their permissions silently] → Only Chrome Web Store extensions the user already installed in the source, into the profile the user chose; the summary lists them.
 - [A source the user reopens during the import could write while Clair copies] → The copies are checked with `quick_check` and skipped with a note when torn (D7).
 - [Large histories take time] → Batched writes with progress; the dialog shows the phase.
+- [Chrome stops writing clear session files] → Chrome's `EncryptSessionStorage` feature now writes both `Sessions` and `Sessions_Encrypted` and reads the clear one; a later stage writes only the encrypted one, whose key is "Chrome Safe Storage". Then Chrome's tabs couldn't be read without that keychain item, and the summary would say Chrome's tabs couldn't be read; bookmarks, history and extensions still import.
+- [History older than 90 days] → `AddPagesWithDetails` drops visits history would expire; the import counts only the pages it writes.
 - [Imported Today tabs could be many] → They're created unloaded.
 
 ## Migration Plan
@@ -198,5 +202,5 @@ None: nothing existing is converted, and Chromium's importer stays in Settings.
 
 ## Open Questions
 
-- Which `history::VisitSource` Arc's and Dia's visits use: Chromium has `SOURCE_SAFARI_IMPORTED` for Safari but no generic imported source; the choice depends on which sources History and the command bar treat like browsed visits, checked during implementation.
+- ~~Which `history::VisitSource` Arc's and Dia's visits use.~~ Decided: History, its page and the command bar's providers treat every source alike but `SOURCE_ACTOR` (only `GetUniqueDomainsVisited`'s locally-visited list counts `SOURCE_BROWSED` alone), so Safari's visits are `SOURCE_SAFARI_IMPORTED` and Arc's, Dia's and Chrome's `SOURCE_OS_MIGRATION_IMPORTED`, the generic source Chromium's own `StablePortabilityDataImporter` uses for another browser's history.
 - Whether a Safari export with several Safari profiles holds one profile per file, and so whether a .zip ever needs more than one row.

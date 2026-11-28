@@ -170,7 +170,7 @@ final class Browser {
   /// Google (restore-google-search, task 3.1).
   func start(
     feed: String? = nil, idleSeconds: Int = 3600, arguments: [String] = [],
-    searchSuggestions: Bool = false
+    searchSuggestions: Bool = false, environment: [String: String] = [:]
   ) async throws {
     if !searchSuggestions, !FileManager.default.fileExists(atPath: preferencesFile.path) {
       try FileManager.default.createDirectory(
@@ -182,6 +182,9 @@ final class Browser {
     ui.launchEnvironment["CLAIR_TEST_UPDATE_IDLE_SECONDS"] = String(idleSeconds)
     if let feed {
       ui.launchEnvironment["CLAIR_TEST_FEED_URL"] = feed
+    }
+    for (name, value) in environment {
+      ui.launchEnvironment[name] = value
     }
     ui.launch()
     let answered = await Harness.wait(for: 120) {

@@ -1,0 +1,32 @@
+{
+ "roots": {
+  "bookmark_bar": {
+   "type": "folder",
+   "name": "Bookmarks bar",
+   "children": [
+    {
+     "type": "url",
+     "name": "Google",
+     "url": "https://www.google.com/"
+    }
+   ]
+  },
+  "other": {
+   "type": "folder",
+   "name": "Other bookmarks",
+   "children": [
+    {
+     "type": "url",
+     "name": "Docs",
+     "url": "https://docs.example/"
+    }
+   ]
+  },
+  "synced": {
+   "type": "folder",
+   "name": "Mobile bookmarks",
+   "children": []
+  }
+ },
+ "version": 1
+}

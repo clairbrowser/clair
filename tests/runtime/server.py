@@ -7,6 +7,8 @@ their updates, plus a download that stays in progress until it's told to finish.
     GET /slow-download         sends a chunk at a time until /slow-download/finish
     GET /slow-download/finish  lets every slow download end
     GET /download/clair.txt    a small text file, as a download
+    GET /hits?<text>           how many requests so far had <text> in their path,
+                               as plain text, so a test can tell a page loaded
 
 A .crx file is served as an extension, which Clair offers to install when it
 runs with --extension-mime-request-handling=always-prompt-for-install.
@@ -16,8 +18,12 @@ import http.server
 import sys
 import threading
 import time
+import urllib.parse
 
 finished = threading.Event()
+# Every request's path, for /hits.
+requested = []
+requested_lock = threading.Lock()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -28,6 +34,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     }
 
     def do_GET(self):
+        if self.path.startswith("/hits?"):
+            self.send_hits(urllib.parse.unquote(self.path[len("/hits?"):]))
+            return
+        with requested_lock:
+            requested.append(self.path)
         if self.path == "/slow-download/finish":
             finished.set()
             self.respond_empty()
@@ -37,6 +48,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_text_download()
         else:
             super().do_GET()
+
+    def send_hits(self, text):
+        with requested_lock:
+            count = sum(1 for path in requested if text in path)
+        body = str(count).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def respond_empty(self):
         self.send_response(204)

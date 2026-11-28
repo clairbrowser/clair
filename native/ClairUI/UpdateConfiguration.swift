@@ -11,7 +11,7 @@ import Foundation
 struct UpdateConfiguration: Equatable {
   /// The Info.plist key package.sh sets on packages it signs ad hoc. Release
   /// packages don't have it, and adding it would break their signature.
-  static let nonOfficialPackageKey = "ClairNonOfficialPackage"
+  nonisolated static let nonOfficialPackageKey = "ClairNonOfficialPackage"
   static let feedURLOverrideVariable = "CLAIR_TEST_FEED_URL"
   static let idleThresholdOverrideVariable = "CLAIR_TEST_UPDATE_IDLE_SECONDS"
 
