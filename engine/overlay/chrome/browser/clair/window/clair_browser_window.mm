@@ -90,6 +90,7 @@
 #include "components/zoom/zoom_controller.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/common/referrer.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/visibility.h"
@@ -115,6 +116,19 @@ ClairTakeOptions& ClairTakeOptions::operator=(ClairTakeOptions&&) = default;
 ClairTakeOptions::~ClairTakeOptions() = default;
 
 namespace {
+
+// A page the launch was asked to open, as a link from another app or a URL on
+// the command line: Chromium adds it as a top-level navigation of its own
+// (SessionRestoreImpl::AppendURLsToBrowser, StartupBrowserCreatorImpl), never
+// restored, and not the new tab page a launch opens.
+bool IsLaunchPage(content::WebContents* contents) {
+  const content::NavigationEntry* entry =
+      contents->GetController().GetVisibleEntry();
+  return entry && !entry->IsRestored() &&
+         ui::PageTransitionCoreTypeIs(entry->GetTransitionType(),
+                                      ui::PAGE_TRANSITION_AUTO_TOPLEVEL) &&
+         !clair::IsNewTabPageURL(contents->GetVisibleURL());
+}
 
 // The browsers shown in native windows.
 std::map<const BrowserWindowInterface*, ClairBrowserWindow*>& NativeWindows() {
@@ -1960,6 +1974,11 @@ void ClairBrowserWindow::ShowRestoredSpace(const std::string& space) {
     return;
   }
   tabs::TabInterface* active = browser_->tab_strip_model()->GetActiveTab();
+  // A page the launch opens shows in its Space, in place of the tab the
+  // window showed.
+  if (ShowLaunchPage(space)) {
+    return;
+  }
   // D6: a selected new tab page isn't restored; the tab selected in its
   // place says so.
   const bool new_tab_was_selected =
@@ -1997,7 +2016,22 @@ void ClairBrowserWindow::ShowSpaceOnNewTab(const std::string& space,
   OpenInShownSpace(url);
 }
 
+bool ClairBrowserWindow::ShowLaunchPage(const std::string& space) {
+  tabs::TabInterface* active = browser_->tab_strip_model()->GetActiveTab();
+  if (!active || !space_tabs_ || !space_tabs_->is_regular() ||
+      !IsLaunchPage(active->GetContents())) {
+    return false;
+  }
+  const std::string own = space_tabs_->IntendedSpaceOf(active);
+  SetShownSpace(own.empty() ? space : own);
+  return true;
+}
+
 bool ClairBrowserWindow::ShowSpaceOnLaunchNewTab(const std::string& space) {
+  // A page the launch opens shows, as in Arc, with no new tab page.
+  if (ShowLaunchPage(space)) {
+    return false;
+  }
   // With every tab of the session dropped or none to restore, Chromium opens
   // a window on a new tab page (SessionRestoreImpl::FinishedTabCreation),
   // which joined the Space the window shows. Restored tabs are never on one
