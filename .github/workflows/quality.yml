@@ -158,10 +158,14 @@ jobs:
           python-version: "3.13"
           update-environment: false
 
+      # Only the group with the update tests packages the update.
       - name: Package the app and build the tests
         env:
           DMGBUILD_PYTHON: ${{ steps.python.outputs.python-path }}
-        run: ./tests/runtime/run.sh prepare "$ENGINE_ZIP" "$RUNNER_TEMP/engine/engine.json" "$RUNNER_TEMP/runtime"
+          TESTS: ${{ matrix.tests }}
+        run: |
+          read -r -a tests <<<"$TESTS"
+          ./tests/runtime/run.sh prepare "$ENGINE_ZIP" "$RUNNER_TEMP/engine/engine.json" "$RUNNER_TEMP/runtime" "${tests[@]}"
 
       # The package is the same in every job, so one checks it.
       - name: Verify the app (no signing checks)

@@ -12,13 +12,15 @@
 //   ctrldown, ctrlup     press or release Control
 //   shiftdown, shiftup   press or release Shift
 //   tab, esc             press and release Tab or Esc, with what's held
+//   escdown, escup       press or release Esc, to hold it across steps, such
+//                        as escdown sleep:2 escup for a press and hold
 //   sleep:<seconds>      wait, such as sleep:0.5
 //   shot:<png>:<x,y,w,h> capture a screen rectangle in points to <png>
 //
 // For example: keys ctrldown tab sleep:0.5 shot:build/probe/s.png:0,0,963,1006 ctrlup
 //
 // A step that holds a key and no step that lets it go leaves it held: the
-// tool releases Control and Shift at the end. Like `drag` and `mouse`, the
+// tool releases Control, Shift and Esc at the end. Like `drag` and `mouse`, the
 // shell needs permission to post events (Privacy & Security > Accessibility).
 // Bring the app forward first (`probe.sh send activate`): the keys go to
 // whatever app is active.
@@ -38,7 +40,7 @@ func fail(_ message: String, status: Int32 = 2) -> Never {
 
 let steps = Array(CommandLine.arguments.dropFirst())
 guard !steps.isEmpty else {
-  fail("usage: keys ctrldown|ctrlup|shiftdown|shiftup|tab|esc|sleep:<s>|shot:<png>:<x,y,w,h>...")
+  fail("usage: keys ctrldown|ctrlup|shiftdown|shiftup|tab|esc|escdown|escup|sleep:<s>|shot:<png>:<x,y,w,h>...")
 }
 guard CGPreflightPostEventAccess() else {
   fail("this shell may not post events (Privacy & Security > Accessibility)", status: 1)
@@ -47,7 +49,7 @@ guard CGPreflightPostEventAccess() else {
 // Every step is checked before any key goes, so a wrong one leaves nothing
 // held.
 func isValid(_ step: String) -> Bool {
-  if ["ctrldown", "ctrlup", "shiftdown", "shiftup", "tab", "esc"].contains(step) { return true }
+  if ["ctrldown", "ctrlup", "shiftdown", "shiftup", "tab", "esc", "escdown", "escup"].contains(step) { return true }
   if step.hasPrefix("sleep:") { return Double(step.dropFirst("sleep:".count)).map { $0 >= 0 } ?? false }
   if step.hasPrefix("shot:") {
     let parts = step.dropFirst("shot:".count).split(separator: ":", maxSplits: 1)
@@ -60,6 +62,7 @@ if let wrong = steps.first(where: { !isValid($0) }) {
 }
 
 var held: CGEventFlags = []
+var escapeHeld = false
 let source = CGEventSource(stateID: .hidSystemState)
 
 func post(_ key: CGKeyCode, down: Bool) {
@@ -76,6 +79,7 @@ func modifier(_ key: CGKeyCode, _ flag: CGEventFlags, down: Bool) {
 
 /// Lets go of what's held, so a failure leaves no key down.
 func releaseHeld() {
+  if escapeHeld { holdEscape(false) }
   if held.contains(.maskShift) { modifier(shiftKey, .maskShift, down: false) }
   if held.contains(.maskControl) { modifier(controlKey, .maskControl, down: false) }
 }
@@ -83,6 +87,11 @@ func releaseHeld() {
 func releaseAndFail(_ message: String) -> Never {
   releaseHeld()
   fail(message, status: 1)
+}
+
+func holdEscape(_ down: Bool) {
+  escapeHeld = down
+  post(escapeKey, down: down)
 }
 
 func press(_ key: CGKeyCode) {
@@ -122,6 +131,8 @@ for step in steps {
   case "shiftup": modifier(shiftKey, .maskShift, down: false)
   case "tab": press(tabKey)
   case "esc": press(escapeKey)
+  case "escdown": holdEscape(true)
+  case "escup": holdEscape(false)
   default:
     if step.hasPrefix("sleep:"), let seconds = Double(step.dropFirst("sleep:".count)), seconds >= 0 {
       usleep(useconds_t(seconds * 1_000_000))

@@ -96,6 +96,7 @@ Coordinates are in points from the top-left corner of the app's main window
 | `type <text>` | type text |
 | `paste <text>` | put text on the pasteboard and press Cmd+V, for emoji, which `type` doesn't type reliably |
 | `tree` | the accessibility tree, with identifiers, labels and frames |
+| `element <identifier>` | the first such element's label, value and title in full, which `tree` shortens |
 | `frame` | the main window's frame |
 | `sleep <s>` | wait |
 | `menu <title>` | click a menu item; with several of that title, the one in the open menu |
@@ -118,8 +119,9 @@ build/probe/bin/measure track build/probe/rec/peek/frames white 0 0 2400 2012 80
   use (or by `tools/build.sh`); each describes its arguments at the top:
   `windows` (window IDs and frames, by app name or process ID), `drag` (a drag
   with real mouse events, in screen points), `mouse` (a real pointer move, double-click or
-  click, in screen points), `keys` (real key events with Ctrl and Shift held
-  across steps, and screenshots between them), `cdp` (DevTools
+  click, in screen points), `keys` (real key events with Ctrl, Shift or Esc held
+  across steps, as for holding Esc to leave full screen, and screenshots
+  between them), `cdp` (DevTools
   protocol commands for the test copy), `frames` (a movie's frames), `sheet` (a
   labelled contact sheet), `crop` (a pixel rectangle; `sips --cropOffset`
   centres instead), and `measure`:

@@ -80,15 +80,16 @@ struct StatusCapsuleTests {
   }
 }
 
-/// Keys in the popup's text (design D18).
+/// Keys in the popup's text (design D18), labelled "esc" as Arc labels them
+/// (arc-popup-notices D2).
 struct NoticeTextTests {
   @Test func markedKeyIsKept() {
-    #expect(NoticePopupView.markingKeys(in: "To exit full screen, press |Esc|") == "To exit full screen, press |Esc|")
+    #expect(NoticePopupView.markingKeys(in: "To exit full screen, press |esc|") == "To exit full screen, press |esc|")
   }
 
-  @Test func bareEscBecomesAKey() {
-    #expect(NoticePopupView.markingKeys(in: "To exit full screen, press Esc") == "To exit full screen, press |Esc|")
-    #expect(NoticePopupView.markingKeys(in: "Press and hold Esc to exit") == "Press and hold |Esc| to exit")
+  @Test func bareEscBecomesAnEscKey() {
+    #expect(NoticePopupView.markingKeys(in: "To exit full screen, press Esc") == "To exit full screen, press |esc|")
+    #expect(NoticePopupView.markingKeys(in: "Press and hold Esc to exit") == "Press and hold |esc| to exit")
   }
 
   @Test func wordsContainingEscAreLeftAlone() {

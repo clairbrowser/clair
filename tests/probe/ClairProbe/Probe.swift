@@ -116,6 +116,13 @@ final class Probe: XCTestCase {
       app.typeKey("v", modifierFlags: .command)
     case "tree":
       return app.debugDescription + "\n"
+    case "element":
+      // The tree shortens values; this prints one element's in full, as a
+      // runtime test reads them.
+      guard !rest.isEmpty else { throw ProbeError.usage("element <identifier>") }
+      let element = app.descendants(matching: .any).matching(identifier: rest).firstMatch
+      guard element.exists else { return "none\n" }
+      return "label: \(element.label)\nvalue: \(element.value.map { "\($0)" } ?? "nil")\ntitle: \(element.title)\n"
     case "frame":
       return "\(window.frame)\n"
     case "sleep":

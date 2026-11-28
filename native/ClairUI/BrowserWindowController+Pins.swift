@@ -189,8 +189,7 @@ extension BrowserWindowController {
     model.spaces.movePin(pinID, toSpace: spaceID, at: Int.max)
     if !isActive {
       model.notice.show(
-        Notice(text: SpacesLogic.movedNotice(space.name), identifier: Self.movedNoticeID),
-        for: NoticeState.copiedDuration)
+        Notice(text: SpacesLogic.movedNotice(space.name), identifier: Self.movedNoticeID))
     }
   }
 
@@ -342,8 +341,7 @@ extension BrowserWindowController {
     model.spaces.moveFolder(folderID, toSpace: spaceID, at: Int.max)
     if !holdsActive {
       model.notice.show(
-        Notice(text: SpacesLogic.folderMovedNotice(space.name), identifier: Self.movedNoticeID),
-        for: NoticeState.copiedDuration)
+        Notice(text: SpacesLogic.folderMovedNotice(space.name), identifier: Self.movedNoticeID))
     }
   }
 

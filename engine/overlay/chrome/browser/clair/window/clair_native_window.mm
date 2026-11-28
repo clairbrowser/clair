@@ -651,6 +651,16 @@ static constexpr CGFloat kButtonsTopToTitlebarBottom = 23;
   [super toggleFullScreen:sender];
 }
 
+// arc-popup-notices D3: an Esc nothing else in the window used. In the
+// window's own full screen it counts towards Arc's double tap rather than
+// leaving full screen at once, as NSWindow does.
+- (void)cancelOperation:(id)sender {
+  if (_browserWindow && _browserWindow->CountEscapeTap(NSApp.currentEvent)) {
+    return;
+  }
+  [super cancelOperation:sender];
+}
+
 // Let CommandDispatcher recognize events it is redispatching.
 - (void)sendEvent:(NSEvent*)event {
   if ([_commandDispatcher preSendEvent:event]) {

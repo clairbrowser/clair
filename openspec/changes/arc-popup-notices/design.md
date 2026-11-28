@@ -9,19 +9,26 @@ See proposal.md for why and `specs/browser-window/spec.md` for the behavior.
 **What Chromium sends:**
 - A pointer lock: `POINTERLOCK_EXIT_INSTRUCTION` outside full screen ("To show your cursor, press |Esc|"), `FULLSCREEN_POINTERLOCK_EXIT_INSTRUCTION` in tab full screen, whose text is the full-screen one.
 - Window full screen: whenever the window enters it by any route, Clair's `WindowFullscreenChanged` calls `FullscreenController::WindowFullscreenStateChanged`, which calls `ExclusiveAccessManager::UpdateBubble(force_update)`, which sends `BROWSER_FULLSCREEN_EXIT_INSTRUCTION` (or the extension type). With `kPressAndHoldEscToExitBrowserFullscreen`, enabled by default, its text is "To exit full screen, press and hold |Esc|".
-- Esc: `ExclusiveAccessManager::HandleUserKeyEvent` starts a 1.5 s hold timer on an unmodified Esc key-down, re-shows the notice after 0.5 s of holding, and exits full screen when the timer fires; a key-up before then cancels it. In window full screen, no controller handles a quick Esc, so it returns false and the key goes on. Chromium calls it from the page's keyboard pre-handling; `ClairBrowserWindow::HandleExclusiveAccessKey`, called from the native window's `sendEvent:`, calls it only in page full screen.
+- Esc: with that feature, `ExclusiveAccessManager::HandleUserKeyEvent` starts a 1.5 s hold timer on an unmodified Esc key-down, re-shows the notice after 0.5 s of holding, and exits full screen when the timer fires; a key-up before then cancels it. In window full screen, no controller handles a quick Esc, so it returns false and the key goes on. Chromium calls it from the page's keyboard pre-handling (`BrowserWebContentsDelegate::PreHandleKeyboardEvent`, before `BrowserWindow::PreHandleKeyboardEvent`); `ClairBrowserWindow::HandleExclusiveAccessKey`, called from the native window's `sendEvent:`, calls it only in page full screen. An Esc that nothing in the window uses reaches `-[NSWindow cancelOperation:]`, which leaves macOS full screen on one tap; Chromium gives a page's unhandled Esc back to the window, so it gets there too.
 - Zoom: `ClairBrowserWindow::ZoomChanged(can_show_bubble)` shows `IDS_TOOLTIP_ZOOM` ("Zoom: 110%") through `ShowToast`.
 
-Arc wasn't probed for this change; the wording, placement and behavior come from the owner.
+**Arc's full screen, probed on 2026-11-27** with `tests/probe/` (real key events, the page's Esc events counted by `esc.html`):
+- Entering the window's full screen, by any route, shows "To exit full screen, press ⎋." for 3 to 5 s, the same text as a page's full screen, drawn over the toolbar at the window's top edge.
+- In the window's full screen, an Esc that reaches the page shows "[⎋] again to exit fullscreen" in the card's top-trailing corner, gone by 5 s, with an "Edit the shortcut ↗" link under it after about 2 s. The page still gets the Esc.
+- A second Esc leaves full screen only when its key-down comes about 0.23 s or less after the first's: 0.22 s left it, 0.24 s didn't. Holding Esc does nothing more.
+- An Esc that closes the command bar only closes it: no notice, and it doesn't count as the first tap.
+- A page's own full screen leaves on one Esc, whether the page locks the pointer or not.
+
+The rest of the wording and placement comes from the owner.
 
 ## Goals / Non-Goals
 
-**Goals:** Arc's notices in the popup, Chromium's exclusive-access bookkeeping unchanged, and Chromium's press-and-hold Esc for window full screen working from anywhere in the window.
+**Goals:** Arc's notices in the popup, Chromium's exclusive-access bookkeeping unchanged, and Arc's double tap of Esc to leave the window's full screen, from anywhere in the window.
 
 **Non-Goals:**
 - A cursor a page hides with CSS (`cursor: none`): Esc can't bring it back, and Chromium shows nothing for it.
-- Arc's two-step Esc for a page that is in full screen and locks the pointer (the first Esc unlocks, a second exits).
-- Changing the popup's look or place, or zoom controls in the popup.
+- Changing the popup's look or place, or zoom controls in the popup: the entering notice shows in the popup, not over the toolbar as in Arc, and its key is an "esc" key cap, not Arc's ⎋ glyph (D2).
+- Arc's "Edit the shortcut ↗" link under the "again" notice: Clair has no setting for the shortcut.
 - Chromium's full-screen exit "X" button, which belongs to its own window.
 
 ## Decisions
@@ -34,17 +41,21 @@ In `UpdateExclusiveAccessBubble`, a `POINTERLOCK_EXIT_INSTRUCTION` sends "Your c
 
 ### D2. Every notice's key reads "esc"
 
-Lowercase, as in Arc's wording and its tooltips ("Stop loading this page esc"). The engine passes `u"esc"`, not `u"Esc"`, as the accelerator, so every Chromium text it shows, full screen's and keyboard lock's press and hold, carries `|esc|`. `NoticePopupView.markingKeys`, which turns a bare "Esc" into a key for texts without markers, writes `|esc|` too.
+Lowercase, as Arc's tooltips label the key ("Stop loading this page esc"). Arc's full-screen notices draw a ⎋ glyph; the owner chose the "esc" key cap for every notice. The engine passes `u"esc"`, not `u"Esc"`, as the accelerator, so every Chromium text it shows, full screen's and keyboard lock's, carries `|esc|`. `NoticePopupView.markingKeys`, which turns a bare "Esc" into a key for texts without markers, writes `|esc|` too.
 
 **Alternative:** lowercase the label in `KeyCap`: it would also change the keys tooltips show, which follow the menus' glyphs.
 
-### D3. The window's full screen shows its notice
+### D3. The window's full screen: its notice and Arc's double tap
 
-`UpdateExclusiveAccessBubble` stops hiding the browser and extension full-screen types and shows them like the others, so every route into window full screen shows "To exit full screen, press and hold |esc|", the text following Chromium's feature. `HideNotice` on leaving full screen already covers them.
+`UpdateExclusiveAccessBubble` stops hiding the browser and extension full-screen types and shows them like the others, so every route into window full screen shows its notice. `HideNotice` on leaving full screen already covers them.
 
-Holding Esc must work wherever the focus is in the window, but the page's path already feeds Chromium. So in window full screen, `HandleExclusiveAccessKey` passes unmodified Esc key-downs, and every Esc key-up whatever modifiers are held, to `ExclusiveAccessManager::HandleUserKeyEvent` only when the window's first responder isn't the page's view, and always returns false there, so the key goes on to the command bar, find or the sidebar as before. A dialog sheet (`ClairDialogWindow`) is a window of its own, so its keys never pass through this hook, and its Esc cancels the dialog on key-down; holding Esc there doesn't leave full screen, and the spec says so. Chromium cancels the hold on any Esc key-up, so one released with Shift held still cancels it, and a quick Esc never leaves an exit pending. While a page is in full screen, it keeps today's behavior.
+A Clair patch, `clair/esc-double-tap.patch`, turns `kPressAndHoldEscToExitBrowserFullscreen` off by default in `chrome/browser/ui/ui_features.cc`. Chromium's text for those types is then "To exit full screen, press |esc|", Arc's, and its press-and-hold no longer runs, so holding Esc doesn't leave full screen.
 
-**Alternatives:** forward a sheet's Esc to the hold too (its key-down already cancels the dialog, so a hold would both cancel and exit); feed every Esc from `sendEvent:` (the page's would reach Chromium twice, and a second key-up after the timer was cancelled reaches the controllers as a press); a tap-to-exit Esc (the owner chose Chromium's hold, so a quick Esc still closes things).
+In the window's own full screen, with no page in full screen, `ClairExclusiveAccessContext` counts Esc taps as Arc does. An unmodified Esc key-down that isn't a repeat counts when it reaches the page, in `ClairBrowserWindow::PreHandleKeyboardEvent` (which returns not handled, so the page still gets it), or when nothing else in the window used it and it reaches `ClairNativeWindow`'s `cancelOperation:`. There it no longer leaves full screen on one tap: the window's `cancelOperation:` calls `super` only outside the window's own full screen. A page's Esc that Chromium gives back to the window unhandled reaches both; one with the same event timestamp as the last counted one counts once. An Esc that the command bar, find or a field in the sidebar takes never reaches either, so it does only what it did, as in Arc. A dialog sheet (`ClairDialogWindow`) is a window of its own, so its Esc never counts.
+
+The first tap shows "|esc| again to exit fullscreen", Arc's wording, through `showExclusiveAccessNotice:` (so the end of full screen hides it, D6) and keeps its time. A second tap whose key-down comes less than 0.23 s after the first's leaves full screen through `FullscreenController`, as `IDC_FULLSCREEN` does, which calls `ExclusiveAccessContext::ExitFullscreen`. That left only a full screen a page or Chromium itself had entered; with no page in full screen, it now leaves the window's own full screen however it was entered, the green button or AppKit's Ctrl+Cmd+F too. A later tap starts over. While a page is in full screen, one Esc leaves it, as before and as in Arc.
+
+**Alternatives:** Chromium's press-and-hold, which this change first built (the owner prefers Arc's taps: no holding and waiting); counting every Esc from `sendEvent:` (it would count the Esc that closes the command bar, which Arc doesn't); AppKit's single tap (a stray Esc for the page or the sidebar leaves full screen); a longer time between taps (Arc's is short so that two Escs meant for the page rarely exit).
 
 ### D4. The zoom level goes to the popup through the contract
 
@@ -74,8 +85,10 @@ So the engine only hides a notice early: when the mode ends (`HideNotice` with `
 
 ## Risks / Trade-offs
 
-- [Esc doesn't end a pointer lock in Clair's native window] → The runtime test reads `document.pointerLockElement` after Esc. If it fails, D3's routing also covers a pointer lock.
+- [Esc doesn't end a pointer lock in Clair's native window] → The runtime test reads `document.pointerLockElement` after Esc.
+- [XCUITest's keys are slow, and a hosted runner can't post key events] → The runtime test sends the two taps as one `typeText` of two Esc characters, which XCUITest types as fast as it can. If they come further apart than Arc's time, the test reports it.
+- [Two quick Escs meant for a page, such as a game, leave full screen] → As in Arc.
 - [The full-screen notice now shows on every entry, including a window restored in full screen at launch] → That is Arc's behavior as the owner describes it.
 - [Pointer lock needs a user gesture and the window's focus on the runner] → The test asks for the lock through the harness's `Runtime.evaluate`, which passes `userGesture: true`, after bringing the window forward.
-- [The popup's identifier for exclusive-access notices stays `clair.fullscreenNotice`] → Not shown to anyone; tests tell the notices apart by label.
+- [The popup's identifier for exclusive-access notices stays `clair.fullscreenNotice`] → Not shown to anyone; tests tell the notices apart by their text.
 - [The engine key and the contract change] → One engine build before merging, with `ClairUI` updated in the same PR.

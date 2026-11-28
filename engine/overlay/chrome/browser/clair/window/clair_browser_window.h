@@ -196,9 +196,17 @@ class ClairExclusiveAccessContext : public ExclusiveAccessContext {
   // is in. Returns whether the key was taken.
   bool DeferExitWhileEntering(NSEvent* event);
 
+  // An Esc key-down in the window's own full screen, as Arc counts them
+  // (arc-popup-notices D3): the first shows "esc again to exit fullscreen",
+  // a second soon after leaves full screen. Returns whether it counted, so
+  // the window doesn't leave full screen on it itself.
+  bool CountEscapeTap(NSEvent* event);
+
  private:
   void SetPageFullscreen(bool fullscreen);
   void HideNotice(ExclusiveAccessBubbleHideReason reason);
+  // Chromium's show time is up: its bubble would hide, the popup stays.
+  void NoticeTimedOut();
 
   const raw_ptr<ClairBrowserWindow> window_;
   bool page_fullscreen_ = false;
@@ -208,7 +216,12 @@ class ClairExclusiveAccessContext : public ExclusiveAccessContext {
   // Between asking the window for full screen and its getting there.
   bool entering_window_fullscreen_ = false;
   bool exit_when_entered_ = false;
+  // The last Esc tap's event timestamp, or 0.
+  NSTimeInterval last_escape_tap_ = 0;
+  // Whether Chromium's bubble would show, which it asks.
   bool notice_visible_ = false;
+  // Whether ClairUI may still show the notice, until the mode ends.
+  bool notice_in_popup_ = false;
   ExclusiveAccessBubbleHideCallback notice_hide_callback_;
   base::OneShotTimer notice_timer_;
 };
@@ -532,6 +545,10 @@ class ClairBrowserWindow : public BrowserWindow {
   // ends full screen whatever has the keyboard, as in Chromium's window.
   // Returns whether the event was used.
   bool HandleExclusiveAccessKey(NSEvent* event);
+  // An Esc nothing in the window used, from cancelOperation:. In the
+  // window's own full screen it counts towards the double tap that leaves it
+  // (arc-popup-notices D3); returns whether it did.
+  bool CountEscapeTap(NSEvent* event);
   void WindowFullscreenChanged(bool entered);
   // The close button: Chromium's close flow, which may keep the window open.
   void WindowCloseRequested();
