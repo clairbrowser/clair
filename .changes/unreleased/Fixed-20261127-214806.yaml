@@ -1,0 +1,3 @@
+kind: Fixed
+body: Opening a link from another app while Clair isn't running shows that page, instead of a new tab page in front of it.
+time: 2026-11-27T21:48:06.302056-05:00

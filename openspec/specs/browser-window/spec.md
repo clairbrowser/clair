@@ -505,6 +505,17 @@ With "When opening Clair, restore windows from previous session" (`settings-wind
 - **WHEN** a user who never changed the setting quits with three windows open and relaunches
 - **THEN** one window opens
 
+### Requirement: A launch that opens a page
+A launch that opens a page, such as a link from another app while Clair isn't running, SHALL show that page in its Space, as Arc does, in place of the new tab page or the tab the window showed, whether windows are restored or not. No new tab page SHALL open, and the command bar SHALL stay closed.
+
+#### Scenario: Off, launched by a link
+- **WHEN** the setting is off, Clair isn't running, and the user opens a link from another app
+- **THEN** Clair launches showing that page, and no new tab page opens
+
+#### Scenario: On, launched by a link
+- **WHEN** the setting is on, and the user quits with a window showing the tab "Docs", then opens a link from another app
+- **THEN** Clair launches showing that page, with "Docs" still listed
+
 ### Requirement: New tab pages aren't restored
 A tab showing the new tab page when Clair quits SHALL NOT come back at the next launch, so the new tab page a launch opens is the only one it adds. A restored window that showed one SHALL show a new tab page in its Space, and a window that held nothing else SHALL NOT come back.
 

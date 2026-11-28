@@ -380,4 +380,45 @@ final class RestoreTests: NativeWindowTestCase {
     try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
     await assertOneNewTabPage("after the relaunch")
   }
+
+  /// A launch that opens a page, as a link from another app does, shows that
+  /// page in place of a new tab page, whether windows are restored or not
+  /// (browser-window spec, "Windows restored at launch").
+  func testALaunchWithAPageShowsIt() async throws {
+    try Harness.setRestoreWindows(false)
+    let browser = try await startBrowser(arguments: [url("index.html?launched")])
+    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair shows no native window")
+    try await assertShowsLaunchedPage(browser, "with restoring off")
+
+    try Harness.setRestoreWindows(true)
+    try await browser.quit()
+    try await browser.start(arguments: [url("index.html?launched-again")])
+    try require(browser.nativeWindow.waitForExistence(timeout: 60), "Clair didn't come back")
+    try await assertShowsLaunchedPage(browser, "with restoring on", suffix: "?launched-again")
+  }
+
+  private func assertShowsLaunchedPage(
+    _ browser: Browser, _ when: String, suffix: String = "?launched"
+  ) async throws {
+    var page: DevToolsSession?
+    let opened = await Harness.wait(for: 30) {
+      guard let target = try await browser.pageTargets().first(where: { $0.url.hasSuffix(suffix) }) else {
+        return false
+      }
+      page = try await browser.session(onTarget: target.id)
+      return true
+    }
+    try require(opened, "The launch didn't open its page \(when)")
+    let tab = try XCTUnwrap(page)
+    defer { tab.close() }
+    let shown = await Harness.wait(for: 30) {
+      let ready = try await tab.evaluate("document.readyState") as? String
+      let visibility = try await browser.visibility(of: tab)
+      return ready == "complete" && visibility == "visible"
+    }
+    XCTAssertTrue(shown, "The launched page isn't loaded and shown \(when)")
+    let newTabPages = try await browser.pageTargets().filter { $0.url.hasPrefix("chrome://newtab") }.count
+    XCTAssertEqual(newTabPages, 0, "A new tab page opened \(when)")
+    XCTAssertFalse(browser.element("clair.commandBarField").exists, "The command bar opened \(when)")
+  }
 }
