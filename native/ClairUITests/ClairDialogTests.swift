@@ -108,6 +108,69 @@ final class ClairDialogTests {
     #expect(answers == [])
   }
 
+  // MARK: Stepped dialogs (dialogs "Stepped dialogs")
+
+  private func steppedPage(back: Bool, onBack: (@MainActor (ClairDialog) -> Void)? = nil) -> ClairDialogPage {
+    ClairDialogPage(
+      title: "Step", buttons: [.init(title: "Cancel", role: .cancel), .init(title: "Import", role: .default)],
+      width: 520, isStepped: true, backButton: back ? .init(title: "Back", role: .cancel, action: onBack) : nil)
+  }
+
+  @Test func aMiddleStepPutsCancelLeadingAndBackBeforeTheDefault() {
+    let row = ClairDialogRow(steppedPage(back: true))
+    #expect(row.leading.map(\.button.title) == ["Cancel"])
+    #expect(row.leading.map(\.kind) == [.keyed])
+    #expect(row.leading.first?.button.shortcut == .cancelAction)
+    #expect(row.trailing.map(\.button.title) == ["Back", "Import"])
+    #expect(row.trailing.map(\.kind) == [.back, .keyed])
+    #expect(row.trailing.last?.button.shortcut == .defaultAction)
+  }
+
+  @Test func theFirstStepHasNoBack() {
+    let row = ClairDialogRow(steppedPage(back: false))
+    #expect(row.leading.map(\.button.title) == ["Cancel"])
+    #expect(row.trailing.map(\.button.title) == ["Import"])
+  }
+
+  @Test func anOrdinaryDialogKeepsItsButtonsTogether() {
+    let row = ClairDialogRow(ClairDialogPage(title: "A", buttons: [.init(title: "Cancel", role: .cancel), .init(title: "OK", role: .default)]))
+    #expect(row.leading.isEmpty)
+    #expect(row.trailing.map(\.button.title) == ["Cancel", "OK"])
+  }
+
+  @Test func escClosesRatherThanGoingBack() {
+    var backs = 0
+    let shown = ClairDialog(steppedPage(back: true, onBack: { _ in backs += 1 }))
+    show(shown)
+    ClairDialogWindow(dialog: shown).cancelOperation(nil)
+    #expect(backs == 0)
+    #expect(answers == ["Step cancelled"])
+  }
+
+  @Test func backTakesNoKeyAndAnswersOnlyThroughItsAction() {
+    var backs = 0
+    let page = steppedPage(back: true, onBack: { _ in backs += 1 })
+    // Back shows no key; Return stays the default button's.
+    #expect(page.backButton?.shortcut(isLeading: true) == nil)
+    let shown = ClairDialog(page)
+    show(shown)
+    shown.pressBack()
+    #expect(backs == 1)
+    #expect(answers == [])
+    // Return presses the default button, not Back.
+    shown.press(page.buttons[1])
+    #expect(backs == 1)
+    #expect(answers == ["Step accepted"])
+  }
+
+  @Test func theCardKeepsItsWidthFromStepToStep() {
+    let shown = ClairDialog(steppedPage(back: false))
+    let window = ClairDialogWindow(dialog: shown)
+    #expect(window.frame.width == 520)
+    shown.swap(to: steppedPage(back: true))
+    #expect(ClairDialogWindow(dialog: shown).frame.width == 520)
+  }
+
   @Test func containsFindsShownAndWaitingDialogs() {
     show(dialog("A"))
     show(dialog("B"))

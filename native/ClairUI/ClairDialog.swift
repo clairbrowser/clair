@@ -86,6 +86,49 @@ struct ClairDialogPage {
   /// Esc presses the default button when there's no cancelling one, as for
   /// a dialog whose one button is "Done".
   var escapePressesDefault = false
+  /// Lays the buttons out as a stepped dialog's (dialogs "Stepped
+  /// dialogs"): the cancelling button at the bottom leading corner, and Back,
+  /// if any, then the default button at the trailing one.
+  var isStepped = false
+  /// A stepped dialog's Back, just before the default button. It shows no
+  /// key, neither Esc nor Return chooses it, and it answers only through its
+  /// action. It's styled as Cancel.
+  var backButton: ClairDialogButton?
+}
+
+/// Where a page's buttons sit in its row.
+struct ClairDialogRow {
+  enum Kind: Equatable {
+    /// A button with its key: Esc for the cancelling one, Return for the
+    /// default one.
+    case keyed
+    /// The page's leading button: no key, styled as Cancel.
+    case leading
+    /// A stepped dialog's Back: no key, styled as Cancel.
+    case back
+  }
+
+  struct Item {
+    var button: ClairDialogButton
+    var kind: Kind
+  }
+
+  /// At the bottom leading corner.
+  var leading: [Item]
+  /// At the bottom trailing corner, the default button last.
+  var trailing: [Item]
+
+  init(_ page: ClairDialogPage) {
+    let cancelling = page.buttons.filter { !$0.isDefault }.map { Item(button: $0, kind: .keyed) }
+    let defaults = page.buttons.filter(\.isDefault).map { Item(button: $0, kind: .keyed) }
+    if page.isStepped {
+      leading = cancelling
+      trailing = (page.backButton.map { [Item(button: $0, kind: .back)] } ?? []) + defaults
+    } else {
+      leading = page.leadingButton.map { [Item(button: $0, kind: .leading)] } ?? []
+      trailing = cancelling + defaults
+    }
+  }
 }
 
 /// How a dialog was answered.
@@ -144,6 +187,12 @@ final class ClairDialog {
   /// Runs the leading button's action; it never answers by itself.
   func pressLeading() {
     guard let button = page.leadingButton, button.isEnabled else { return }
+    button.action?(self)
+  }
+
+  /// Runs a stepped dialog's Back; it never answers by itself.
+  func pressBack() {
+    guard let button = page.backButton, button.isEnabled else { return }
     button.action?(self)
   }
 
@@ -405,7 +454,7 @@ struct ClairDialogView: View {
 
   var body: some View {
     let page = dialog.page
-    let buttons = page.buttons.filter { !$0.isDefault } + page.buttons.filter(\.isDefault)
+    let row = ClairDialogRow(page)
     let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
     VStack(alignment: .leading, spacing: 0) {
       if let icon = page.icon {
@@ -437,15 +486,12 @@ struct ClairDialogView: View {
           .padding(.top, 9)
       }
       HStack(spacing: 8) {
-        if let leading = page.leadingButton {
-          ClairDialogButtonView(button: leading, isLeading: true) { dialog.pressLeading() }
-          Spacer(minLength: 16)
-        } else {
-          Spacer(minLength: 0)
+        ForEach(Array(row.leading.enumerated()), id: \.offset) { _, item in
+          itemView(item)
         }
-        ForEach(Array(buttons.enumerated()), id: \.offset) { _, button in
-          ClairDialogButtonView(button: button) { dialog.press(button) }
-            .focused($focusedButton, equals: button.role)
+        Spacer(minLength: row.leading.isEmpty ? 0 : 16)
+        ForEach(Array(row.trailing.enumerated()), id: \.offset) { _, item in
+          itemView(item)
         }
       }
       // Arc leaves more room under a title alone than under a list.
@@ -457,17 +503,32 @@ struct ClairDialogView: View {
     .overlay(shape.strokeBorder(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.1), lineWidth: 1))
     .clipShape(shape)
     .onChange(of: dialog.defaultFocusRequests) {
-      focusedButton = buttons.last { $0.isDefault }?.role
+      focusedButton = dialog.page.buttons.last { $0.isDefault }?.role
     }
     .accessibilityElement(children: .contain)
+  }
+
+  @ViewBuilder
+  private func itemView(_ item: ClairDialogRow.Item) -> some View {
+    switch item.kind {
+    case .keyed:
+      ClairDialogButtonView(button: item.button) { dialog.press(item.button) }
+        .focused($focusedButton, equals: item.button.role)
+    case .leading:
+      ClairDialogButtonView(button: item.button, isLeading: true) { dialog.pressLeading() }
+    case .back:
+      ClairDialogButtonView(button: item.button, isLeading: true, identifier: "clair.dialogBack") { dialog.pressBack() }
+    }
   }
 }
 
 /// A row button with its key after its title, as in Arc.
 private struct ClairDialogButtonView: View {
   let button: ClairDialogButton
-  /// The page's leading button: no key, no shortcut, styled as Cancel.
+  /// The page's leading button or a stepped dialog's Back: no key, no
+  /// shortcut, styled as Cancel.
   var isLeading = false
+  var identifier: String?
   let press: () -> Void
 
   var body: some View {
@@ -484,7 +545,7 @@ private struct ClairDialogButtonView: View {
     .keyboardShortcut(button.shortcut(isLeading: isLeading))
     .disabled(!button.isEnabled)
     .accessibilityLabel(button.title)
-    .accessibilityIdentifier(isLeading ? "clair.dialogLeading" : button.identifier)
+    .accessibilityIdentifier(identifier ?? (isLeading ? "clair.dialogLeading" : button.identifier))
   }
 }
 

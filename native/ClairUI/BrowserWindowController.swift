@@ -18,6 +18,15 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
   /// Every window's controller, for app-wide menus such as Extensions.
   private static let all = NSHashTable<BrowserWindowController>.weakObjects()
 
+  /// Called once each with the next window's controller, once it's set up.
+  private static var nextOpenWaiters: [(BrowserWindowController) -> Void] = []
+
+  /// Calls `block` with the next window to open, as the import dialog waits
+  /// for a window when none is open (add-browser-import).
+  static func whenNextOpens(_ block: @escaping (BrowserWindowController) -> Void) {
+    nextOpenWaiters.append(block)
+  }
+
   /// The main window's controller, or else a visible window's.
   static var main: BrowserWindowController? {
     let open = all.allObjects.filter { $0.browser != nil }
@@ -118,6 +127,15 @@ final class BrowserWindowController: NSObject, ClairWindow, SidebarActions, Over
     rootView = BrowserRootView(model: model, sidebar: sidebarHost)
     super.init()
     Self.all.add(self)
+    if !Self.nextOpenWaiters.isEmpty {
+      let waiters = Self.nextOpenWaiters
+      Self.nextOpenWaiters = []
+      // Once Chromium has finished setting the window up.
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        for waiter in waiters { waiter(self) }
+      }
+    }
     sidebarHost.rootView = SidebarView(model: model, actions: self)
     for host in [toolbarHost, secondToolbarHost, peekToolbarHost] {
       host.rootView = PageToolbar(model: model, slot: host.rootView.slot, actions: self)
