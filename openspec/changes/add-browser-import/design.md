@@ -4,7 +4,7 @@
 
 See proposal.md for why and `specs/browser-import/spec.md` for the behavior.
 
-**Chromium's importer** (`chrome/browser/importer`, `chrome/utility/importer`) reads, on macOS, Safari's `~/Library/Safari/Bookmarks.plist` (bookmarks only, behind Full Disk Access) and Firefox. It has no Chromium-to-Chromium importer, knows nothing of Spaces, pins or favorites, and `ProfileWriter::AddBookmarks` writes into the Bookmarks Bar, which Clair empties with a "Heads Up" dialog (`bookmarks`). It's reached from the Clair menu's "Import Bookmarks and Settings…" (`IDC_IMPORT_SETTINGS`, built in `main_menu_builder.mm`) and `chrome://settings/importData` (`r.IMPORT_DATA` in `settings/route.ts`, with a row on the People page).
+**Chromium's importer** (`chrome/browser/importer`, `chrome/utility/importer`) reads, on macOS, Safari's `~/Library/Safari/Bookmarks.plist` (bookmarks only, behind Full Disk Access) and Firefox. It has no Chromium-to-Chromium importer, knows nothing of Spaces, pins or favorites, and `ProfileWriter::AddBookmarks` writes into the Bookmarks Bar, which Clair empties with a "Heads Up" dialog (`bookmarks`). It's reached from the Clair menu's "Import Bookmarks and Settings…" (`IDC_IMPORT_SETTINGS`, built in `main_menu_builder.mm`) and from `chrome://settings`.
 
 **What the sources keep**, read on this Mac on 2026-11-27 (Arc 1.170, Dia 1.58.2, Safari 26; Chrome isn't installed here):
 
@@ -159,9 +159,9 @@ Step 1's cards are a two-column grid of rounded, bordered cards with the app ico
 
 Each import gets a private folder in the user's temporary directory, mode 0700, for the copies and the unpacked .zip; it's removed when the import ends, and any left by a crash are removed at the next launch. Dia's plaintext never touches the disk (D5). Clair reads nothing from a source before Import, writes nothing to it, and makes no network request but the Chrome Web Store downloads.
 
-### D11. Turning Chromium's importer off
+### D11. Hiding Chromium's import menu item
 
-A patch, `clair/disable-importer.patch`, removes the Clair menu's `IDC_IMPORT_SETTINGS` item in `main_menu_builder.mm` (a `.remove_if`), stops creating `r.IMPORT_DATA` in `settings/route.ts`, so the URL falls back to Settings' main page, and drops the People page's import row. `chrome://bookmarks`' bookmarks HTML import and export are untouched. A patch is the clean way here: the item is built by Chromium whether or not a window is open, and the route and row are Chromium's WebUI.
+A patch, `clair/hide-import-menu-item.patch`, removes the Clair menu's `IDC_IMPORT_SETTINGS` item in `main_menu_builder.mm` (a `.remove_if`), so "Import from Another Browser…" is the menu's only import item. Chromium's importer itself stays, reachable from `chrome://settings`. A patch is the clean way here: Chromium builds the item whether or not a window is open.
 
 **Alternative:** adding `IDC_IMPORT_SETTINGS` to `ClairIsRemovedCommand` hides it only while a native window is key.
 
@@ -188,7 +188,7 @@ Chrome's session format is Chromium's, so the engine reads it with Chromium's co
 
 ## Migration Plan
 
-None: nothing existing is converted. Removing Chromium's importer takes away a path no Clair user relied on, since it couldn't read Arc or Dia.
+None: nothing existing is converted, and Chromium's importer stays in Settings.
 
 ## Open Questions
 

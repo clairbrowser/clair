@@ -11,14 +11,14 @@ Apart from what Clair's own capabilities specify (`app-identity`, `native-layer`
 
 #### Scenario: Settings unchanged
 - **WHEN** a user opens `chrome://settings` in the native window
-- **THEN** it shows the same settings and defaults as the same ungoogled-chromium release, apart from Clair's identity and versions, the absent "Autofill and passwords" and "On startup" sections, and the absent "Import bookmarks and settings" row
+- **THEN** it shows the same settings and defaults as the same ungoogled-chromium release, apart from Clair's identity and versions, and the absent "Autofill and passwords" and "On startup" sections
 
 #### Scenario: Links from other apps without rules
 - **WHEN** Clair has no link rules and a link arrives from another app
 - **THEN** it opens where the same ungoogled-chromium release would open it
 
 ### Requirement: What Clair's Chromium hooks may do
-Each of Clair's hooks SHALL only redirect to Clair's code or switch a Chromium feature off. The hooks load the native layer, hand browser windows and extension alerts to Clair, register its component extensions and preferences, tag its tabs in saved sessions, free its shortcuts, turn off or hide passwords, autofill, extensions' uninstall pages and Chromium's importer, restore the last session by default, and offer links from other apps to its link rules first.
+Each of Clair's hooks SHALL only redirect to Clair's code or switch a Chromium feature off. The hooks load the native layer, hand browser windows and extension alerts to Clair, register its component extensions and preferences, tag its tabs in saved sessions, free its shortcuts, turn off or hide passwords, autofill, extensions' uninstall pages and Chromium's import menu item, restore the last session by default, and offer links from other apps to its link rules first.
 
 #### Scenario: Reviewing a window hook
 - **WHEN** a hunk of the native-window hook patch is read
@@ -37,5 +37,5 @@ Each of Clair's hooks SHALL only redirect to Clair's code or switch a Chromium f
 - **THEN** it hands the alert to Clair's overlay files, and decides nothing itself
 
 #### Scenario: Reviewing the importer hook
-- **WHEN** a hunk of the patch that turns off Chromium's importer is read
-- **THEN** it removes the importer's settings route, row or menu entry, and adds no other behavior
+- **WHEN** a hunk of the patch that hides Chromium's import menu item is read
+- **THEN** it removes that menu item, and adds no other behavior

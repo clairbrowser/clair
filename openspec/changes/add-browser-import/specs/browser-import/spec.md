@@ -242,12 +242,8 @@ An import SHALL read a source's data only after the user clicks Import, only fro
 - **WHEN** an import from Dia ends
 - **THEN** Dia's files and its keychain item are unchanged, and no decrypted copy of its data remains
 
-### Requirement: Chromium's importer replaced
-Clair SHALL NOT offer Chromium's importer: `chrome://settings/importData` SHALL open Settings' main page, Settings SHALL show no "Import bookmarks and settings" row, and the Clair menu SHALL NOT show Chromium's "Import Bookmarks and Settings…". Manage Bookmarks SHALL still import and export a bookmarks HTML file.
-
-#### Scenario: Settings
-- **WHEN** the user opens `chrome://settings/importData`
-- **THEN** Settings' main page shows, without an import dialog or row
+### Requirement: Chromium's import menu item hidden
+The Clair menu SHALL NOT show Chromium's "Import Bookmarks and Settings…", so "Import from Another Browser…" is its only import item.
 
 #### Scenario: Clair menu
 - **WHEN** the user opens the Clair menu
