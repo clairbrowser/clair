@@ -1,0 +1,56 @@
+{
+ "extensions": {
+  "settings": {
+   "eimadpbcbfnmbkopoojfekhnkhdbieeh": {
+    "location": 1,
+    "from_webstore": true,
+    "disable_reasons": [],
+    "manifest": {
+     "name": "Dark Reader",
+     "manifest_version": 3
+    }
+   },
+   "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
+    "location": 1,
+    "from_webstore": true,
+    "manifest": {
+     "name": "uBlock Origin",
+     "manifest_version": 2
+    }
+   },
+   "gighmmpiobklfepjocnamgkkbiglidom": {
+    "location": 1,
+    "from_webstore": true,
+    "disable_reasons": [
+     8388608
+    ],
+    "path": "gighmmpiobklfepjocnamgkkbiglidom/6.0_0"
+   },
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+    "location": 4,
+    "from_webstore": false,
+    "path": "/Users/someone/dev/my-extension",
+    "manifest": {
+     "name": "My Unpacked Extension"
+    }
+   },
+   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+    "location": 1,
+    "from_webstore": true,
+    "manifest": {
+     "name": "Just Black",
+     "theme": {
+      "colors": {}
+     }
+    }
+   },
+   "mhjfbmdgcfjbbpaeojofohoefgiehjai": {
+    "location": 5,
+    "from_webstore": false,
+    "manifest": {
+     "name": "Chromium PDF Viewer"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "roots": {
+  "bookmark_bar": {
+   "type": "folder",
+   "name": "Bookmarks bar",
+   "children": [
+    {
+     "type": "url",
+     "name": "Google",
+     "url": "https://www.google.com/"
+    },
+    {
+     "type": "folder",
+     "name": "News",
+     "children": [
+      {
+       "type": "url",
+       "name": "BBC",
+       "url": "https://www.bbc.com/news"
+      },
+      {
+       "type": "folder",
+       "name": "Tech",
+       "children": [
+        {
+         "type": "url",
+         "name": "The Verge",
+         "url": "https://www.theverge.com/"
+        }
+       ]
+      },
+      {
+       "type": "url",
+       "name": "Engadget",
+       "url": "https://www.engadget.com/"
+      }
+     ]
+    }
+   ]
+  },
+  "other": {
+   "type": "folder",
+   "name": "Other bookmarks",
+   "children": [
+    {
+     "type": "url",
+     "name": "Docs",
+     "url": "https://docs.example/"
+    }
+   ]
+  },
+  "synced": {
+   "type": "folder",
+   "name": "Mobile bookmarks",
+   "children": [
+    {
+     "type": "url",
+     "name": "Phone",
+     "url": "https://phone.example/"
+    }
+   ]
+  }
+ },
+ "version": 1
+}

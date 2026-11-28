@@ -1,0 +1,26 @@
+{
+ "roots": {
+  "bookmark_bar": {
+   "type": "folder",
+   "name": "Bookmarks bar",
+   "children": [
+    {
+     "type": "url",
+     "name": "Account Bar",
+     "url": "https://account-bar.example/"
+    }
+   ]
+  },
+  "other": {
+   "type": "folder",
+   "name": "Other bookmarks",
+   "children": []
+  },
+  "synced": {
+   "type": "folder",
+   "name": "Mobile bookmarks",
+   "children": []
+  }
+ },
+ "version": 1
+}
