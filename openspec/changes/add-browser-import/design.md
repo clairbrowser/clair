@@ -147,7 +147,7 @@ The chosen .zip unpacks with `/usr/bin/ditto -x -k` into the import's private fo
 7. **Favicons:** for the imported URLs, from the copy's `favicons` and `icon_mapping`, with `ProfileWriter::AddFavicons`.
 8. **Extensions:** a `WebstoreStandaloneInstaller` subclass with no install prompt and no post-install UI fetches each ID from the Chrome Web Store, as Clair's restored store does; once installed, its enabled state and pin are set. The summary waits for them, each install counting in the progress.
 
-**Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder, after same-named folders merge. A history page whose URL the destination's history already has is skipped, looked up on the history thread before each batch is written, so `AddPagesWithDetails` doesn't add a second visit for it. Clair stores nothing about past imports: repeat imports rely on these comparisons alone.
+**Repeat imports:** an item is skipped when its URL is already in the same favorites, Space section or folder, and a bookmark when its URL is in the same folder, after same-named folders merge. A history page is skipped when the destination's history already has its URL with a last visit at or after the source's, looked up on the history thread before each batch is written; otherwise `AddPagesWithDetails` adds the source's last visit to the existing page, so a newer visit is never lost and a repeated one never doubled. Clair stores nothing about past imports: repeat imports rely on these comparisons alone.
 
 ### D9. The flow and the dialog
 
