@@ -218,15 +218,11 @@ A source profile's bookmarks SHALL come over as they are, with no folder added a
 - **THEN** "Work 2"'s Bookmarks menu lists "Google" then "Docs", and no Heads Up dialog shows
 
 ### Requirement: History from an import
-A source profile's history SHALL come over into the destination profile's history, with each page's URL, title, visit count and last visit, so History and the command bar's suggestions offer it. Safari's history SHALL come from its export. Importing the same source profile into the same Clair profile again SHALL add only pages visited since the last such import; a first import of it into another Clair profile, or of another source profile into this one, SHALL bring all its history.
+A source profile's history SHALL come over into the destination profile's history, with each page's URL, title, visit count and last visit, so History and the command bar's suggestions offer it. Safari's history SHALL come from its export. A page already in the destination profile's history SHALL NOT be added again.
 
 #### Scenario: Importing history again
-- **WHEN** the user imports Arc's history, browses in Arc, and imports again
-- **THEN** only the pages visited in Arc since the first import gain a visit in Clair
-
-#### Scenario: Another destination
-- **WHEN** Arc's "Work" was imported into "Work 2", and the user later imports it into "Personal"
-- **THEN** "Personal" gets all of "Work"'s history
+- **WHEN** the user imports Arc's history twice into the same profile
+- **THEN** the second import adds no page the first added
 
 #### Scenario: History after import
 - **WHEN** the user imports Arc's history and types part of a page's title in the command bar
